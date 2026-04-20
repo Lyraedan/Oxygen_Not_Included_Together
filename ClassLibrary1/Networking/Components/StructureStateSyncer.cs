@@ -120,6 +120,8 @@ namespace ONI_MP.Networking.Components
 		// Cached reflection field
 		private static System.Reflection.FieldInfo _batteryJoulesField;
 		private static bool _batteryFieldLookupAttempted = false;
+		private static System.Reflection.FieldInfo _batteryMeterField;
+		private static bool _batteryMeterFieldLookupAttempted = false;
 
 		// Static handler for client-side reception
 		public static void HandlePacket(StructureStatePacket packet)
@@ -128,7 +130,7 @@ namespace ONI_MP.Networking.Components
 
 			if (!Grid.IsValidCell(packet.Cell)) return;
 
-			GameObject go = Grid.Objects[packet.Cell, (int)Grid.SceneLayer.Building];
+			GameObject go = Grid.Objects[packet.Cell, (int)ObjectLayer.Building];
 			if (go == null) return;
 
 			// Apply state
@@ -141,7 +143,7 @@ namespace ONI_MP.Networking.Components
 					if (_batteryJoulesField == null && !_batteryFieldLookupAttempted)
 					{
 						_batteryFieldLookupAttempted = true;
-						_batteryJoulesField = typeof(Battery).GetField("joulesAvailable", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+						_batteryJoulesField = typeof(Battery).GetField("joulesAvailable", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
 					}
 					if (_batteryJoulesField != null)
 					{
@@ -160,6 +162,29 @@ namespace ONI_MP.Networking.Components
 				{
 					using var allowClientRefresh = BatteryTrackerPatch.AllowClientRefresh();
 					tracker.UpdateData();
+				}
+
+				// Drive the visual fill meter: normally updated inside Battery.EnergySim200ms,
+				// which is skipped on clients by BatteryClientSimSkipPatch.
+				try
+				{
+					if (_batteryMeterField == null && !_batteryMeterFieldLookupAttempted)
+					{
+						_batteryMeterFieldLookupAttempted = true;
+						_batteryMeterField = typeof(Battery).GetField("meter", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+					}
+					if (_batteryMeterField != null)
+					{
+						var meter = _batteryMeterField.GetValue(battery) as MeterController;
+						if (meter != null && battery.capacity > 0f)
+						{
+							meter.SetPositionPercent(Mathf.Clamp01(packet.Value / battery.capacity));
+						}
+					}
+				}
+				catch (System.Exception ex)
+				{
+					DebugConsole.LogError($"[StructureStateSyncer] Failed to update meter: {ex}");
 				}
 			}
 
