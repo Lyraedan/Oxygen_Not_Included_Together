@@ -1,4 +1,5 @@
 using HarmonyLib;
+using ONI_MP.Networking.Packets.Architecture;
 using ONI_MP.Networking.Packets.Chores;
 using Shared.Profiling;
 using System.Collections.Generic;
