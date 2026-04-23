@@ -166,7 +166,7 @@ namespace UI.lib.UIcmp //Source: Aki
 		// Minor bug: the pitch is a little too high
 		public void PlayMoveSound()
 		{
-			///*
+			//*
 			if (KInputManager.isFocused)
 			{
 				float timeSinceLast = Time.unscaledTime - lastMoveTime;

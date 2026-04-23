@@ -46,10 +46,10 @@ namespace ONI_MP.Networking.Packets.Architecture
 				_PacketTypes[id] = packageType;
 				DebugConsole.LogSuccess($"[PacketRegistry] Registered {packageType.Name} => {id}");
 			}
-			///Inheritance checks will fail for mod api packets, so these get wrapped in a generated type derived from ModApiPacket<T> at runtime
+			//Inheritance checks will fail for mod api packets, so these get wrapped in a generated type derived from ModApiPacket<T> at runtime
 			else if (API_Helper.ValidAsModApiPacket(packageType))
             {
-				///gotta register both ids so they can be created from either the wrapped or unwrapped type id
+				//gotta register both ids so they can be created from either the wrapped or unwrapped type id
 				var wrappedType = API_Helper.CreateModApiPacketType(packageType);
 				if (_PacketTypes.ContainsKey(id))
 				{

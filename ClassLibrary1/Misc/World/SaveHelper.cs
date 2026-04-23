@@ -290,12 +290,12 @@ public static class SaveHelper
 		IReader reader = new FastReader(saveBytes);
 		//read the gameInfo to advance the filereader
 		SaveGame.GameInfo gameInfo = SaveGame.GetHeader(reader, out SaveGame.Header header, "MP-Mod-Server-Save");
-		///check if all dlcs of the savegame are currently active
+		//check if all dlcs of the savegame are currently active
 
 
 		return SavegameDlcListValid(gameInfo.dlcIds, out errorMsg);
 
-		///this is for later use if we want game mod syncing
+		//this is for later use if we want game mod syncing
 		KSerialization.Manager.DeserializeDirectory(reader);
 		if (header.IsCompressed)
 		{

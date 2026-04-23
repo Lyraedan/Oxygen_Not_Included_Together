@@ -56,7 +56,7 @@ namespace ONI_MP.Networking.Packets
 		{
 			using var _ = Profiler.Scope();
 
-			///Ducktyping check if it has the required methods from IPacket interface
+			//Ducktyping check if it has the required methods from IPacket interface
 			var t = Traverse.Create(potentialPacketType);
 			if (t.Method("Serialize", [typeof(BinaryWriter)]).MethodExists() &&
 				t.Method("Deserialize", [typeof(BinaryReader)]).MethodExists() &&

@@ -124,14 +124,14 @@ namespace ONI_MP.Networking.Packets.Social
 					if (deliverable is MinionStartingStats stats)
 					{
 						//telepad.OnAcceptDelivery(stats);
-						///Delivery is handled via EntityDeliverPatch to send EntitySpawnPacket
+						//Delivery is handled via EntityDeliverPatch to send EntitySpawnPacket
 						DebugConsole.Log($"[ImmigrantSelectionPacket] Spawned duplicant via Telepad: {opt.Name}");
 						telepad.OnAcceptDelivery(deliverable);
 					}
 					else if (deliverable is CarePackageInfo pkg)
 					{
 						//var spawnedGO = pkg.Deliver(position);
-						///Delivery is handled via EntityDeliverPatch to send EntitySpawnPacket
+						//Delivery is handled via EntityDeliverPatch to send EntitySpawnPacket
 						DebugConsole.Log($"[ImmigrantSelectionPacket] Spawned care package via Telepad: {opt.CarePackageId} x{opt.Quantity}");
 						telepad.OnAcceptDelivery(deliverable);
 					}

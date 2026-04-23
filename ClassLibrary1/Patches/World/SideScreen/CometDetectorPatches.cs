@@ -8,10 +8,8 @@ using UnityEngine;
 
 namespace ONI_MP.Patches.World.SideScreen
 {
-	/// <summary>
-	/// Patches for Comet Detector (Space Scanner) synchronization.
-	/// Handles both DLC (ClusterCometDetector) and base game (CometDetector).
-	/// </summary>
+	// Patches for Comet Detector (Space Scanner) synchronization.
+	// Handles both DLC (ClusterCometDetector) and base game (CometDetector).
 
 	// ==================== DLC (Spaced Out) Patches ====================
 

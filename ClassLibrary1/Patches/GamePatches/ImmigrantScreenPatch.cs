@@ -105,7 +105,7 @@ namespace ONI_MP.Patches.GamePatches
 					if(cpc.reshuffleButton.gameObject.activeSelf)
 						canRerollCarePackages = true;
 			}
-			///Clearing existing containers
+			//Clearing existing containers
 			instance.containers.ForEach(delegate (ITelepadDeliverableContainer cc)
 			{
 				Object.Destroy(cc.GetGameObject());

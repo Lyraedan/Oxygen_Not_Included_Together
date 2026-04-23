@@ -165,7 +165,7 @@ namespace ONI_MP.Networking.Packets.Tools.Build
 			{
 				tags.AddRange(def.DefaultElements());
 			}
-			///mirrored from BuildMenu OnRecipeElementsFullySelected
+			//mirrored from BuildMenu OnRecipeElementsFullySelected
 			BaseUtilityBuildTool tool = def.BuildingComplete.TryGetComponent<Wire>(out _) ? WireBuildTool.Instance : UtilityBuildTool.Instance;
 
 			if(PlanScreen.Instance?.ProductInfoScreen?.materialSelectionPanel?.PriorityScreen == null)
@@ -176,7 +176,7 @@ namespace ONI_MP.Networking.Packets.Tools.Build
 				PlanScreen.Instance.OnActiveToolChanged(SelectTool.Instance);
 			}
 
-			///caching existing stuff on the tool
+			//caching existing stuff on the tool
 			var cachedDef = tool.def;
 			List<BaseUtilityBuildTool.PathNode> cachedPath = tool.path != null ? [.. tool.path] : [];
 			IList<Tag> cachedMaterials = tool.selectedElements != null ? [.. tool.selectedElements] : [];

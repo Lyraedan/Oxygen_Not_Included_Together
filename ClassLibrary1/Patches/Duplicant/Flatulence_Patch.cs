@@ -19,7 +19,7 @@ namespace ONI_MP.Patches.Duplicant
 			/// <summary>
 			/// Skip farting for printing pod preview duplicants
 			/// </summary>
-			/// <param name="data"></param>
+			/// <param name="__instance"></param>
 			/// <returns></returns>
 			public static bool Prefix(Flatulence __instance)
 			{

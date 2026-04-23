@@ -124,7 +124,7 @@ namespace ONI_MP
 			int relay = Configuration.Instance.Host.NetworkTransport;
 			NetworkConfig.UpdateTransport((NetworkConfig.NetworkTransport)relay);
 
-			///version checker that doesnt restart the game
+			//version checker that doesnt restart the game
 			var VersionChecker = new PVersionCheck();
 			VersionChecker.Register(this, new SteamVersionChecker());
 
@@ -230,7 +230,7 @@ namespace ONI_MP
 	        using var _ = Profiler.Scope();
 
             base.OnAllModsLoaded(harmony, mods);
-			///does weird force restarts; replaced with plib version checker that doesnt restart the game
+			//does weird force restarts; replaced with plib version checker that doesnt restart the game
 			//ModUpdater.Updater.CheckForUpdate();
 
 #if DEBUG
