@@ -82,8 +82,8 @@ namespace ONI_MP.Patches.Chores
 				var receiver = target.GetComponent<ClientReceiver_ChoreErrands>();
 				if (receiver == null) return false;
 
-				RenderCurrent(__instance, receiver.Current);
-				RenderUpcoming(__instance, receiver.Upcoming);
+				RenderCurrent(__instance, receiver.Current, target);
+				RenderUpcoming(__instance, receiver.Upcoming, target);
 				return false;
 			}
 		}
@@ -97,19 +97,19 @@ namespace ONI_MP.Patches.Chores
 			_refreshHandleField.SetValue(screen, handle);
 		}
 
-		private static void RenderCurrent(MinionTodoSideScreen screen, ErrandEntry? current)
+		private static void RenderCurrent(MinionTodoSideScreen screen, ErrandEntry? current, GameObject target)
 		{
 			if (!current.HasValue)
 			{
 				screen.currentTask.gameObject.SetActive(false);
 				return;
 			}
-			ApplyEntry(screen.currentTask, current.Value);
+			ApplyEntry(screen.currentTask, current.Value, target);
 			ApplyButtonColor(screen, screen.currentTask, current.Value);
 			screen.currentTask.gameObject.SetActive(true);
 		}
 
-		private static void RenderUpcoming(MinionTodoSideScreen screen, List<ErrandEntry> entries)
+		private static void RenderUpcoming(MinionTodoSideScreen screen, List<ErrandEntry> entries, GameObject target)
 		{
 			var priorityGroups = _priorityGroupsField.GetValue(screen)
 				as List<Tuple<PriorityScreen.PriorityClass, int, HierarchyReferences>>;
@@ -128,7 +128,7 @@ namespace ONI_MP.Patches.Chores
 					var uiEntry = GetOrCreateEntry(screen, choreEntries, activeCount);
 					uiEntry.transform.SetParent(container);
 					uiEntry.transform.SetAsLastSibling();
-					ApplyEntry(uiEntry, entry);
+					ApplyEntry(uiEntry, entry, target);
 					ApplyButtonColor(screen, uiEntry, entry);
 					uiEntry.gameObject.SetActive(true);
 					activeCount++;
@@ -171,7 +171,7 @@ namespace ONI_MP.Patches.Chores
 			return created;
 		}
 
-		private static void ApplyEntry(MinionTodoChoreEntry uiEntry, ErrandEntry data)
+		private static void ApplyEntry(MinionTodoChoreEntry uiEntry, ErrandEntry data, GameObject target)
 		{
 			var choreType = Db.Get().ChoreTypes.TryGet(data.ChoreTypeId);
 			string label = choreType != null ? choreType.Name : data.ChoreTypeId;
@@ -180,7 +180,12 @@ namespace ONI_MP.Patches.Chores
 			uiEntry.subLabel?.SetText(data.TargetLabel ?? string.Empty);
 
 			if (uiEntry.icon != null)
-				uiEntry.icon.sprite = !string.IsNullOrEmpty(data.IconSpriteName) ? Assets.GetSprite(data.IconSpriteName) : null;
+			{
+				if (!string.IsNullOrEmpty(data.IconSpriteName))
+					uiEntry.icon.sprite = Assets.GetSprite(data.IconSpriteName);
+				else
+					uiEntry.icon.sprite = ResolveDupeMiniIcon(target);
+			}
 
 			bool isBasic = data.PriorityClass == (int)PriorityScreen.PriorityClass.basic;
 			if (isBasic)
@@ -218,6 +223,13 @@ namespace ONI_MP.Patches.Chores
 			if (color == null) return;
 			button.bgImage.colorStyleSetting = color;
 			button.bgImage.ApplyColorStyleSetting();
+		}
+
+		private static Sprite ResolveDupeMiniIcon(GameObject target)
+		{
+			var identity = target?.GetComponent<MinionIdentity>();
+			if (identity == null) return null;
+			return Db.Get().Personalities.Get(identity.personalityResourceId)?.GetMiniIcon();
 		}
 
 		private static void BindClickFocus(MinionTodoChoreEntry uiEntry, int cell)
