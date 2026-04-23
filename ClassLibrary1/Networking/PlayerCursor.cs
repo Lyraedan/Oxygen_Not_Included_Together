@@ -15,8 +15,6 @@ namespace ONI_MP.Networking
 		[MyCmpAdd]
 		private readonly Canvas canvas = null;
 
-		private Camera camera = null;
-
 		private Texture2D cursorTexture = null;
 		private Image cursorImage = null;
 		private TextMeshProUGUI cursorText = null;
@@ -74,8 +72,6 @@ namespace ONI_MP.Networking
 		public void Init()
 		{
 			using var _ = Profiler.Scope();
-
-			camera = GameScreenManager.Instance.GetCamera(GameScreenManager.UIRenderTarget.ScreenSpaceCamera);
 
 			cursorTexture = Assets.GetTexture("cursor_arrow");
 			var cursor = new GameObject(name);

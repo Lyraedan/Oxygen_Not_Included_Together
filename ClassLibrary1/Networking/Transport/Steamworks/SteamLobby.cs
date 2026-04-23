@@ -37,7 +37,6 @@ namespace ONI_MP.Networking.Transport.Steamworks
 
 		private static event System.Action _onLobbyCreatedSuccess = null;
 		private static event Action<CSteamID> _onLobbyJoined = null;
-		private static string _pendingPassword = null;
 
 		private static event Action<CSteamID> _OnLobbyMembersRefreshed;
 		public static event Action<CSteamID> OnLobbyMembersRefreshed
@@ -295,7 +294,6 @@ namespace ONI_MP.Networking.Transport.Steamworks
 			}
 
 			_onLobbyJoined = onJoinedLobby;
-			_pendingPassword = password;
 			DebugConsole.Log($"[SteamLobby] Attempting to join lobby: {lobbyId}");
 			SteamMatchmaking.JoinLobby(lobbyId);
 		}

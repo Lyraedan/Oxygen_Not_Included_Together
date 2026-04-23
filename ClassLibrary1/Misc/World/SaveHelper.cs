@@ -328,32 +328,17 @@ public static class SaveHelper
 		var activeSaveMods = saveFileRoot.active_mods;
 
 		KMod.Manager modManager = Global.Instance.modManager;
-		_differenceCount = 0;
 		HashSet<string> activeModsInSave = activeSaveMods.Select(mod => mod.defaultStaticID).ToHashSet(); //change to "id" if the check should be platform agnostic
-		_activeModListIdOrder = new(activeModsInSave);
-		ActiveModlistModIds = new(activeModsInSave);
 
 		foreach (var mod in modManager.mods)
 		{
 			bool isCurrentlyActive = mod.IsEnabledForActiveDlc();
 			if (activeModsInSave.Contains(mod.label.defaultStaticID))
 			{
-				if (!isCurrentlyActive)
-					++_differenceCount;
 				activeModsInSave.Remove(mod.label.defaultStaticID);
 			}
-			else
-			{
-				if (isCurrentlyActive)
-					++_differenceCount;
-			}
 		}
-		_missingMods = [.. activeModsInSave];
 	}
-	static int _differenceCount = 0;
-	static HashSet<string> _missingMods = [];
-	static List<string> _activeModListIdOrder = [];
-	static HashSet<string> ActiveModlistModIds = [];
 
 	public static string WorldName
 	{

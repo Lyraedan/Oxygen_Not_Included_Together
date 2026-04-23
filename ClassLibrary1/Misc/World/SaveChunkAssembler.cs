@@ -17,7 +17,6 @@ namespace ONI_MP.Misc.World
 		private class InProgressSave
 		{
 			public byte[] Data;
-			public int TotalSize;
 			public int ChunkSize;
 			public int TotalChunks;
 			public bool[] ChunkReceived;     // List of received chunks [true,false,true...]
@@ -30,7 +29,6 @@ namespace ONI_MP.Misc.World
 			{
 				using var _ = Profiler.Scope();
 
-				TotalSize = totalSize;
 				ChunkSize = chunkSize;
 				TotalChunks = (int)Math.Ceiling((double)totalSize / chunkSize);
 				Data = new byte[totalSize];

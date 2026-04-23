@@ -24,9 +24,7 @@ namespace ONI_MP.DebugTools
         private class LogEntry
         {
             public string message;
-            public string stack;
             public LogType type;
-            public bool expanded;
             public int count = 1;
         }
 
@@ -150,9 +148,7 @@ namespace ONI_MP.DebugTools
                 logEntries.Add(new LogEntry
                 {
                     message = message,
-                    stack = stack,
-                    type = type,
-                    expanded = false
+                    type = type
                 });
 
                 if (logEntries.Count > MaxLines)

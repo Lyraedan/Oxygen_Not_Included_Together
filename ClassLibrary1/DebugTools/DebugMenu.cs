@@ -15,7 +15,6 @@ namespace ONI_MP.DebugTools
 
 		private bool showMenu = false;
 		private Rect windowRect = new Rect(10, 10, 250, 300); // Position and size
-		private HierarchyViewer hierarchyViewer;
 		private DebugConsole debugConsole;
 
 		private Vector2 scrollPosition = Vector2.zero;
@@ -54,7 +53,7 @@ namespace ONI_MP.DebugTools
 		{
             using var _ = Profiler.Scope();
 
-			hierarchyViewer = gameObject.AddComponent<HierarchyViewer>();
+			gameObject.AddComponent<HierarchyViewer>();
 			//debugConsole = gameObject.AddComponent<DebugConsole>();
 		}
 

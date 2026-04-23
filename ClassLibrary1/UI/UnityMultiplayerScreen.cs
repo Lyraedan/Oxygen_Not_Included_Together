@@ -69,7 +69,6 @@ namespace ONI_MP.UI
 			MainCancel;
 		//Tabs for Joining
 		FToggleButton SteamTabToggle, CodeTabToggle, LanTabToggle;
-		JoinMode CurrentJoinMode = JoinMode.Steam;
 		//TabContainer:
 		GameObject SteamTab, CodeTab, LanTab;
 		//SteamTab:
@@ -270,8 +269,6 @@ namespace ONI_MP.UI
 
 		private void SetJoinVia(JoinMode current)
 		{
-			CurrentJoinMode = current;
-
 			SteamTab.SetActive(current == JoinMode.Steam);
 			CodeTab.SetActive(current == JoinMode.Code);
 			LanTab.SetActive(current == JoinMode.LAN);

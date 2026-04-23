@@ -14,7 +14,6 @@ namespace UI.lib.UI.FUI
 		public event System.Action OnPointerExitAction;
 
 		private bool interactable;
-		private Material material;
 
 		[MyCmpGet]
 		private Image image;
@@ -53,7 +52,6 @@ namespace UI.lib.UI.FUI
 
 			button.enabled = false;
 
-			material = image.material;
 			interactable = true;
 			SetColorState();
 		}

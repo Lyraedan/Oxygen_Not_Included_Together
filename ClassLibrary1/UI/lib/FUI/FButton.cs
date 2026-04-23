@@ -15,7 +15,6 @@ namespace UI.lib.UIcmp //Source: Aki
 		public event System.Action OnPointerExitAction;
 
 		private bool interactable;
-		private Material material;
 
 		[MyCmpGet]
 		private Image image;
@@ -43,7 +42,6 @@ namespace UI.lib.UIcmp //Source: Aki
 				image = button.image;
 			}
 
-			material = image.material;
 			interactable = true;
 		}
 		public override void OnSpawn()
