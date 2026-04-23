@@ -1,9 +1,6 @@
 ﻿using ONI_MP.DebugTools;
-using ONI_MP.Networking.Packets.Architecture;
-using ONI_MP.Networking.Packets.Handshake;
 using Shared.Profiling;
 using ONI_MP.Networking.States;
-using Shared;
 using Steamworks;
 using System;
 using System.Runtime.InteropServices;

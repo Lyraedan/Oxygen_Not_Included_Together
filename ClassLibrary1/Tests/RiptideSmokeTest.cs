@@ -4,10 +4,8 @@ using ONI_MP.DebugTools;
 using Riptide;
 using Riptide.Utils;
 using ONI_MP.Networking;
-using ONI_MP.Networking.Packets.Social;
 using ONI_MP.Networking.Packets.Architecture;
 using Shared.Profiling;
-using static ONI_MP.STRINGS.UI.MP_OVERLAY;
 using System.Net.Sockets;
 
 namespace ONI_MP.Tests

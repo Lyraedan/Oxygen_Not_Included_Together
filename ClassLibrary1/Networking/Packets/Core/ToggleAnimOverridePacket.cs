@@ -2,7 +2,6 @@
 using ONI_MP.DebugTools;
 using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.Architecture;
-using ONI_MP.Patches.Duplicant;
 using ONI_MP.Patches.KleiPatches;
 using System;
 using System.Collections.Generic;

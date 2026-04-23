@@ -1,8 +1,6 @@
 using HarmonyLib;
 using ONI_MP.DebugTools;
 using ONI_MP.Networking;
-using ONI_MP.Networking.Packets.Architecture;
-using ONI_MP.Networking.Packets.Tools;
 using ONI_MP.Networking.Packets.Tools.Build;
 using System.Collections;
 using System.Collections.Generic;

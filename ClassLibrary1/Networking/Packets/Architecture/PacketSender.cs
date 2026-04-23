@@ -4,8 +4,6 @@ using ONI_MP.Misc;
 using ONI_MP.Networking.Packets;
 using ONI_MP.Networking.Packets.Architecture;
 using ONI_MP.Networking.Packets.Core;
-using ONI_MP.Networking.Transport;
-using ONI_MP.Networking.Transport.Steam;
 using Shared.Interfaces.Networking;
 using Steamworks;
 using System;

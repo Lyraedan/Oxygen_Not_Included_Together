@@ -7,7 +7,6 @@ using System.Threading.Tasks;
 using ONI_MP.DebugTools;
 using ONI_MP.Networking.Packets.Architecture;
 using Shared.Profiling;
-using ONI_MP.Networking.States;
 using ONI_MP.UI;
 using Steamworks;
 

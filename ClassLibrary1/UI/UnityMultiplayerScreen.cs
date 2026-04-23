@@ -18,11 +18,6 @@ using UI.lib.UI.FUI;
 using UI.lib.UIcmp;
 using UnityEngine;
 using static ONI_MP.STRINGS.UI;
-using static ONI_MP.STRINGS.UI.MP_SCREEN.HOSTMENU;
-using static ONI_MP.STRINGS.UI.MP_SCREEN.HOSTMENU.LOBBYSIZE;
-using static ONI_MP.STRINGS.UI.PAUSESCREEN;
-using static ONI_MP.UI.UnityMultiplayerScreen;
-using ONI_MP.Patches.ToolPatches;
 
 namespace ONI_MP.UI
 {

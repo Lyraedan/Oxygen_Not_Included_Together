@@ -1,7 +1,6 @@
 ﻿using HarmonyLib;
 using JetBrains.Annotations;
 using ONI_MP.Networking;
-using ONI_MP.Networking.Transport.Steamworks;
 using ONI_MP.UI;
 using Steamworks;
 using System.Collections.Generic;

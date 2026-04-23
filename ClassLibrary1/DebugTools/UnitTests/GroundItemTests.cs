@@ -1,6 +1,5 @@
 using System.IO;
 using ONI_MP.Networking;
-using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.World;
 using Shared.Interfaces.Networking;
 

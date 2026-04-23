@@ -1,6 +1,5 @@
 ﻿using HarmonyLib;
 using ONI_MP.Networking;
-using ONI_MP.Networking.Packets.Tools;
 using ONI_MP.Networking.Packets.Tools.Cancel;
 using Shared.Profiling;
 

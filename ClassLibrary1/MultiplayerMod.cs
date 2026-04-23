@@ -8,7 +8,6 @@ using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.Architecture;
 using ONI_MP.Networking.Transport.Steamworks;
 using PeterHan.PLib.AVC;
-using Shared.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Reflection;

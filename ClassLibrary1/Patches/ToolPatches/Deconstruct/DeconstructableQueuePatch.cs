@@ -3,7 +3,6 @@ using ONI_MP.DebugTools;
 using ONI_MP.Networking;
 using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.Tools;
-using ONI_MP.Networking.Packets.Tools.Deconstruct;
 using Shared.Profiling;
 
 namespace ONI_MP.Patches.ToolPatches.Deconstruct

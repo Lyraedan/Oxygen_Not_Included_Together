@@ -3,7 +3,6 @@ using System.Linq;
 using ONI_MP.Networking;
 using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.Animation;
-using ONI_MP.Networking.Packets.Core;
 using Shared.Interfaces.Networking;
 
 namespace ONI_MP.DebugTools.UnitTests

@@ -1,7 +1,6 @@
 ﻿using ONI_MP.Menus;
 using ONI_MP.Misc;
 using ONI_MP.Networking;
-using ONI_MP.Networking.States;
 using ONI_MP.Networking.Transport.Lan;
 using Steamworks;
 using System;

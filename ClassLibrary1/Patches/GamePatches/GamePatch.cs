@@ -3,7 +3,6 @@ using ONI_MP.DebugTools;
 using ONI_MP.Menus;
 using ONI_MP.Misc.World;
 using ONI_MP.Networking;
-using ONI_MP.Networking.States;
 using Shared.Profiling;
 
 namespace ONI_MP.Patches.GamePatches

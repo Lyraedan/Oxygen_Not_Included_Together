@@ -2,9 +2,7 @@
 using ONI_MP.Misc;
 using ONI_MP.Networking;
 using ONI_MP.Networking.Transport.Steamworks;
-using ONI_MP.UI.Components;
 using ONI_MP.UI.lib.FUI;
-using Shared.Helpers;
 using Steamworks;
 using System;
 using System.Collections;
@@ -18,10 +16,6 @@ using UnityEngine;
 using UnityEngine.UI;
 using static Klei.FileUtil;
 using static ONI_MP.STRINGS.UI;
-using static ONI_MP.STRINGS.UI.MP_PASSWORD_DIALOGUE.HOSTMENU.BUTTONS;
-using static ONI_MP.STRINGS.UI.MP_SCREEN.HOSTMENU;
-using static ONI_MP.STRINGS.UI.MP_SCREEN.MAINMENU;
-using static ONI_MP.STRINGS.UI.PAUSESCREEN;
 
 namespace ONI_MP.UI
 {

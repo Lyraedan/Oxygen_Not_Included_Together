@@ -2,7 +2,6 @@
 using System.IO;
 using System.Text.RegularExpressions;
 using ONI_MP.DebugTools;
-using Shared.Helpers;
 using Shared.Profiling;
 using Steamworks;
 using UnityEngine;

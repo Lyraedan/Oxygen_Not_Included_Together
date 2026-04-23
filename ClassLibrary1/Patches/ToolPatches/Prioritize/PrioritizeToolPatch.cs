@@ -1,7 +1,5 @@
 ﻿using HarmonyLib;
-using ONI_MP.DebugTools;
 using ONI_MP.Networking;
-using ONI_MP.Networking.Packets.Tools;
 using ONI_MP.Networking.Packets.Tools.Prioritize;
 using System.Collections.Generic;
 using Shared.Profiling;
