@@ -7,6 +7,8 @@ using System.Collections.Generic;
 using System.Linq;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Misc.World;
+using ONI_MP.Networking.Packets.Architecture;
 
 namespace ONI_MP.Misc.World
 {

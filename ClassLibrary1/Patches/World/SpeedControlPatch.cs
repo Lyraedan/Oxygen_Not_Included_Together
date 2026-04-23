@@ -4,8 +4,9 @@ using ONI_MP.Networking;
 using ONI_MP.Networking.Packets.World;
 using System;
 using Shared.Profiling;
+using ONI_MP.Networking.Packets.Architecture;
 
-namespace ONI_MP.Patches
+namespace ONI_MP.Patches.World
 {
 	[HarmonyPatch(typeof(SpeedControlScreen))]
 	public static class SpeedControlScreen_SendSpeedPacketPatch

@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using Shared.Profiling;
+using ONI_MP.Networking;
 
 namespace ONI_MP.Networking.Packets.Events
 {

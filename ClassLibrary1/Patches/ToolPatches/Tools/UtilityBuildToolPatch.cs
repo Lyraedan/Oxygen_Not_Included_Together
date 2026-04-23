@@ -7,8 +7,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Shared.Profiling;
+using ONI_MP.Networking.Packets.Architecture;
 
-namespace ONI_MP.Patches.ToolPatches.Build
+namespace ONI_MP.Patches.ToolPatches.Tools
 {
 	// Try patching BuildPath - called when drag is complete and building is placed
 	[HarmonyPatch(typeof(BaseUtilityBuildTool), nameof(BaseUtilityBuildTool.BuildPath))]

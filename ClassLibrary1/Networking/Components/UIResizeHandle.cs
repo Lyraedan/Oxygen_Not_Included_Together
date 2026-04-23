@@ -4,6 +4,8 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
+namespace ONI_MP.Networking.Components
+{
 [Flags]
 public enum ResizeEdge
 {
@@ -112,5 +114,7 @@ public class UIResizeHandle : MonoBehaviour, IPointerDownHandler, IDragHandler, 
 		target.sizeDelta = clampedSize;
 		target.anchoredPosition = newPos;
 	}
+
+}
 
 }

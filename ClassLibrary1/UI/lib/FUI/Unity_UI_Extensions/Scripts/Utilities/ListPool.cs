@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace UI.lib.UI.FUI.Unity_UI_Extensions.Scripts.Utilities
+namespace ONI_MP.UI.lib.FUI.Unity_UI_Extensions.Scripts.Utilities
 {
 	internal static class ListPool<T>
 	{

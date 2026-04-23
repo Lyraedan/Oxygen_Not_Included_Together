@@ -1,9 +1,9 @@
 ﻿using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
-using UI.lib.UIcmp;
+using ONI_MP.UI.lib.FUI;
 
-namespace UI.lib.UI.FUI
+namespace ONI_MP.UI.lib.FUI
 {
 	public class FToggleButton : KMonoBehaviour, IEventSystemHandler, IPointerUpHandler, IPointerDownHandler, IPointerEnterHandler, IPointerExitHandler, IPointerClickHandler
 	{

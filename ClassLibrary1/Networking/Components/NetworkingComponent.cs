@@ -1,6 +1,7 @@
 ﻿using ONI_MP.Misc;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking;
 
 namespace ONI_MP.Networking.Components
 {

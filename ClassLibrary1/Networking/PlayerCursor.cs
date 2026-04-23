@@ -7,6 +7,7 @@ using Shared.Profiling;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using ONI_MP.Networking;
 
 namespace ONI_MP.Networking
 {

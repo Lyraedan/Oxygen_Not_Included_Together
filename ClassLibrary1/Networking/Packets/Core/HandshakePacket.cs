@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 using ONI_MP.Networking.Packets.Architecture;
 using Shared.Profiling;
 
-namespace ONI_MP.Tests
+namespace ONI_MP.Networking.Packets.Core
 {
     /// <summary>
     /// Used mainly by LAN to tell the server they're here

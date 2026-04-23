@@ -2,7 +2,7 @@
 using UnityEngine;
 using UnityEngine.Events;
 
-namespace UI.lib.UI.FUI.Unity_UI_Extensions.Scripts.Animation
+namespace ONI_MP.UI.lib.FUI.Unity_UI_Extensions.Scripts.Animation
 {
 	// Base interface for tweeners,
 	// using an interface instead of

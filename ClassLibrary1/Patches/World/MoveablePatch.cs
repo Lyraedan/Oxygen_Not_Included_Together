@@ -4,7 +4,10 @@ using ONI_MP.Networking;
 using ONI_MP.Networking.Components;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking.Packets.Architecture;
 
+namespace ONI_MP.Patches.World
+{
 [HarmonyPatch(typeof(Movable), "OnSpawn")]
 public static class MoveablePatch
 {
@@ -13,7 +16,8 @@ public static class MoveablePatch
 		using var _ = Profiler.Scope();
 
 		__instance.onPickupComplete += OnPickup;
-		DebugConsole.Log($"[Movable.OnSpawn] Attached to: {STRINGS.UI.StripLinkFormatting(__instance.gameObject.GetProperName())} ({__instance.GetInstanceID()})");
+		var properName = global::STRINGS.UI.StripLinkFormatting(__instance.gameObject.GetProperName());
+		DebugConsole.Log($"[Movable.OnSpawn] Attached to: {properName} ({__instance.GetInstanceID()})");
 	}
 	static void OnPickup(GameObject go)
 	{
@@ -34,4 +38,6 @@ public static class MoveablePatch
 
 		// Optional: PacketSender.SendToAll(new DespawnPacket { NetId = identity.NetId });
 	}
+}
+
 }

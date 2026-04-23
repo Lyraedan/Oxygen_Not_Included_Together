@@ -5,6 +5,7 @@ using ONI_MP.Networking;
 using ONI_MP.Networking.Packets.Social;
 using System.Collections.Generic;
 using Shared.Profiling;
+using ONI_MP.Networking.Packets.Architecture;
 
 namespace ONI_MP.Patches.Social
 {

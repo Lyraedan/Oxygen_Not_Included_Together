@@ -9,8 +9,10 @@ using ONI_MP.Networking.Packets.Architecture;
 using Shared.Profiling;
 using ONI_MP.UI;
 using Steamworks;
+using ONI_MP.Menus;
+using ONI_MP.Networking;
 
-namespace ONI_MP.Networking.Transport.Steam
+namespace ONI_MP.Networking.Transport.Steamworks
 {
     public class SteamworksServer : TransportServer
     {

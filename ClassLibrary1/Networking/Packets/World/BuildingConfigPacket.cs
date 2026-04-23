@@ -6,6 +6,7 @@ using System.IO;
 using UnityEngine;
 using HarmonyLib;
 using Shared.Profiling;
+using ONI_MP.Networking;
 
 namespace ONI_MP.Networking.Packets.World
 {

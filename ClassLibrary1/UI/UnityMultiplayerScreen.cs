@@ -14,8 +14,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Shared.Profiling;
-using UI.lib.UI.FUI;
-using UI.lib.UIcmp;
+using ONI_MP.UI.lib.FUI;
+using ONI_MP.UI.lib.FUI;
 using UnityEngine;
 using static ONI_MP.STRINGS.UI;
 

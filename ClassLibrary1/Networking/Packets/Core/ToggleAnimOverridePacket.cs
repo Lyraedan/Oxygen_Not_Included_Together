@@ -11,6 +11,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking;
 
 namespace ONI_MP.Networking.Packets.Core
 {

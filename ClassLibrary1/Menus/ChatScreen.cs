@@ -8,9 +8,10 @@ using Shared.Profiling;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
+using ONI_MP.Networking.Packets.Architecture;
 using Utils = ONI_MP.Misc.Utils;
 
-namespace ONI_MP.UI
+namespace ONI_MP.Menus
 {
 	public class ChatScreen : KScreen
 	{

@@ -5,6 +5,7 @@ using ONI_MP.Networking.Packets.World;
 using System.Security.Principal;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking.Packets.Architecture;
 
 namespace ONI_MP.Patches.World.SideScreen
 {

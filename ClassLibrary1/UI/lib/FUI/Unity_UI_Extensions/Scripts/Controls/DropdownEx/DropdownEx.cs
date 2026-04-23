@@ -5,8 +5,8 @@ using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
-using UI.lib.UI.FUI.Unity_UI_Extensions.Scripts.Animation;
-using UI.lib.UI.FUI.Unity_UI_Extensions.Scripts.Utilities;
+using ONI_MP.UI.lib.FUI.Unity_UI_Extensions.Scripts.Animation;
+using ONI_MP.UI.lib.FUI.Unity_UI_Extensions.Scripts.Utilities;
 
 
 //MIT License
@@ -30,7 +30,7 @@ using UI.lib.UI.FUI.Unity_UI_Extensions.Scripts.Utilities;
 //LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 //OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 //SOFTWARE
-namespace UI.lib.UI.FUI.Unity_UI_Extensions.Scripts.Controls.DropdownEx
+namespace ONI_MP.UI.lib.FUI.Unity_UI_Extensions.Scripts.Controls.DropdownEx
 {
 	public class DropdownEx : Selectable, IPointerClickHandler, ISubmitHandler, ICancelHandler
 	{

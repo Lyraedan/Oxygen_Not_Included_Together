@@ -6,6 +6,8 @@ using System;
 using System.Collections;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Misc.World;
+using ONI_MP.Networking.Packets.Architecture;
 
 namespace ONI_MP.Patches.GamePatches
 {

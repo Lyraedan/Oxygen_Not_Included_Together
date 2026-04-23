@@ -3,6 +3,8 @@ using ONI_MP.Networking;
 using ONI_MP.Networking.States;
 using Steamworks;
 
+namespace ONI_MP.Networking
+{
 public class MultiplayerPlayer
 {
 	public ulong PlayerId { get; private set; }
@@ -35,4 +37,6 @@ public class MultiplayerPlayer
 	{
 		return $"{PlayerName} ({PlayerId})";
 	}
+}
+
 }

@@ -3,6 +3,7 @@ using ONI_MP.Networking.Packets.Architecture;
 using System.Collections.Generic;
 using System.IO;
 using Shared.Profiling;
+using ONI_MP.Networking;
 using static LogicGateBase;
 
 namespace ONI_MP.Networking.Packets.Social

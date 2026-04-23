@@ -5,6 +5,8 @@ using Shared.Profiling;
 using Steamworks;
 using UnityEngine;
 
+namespace ONI_MP.Menus
+{
 public static class MultiplayerPopup
 {
 	private static GameObject currentPopup;
@@ -114,4 +116,6 @@ public static class MultiplayerPopup
 
 		btn.onClick += () => onClick();
 	}
+}
+
 }

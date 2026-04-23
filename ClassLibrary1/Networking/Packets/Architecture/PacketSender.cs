@@ -12,8 +12,9 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking;
 
-namespace ONI_MP.Networking
+namespace ONI_MP.Networking.Packets.Architecture
 {
 	public static class PacketSender
 	{

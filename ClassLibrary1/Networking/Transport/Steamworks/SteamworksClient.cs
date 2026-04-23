@@ -11,9 +11,11 @@ using Shared.Profiling;
 using ONI_MP.Networking.States;
 using Steamworks;
 using UnityEngine;
+using ONI_MP.Misc.World;
+using ONI_MP.Networking;
 using static ONI_MP.Menus.NetworkIndicatorsScreen;
 
-namespace ONI_MP.Networking.Transport.Steam
+namespace ONI_MP.Networking.Transport.Steamworks
 {
     public class SteamworksClient : TransportClient
     {

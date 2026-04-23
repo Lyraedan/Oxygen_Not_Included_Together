@@ -4,6 +4,7 @@ using ONI_MP.Networking;
 using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.World;
 using Shared.Profiling;
+using ONI_MP.Networking.Packets.Architecture;
 
 namespace ONI_MP.Patches.World.SideScreen
 {

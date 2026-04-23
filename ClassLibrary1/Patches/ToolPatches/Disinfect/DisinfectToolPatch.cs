@@ -2,7 +2,10 @@
 using ONI_MP.Networking;
 using ONI_MP.Networking.Packets.Tools.Disinfect;
 using Shared.Profiling;
+using ONI_MP.Networking.Packets.Architecture;
 
+namespace ONI_MP.Patches.ToolPatches.Disinfect
+{
 [HarmonyPatch(typeof(DisinfectTool), "OnDragTool")]
 public class DisinfectToolPatch
 {
@@ -19,4 +22,5 @@ public class DisinfectToolPatch
 
         PacketSender.SendToAllOtherPeers(new DisinfectPacket { cell = cell, distFromOrigin = distFromOrigin });
     }
+}
 }

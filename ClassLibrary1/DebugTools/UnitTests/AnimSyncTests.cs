@@ -4,6 +4,7 @@ using ONI_MP.Networking;
 using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.Animation;
 using Shared.Interfaces.Networking;
+using ONI_MP.Networking.Packets.Core;
 
 namespace ONI_MP.DebugTools.UnitTests
 {

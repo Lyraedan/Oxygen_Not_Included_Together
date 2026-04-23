@@ -2,6 +2,7 @@ using System.IO;
 using ONI_MP.DebugTools;
 using ONI_MP.Networking.Packets.Architecture;
 using Shared.Profiling;
+using ONI_MP.Networking;
 
 namespace ONI_MP.Networking.Packets.World
 {

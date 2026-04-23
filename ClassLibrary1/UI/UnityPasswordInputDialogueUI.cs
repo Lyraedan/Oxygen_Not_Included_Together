@@ -11,7 +11,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Shared.Profiling;
-using UI.lib.UIcmp;
+using ONI_MP.UI.lib.FUI;
 using UnityEngine;
 using UnityEngine.UI;
 using static Klei.FileUtil;

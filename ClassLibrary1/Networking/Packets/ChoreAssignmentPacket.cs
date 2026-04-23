@@ -1,11 +1,14 @@
 ﻿using ONI_MP.DebugTools;
 using ONI_MP.Networking;
 using ONI_MP.Networking.Packets.Architecture;
-using ONI_MP.Patches.Chores;
+using ONI_MP.Patches.ChoresPatches;
 using System.IO;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Misc;
 
+namespace ONI_MP.Networking.Packets
+{
 public class ChoreAssignmentPacket : IPacket
 {
 	public int NetId;
@@ -81,5 +84,7 @@ public class ChoreAssignmentPacket : IPacket
 		}
 	}
 
+
+}
 
 }

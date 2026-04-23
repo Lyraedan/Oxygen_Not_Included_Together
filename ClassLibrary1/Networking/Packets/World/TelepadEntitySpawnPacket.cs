@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking;
 using static STRINGS.UI.CLUSTERMAP;
 
 namespace ONI_MP.Networking.Packets.World

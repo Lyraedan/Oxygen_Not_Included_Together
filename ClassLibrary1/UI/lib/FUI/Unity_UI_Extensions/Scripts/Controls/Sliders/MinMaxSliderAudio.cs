@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
-using UI.lib.UIcmp;
+using ONI_MP.UI.lib.FUI;
 
-namespace UI.lib.UI.FUI.Unity_UI_Extensions.Scripts.Controls.Sliders
+namespace ONI_MP.UI.lib.FUI.Unity_UI_Extensions.Scripts.Controls.Sliders
 {
 	internal class MinMaxSliderAudio : KMonoBehaviour
 	{

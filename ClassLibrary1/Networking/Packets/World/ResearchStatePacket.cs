@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Shared.Profiling;
+using ONI_MP.Networking;
 
 namespace ONI_MP.Networking.Packets.World
 {

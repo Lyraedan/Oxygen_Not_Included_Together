@@ -6,6 +6,7 @@ using ONI_MP.Networking.Packets.World;
 using System;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking.Packets.Architecture;
 
 namespace ONI_MP.Patches.World
 {

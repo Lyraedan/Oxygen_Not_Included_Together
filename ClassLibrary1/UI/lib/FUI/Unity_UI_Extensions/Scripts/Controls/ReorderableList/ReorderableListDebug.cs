@@ -26,7 +26,7 @@ using UnityEngine.UI;
 
 /// Credit Ziboo
 /// Sourced from - http://forum.unity3d.com/threads/free-reorderable-list.364600/
-namespace UI.lib.UI.FUI.Unity_UI_Extensions.Scripts.Controls.ReorderableList
+namespace ONI_MP.UI.lib.FUI.Unity_UI_Extensions.Scripts.Controls.ReorderableList
 {
 	public class ReorderableListDebug : MonoBehaviour
 	{

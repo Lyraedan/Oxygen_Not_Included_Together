@@ -5,6 +5,8 @@ using ONI_MP.Misc;
 using ONI_MP.Networking.Packets.Animation;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking;
+using ONI_MP.Networking.Packets.Architecture;
 
 namespace ONI_MP.Networking.Components
 {

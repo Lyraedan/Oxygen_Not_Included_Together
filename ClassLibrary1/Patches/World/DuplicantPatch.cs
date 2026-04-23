@@ -3,12 +3,16 @@ using ONI_MP.DebugTools;
 using ONI_MP.Misc;
 using ONI_MP.Networking;
 using ONI_MP.Networking.Components;
+using ONI_MP.Networking.Packets.Animation;
 using ONI_MP.Networking.Synchronization;
 using ONI_MP.Scripts.Duplicants;
 using System.Collections;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking.Packets.Architecture;
 
+namespace ONI_MP.Patches.World
+{
 [HarmonyPatch(typeof(BaseMinionConfig), nameof(BaseMinionConfig.BaseMinion))]
 public static class DuplicantPatch
 {
@@ -66,5 +70,7 @@ public static class DuplicantSpawnPatch
 		go.AddOrGet<MinionMultiplayerInitializer>(); // Doesn't work (yet)
 		//CoroutineRunner.RunOne(DelayedOnSpawn(go));
 	}
+
+}
 
 }

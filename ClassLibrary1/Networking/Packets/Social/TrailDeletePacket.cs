@@ -3,6 +3,7 @@ using ONI_MP.Networking.Packets.Architecture;
 using Shared.Profiling;
 using System.IO;
 using UnityEngine;
+using ONI_MP.Networking;
 
 namespace ONI_MP.Networking.Packets.Social
 {

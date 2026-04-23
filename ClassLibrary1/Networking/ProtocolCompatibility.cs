@@ -28,7 +28,7 @@ namespace ONI_MP.Networking
 			{
 				using var _ = Profiler.Scope();
 
-				return _modVersion ??= ONI_MP.ModUpdater.Updater.GetVersion();
+				return _modVersion ??= ONI_MP.Updater.Updater.GetVersion();
 			}
 		}
 

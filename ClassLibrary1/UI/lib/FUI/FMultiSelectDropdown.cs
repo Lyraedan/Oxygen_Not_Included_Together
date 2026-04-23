@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-namespace UI.lib.UIcmp
+namespace ONI_MP.UI.lib.FUI
 {
 	public class FMultiSelectDropdown : KMonoBehaviour, IEventSystemHandler, IPointerEnterHandler, IPointerExitHandler
 	{

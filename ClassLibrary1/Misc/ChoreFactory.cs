@@ -7,6 +7,8 @@ using Shared.Profiling;
 using UnityEngine;
 using static Chore;
 
+namespace ONI_MP.Misc
+{
 public static class ChoreFactory
 {
 	public static Chore Create(string choreTypeId, Precondition.Context context, GameObject dupeGO, Vector3 pos, int cell, string prefabId)
@@ -776,5 +778,7 @@ public static class ChoreFactory
 		return diggable.chore;
 	}
 
+
+}
 
 }

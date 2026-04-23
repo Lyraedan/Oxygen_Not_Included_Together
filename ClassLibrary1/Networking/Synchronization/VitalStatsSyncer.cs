@@ -6,6 +6,8 @@ using Shared.Profiling;
 using System;
 using System.Diagnostics;
 using UnityEngine;
+using ONI_MP.Networking;
+using ONI_MP.Networking.Packets.Architecture;
 using static STRINGS.DUPLICANTS.STATS;
 
 namespace ONI_MP.Networking.Synchronization

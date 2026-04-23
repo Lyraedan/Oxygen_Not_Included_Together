@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace UI.lib.UIcmp //Source: Aki
+namespace ONI_MP.UI.lib.FUI
 {
 	public class FScreen : KScreen
 	{

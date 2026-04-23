@@ -4,7 +4,10 @@ using ONI_MP.Networking;
 using ONI_MP.Networking.Packets.Tools.Build;
 using System.Linq;
 using Shared.Profiling;
+using ONI_MP.Networking.Packets.Architecture;
 
+namespace ONI_MP.Patches.ToolPatches.Build
+{
 [HarmonyPatch(typeof(Constructable), "FinishConstruction")]
 public static class ConstructablePatch
 {
@@ -64,3 +67,5 @@ public static class ConstructablePatch
 	}
 }
 
+
+}

@@ -9,9 +9,11 @@ using ONI_MP.Networking.Transfer;
 using System.Collections.Generic;
 using ONI_MP.UI;
 using Steamworks;
+using ONI_MP.Menus;
+using ONI_MP.Networking;
 using static ResearchTypes;
 
-namespace ONI_MP.Networking.Transport.Lan
+namespace ONI_MP.Networking.Transport.Riptide
 {
     public class RiptideServer : TransportServer
     {

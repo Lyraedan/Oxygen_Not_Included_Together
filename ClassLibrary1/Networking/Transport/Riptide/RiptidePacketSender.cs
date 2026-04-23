@@ -4,8 +4,9 @@ using ONI_MP.DebugTools;
 using ONI_MP.Networking.Packets.Architecture;
 using ONI_MP.Networking.Packets.Core;
 using Shared.Profiling;
+using ONI_MP.Networking;
 
-namespace ONI_MP.Networking.Transport.Lan
+namespace ONI_MP.Networking.Transport.Riptide
 {
     public class RiptidePacketSender : TransportPacketSender
     {
@@ -34,7 +35,7 @@ namespace ONI_MP.Networking.Transport.Lan
         private bool SendRaw(Connection connection, byte[] bytes, IPacket packet, PacketSendMode sendType)
         {
             MessageSendMode sendMode = ConvertSendType(sendType);
-            Riptide.Message msg = Riptide.Message.Create(sendMode, 1);
+            global::Riptide.Message msg = global::Riptide.Message.Create(sendMode, 1);
             msg.AddBytes(bytes);
 
             if (MultiplayerSession.IsHost)

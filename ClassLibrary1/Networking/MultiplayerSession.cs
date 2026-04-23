@@ -3,6 +3,8 @@ using ONI_MP.Misc;
 using System.Collections.Generic;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking;
+using ONI_MP.Patches;
 
 namespace ONI_MP.Networking
 {

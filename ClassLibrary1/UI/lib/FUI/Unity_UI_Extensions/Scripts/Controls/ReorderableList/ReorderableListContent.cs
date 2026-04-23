@@ -29,7 +29,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace UI.lib.UI.FUI.Unity_UI_Extensions.Scripts.Controls.ReorderableList
+namespace ONI_MP.UI.lib.FUI.Unity_UI_Extensions.Scripts.Controls.ReorderableList
 {
 	[DisallowMultipleComponent]
 	public class ReorderableListContent : MonoBehaviour

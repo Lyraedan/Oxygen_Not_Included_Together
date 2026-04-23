@@ -7,6 +7,8 @@ using System;
 using System.Collections.Generic;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Menus;
+using ONI_MP.Networking;
 using static STRINGS.GAMEPLAY_EVENTS;
 
 namespace ONI_MP.Networking.Transport.Steamworks

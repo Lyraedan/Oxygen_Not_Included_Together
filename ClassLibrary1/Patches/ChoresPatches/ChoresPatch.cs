@@ -2,10 +2,12 @@
 using ONI_MP.DebugTools;
 using ONI_MP.Networking;
 using ONI_MP.Networking.Components;
+using ONI_MP.Networking.Packets;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking.Packets.Architecture;
 
-namespace ONI_MP.Patches.Chores
+namespace ONI_MP.Patches.ChoresPatches
 {
 	public static class ChoresPatch
 	{

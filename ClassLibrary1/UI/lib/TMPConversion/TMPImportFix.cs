@@ -1,7 +1,7 @@
 ﻿using TMPro;
 using UnityEngine;
 
-namespace UI.lib
+namespace ONI_MP.UI.lib.TMPConversion
 {
 	internal class TMPImportFix : KMonoBehaviour
 	{

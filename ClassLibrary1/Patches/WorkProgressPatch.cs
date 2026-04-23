@@ -4,7 +4,10 @@ using ONI_MP.Networking.Packets.World;
 using System.Collections.Generic;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking.Packets.Architecture;
 
+namespace ONI_MP.Patches
+{
 [HarmonyPatch(typeof(Workable), nameof(Workable.WorkTick))]
 public static class WorkProgressPatch
 {
@@ -68,4 +71,6 @@ public static class WorkProgressPatch
 	{
 		return unchecked((workableNetId * 397) ^ workableType.GetHashCode());
 	}
+}
+
 }

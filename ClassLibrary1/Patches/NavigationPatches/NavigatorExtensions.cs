@@ -2,7 +2,7 @@
 using System.Reflection;
 using Shared.Profiling;
 
-namespace ONI_MP.Patches.Navigation
+namespace ONI_MP.Patches.NavigationPatches
 {
 	public static class NavigatorExtensions
 	{

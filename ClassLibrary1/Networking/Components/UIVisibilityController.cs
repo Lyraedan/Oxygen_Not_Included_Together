@@ -4,7 +4,7 @@ using System.Reflection;
 using Shared.Profiling;
 using UnityEngine;
 
-namespace ONI_MP.Components
+namespace ONI_MP.Networking.Components
 {
 	public class UIVisibilityController : MonoBehaviour
 	{

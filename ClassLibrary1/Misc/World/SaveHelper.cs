@@ -20,6 +20,8 @@ using System.Threading.Tasks;
 using Shared.Profiling;
 using UnityEngine;
 
+namespace ONI_MP.Misc.World
+{
 public static class SaveHelper
 {
 
@@ -406,5 +408,7 @@ public static class SaveHelper
 
 		LoadScreen.DoLoad(targetFile); // use the correct variable
 	}
+
+}
 
 }

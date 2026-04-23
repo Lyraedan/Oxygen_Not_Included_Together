@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking.Packets.Core;
 
 namespace ONI_MP.Networking
 {

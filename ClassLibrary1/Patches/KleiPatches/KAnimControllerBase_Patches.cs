@@ -8,6 +8,7 @@ using ONI_MP.Networking.Packets.Core;
 using System;
 using System.Linq;
 using Shared.Profiling;
+using ONI_MP.Networking.Packets.Architecture;
 using static STRINGS.UI.CLUSTERMAP.ROCKETS;
 
 namespace ONI_MP.Patches.KleiPatches

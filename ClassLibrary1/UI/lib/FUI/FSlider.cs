@@ -2,7 +2,7 @@
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-namespace UI.lib.UIcmp //Source: Aki
+namespace ONI_MP.UI.lib.FUI
 {
 	public class FSlider : KMonoBehaviour, IEventSystemHandler, IDragHandler, IPointerDownHandler
 	{

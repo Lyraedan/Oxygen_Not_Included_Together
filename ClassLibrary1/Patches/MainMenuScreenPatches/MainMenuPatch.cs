@@ -10,6 +10,8 @@ using Shared.Profiling;
 using UnityEngine;
 using UnityEngine.UI;
 
+namespace ONI_MP.Patches.MainMenuScreenPatches
+{
 [HarmonyPatch(typeof(MainMenu), "OnPrefabInit")]
 internal static class MainMenuPatch
 {
@@ -302,4 +304,6 @@ internal static class MainMenuPatch
 			Application.OpenURL(url);
 		});
 	}
+}
+
 }

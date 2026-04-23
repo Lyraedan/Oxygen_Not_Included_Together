@@ -2,6 +2,8 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
 
+namespace ONI_MP.Networking.Components
+{
 public class UIDragHandler : MonoBehaviour, IPointerDownHandler, IDragHandler
 {
     [SerializeField] public RectTransform target;
@@ -57,5 +59,7 @@ public class UIDragHandler : MonoBehaviour, IPointerDownHandler, IDragHandler
             target.anchoredPosition = newPos;
         }
     }
+
+}
 
 }

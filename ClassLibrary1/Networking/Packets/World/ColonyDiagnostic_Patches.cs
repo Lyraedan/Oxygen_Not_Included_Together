@@ -6,6 +6,8 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Shared.Profiling;
+using ONI_MP.Networking;
+using ONI_MP.Networking.Packets.Architecture;
 using static ColonyDiagnostic;
 
 namespace ONI_MP.Networking.Packets.World

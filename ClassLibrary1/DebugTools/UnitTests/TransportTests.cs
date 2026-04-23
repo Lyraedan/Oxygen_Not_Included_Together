@@ -1,7 +1,7 @@
 using System.Linq;
 using ONI_MP.Networking;
-using ONI_MP.Networking.Transport.Lan;
-using ONI_MP.Networking.Transport.Steam;
+using ONI_MP.Networking.Transport.Riptide;
+using ONI_MP.Networking.Transport.Steamworks;
 using Riptide;
 
 namespace ONI_MP.DebugTools.UnitTests

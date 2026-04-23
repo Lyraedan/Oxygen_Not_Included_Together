@@ -4,9 +4,9 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using UnityEngine.UI;
-using UI.lib.UIcmp;
+using ONI_MP.UI.lib.FUI;
 
-namespace UI.lib.UI.FUI
+namespace ONI_MP.UI.lib.FUI
 {
 	public class PasswordInputVisibilityToggle : KMonoBehaviour
 	{

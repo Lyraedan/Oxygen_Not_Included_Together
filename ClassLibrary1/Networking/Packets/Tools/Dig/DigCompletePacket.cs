@@ -4,6 +4,8 @@ using System.IO;
 using Shared.Profiling;
 using UnityEngine;
 
+namespace ONI_MP.Networking.Packets.Tools.Dig
+{
 public class DigCompletePacket : IPacket
 {
 	public int Cell;
@@ -67,4 +69,6 @@ public class DigCompletePacket : IPacket
 		// Trigger on solid state changed
 		WorldDamage.Instance.OnSolidStateChanged(Cell);
 	}
+}
+
 }

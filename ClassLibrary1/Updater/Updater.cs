@@ -8,7 +8,7 @@ using UnityEngine;
 using YamlDotNet.RepresentationModel;
 using Version = System.Version;
 
-namespace ONI_MP.ModUpdater
+namespace ONI_MP.Updater
 {
     public static class Updater
     {
