@@ -24,7 +24,6 @@ namespace ONI_MP.DebugTools
 {
     public class DevToolMultiplayer : DevTool
     {
-        private Vector2 scrollPos = Vector2.zero;
         DebugConsole console = null;
         PacketTracker packetTracker = null;
 

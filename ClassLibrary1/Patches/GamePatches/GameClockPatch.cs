@@ -87,12 +87,5 @@ namespace ONI_MP.Patches.GamePatches
 			}
 		}
 
-		private static IEnumerator DelayedHardSync()
-		{
-			using var _ = Profiler.Scope();
-
-			yield return new WaitForSecondsRealtime(5f); // wait to ensure ONI's autosave completes (generous wait time)
-			GameServerHardSync.PerformHardSync();
-		}
 	}
 }

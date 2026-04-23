@@ -78,31 +78,6 @@ public static class MultiplayerPopup
 		}
 	}
 
-	private static void HostLastSave()
-	{
-		using var _ = Profiler.Scope();
-
-		MultiplayerOverlay.Show(ONI_MP.STRINGS.UI.MP_OVERLAY.HOST.STARTINGHOSTING);
-		string text;
-		if (!KPlayerPrefs.HasKey("AutoResumeSaveFile"))
-		{
-			text = SaveLoader.GetLatestSaveForCurrentDLC();
-		}
-		else
-		{
-			text = KPlayerPrefs.GetString("AutoResumeSaveFile");
-			KPlayerPrefs.DeleteKey("AutoResumeSaveFile");
-		}
-
-		if (!string.IsNullOrEmpty(text))
-		{
-			KCrashReporter.MOST_RECENT_SAVEFILE = text;
-			SaveLoader.SetActiveSaveFilePath(text);
-
-			App.LoadScene("backend");
-		}
-	}
-
 	private static void AddPopupButton(Transform parent, string text, Vector2 position, System.Action onClick)
 	{
 		using var _ = Profiler.Scope();

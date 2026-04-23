@@ -353,38 +353,6 @@ namespace ONI_MP.Networking
 			}
 		}
 
-		private static IEnumerator AutoReconnectCoroutine()
-		{
-			if (_autoReconnecting) yield break;
-			_autoReconnecting = true;
-			_reconnectAttempt++;
-
-			float delay = Mathf.Min(RECONNECT_BASE_DELAY * Mathf.Pow(2, _reconnectAttempt - 1), 30f);
-			DebugConsole.Log($"[GameClient] Auto-reconnect attempt {_reconnectAttempt}/{MAX_RECONNECT_ATTEMPTS} in {delay}s");
-			MultiplayerOverlay.Show($"Reconnecting... attempt {_reconnectAttempt}/{MAX_RECONNECT_ATTEMPTS}");
-
-			yield return new WaitForSecondsRealtime(delay);
-
-			if (!Utils.IsInGame())
-			{
-				DebugConsole.Log("[GameClient] No longer in game, aborting reconnect");
-				_autoReconnecting = false;
-				_reconnectAttempt = 0;
-				yield break;
-			}
-
-			try
-			{
-				ReconnectToSession();
-			}
-			catch (Exception ex)
-			{
-				DebugConsole.LogError($"[GameClient] Reconnect attempt {_reconnectAttempt} failed: {ex}");
-			}
-
-			_autoReconnecting = false;
-		}
-
 		public static void ResetReconnectState()
 		{
 			_autoReconnecting = false;

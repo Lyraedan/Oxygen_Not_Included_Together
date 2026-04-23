@@ -132,28 +132,5 @@ namespace ONI_MP.Networking.Packets.DuplicantActions
 			return fallback;
 		}
 
-		private Transform FindBoneTransform(GameObject go, string boneName)
-		{
-			using var _ = Profiler.Scope();
-
-			var trackers = go.GetComponentsInChildren<KBatchedAnimTracker>(true);
-			foreach (var tracker in trackers)
-			{
-				if (tracker.symbol == boneName || tracker.symbol.ToString() == boneName)
-				{
-					return tracker.transform;
-				}
-			}
-
-			var animController = go.GetComponent<KBatchedAnimController>();
-			if (animController != null)
-			{
-				// fallback to just attaching to the anim controller
-				return animController.transform;
-			}
-
-			return null;
-		}
-
 	}
 }

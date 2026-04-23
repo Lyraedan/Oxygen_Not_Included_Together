@@ -119,38 +119,6 @@ namespace ONI_MP.Networking.Packets.World
 			}
 		}
 
-		/// <summary>
-		/// Triggers a refresh event on the building so side screens update.
-		/// Uses the same event ID (644822890) that components like Storage use internally.
-		/// </summary>
-		private void RefreshSideScreenIfOpen(GameObject go)
-		{
-			using var _ = Profiler.Scope();
-
-			if (go == null) return;
-
-			try
-			{
-				// Check if this building is currently selected in the details screen
-				if (DetailsScreen.Instance == null) return;
-				if (DetailsScreen.Instance.target != go) return;
-
-				// Trigger the refresh event on the building's KMonoBehaviour
-				// 644822890 is the event Storage uses for sweep-only updates
-				// This event notifies side screens to refresh their display
-				var kMono = go.GetComponent<KMonoBehaviour>();
-				if (kMono != null)
-				{
-					kMono.Trigger(644822890); // Storage update event
-					DebugConsole.Log($"[BuildingConfigPacket] Triggered UI refresh event on {go.name}");
-				}
-			}
-			catch (System.Exception e)
-			{
-				// Non-critical - just log and continue
-				DebugConsole.Log($"[BuildingConfigPacket] Side screen refresh failed: {e.Message}");
-			}
-		}
 
 		/// <summary>
 		/// Applies the configuration to the target building.

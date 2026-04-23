@@ -39,14 +39,5 @@ namespace ONI_MP.Networking.Packets.Core
             SpeedControlScreen.Instance?.Unpause(false);
 		}
 
-		private static IEnumerator CloseOverlayAfterDelay()
-		{
-			using var _ = Profiler.Scope();
-
-			MultiplayerOverlay.Show(STRINGS.UI.MP_OVERLAY.SYNC.FINALIZING_SYNC);
-			yield return new WaitForSecondsRealtime(1f);
-            MultiplayerOverlay.Close();
-            SpeedControlScreen.Instance?.Unpause(false);
-		}
 	}
 }

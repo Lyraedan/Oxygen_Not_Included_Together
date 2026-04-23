@@ -11,7 +11,6 @@ namespace ONI_MP.Networking
 	public static class NetworkIdentityRegistry
 	{
 		private static readonly Dictionary<int, NetworkIdentity> identities = new Dictionary<int, NetworkIdentity>();
-		private static readonly System.Random rng = new System.Random();
 
 		private static int _lookupFailCount = 0;
 		private static float _lastFailLogTime = 0f;
