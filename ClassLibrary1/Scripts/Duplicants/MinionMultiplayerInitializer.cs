@@ -1,12 +1,7 @@
 ﻿using ONI_MP.DebugTools;
 using ONI_MP.Networking;
 using ONI_MP.Networking.Components;
-using System;
 using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Shared.Profiling;
 
 namespace ONI_MP.Scripts.Duplicants
@@ -90,12 +85,14 @@ namespace ONI_MP.Scripts.Duplicants
 				}
 
                 // go.AddOrGet<DuplicantClientController>();
+				go.AddOrGet<ClientReceiver_ChoreErrands>();
 				DebugConsole.Log($"[DuplicantSpawn] Client setup complete for {go.name} (NetId: {identity.NetId})");
 			}
 			else if (MultiplayerSession.IsHost)
 			{
 				// Add state sender for host to broadcast duplicant state to clients
 				go.AddOrGet<DuplicantStateSender>();
+				go.AddOrGet<DuplicantChoreBroadcaster>();
 				DebugConsole.Log($"[DuplicantSpawn] Host setup complete for {go.name} (NetId: {identity.NetId})");
 			}
 		}
