@@ -1,7 +1,7 @@
 ﻿using System.Reflection;
 using Shared.Profiling;
 
-namespace ONI_MP.Patches.LoadingOverlayPatch
+namespace ONI_MP.Patches.LoadingOverlayPatches
 {
 	public static class LoadingOverlayExtensions
 	{

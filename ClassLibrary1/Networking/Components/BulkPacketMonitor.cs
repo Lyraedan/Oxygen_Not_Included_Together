@@ -1,10 +1,11 @@
-﻿using ONI_MP.DebugTools;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using UnityEngine;
+using ONI_MP.Networking;
+using ONI_MP.Networking.Packets.Architecture;
 
 namespace ONI_MP.Networking.Components
 {

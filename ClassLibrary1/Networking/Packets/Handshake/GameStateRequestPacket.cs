@@ -1,11 +1,11 @@
-﻿using ONI_MP.DebugTools;
-using ONI_MP.Networking.Packets.Architecture;
+﻿using ONI_MP.Networking.Packets.Architecture;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking;
 
 namespace ONI_MP.Networking.Packets.Handshake
 {

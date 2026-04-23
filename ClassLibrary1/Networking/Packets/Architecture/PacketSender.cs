@@ -4,8 +4,6 @@ using ONI_MP.Misc;
 using ONI_MP.Networking.Packets;
 using ONI_MP.Networking.Packets.Architecture;
 using ONI_MP.Networking.Packets.Core;
-using ONI_MP.Networking.Transport;
-using ONI_MP.Networking.Transport.Steam;
 using Shared.Interfaces.Networking;
 using Steamworks;
 using System;
@@ -14,8 +12,9 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking;
 
-namespace ONI_MP.Networking
+namespace ONI_MP.Networking.Packets.Architecture
 {
 	public static class PacketSender
 	{

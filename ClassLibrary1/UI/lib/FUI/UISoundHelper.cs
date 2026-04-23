@@ -1,4 +1,4 @@
-﻿namespace UI.lib.UIcmp //Source: Aki
+﻿namespace ONI_MP.UI.lib.FUI
 {
 	public static class UISoundHelper
 	{

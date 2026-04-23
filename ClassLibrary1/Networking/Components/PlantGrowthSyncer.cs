@@ -4,7 +4,9 @@ using ONI_MP.Networking.Trackers;
 using Shared.Profiling;
 using System.Collections.Generic;
 using UnityEngine;
-using Shared.Interfaces.Networking;
+using ONI_MP.Misc.World;
+using ONI_MP.Networking;
+using ONI_MP.Networking.Packets.Architecture;
 
 namespace ONI_MP.Networking.Components
 {

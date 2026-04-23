@@ -5,6 +5,7 @@ using ONI_MP.Misc;
 using ONI_MP.Networking;
 using ONI_MP.Networking.Components;
 using UnityEngine;
+using ONI_MP.Menus;
 
 namespace ONI_MP.DebugTools.UnitTests
 {

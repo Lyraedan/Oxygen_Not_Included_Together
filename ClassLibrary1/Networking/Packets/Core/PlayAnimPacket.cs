@@ -11,6 +11,8 @@ using System.Reflection;
 using Shared.Profiling;
 using UnityEngine;
 
+namespace ONI_MP.Networking.Packets.Core
+{
 public class PlayAnimPacket : IPacket
 {
 
@@ -191,3 +193,5 @@ public class PlayAnimPacket : IPacket
 	}
 }
 
+
+}

@@ -1,8 +1,5 @@
 ﻿using ONI_MP.DebugTools;
-using ONI_MP.Menus;
 using ONI_MP.Misc;
-using ONI_MP.Networking.Components;
-using ONI_MP.Networking.Packets.Architecture;
 using ONI_MP.Patches.ToolPatches;
 using ONI_MP.UI;
 using Steamworks;
@@ -10,6 +7,8 @@ using System;
 using System.Collections.Generic;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Menus;
+using ONI_MP.Networking;
 using static STRINGS.GAMEPLAY_EVENTS;
 
 namespace ONI_MP.Networking.Transport.Steamworks
@@ -37,7 +36,6 @@ namespace ONI_MP.Networking.Transport.Steamworks
 
 		private static event System.Action _onLobbyCreatedSuccess = null;
 		private static event Action<CSteamID> _onLobbyJoined = null;
-		private static string _pendingPassword = null;
 
 		private static event Action<CSteamID> _OnLobbyMembersRefreshed;
 		public static event Action<CSteamID> OnLobbyMembersRefreshed
@@ -295,7 +293,6 @@ namespace ONI_MP.Networking.Transport.Steamworks
 			}
 
 			_onLobbyJoined = onJoinedLobby;
-			_pendingPassword = password;
 			DebugConsole.Log($"[SteamLobby] Attempting to join lobby: {lobbyId}");
 			SteamMatchmaking.JoinLobby(lobbyId);
 		}

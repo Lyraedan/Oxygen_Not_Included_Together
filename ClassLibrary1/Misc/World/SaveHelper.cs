@@ -9,7 +9,6 @@ using ONI_MP.Networking;
 using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.Architecture;
 using ONI_MP.Networking.States;
-using ONI_MP.Networking.Transport.Steamworks;
 using Steamworks;
 using System;
 using System.Collections;
@@ -21,6 +20,8 @@ using System.Threading.Tasks;
 using Shared.Profiling;
 using UnityEngine;
 
+namespace ONI_MP.Misc.World
+{
 public static class SaveHelper
 {
 
@@ -291,12 +292,12 @@ public static class SaveHelper
 		IReader reader = new FastReader(saveBytes);
 		//read the gameInfo to advance the filereader
 		SaveGame.GameInfo gameInfo = SaveGame.GetHeader(reader, out SaveGame.Header header, "MP-Mod-Server-Save");
-		///check if all dlcs of the savegame are currently active
+		//check if all dlcs of the savegame are currently active
 
 
 		return SavegameDlcListValid(gameInfo.dlcIds, out errorMsg);
 
-		///this is for later use if we want game mod syncing
+		//this is for later use if we want game mod syncing
 		KSerialization.Manager.DeserializeDirectory(reader);
 		if (header.IsCompressed)
 		{
@@ -328,32 +329,17 @@ public static class SaveHelper
 		var activeSaveMods = saveFileRoot.active_mods;
 
 		KMod.Manager modManager = Global.Instance.modManager;
-		_differenceCount = 0;
 		HashSet<string> activeModsInSave = activeSaveMods.Select(mod => mod.defaultStaticID).ToHashSet(); //change to "id" if the check should be platform agnostic
-		_activeModListIdOrder = new(activeModsInSave);
-		ActiveModlistModIds = new(activeModsInSave);
 
 		foreach (var mod in modManager.mods)
 		{
 			bool isCurrentlyActive = mod.IsEnabledForActiveDlc();
 			if (activeModsInSave.Contains(mod.label.defaultStaticID))
 			{
-				if (!isCurrentlyActive)
-					++_differenceCount;
 				activeModsInSave.Remove(mod.label.defaultStaticID);
 			}
-			else
-			{
-				if (isCurrentlyActive)
-					++_differenceCount;
-			}
 		}
-		_missingMods = [.. activeModsInSave];
 	}
-	static int _differenceCount = 0;
-	static HashSet<string> _missingMods = [];
-	static List<string> _activeModListIdOrder = [];
-	static HashSet<string> ActiveModlistModIds = [];
 
 	public static string WorldName
 	{
@@ -422,5 +408,7 @@ public static class SaveHelper
 
 		LoadScreen.DoLoad(targetFile); // use the correct variable
 	}
+
+}
 
 }

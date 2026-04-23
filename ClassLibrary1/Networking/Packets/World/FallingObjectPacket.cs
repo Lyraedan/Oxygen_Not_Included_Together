@@ -1,9 +1,9 @@
-using ONI_MP.DebugTools;
 using ONI_MP.Networking.Packets.Architecture;
 using System;
 using System.IO;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking;
 
 namespace ONI_MP.Networking.Packets.World
 {

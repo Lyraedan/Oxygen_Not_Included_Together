@@ -3,13 +3,12 @@ using Klei.AI;
 using ONI_MP.DebugTools;
 using ONI_MP.Misc;
 using ONI_MP.Networking;
-using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.Animation;
 using ONI_MP.Networking.Packets.Core;
-using ONI_MP.Networking.Packets.DuplicantActions;
 using System;
 using System.Linq;
 using Shared.Profiling;
+using ONI_MP.Networking.Packets.Architecture;
 using static STRINGS.UI.CLUSTERMAP.ROCKETS;
 
 namespace ONI_MP.Patches.KleiPatches

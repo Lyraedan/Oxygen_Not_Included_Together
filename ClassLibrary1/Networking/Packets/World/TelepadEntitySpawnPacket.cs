@@ -7,6 +7,7 @@ using System.Collections.Generic;
 using System.IO;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking;
 using static STRINGS.UI.CLUSTERMAP;
 
 namespace ONI_MP.Networking.Packets.World
@@ -57,12 +58,12 @@ namespace ONI_MP.Networking.Packets.World
 				var deliverable = EntityData.ToGameDeliverable();
 				if (deliverable is not MinionStartingStats)
 				{
-					///move care packages a bit to the left to be centered
+					//move care packages a bit to the left to be centered
 					Pos.x -= 0.5f;
 				}
 				GameObject entity = deliverable.Deliver(Pos);
 
-				///duplicants from the printer are assigned an extra skill point, this is skipped over with a direct delivery
+				//duplicants from the printer are assigned an extra skill point, this is skipped over with a direct delivery
 				if (entity.TryGetComponent<MinionResume>(out var res))
 					res.ForceAddSkillPoint();
 

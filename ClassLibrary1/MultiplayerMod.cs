@@ -1,6 +1,5 @@
 ﻿using HarmonyLib;
 using KMod;
-using ONI_MP.Components;
 using ONI_MP.DebugTools;
 using ONI_MP.Misc;
 using ONI_MP.Networking;
@@ -8,7 +7,6 @@ using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.Architecture;
 using ONI_MP.Networking.Transport.Steamworks;
 using PeterHan.PLib.AVC;
-using Shared.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
@@ -125,7 +123,7 @@ namespace ONI_MP
 			int relay = Configuration.Instance.Host.NetworkTransport;
 			NetworkConfig.UpdateTransport((NetworkConfig.NetworkTransport)relay);
 
-			///version checker that doesnt restart the game
+			//version checker that doesnt restart the game
 			var VersionChecker = new PVersionCheck();
 			VersionChecker.Register(this, new SteamVersionChecker());
 
@@ -231,7 +229,7 @@ namespace ONI_MP
 	        using var _ = Profiler.Scope();
 
             base.OnAllModsLoaded(harmony, mods);
-			///does weird force restarts; replaced with plib version checker that doesnt restart the game
+			//does weird force restarts; replaced with plib version checker that doesnt restart the game
 			//ModUpdater.Updater.CheckForUpdate();
 
 #if DEBUG

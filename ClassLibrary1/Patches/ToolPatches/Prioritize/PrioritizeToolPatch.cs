@@ -1,12 +1,13 @@
 ﻿using HarmonyLib;
-using ONI_MP.DebugTools;
 using ONI_MP.Networking;
-using ONI_MP.Networking.Packets.Tools;
 using ONI_MP.Networking.Packets.Tools.Prioritize;
 using System.Collections.Generic;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking.Packets.Architecture;
 
+namespace ONI_MP.Patches.ToolPatches.Prioritize
+{
 [HarmonyPatch(typeof(PrioritizeTool), nameof(PrioritizeTool.OnDragTool))]
 public static class PrioritizeToolPatch
 {
@@ -23,4 +24,6 @@ public static class PrioritizeToolPatch
 
 		PacketSender.SendToAllOtherPeers(new PrioritizePacket { cell = cell, distFromOrigin = distFromOrigin });
 	}
+}
+
 }

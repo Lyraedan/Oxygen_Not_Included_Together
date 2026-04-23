@@ -1,21 +1,6 @@
 ﻿using HarmonyLib;
 using KSerialization;
 using ONI_MP.DebugTools;
-using ONI_MP.Networking.Packets.Core;
-using ONI_MP.Networking.Packets.DuplicantActions;
-using ONI_MP.Networking.Packets.Events;
-using ONI_MP.Networking.Packets.Handshake;
-using ONI_MP.Networking.Packets.Social;
-using ONI_MP.Networking.Packets.Tools;
-using ONI_MP.Networking.Packets.Tools.Build;
-using ONI_MP.Networking.Packets.Tools.Cancel;
-using ONI_MP.Networking.Packets.Tools.Clear;
-using ONI_MP.Networking.Packets.Tools.Deconstruct;
-using ONI_MP.Networking.Packets.Tools.Dig;
-using ONI_MP.Networking.Packets.Tools.Disinfect;
-using ONI_MP.Networking.Packets.Tools.Move;
-using ONI_MP.Networking.Packets.Tools.Prioritize;
-using ONI_MP.Networking.Packets.World;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -61,10 +46,10 @@ namespace ONI_MP.Networking.Packets.Architecture
 				_PacketTypes[id] = packageType;
 				DebugConsole.LogSuccess($"[PacketRegistry] Registered {packageType.Name} => {id}");
 			}
-			///Inheritance checks will fail for mod api packets, so these get wrapped in a generated type derived from ModApiPacket<T> at runtime
+			//Inheritance checks will fail for mod api packets, so these get wrapped in a generated type derived from ModApiPacket<T> at runtime
 			else if (API_Helper.ValidAsModApiPacket(packageType))
             {
-				///gotta register both ids so they can be created from either the wrapped or unwrapped type id
+				//gotta register both ids so they can be created from either the wrapped or unwrapped type id
 				var wrappedType = API_Helper.CreateModApiPacketType(packageType);
 				if (_PacketTypes.ContainsKey(id))
 				{

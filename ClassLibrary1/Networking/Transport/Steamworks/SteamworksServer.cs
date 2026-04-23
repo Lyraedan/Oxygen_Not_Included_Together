@@ -7,11 +7,12 @@ using System.Threading.Tasks;
 using ONI_MP.DebugTools;
 using ONI_MP.Networking.Packets.Architecture;
 using Shared.Profiling;
-using ONI_MP.Networking.States;
 using ONI_MP.UI;
 using Steamworks;
+using ONI_MP.Menus;
+using ONI_MP.Networking;
 
-namespace ONI_MP.Networking.Transport.Steam
+namespace ONI_MP.Networking.Transport.Steamworks
 {
     public class SteamworksServer : TransportServer
     {
@@ -167,7 +168,7 @@ namespace ONI_MP.Networking.Transport.Steam
             using var _ = Profiler.Scope();
 
             // Get connection info to check actual state
-            SteamNetConnectionInfo_t info = default;
+            SteamNetConnectionInfo_t info;
             if (!SteamNetworkingSockets.GetConnectionInfo(conn, out info))
             {
                 DebugConsole.LogWarning($"[GameServer] TryAcceptConnection: Could not get connection info for {clientId}");

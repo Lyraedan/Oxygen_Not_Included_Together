@@ -6,6 +6,8 @@ using System.IO;
 using Shared.Profiling;
 using UnityEngine;
 
+namespace ONI_MP.Networking.Packets.Core
+{
 public class EntityPositionPacket : IPacket
 {
 	public int NetId;
@@ -65,4 +67,6 @@ public class EntityPositionPacket : IPacket
 			DebugConsole.LogWarning($"[Packets] Could not find entity with NetId {NetId}");
 		}
 	}
+}
+
 }

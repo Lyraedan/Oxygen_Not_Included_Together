@@ -5,18 +5,17 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
 using ONI_MP.DebugTools;
-using ONI_MP.Menus;
 using ONI_MP.Misc;
 using ONI_MP.Networking.Packets.Architecture;
-using ONI_MP.Networking.Packets.Handshake;
 using Shared.Profiling;
 using ONI_MP.Networking.States;
-using Shared;
 using Steamworks;
 using UnityEngine;
+using ONI_MP.Misc.World;
+using ONI_MP.Networking;
 using static ONI_MP.Menus.NetworkIndicatorsScreen;
 
-namespace ONI_MP.Networking.Transport.Steam
+namespace ONI_MP.Networking.Transport.Steamworks
 {
     public class SteamworksClient : TransportClient
     {

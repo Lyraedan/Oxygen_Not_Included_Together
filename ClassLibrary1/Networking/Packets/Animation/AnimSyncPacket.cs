@@ -2,6 +2,7 @@ using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.Architecture;
 using Shared.Profiling;
 using System.IO;
+using ONI_MP.Networking;
 
 namespace ONI_MP.Networking.Packets.Animation
 {

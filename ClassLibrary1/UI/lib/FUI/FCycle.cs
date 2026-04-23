@@ -3,7 +3,7 @@ using System;
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace UI.lib.UIcmp //Source: Aki
+namespace ONI_MP.UI.lib.FUI
 {
 	public class FCycle : KMonoBehaviour
 	{

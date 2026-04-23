@@ -6,18 +6,16 @@ using System.Diagnostics;
 using System.IO;
 using ImGuiNET;
 using ONI_MP.Networking;
-using ONI_MP.Networking.Packets.World;
-using ONI_MP.Networking.Packets.Architecture;
-using ONI_MP.Networking.Components;
 using UnityEngine;
 using static STRINGS.UI;
 using ONI_MP.Menus;
 using ONI_MP.Misc;
+using ONI_MP.Misc.World;
 using Shared.Profiling;
 using System.Text;
 using ONI_MP.Patches.ToolPatches;
 using ONI_MP.Tests;
-using ONI_MP.Networking.Transport.Lan;
+using ONI_MP.Networking.Transport.Riptide;
 using static STRINGS.BUILDINGS.PREFABS;
 using Riptide;
 using Steamworks;
@@ -27,7 +25,6 @@ namespace ONI_MP.DebugTools
 {
     public class DevToolMultiplayer : DevTool
     {
-        private Vector2 scrollPos = Vector2.zero;
         DebugConsole console = null;
         PacketTracker packetTracker = null;
 
@@ -538,7 +535,7 @@ namespace ONI_MP.DebugTools
             var players = SteamLobby.GetAllLobbyMembers();
             string self = $"[You] {SteamFriends.GetPersonaName()} | {MultiplayerSession.LocalUserID}";
 
-            RiptideServer server = null;
+            RiptideServer server;
 
             foreach (CSteamID player in players)
             {
@@ -549,12 +546,10 @@ namespace ONI_MP.DebugTools
                 if (MultiplayerSession.IsHost && isTheHost)
                 {
                     displayName = $"[Host/You] {SteamFriends.GetPersonaName()}";
-                    color = new Vector4(0.3f, 1f, 0.3f, 1f);
                 }
                 else if (MultiplayerSession.IsClient && isTheHost)
                 {
                     displayName = $"[Host] {SteamFriends.GetFriendPersonaName(player)}";
-                    color = new Vector4(1f, 1f, 0f, 1f);
                 }
                 else if (player.m_SteamID == MultiplayerSession.LocalUserID)
                 {
@@ -792,7 +787,7 @@ namespace ONI_MP.DebugTools
                 Configuration.Instance.Client.LanSettings.Ip = clientIP;
                 Configuration.Instance.Client.LanSettings.Port = clientPort;
 
-                NetworkConfig.NetworkTransport selected_transport = NetworkConfig.NetworkTransport.STEAMWORKS;
+                NetworkConfig.NetworkTransport selected_transport;
                 if (selectedTransportType == 0)
                 {
                     selected_transport = NetworkConfig.NetworkTransport.STEAMWORKS;

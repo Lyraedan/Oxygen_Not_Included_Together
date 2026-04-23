@@ -5,6 +5,7 @@ using ONI_MP.Networking.Packets.Architecture;
 using Shared.Profiling;
 using Steamworks;
 using UnityEngine;
+using ONI_MP.Networking;
 
 namespace ONI_MP.Networking.Packets.Tools.Attack;
 

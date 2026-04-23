@@ -9,6 +9,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Shared.Profiling;
+using ONI_MP.Networking.Packets.Architecture;
 
 namespace ONI_MP.Patches.KleiPatches
 {

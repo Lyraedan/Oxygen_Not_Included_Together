@@ -1,7 +1,10 @@
 ﻿using HarmonyLib;
 using ONI_MP.UI;
 using Shared.Profiling;
+using ONI_MP.Menus;
 
+namespace ONI_MP.Patches
+{
 [HarmonyPatch(typeof(CameraController), nameof(CameraController.OnKeyDown))]
 public static class CameraControllerPatch
 {
@@ -22,4 +25,6 @@ public static class CameraControllerPatch
 		// Allow original method to run
 		return true;
 	}
+}
+
 }

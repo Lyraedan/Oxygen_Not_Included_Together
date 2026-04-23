@@ -1,5 +1,4 @@
 ﻿using HarmonyLib;
-using ONI_MP.DebugTools;
 using ONI_MP.Misc;
 using ONI_MP.Networking;
 using ONI_MP.Networking.Packets.Animation;
@@ -11,6 +10,7 @@ using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using Shared.Profiling;
+using ONI_MP.Networking.Packets.Architecture;
 using static RancherChore;
 using static WorkerBase;
 

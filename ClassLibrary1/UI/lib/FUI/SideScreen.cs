@@ -6,7 +6,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using static DetailsScreen;
 
-namespace UI.lib.UIcmp //Source: Aki
+namespace ONI_MP.UI.lib.FUI
 {
 	public class SideScreen
 	{

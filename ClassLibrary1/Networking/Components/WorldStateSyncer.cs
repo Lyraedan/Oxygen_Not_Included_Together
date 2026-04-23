@@ -5,6 +5,8 @@ using ONI_MP.Networking.Transport.Steamworks;
 using System.Collections.Generic;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking;
+using ONI_MP.Networking.Packets.Architecture;
 
 namespace ONI_MP.Networking.Components
 {
@@ -392,63 +394,6 @@ namespace ONI_MP.Networking.Components
 			}
 		}
 
-		// --- Research Logic ---
-		private void SyncResearch()
-		{
-			using var _ = Profiler.Scope();
-
-			if (Db.Get().Techs == null || Research.Instance == null) return;
-
-			try
-			{
-				var packet = new ResearchStatePacket();
-
-				// Include the current active research
-				var activeResearch = Research.Instance.GetActiveResearch();
-				packet.ActiveTechId = activeResearch?.tech?.Id ?? string.Empty;
-
-				// Include the research queue
-				try
-				{
-					var queueField = HarmonyLib.AccessTools.Field(typeof(Research), "queuedTech");
-					if (queueField != null)
-					{
-						var queue = queueField.GetValue(Research.Instance) as System.Collections.IList;
-						if (queue != null)
-						{
-							foreach (var item in queue)
-							{
-								var techInstance = item as TechInstance;
-								if (techInstance?.tech != null)
-								{
-									packet.QueuedTechIds.Add(techInstance.tech.Id);
-								}
-							}
-						}
-					}
-				}
-				catch { }
-
-				if (Db.Get().Techs != null)
-				{
-					foreach (var tech in Db.Get().Techs.resources)
-					{
-						var techInst = Research.Instance.Get(tech);
-						if (techInst != null && techInst.IsComplete())
-						{
-							packet.UnlockedTechIds.Add(tech.Id);
-						}
-					}
-				}
-
-				PacketSender.SendToAllClients(packet, PacketSendMode.Unreliable);
-			}
-			catch (System.Exception ex)
-			{
-				DebugConsole.LogError($"[WorldStateSyncer] Error in SyncResearch: {ex.Message}");
-			}
-		}
-
 		// --- Research Progress Logic ---
 		private void SyncResearchProgress()
 		{
@@ -499,83 +444,7 @@ namespace ONI_MP.Networking.Components
 			}
 		}
 
-		// --- Priorities Logic (NOT USED - synced via event-driven patches) ---
-		private void SyncPriorities()
-		{
-			using var _ = Profiler.Scope();
-
-			try
-			{
-				var packet = new PrioritizeStatePacket();
-
-				foreach (var identity in NetworkIdentityRegistry.AllIdentities)
-				{
-					if (identity == null) continue;
-
-					var prioritizable = identity.GetComponent<Prioritizable>();
-					if (prioritizable != null && prioritizable.IsPrioritizable())
-					{
-						var output = prioritizable.GetMasterPriority();
-
-						packet.Priorities.Add(new PrioritizeStatePacket.PriorityData
-						{
-							NetId = identity.NetId,
-							PriorityClass = (int)output.priority_class,
-							PriorityValue = output.priority_value
-						});
-					}
-				}
-
-				if (packet.Priorities.Count > 0)
-					PacketSender.SendToAllClients(packet, PacketSendMode.Unreliable);
-			}
-			catch (System.Exception ex)
-			{
-				DebugConsole.LogError($"[WorldStateSyncer] Error in SyncPriorities: {ex.Message}");
-			}
-		}
-
 	private System.Reflection.FieldInfo _disinfectChoreField;
-
-	// --- Disinfect Logic (NOT USED - synced via event-driven patches) ---
-		private void SyncDisinfectImpl()
-		{
-			using var _ = Profiler.Scope();
-
-			try
-			{
-				// Use our tracker
-				lock (DisinfectTracker.Disinfectables)
-				{
-					if (DisinfectTracker.Disinfectables.Count == 0) return;
-
-					if (_disinfectChoreField == null)
-					{
-						_disinfectChoreField = typeof(Disinfectable).GetField("chore", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
-					}
-
-					var packet = new DisinfectStatePacket();
-					foreach (var disinfectable in DisinfectTracker.Disinfectables)
-					{
-						if (disinfectable == null) continue;
-
-						object chore = _disinfectChoreField?.GetValue(disinfectable);
-						if (chore != null)
-						{
-							int cell = Grid.PosToCell(disinfectable);
-							packet.DisinfectCells.Add(cell);
-						}
-					}
-
-					if (packet.DisinfectCells.Count > 0)
-						PacketSender.SendToAllClients(packet, PacketSendMode.Unreliable);
-				}
-			}
-			catch (System.Exception ex)
-			{
-				DebugConsole.LogError($"[WorldStateSyncer] Error in SyncDisinfectImpl: {ex.Message}");
-			}
-		}
 
 		public void OnDisinfectStateReceived(DisinfectStatePacket packet)
 		{

@@ -364,8 +364,9 @@ namespace ONI_MP
 			}
 
 			public static LocString WORK_IN_PROGRESS = "This feature is currently not finished and will be made usable in a future update.";
-			///Unity Ui big composite screen, these get automatically applied, and are auto generated from the unity project
 			/// <summary>
+			/// Unity Ui big composite screen, these get automatically applied, and are auto generated from the unity project
+			/// </summary>
 			public class FRIENDSONLYMODE
 			{
 				public static LocString LOBBY_VISIBILITY_PUBLIC = "Public";

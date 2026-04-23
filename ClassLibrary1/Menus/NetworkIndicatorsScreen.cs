@@ -6,10 +6,8 @@ using System.Text;
 using System.Threading.Tasks;
 using ONI_MP.Misc;
 using ONI_MP.Networking;
-using ONI_MP.Networking.Transport.Steam;
 using Shared.Profiling;
 using Steamworks;
-using SteamClient = ONI_MP.Networking.Transport.Steam.SteamworksClient;
 using UnityEngine;
 
 namespace ONI_MP.Menus

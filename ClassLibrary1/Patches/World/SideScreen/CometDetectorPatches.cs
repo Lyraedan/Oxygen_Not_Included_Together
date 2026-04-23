@@ -5,13 +5,12 @@ using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.World;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking.Packets.Architecture;
 
 namespace ONI_MP.Patches.World.SideScreen
 {
-	/// <summary>
-	/// Patches for Comet Detector (Space Scanner) synchronization.
-	/// Handles both DLC (ClusterCometDetector) and base game (CometDetector).
-	/// </summary>
+	// Patches for Comet Detector (Space Scanner) synchronization.
+	// Handles both DLC (ClusterCometDetector) and base game (CometDetector).
 
 	// ==================== DLC (Spaced Out) Patches ====================
 

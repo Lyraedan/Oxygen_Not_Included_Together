@@ -1,13 +1,12 @@
 ﻿using ONI_MP.Menus;
 using ONI_MP.Misc;
 using ONI_MP.Networking;
-using ONI_MP.Networking.States;
-using ONI_MP.Networking.Transport.Lan;
+using ONI_MP.Networking.Transport.Riptide;
 using Steamworks;
 using System;
 using Shared.Profiling;
 using UnityEngine;
-using SteamworksClient = ONI_MP.Networking.Transport.Steam.SteamworksClient;
+using SteamworksClient = ONI_MP.Networking.Transport.Steamworks.SteamworksClient;
 
 namespace ONI_MP.DebugTools
 {

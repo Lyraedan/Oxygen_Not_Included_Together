@@ -374,7 +374,7 @@ namespace ONI_MP.Menus
             _allLobbies = lobbies ?? new List<LobbyListEntry>();
 
             ApplyFiltersAndSort();
-            int lobbyCount = 0;
+            int lobbyCount;
             PopulateLobbyList(out lobbyCount);
 
             if (lobbyCount == 0)

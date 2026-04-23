@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.IO;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking;
 
 namespace ONI_MP.Networking.Packets.Core
 {

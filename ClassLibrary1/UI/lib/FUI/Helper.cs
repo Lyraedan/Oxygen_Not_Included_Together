@@ -4,7 +4,7 @@ using System.Linq;
 using System.Reflection;
 using UnityEngine;
 
-namespace UI.lib.UIcmp //Source: Aki
+namespace ONI_MP.UI.lib.FUI
 {
 	public class Helper
 	{
@@ -148,4 +148,3 @@ namespace UI.lib.UIcmp //Source: Aki
 		}
 	}
 }
-

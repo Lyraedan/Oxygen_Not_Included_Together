@@ -4,7 +4,7 @@ using ONI_MP.Networking.Packets.Architecture;
 using System.IO;
 using Shared.Profiling;
 
-namespace ONI_MP.Networking.Packets.Events
+namespace ONI_MP.Networking.Packets.Core
 {
 	public class EventTriggeredPacket : IPacket
 	{

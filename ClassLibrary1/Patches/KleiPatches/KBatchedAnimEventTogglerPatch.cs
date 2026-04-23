@@ -2,7 +2,10 @@
 using ONI_MP.Networking;
 using ONI_MP.Networking.Components;
 using Shared.Profiling;
+using ONI_MP.Patches.World;
 
+namespace ONI_MP.Patches.KleiPatches
+{
 [HarmonyPatch]
 public static class KBatchedAnimEventTogglerPatch
 {
@@ -60,4 +63,6 @@ public static class KBatchedAnimEventTogglerPatch
 			// Silently ignore - animation context may not be ready yet
 		}
 	}
+}
+
 }

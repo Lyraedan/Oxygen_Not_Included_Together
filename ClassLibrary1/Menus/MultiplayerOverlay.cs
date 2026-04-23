@@ -1,5 +1,5 @@
 ﻿using ONI_MP.DebugTools;
-using ONI_MP.Patches.LoadingOverlayPatch;
+using ONI_MP.Patches.LoadingOverlayPatches;
 using System;
 using Shared.Profiling;
 using TMPro;

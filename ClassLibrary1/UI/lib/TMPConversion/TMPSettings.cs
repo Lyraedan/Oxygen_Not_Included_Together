@@ -3,7 +3,7 @@ using Newtonsoft.Json;
 using System;
 using TMPro;
 
-namespace UI.lib
+namespace ONI_MP.UI.lib.TMPConversion
 {
 
 	[Serializable]

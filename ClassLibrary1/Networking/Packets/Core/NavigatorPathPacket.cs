@@ -1,11 +1,12 @@
 ﻿using ONI_MP.DebugTools;
 using ONI_MP.Networking.Packets.Architecture;
-using ONI_MP.Patches.Navigation;
+using ONI_MP.Patches.NavigationPatches;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking;
 using CompressionLevel = System.IO.Compression.CompressionLevel;
 
 namespace ONI_MP.Networking.Packets.Core

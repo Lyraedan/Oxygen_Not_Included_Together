@@ -13,7 +13,7 @@ namespace ONI_MP.Networking.Packets.Core
 {
 	/// <summary>
 	/// generic packet wrapper for mod API packets;
-	/// each mod api registered packet type T will have its own ModApiPacket<T> type created at runtime
+	/// each mod api registered packet type T will have its own ModApiPacket&lt;T&gt; type created at runtime
 	/// </summary>
 	/// <typeparam name="T">type of the api-registered mod class that inherits the shared IPacket</typeparam>
 	internal class ModApiPacket<T> : IPacket, IModApiPacket, IPacketSkipsRegistration

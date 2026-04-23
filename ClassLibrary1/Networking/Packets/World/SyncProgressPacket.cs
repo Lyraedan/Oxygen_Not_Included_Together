@@ -1,11 +1,11 @@
 using ONI_MP.DebugTools;
 using ONI_MP.Networking.Packets.Architecture;
-using ONI_MP.Networking.Components;
 using ONI_MP.Menus;
 using Steamworks;
 using System.Collections.Generic;
 using System.IO;
 using Shared.Profiling;
+using ONI_MP.Networking;
 
 namespace ONI_MP.Networking.Packets.World
 {
@@ -21,11 +21,9 @@ namespace ONI_MP.Networking.Packets.World
         private struct ClientSyncInfo
         {
             public string ClientName;
-            public string FileName;
             public int ProgressPercent;
             public int ReceivedChunks;
             public int TotalChunks;
-            public System.DateTime LastUpdate;
         }
         public ulong ClientSteamID;      // Who is sending the progress
         public string ClientName;           // Readable player name
@@ -70,11 +68,9 @@ namespace ONI_MP.Networking.Packets.World
             ClientProgress[ClientSteamID] = new ClientSyncInfo
             {
                 ClientName = ClientName,
-                FileName = FileName,
                 ProgressPercent = ProgressPercent,
                 ReceivedChunks = ReceivedChunks,
-                TotalChunks = TotalChunks,
-                LastUpdate = System.DateTime.Now
+                TotalChunks = TotalChunks
             };
 
             DebugConsole.Log($"[SyncProgress] {ClientName} sync progress: {ProgressPercent}% ({ReceivedChunks}/{TotalChunks} chunks)");

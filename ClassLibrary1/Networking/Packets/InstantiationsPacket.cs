@@ -5,6 +5,7 @@ using System.IO;
 using System.IO.Compression;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking;
 
 namespace ONI_MP.Networking.Packets
 {

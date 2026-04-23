@@ -2,7 +2,7 @@
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-namespace UI.lib.UIcmp //Source: Aki
+namespace ONI_MP.UI.lib.FUI
 {
 	public class FSlider : KMonoBehaviour, IEventSystemHandler, IDragHandler, IPointerDownHandler
 	{
@@ -166,7 +166,7 @@ namespace UI.lib.UIcmp //Source: Aki
 		// Minor bug: the pitch is a little too high
 		public void PlayMoveSound()
 		{
-			///*
+			//*
 			if (KInputManager.isFocused)
 			{
 				float timeSinceLast = Time.unscaledTime - lastMoveTime;

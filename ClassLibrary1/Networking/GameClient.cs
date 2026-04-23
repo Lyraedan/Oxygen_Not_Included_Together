@@ -1,13 +1,11 @@
 using ONI_MP.DebugTools;
 using ONI_MP.Menus;
 using ONI_MP.Misc;
-using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.Architecture;
 using ONI_MP.Networking.Packets.Handshake;
 using ONI_MP.Networking.Packets.World;
 using Shared.Profiling;
 using ONI_MP.Networking.States;
-using ONI_MP.Networking.Transport.Steamworks;
 using ONI_MP.Patches.ToolPatches;
 using Shared;
 using Shared.Helpers;
@@ -17,6 +15,8 @@ using System.Collections;
 using System.Linq;
 using System.Runtime.InteropServices;
 using UnityEngine;
+using ONI_MP.Misc.World;
+using ONI_MP.Networking;
 
 namespace ONI_MP.Networking
 {
@@ -353,38 +353,6 @@ namespace ONI_MP.Networking
 			{
 				DebugConsole.LogWarning("[GameClient] Client is neither in menu nor in game - unexpected state");
 			}
-		}
-
-		private static IEnumerator AutoReconnectCoroutine()
-		{
-			if (_autoReconnecting) yield break;
-			_autoReconnecting = true;
-			_reconnectAttempt++;
-
-			float delay = Mathf.Min(RECONNECT_BASE_DELAY * Mathf.Pow(2, _reconnectAttempt - 1), 30f);
-			DebugConsole.Log($"[GameClient] Auto-reconnect attempt {_reconnectAttempt}/{MAX_RECONNECT_ATTEMPTS} in {delay}s");
-			MultiplayerOverlay.Show($"Reconnecting... attempt {_reconnectAttempt}/{MAX_RECONNECT_ATTEMPTS}");
-
-			yield return new WaitForSecondsRealtime(delay);
-
-			if (!Utils.IsInGame())
-			{
-				DebugConsole.Log("[GameClient] No longer in game, aborting reconnect");
-				_autoReconnecting = false;
-				_reconnectAttempt = 0;
-				yield break;
-			}
-
-			try
-			{
-				ReconnectToSession();
-			}
-			catch (Exception ex)
-			{
-				DebugConsole.LogError($"[GameClient] Reconnect attempt {_reconnectAttempt} failed: {ex}");
-			}
-
-			_autoReconnecting = false;
 		}
 
 		public static void ResetReconnectState()

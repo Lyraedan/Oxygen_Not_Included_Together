@@ -1,8 +1,6 @@
 ﻿using HarmonyLib;
-using ONI_MP;
 using ONI_MP.DebugTools;
 using ONI_MP.Misc;
-using ONI_MP.Networking;
 using ONI_MP.UI;
 using Steamworks;
 using System;
@@ -12,6 +10,8 @@ using Shared.Profiling;
 using UnityEngine;
 using UnityEngine.UI;
 
+namespace ONI_MP.Patches.MainMenuScreenPatches
+{
 [HarmonyPatch(typeof(MainMenu), "OnPrefabInit")]
 internal static class MainMenuPatch
 {
@@ -304,4 +304,6 @@ internal static class MainMenuPatch
 			Application.OpenURL(url);
 		});
 	}
+}
+
 }

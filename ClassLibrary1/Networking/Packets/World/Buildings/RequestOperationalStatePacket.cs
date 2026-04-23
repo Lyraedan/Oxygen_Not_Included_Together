@@ -1,10 +1,10 @@
 ﻿using ONI_MP.Networking.Packets.Architecture;
-using ONI_MP.Scripts.Buildings;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking;
 namespace ONI_MP.Networking.Packets.World.Buildings
 {
 	internal class RequestOperationalStatePacket : IPacket

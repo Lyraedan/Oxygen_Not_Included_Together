@@ -3,6 +3,7 @@ using ONI_MP.Networking.Packets.Architecture;
 using Steamworks;
 using System.IO;
 using Shared.Profiling;
+using ONI_MP.Networking;
 using Utils = ONI_MP.Misc.Utils;
 
 namespace ONI_MP.Networking.Packets.World

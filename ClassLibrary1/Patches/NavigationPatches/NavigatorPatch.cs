@@ -2,8 +2,9 @@ using HarmonyLib;
 using ONI_MP.Networking;
 using ONI_MP.Networking.Components;
 using Shared.Profiling;
+using ONI_MP.Networking.Packets.Architecture;
 
-namespace ONI_MP.Patches.Navigation
+namespace ONI_MP.Patches.NavigationPatches
 {
 	[HarmonyPatch(typeof(Navigator), nameof(Navigator.AdvancePath))]
 	public static class NavigatorPatch

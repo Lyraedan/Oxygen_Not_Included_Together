@@ -2,11 +2,13 @@
 using ONI_MP.Misc;
 using ONI_MP.Networking.Packets.Architecture;
 using ONI_MP.Networking.States;
-using ONI_MP.Networking.Transport.Lan;
+using ONI_MP.Networking.Transport.Riptide;
 using ONI_MP.UI;
 using Steamworks;
 using System.IO;
 using Shared.Profiling;
+using ONI_MP.Menus;
+using ONI_MP.Networking;
 
 namespace ONI_MP.Networking.Packets.Core
 {

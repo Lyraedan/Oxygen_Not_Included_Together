@@ -2,9 +2,9 @@
 using KMod;
 using System.Collections;
 using UnityEngine;
-using static UI.lib.UIcmp.Helper;
+using static ONI_MP.UI.lib.FUI.Helper;
 
-namespace UI.lib.UIcmp //Source: Aki
+namespace ONI_MP.UI.lib.FUI
 {
 	public class ModMenuButton
 	{

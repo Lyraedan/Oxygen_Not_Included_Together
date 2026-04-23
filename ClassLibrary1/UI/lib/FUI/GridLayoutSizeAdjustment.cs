@@ -6,7 +6,7 @@ using System.Linq;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace UI.lib.UI.FUI
+namespace ONI_MP.UI.lib.FUI
 {
 	public class GridLayoutSizeAdjustment : KMonoBehaviour
 	{

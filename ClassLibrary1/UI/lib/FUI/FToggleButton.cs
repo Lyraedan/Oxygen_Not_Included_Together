@@ -1,9 +1,9 @@
 ﻿using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
-using UI.lib.UIcmp;
+using ONI_MP.UI.lib.FUI;
 
-namespace UI.lib.UI.FUI
+namespace ONI_MP.UI.lib.FUI
 {
 	public class FToggleButton : KMonoBehaviour, IEventSystemHandler, IPointerUpHandler, IPointerDownHandler, IPointerEnterHandler, IPointerExitHandler, IPointerClickHandler
 	{
@@ -14,7 +14,6 @@ namespace UI.lib.UI.FUI
 		public event System.Action OnPointerExitAction;
 
 		private bool interactable;
-		private Material material;
 
 		[MyCmpGet]
 		private Image image;
@@ -53,7 +52,6 @@ namespace UI.lib.UI.FUI
 
 			button.enabled = false;
 
-			material = image.material;
 			interactable = true;
 			SetColorState();
 		}

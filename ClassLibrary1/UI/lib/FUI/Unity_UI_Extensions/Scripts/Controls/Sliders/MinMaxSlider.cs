@@ -33,9 +33,9 @@ using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
-using UI.lib.UI.FUI.Unity_UI_Extensions.Scripts.Utilities;
+using ONI_MP.UI.lib.FUI.Unity_UI_Extensions.Scripts.Utilities;
 
-namespace UI.lib.UI.FUI.Unity_UI_Extensions.Scripts.Controls.Sliders
+namespace ONI_MP.UI.lib.FUI.Unity_UI_Extensions.Scripts.Controls.Sliders
 {
 	public class MinMaxSlider : Selectable, IBeginDragHandler, IDragHandler, IEndDragHandler
 	{

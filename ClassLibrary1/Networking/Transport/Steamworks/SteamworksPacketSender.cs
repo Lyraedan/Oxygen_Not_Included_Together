@@ -10,7 +10,7 @@ using ONI_MP.Networking.Packets.Architecture;
 using Shared.Profiling;
 using Steamworks;
 
-namespace ONI_MP.Networking.Transport.Steam
+namespace ONI_MP.Networking.Transport.Steamworks
 {
     public class SteamworksPacketSender : TransportPacketSender
     {

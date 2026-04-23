@@ -1,5 +1,4 @@
 ﻿using HarmonyLib;
-using ONI_MP.DebugTools;
 using ONI_MP.Networking;
 using ONI_MP.Networking.Packets.Tools;
 using System;
@@ -9,6 +8,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking.Packets.Architecture;
 
 namespace ONI_MP.Patches.ToolPatches
 {

@@ -3,6 +3,8 @@ using ONI_MP.Networking;
 using Shared.Profiling;
 using UnityEngine;
 
+namespace ONI_MP.Patches.KleiPatches
+{
 [HarmonyPatch(typeof(Util), nameof(Util.KInstantiate),
 		new[] {
 				typeof(GameObject),
@@ -53,4 +55,6 @@ public static class KInstantiatePatch
 			*/
 		}
 	}
+}
+
 }

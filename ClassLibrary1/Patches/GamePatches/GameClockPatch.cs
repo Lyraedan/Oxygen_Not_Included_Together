@@ -6,6 +6,8 @@ using System;
 using System.Collections;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Misc.World;
+using ONI_MP.Networking.Packets.Architecture;
 
 namespace ONI_MP.Patches.GamePatches
 {
@@ -87,12 +89,5 @@ namespace ONI_MP.Patches.GamePatches
 			}
 		}
 
-		private static IEnumerator DelayedHardSync()
-		{
-			using var _ = Profiler.Scope();
-
-			yield return new WaitForSecondsRealtime(5f); // wait to ensure ONI's autosave completes (generous wait time)
-			GameServerHardSync.PerformHardSync();
-		}
 	}
 }

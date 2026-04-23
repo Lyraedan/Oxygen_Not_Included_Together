@@ -1,12 +1,11 @@
 using HarmonyLib;
 using KSerialization;
-using ONI_MP.DebugTools;
 using ONI_MP.Misc;
 using ONI_MP.Networking;
-using ONI_MP.Networking.Components;
 using ONI_MP.Networking.Packets.Social;
 using System.Collections.Generic;
 using Shared.Profiling;
+using ONI_MP.Networking.Packets.Architecture;
 
 namespace ONI_MP.Patches.Social
 {

@@ -9,6 +9,8 @@ using Steamworks;
 using System;
 using System.Collections.Generic;
 using Shared.Profiling;
+using ONI_MP.Networking;
+using ONI_MP.Networking.Packets.Architecture;
 using static STRINGS.BUILDINGS.PREFABS.DOOR.CONTROL_STATE;
 
 namespace ONI_MP.Networking

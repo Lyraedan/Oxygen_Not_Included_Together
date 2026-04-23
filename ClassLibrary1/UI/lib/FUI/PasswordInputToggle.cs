@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
-using UI.lib.UIcmp;
+using ONI_MP.UI.lib.FUI;
 using UnityEngine.UI;
 
 namespace ONI_MP.UI.lib.FUI

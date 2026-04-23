@@ -1,7 +1,10 @@
 ﻿using HarmonyLib;
 using ONI_MP.UI;
 using Shared.Profiling;
+using ONI_MP.Menus;
 
+namespace ONI_MP.Patches.KleiPatches
+{
 [HarmonyPatch(typeof(KInputManager), nameof(KInputManager.Update))]
 public static class KInputManagerPatch
 {
@@ -17,4 +20,6 @@ public static class KInputManagerPatch
 
 		return true; // Allow input through
 	}
+}
+
 }

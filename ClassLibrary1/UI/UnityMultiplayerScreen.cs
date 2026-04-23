@@ -14,15 +14,10 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Shared.Profiling;
-using UI.lib.UI.FUI;
-using UI.lib.UIcmp;
+using ONI_MP.UI.lib.FUI;
+using ONI_MP.UI.lib.FUI;
 using UnityEngine;
 using static ONI_MP.STRINGS.UI;
-using static ONI_MP.STRINGS.UI.MP_SCREEN.HOSTMENU;
-using static ONI_MP.STRINGS.UI.MP_SCREEN.HOSTMENU.LOBBYSIZE;
-using static ONI_MP.STRINGS.UI.PAUSESCREEN;
-using static ONI_MP.UI.UnityMultiplayerScreen;
-using ONI_MP.Patches.ToolPatches;
 
 namespace ONI_MP.UI
 {
@@ -69,7 +64,6 @@ namespace ONI_MP.UI
 			MainCancel;
 		//Tabs for Joining
 		FToggleButton SteamTabToggle, CodeTabToggle, LanTabToggle;
-		JoinMode CurrentJoinMode = JoinMode.Steam;
 		//TabContainer:
 		GameObject SteamTab, CodeTab, LanTab;
 		//SteamTab:
@@ -123,7 +117,7 @@ namespace ONI_MP.UI
 
 			Debug.Log("Initializing MultiplayerScreen");
 
-			///init main area of base screen
+			//init main area of base screen
 			MainMenuSegment = transform.Find("MainMenu").gameObject;
 			StartHostingSegment = transform.Find("HostMenu").gameObject;
 			LobbyBrowserSegment = transform.Find("LobbyList").gameObject;
@@ -136,7 +130,7 @@ namespace ONI_MP.UI
 			HostGame.OnClick += () => ShowHostSegment(true);
 			MainCancel = transform.Find("MainMenu/Cancel").gameObject.AddOrGet<FButton>();
 			MainCancel.OnClick += () => Show(false);
-			///init tabs
+			//init tabs
 			SteamTabToggle = transform.Find("MainMenu/JoinViaButtons/Steam").gameObject.AddOrGet<FToggleButton>();
 			SteamTabToggle.OnClick += () => SetJoinVia(JoinMode.Steam);
 			CodeTabToggle = transform.Find("MainMenu/JoinViaButtons/Code").gameObject.AddOrGet<FToggleButton>();
@@ -147,18 +141,18 @@ namespace ONI_MP.UI
 			SteamTab = transform.Find("MainMenu/SteamJoin").gameObject;
 			CodeTab = transform.Find("MainMenu/LobbyCodeJoin").gameObject;
 			LanTab = transform.Find("MainMenu/LanJoin").gameObject;
-			///init Steam Join Tab
+			//init Steam Join Tab
 			JoinViaSteam = transform.Find("MainMenu/SteamJoin/JoinViaSteam").gameObject.AddOrGet<FButton>();
 			JoinViaSteam.OnClick += () => SteamFriends.ActivateGameOverlay("friends");
 			OpenLobbyBrowser = transform.Find("MainMenu/SteamJoin/OpenLobbyListButton").gameObject.AddOrGet<FButton>();
 			OpenLobbyBrowser.OnClick += () => ShowLobbySegment(true);
-			///init Code Join Tab
+			//init Code Join Tab
 			JoinViaCode = transform.Find("MainMenu/LobbyCodeJoin/JoinWithCodeButton").gameObject.AddOrGet<FButton>();
 			JoinViaCode.OnClick += JoinLobbyWithCode;
 			LobbyCodeInput = transform.Find("MainMenu/LobbyCodeJoin/Input").FindOrAddComponent<FInputField2>();
 			LobbyCodeInput.Text = string.Empty;
 			LobbyCodeInput.inputField.characterLimit = 16;
-			///init LAN Join Tab
+			//init LAN Join Tab
 			JoinIPInput = transform.Find("MainMenu/LanJoin/Inputs/IpInput").FindOrAddComponent<FInputField2>();
 			JoinIPInput.Text = string.Empty;
 			JoinPortInput = transform.Find("MainMenu/LanJoin/Inputs/Port").FindOrAddComponent<FInputField2>();
@@ -270,8 +264,6 @@ namespace ONI_MP.UI
 
 		private void SetJoinVia(JoinMode current)
 		{
-			CurrentJoinMode = current;
-
 			SteamTab.SetActive(current == JoinMode.Steam);
 			CodeTab.SetActive(current == JoinMode.Code);
 			LanTab.SetActive(current == JoinMode.LAN);

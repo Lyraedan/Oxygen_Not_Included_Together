@@ -5,6 +5,7 @@ using ONI_MP.Networking.Packets.World.Buildings;
 using Shared.Profiling;
 using System.Collections.Generic;
 using UnityEngine;
+using ONI_MP.Networking.Packets.Architecture;
 
 namespace ONI_MP.Patches.World.Buildings
 {

@@ -3,6 +3,8 @@ using ONI_MP.Networking.Packets.Core;
 using ONI_MP.Networking.States;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking;
+using ONI_MP.Networking.Packets.Architecture;
 
 namespace ONI_MP.Networking.Components
 {
@@ -94,8 +96,6 @@ namespace ONI_MP.Networking.Components
 				Vector3 bl = cam.ViewportToWorldPoint(new Vector3(0, 0, 0));
 				Vector3 tr = cam.ViewportToWorldPoint(new Vector3(1, 1, 0));
 
-				minX = Grid.PosToCell(bl);
-				maxX = Grid.PosToCell(tr);
 				// Grid.PosToCell returns cell index, not XY.
 				// We want XY coordinates to define a rectangle.
 

@@ -5,6 +5,8 @@ using System.IO;
 using System.Linq;
 using Shared.Profiling;
 
+namespace ONI_MP.Networking.Packets.Animation
+{
 public class ToggleMinionKanimEffectPacket : IPacket
 {
 	public int NetId;
@@ -53,4 +55,6 @@ public class ToggleMinionKanimEffectPacket : IPacket
 		//data gets ignored by subscriptions
 		toggler.Trigger(hash, null);
 	}
+}
+
 }

@@ -6,6 +6,7 @@ using ONI_MP.Networking.Packets.Architecture;
 using ONI_MP.Networking.Packets.Core;
 using ONI_MP.Networking.Packets.World;
 using UnityEngine;
+using ONI_MP.Misc.World;
 
 namespace ONI_MP.DebugTools.UnitTests
 {

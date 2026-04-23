@@ -1,5 +1,4 @@
 ﻿using ONI_MP.Networking.Packets.Architecture;
-using ONI_MP.Networking.States;
 using ONI_MP.Scripts.Buildings;
 using System;
 using System.Collections.Generic;
@@ -8,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Shared.Profiling;
+using ONI_MP.Networking;
 
 namespace ONI_MP.Networking.Packets.World.Buildings
 {

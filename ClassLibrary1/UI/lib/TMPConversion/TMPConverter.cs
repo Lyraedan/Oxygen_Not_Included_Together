@@ -6,7 +6,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace UI.lib
+namespace ONI_MP.UI.lib.TMPConversion
 {
 	/// <summary>
 	/// Credit: Aki

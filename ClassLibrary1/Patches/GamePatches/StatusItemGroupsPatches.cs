@@ -5,9 +5,9 @@ using System.Text;
 using System.Threading.Tasks;
 using HarmonyLib;
 using ONI_MP.DebugTools;
-using ONI_MP.Menus;
 using ONI_MP.Networking;
 using ONI_MP.Networking.Packets.World;
+using ONI_MP.Networking.Packets.Architecture;
 
 namespace ONI_MP.Patches.GamePatches
 {

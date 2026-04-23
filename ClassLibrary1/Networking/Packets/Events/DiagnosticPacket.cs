@@ -1,6 +1,5 @@
 ﻿using ONI_MP.Networking.Packets.Architecture;
 using ONI_MP.Networking.Packets.World;
-using Shared.Interfaces.Networking;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -8,6 +7,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Shared.Profiling;
+using ONI_MP.Networking;
 using static ColonyDiagnostic;
 using static ColonyDiagnostic.DiagnosticResult;
 

@@ -28,7 +28,7 @@ using UnityEngine.Events;
 using UnityEngine.UI;
 using UnityEngine;
 
-namespace UI.lib.UI.FUI.Unity_UI_Extensions.Scripts.Controls.ReorderableList
+namespace ONI_MP.UI.lib.FUI.Unity_UI_Extensions.Scripts.Controls.ReorderableList
 {
 	[RequireComponent(typeof(RectTransform)), DisallowMultipleComponent]
 	[AddComponentMenu("UI/Extensions/Re-orderable list")]

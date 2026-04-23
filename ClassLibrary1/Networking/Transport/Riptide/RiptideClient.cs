@@ -14,9 +14,10 @@ using System.Collections;
 using ONI_MP.Networking.States;
 using ONI_MP.UI;
 using Steamworks;
+using ONI_MP.Networking;
 using static ONI_MP.STRINGS.UI.MP_OVERLAY;
 
-namespace ONI_MP.Networking.Transport.Lan
+namespace ONI_MP.Networking.Transport.Riptide
 {
     public class RiptideClient : TransportClient
     {
@@ -390,7 +391,6 @@ namespace ONI_MP.Networking.Transport.Lan
                 {
                     DebugConsole.Log("[LanClient] Connection successful");
                     MultiplayerOverlay.Close();
-                    wasSuccessful = true;
                     yield break;
                 }
 

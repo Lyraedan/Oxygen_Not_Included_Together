@@ -1,4 +1,4 @@
-using ONI_MP.UI;
+using ONI_MP.Menus;
 using System.Collections.Generic;
 using System.IO;
 using ONI_MP.Networking.Packets.Architecture;

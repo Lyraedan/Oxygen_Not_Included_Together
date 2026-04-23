@@ -7,7 +7,7 @@ using ONI_MP.Networking;
 using ONI_MP.Networking.Packets.Architecture;
 using ONI_MP.Networking.Packets.Core;
 using ONI_MP.Networking.Packets.World;
-using ONI_MP.Networking.Transport.Lan;
+using ONI_MP.Networking.Transport.Riptide;
 
 namespace ONI_MP.DebugTools.UnitTests
 {
