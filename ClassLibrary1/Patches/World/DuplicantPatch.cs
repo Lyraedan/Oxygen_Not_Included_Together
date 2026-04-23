@@ -23,7 +23,7 @@ public static class DuplicantPatch
 		var networkIdentity = __result.GetComponent<NetworkIdentity>();
 		if (networkIdentity == null)
 		{
-			networkIdentity = __result.AddOrGet<NetworkIdentity>();
+			__result.AddOrGet<NetworkIdentity>();
 			DebugConsole.Log("[NetworkIdentity] Injected into Duplicant");
 		}
 

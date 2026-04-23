@@ -390,7 +390,6 @@ namespace ONI_MP.Networking.Transport.Lan
                 {
                     DebugConsole.Log("[LanClient] Connection successful");
                     MultiplayerOverlay.Close();
-                    wasSuccessful = true;
                     yield break;
                 }
 

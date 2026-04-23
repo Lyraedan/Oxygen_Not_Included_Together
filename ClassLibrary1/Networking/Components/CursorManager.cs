@@ -94,8 +94,6 @@ namespace ONI_MP.Networking.Components
 				Vector3 bl = cam.ViewportToWorldPoint(new Vector3(0, 0, 0));
 				Vector3 tr = cam.ViewportToWorldPoint(new Vector3(1, 1, 0));
 
-				minX = Grid.PosToCell(bl);
-				maxX = Grid.PosToCell(tr);
 				// Grid.PosToCell returns cell index, not XY.
 				// We want XY coordinates to define a rectangle.
 

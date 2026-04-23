@@ -89,7 +89,7 @@ namespace ONI_MP.Networking.Packets.Animation
 				return false;
 			}
 
-			GameObject workableGO = null;
+			GameObject workableGO;
 			if (!StartingToWork)
 			{
 				worker.StopWork();

@@ -167,7 +167,7 @@ namespace ONI_MP.Networking.Transport.Steam
             using var _ = Profiler.Scope();
 
             // Get connection info to check actual state
-            SteamNetConnectionInfo_t info = default;
+            SteamNetConnectionInfo_t info;
             if (!SteamNetworkingSockets.GetConnectionInfo(conn, out info))
             {
                 DebugConsole.LogWarning($"[GameServer] TryAcceptConnection: Could not get connection info for {clientId}");

@@ -46,7 +46,7 @@ namespace ONI_MP.Networking.Packets.World
 
 			DebugConsole.Log($"[AssignmentPacket] Received: BuildingNetId={BuildingNetId}, Cell={Cell}, AssigneeNetId={AssigneeNetId}, GroupId={GroupId}");
 
-			NetworkIdentity buildingIdentity = null;
+			NetworkIdentity buildingIdentity;
 
 			// Try to find by NetID first
 			if (!NetworkIdentityRegistry.TryGet(BuildingNetId, out buildingIdentity) || buildingIdentity == null)
