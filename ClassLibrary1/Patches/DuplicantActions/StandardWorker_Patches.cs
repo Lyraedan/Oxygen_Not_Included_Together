@@ -22,11 +22,13 @@ namespace ONI_MP.Patches.DuplicantActions
 		[HarmonyPatch(typeof(StandardWorker), nameof(StandardWorker.StartWork))]
 		public class StandardWorker_StartWork_Patch
 		{
+			// SKIP WORKABLE
 			private static Type[] workablesToSkip =
 			{
                 typeof(DefragmentationZone),
                 typeof(RancherWorkable),
-                typeof(LiquidPumpingStation)
+                typeof(LiquidPumpingStation),
+				typeof(IceKettleWorkable)
             };
 
 			public static void Postfix(StandardWorker __instance, StartWorkInfo start_work_info)
