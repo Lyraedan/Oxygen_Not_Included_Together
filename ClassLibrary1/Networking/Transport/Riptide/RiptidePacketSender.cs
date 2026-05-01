@@ -34,7 +34,8 @@ namespace ONI_MP.Networking.Transport.Lan
         private bool SendRaw(Connection connection, byte[] bytes, IPacket packet, PacketSendMode sendType)
         {
             MessageSendMode sendMode = ConvertSendType(sendType);
-            Riptide.Message msg = Riptide.Message.Create(sendMode, 1);
+            int id = PacketRegistry.GetPacketId(packet);
+            Riptide.Message msg = Riptide.Message.Create(sendMode, 1); // TODO: Test with packet id though I don't think it matters since we handle packets elsewhere
             msg.AddBytes(bytes);
 
             if (MultiplayerSession.IsHost)
