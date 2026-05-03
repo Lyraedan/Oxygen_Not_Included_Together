@@ -8,7 +8,7 @@ namespace ONI_MP.Patches.World
     [HarmonyPatch(typeof(SuitTank), nameof(SuitTank.GetTankAmount))]
     public static class SuitTank_GetTankAmount_Patch
     {
-        // For the sake of the dupes lives (and notifications on clients) default to full
+        // For the sake of the dupes lives (and notifications on clients) default to full (Atmo Suit)
         private const float DEFAULT_FULL_TANK = 75f;
 
         public static bool Prefix(SuitTank __instance, ref float __result)

@@ -12,10 +12,8 @@ namespace ONI_MP.Patches.World
 		{
 			using var _ = Profiler.Scope();
 
-			if (MultiplayerSession.InSession)
-			{
-				__instance.gameObject.AddOrGet<StructureStateSyncer>();
-			}
+			StructureStateSyncer syncer = __instance.gameObject.AddOrGet<StructureStateSyncer>();
+			syncer.InitalizeAsStructure(StructureStateSyncer.StructureType.BATTERY);
 		}
 	}
 
@@ -26,10 +24,8 @@ namespace ONI_MP.Patches.World
 		{
 			using var _ = Profiler.Scope();
 
-			if (MultiplayerSession.InSession)
-			{
-				__instance.gameObject.AddOrGet<StructureStateSyncer>();
-			}
-		}
-	}
+            StructureStateSyncer syncer = __instance.gameObject.AddOrGet<StructureStateSyncer>();
+            syncer.InitalizeAsStructure(StructureStateSyncer.StructureType.GENERATOR);
+        }
+    }
 }

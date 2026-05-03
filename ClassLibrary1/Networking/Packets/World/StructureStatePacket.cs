@@ -1,6 +1,7 @@
 using ONI_MP.Networking.Packets.Architecture;
 using System.IO;
 using Shared.Profiling;
+using ONI_MP.Networking.Components;
 
 namespace ONI_MP.Networking.Packets.World
 {
@@ -9,6 +10,7 @@ namespace ONI_MP.Networking.Packets.World
 		public int Cell;
 		public float Value; // Joules for Battery, Progress for others
 		public bool IsActive; // Operational active state
+		public StructureStateSyncer.StructureType StructureType;
 
 		public void Serialize(BinaryWriter writer)
 		{
@@ -17,6 +19,7 @@ namespace ONI_MP.Networking.Packets.World
 			writer.Write(Cell);
 			writer.Write(Value);
 			writer.Write(IsActive);
+			writer.Write((int)StructureType);
 		}
 
 		public void Deserialize(BinaryReader reader)
@@ -26,6 +29,7 @@ namespace ONI_MP.Networking.Packets.World
 			Cell = reader.ReadInt32();
 			Value = reader.ReadSingle();
 			IsActive = reader.ReadBoolean();
+			StructureType = (StructureStateSyncer.StructureType)reader.ReadInt32();
 		}
 
 		public void OnDispatched()
@@ -35,7 +39,7 @@ namespace ONI_MP.Networking.Packets.World
 			if (MultiplayerSession.IsHost) return;
 
 			// Handled by StructureStateSyncer on client
-			ONI_MP.Networking.Components.StructureStateSyncer.HandlePacket(this);
+			StructureStateSyncer.HandlePacket(this);
 		}
 	}
 }
