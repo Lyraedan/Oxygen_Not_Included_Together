@@ -18,7 +18,7 @@ namespace ONI_MP.Patches.ToolPatches.Build
 
             try
             {
-                var def = AccessTools.Field(typeof(BuildTool), "def").GetValue(__instance) as BuildingDef;
+                var def = __instance.def;
                 if (def != null)
                 {
                     DebugConsole.Log($"[BuildTool] Attempting to build: {def.PrefabID} at cell {cell}");
