@@ -56,7 +56,8 @@ public static class ConstructablePatch
 			ConnectsUp = connectsUp,
 			ConnectsDown = connectsDown,
 			ConnectsLeft = connectsLeft,
-			ConnectsRight = connectsRight
+			ConnectsRight = connectsRight,
+			ObjectLayer = def.ObjectLayer
 		};
 
 		PacketSender.SendToAllClients(packet);

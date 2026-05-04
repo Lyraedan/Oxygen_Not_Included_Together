@@ -18,6 +18,7 @@ namespace ONI_MP.Networking.Packets.Tools.Build
 		public List<string> MaterialTags = new List<string>();
 		public float Temperature;
 		public string FacadeID = "DEFAULT_FACADE";
+		public ObjectLayer ObjectLayer;
 
 		// Connection direction flags for wires/pipes (like UtilityBuildPacket)
 		public bool ConnectsUp;
@@ -44,6 +45,8 @@ namespace ONI_MP.Networking.Packets.Tools.Build
 			writer.Write(ConnectsDown);
 			writer.Write(ConnectsLeft);
 			writer.Write(ConnectsRight);
+
+			writer.Write((int)ObjectLayer);
 		}
 
 		public void Deserialize(BinaryReader reader)
@@ -73,6 +76,8 @@ namespace ONI_MP.Networking.Packets.Tools.Build
 			ConnectsDown = reader.ReadBoolean();
 			ConnectsLeft = reader.ReadBoolean();
 			ConnectsRight = reader.ReadBoolean();
+
+			ObjectLayer = (ObjectLayer) reader.ReadInt32();
 		}
 
 		public void OnDispatched()
@@ -101,12 +106,9 @@ namespace ONI_MP.Networking.Packets.Tools.Build
 			}
 
 			// Destroy ghost/constructable if it still exists
-			for (int i = 0; i < (int)Grid.SceneLayer.SceneMAX; i++)
-			{
-				GameObject obj = Grid.Objects[Cell, i];
-				if (obj != null && obj.GetComponent<Constructable>() != null)
-					Util.KDestroyGameObject(obj);
-			}
+			GameObject obj = Grid.Objects[Cell, (int)def.ObjectLayer];
+			if (obj != null && obj.GetComponent<Constructable>() != null)
+				Util.KDestroyGameObject(obj);
 
 			var builtObj = def.Build(
 					Cell,
