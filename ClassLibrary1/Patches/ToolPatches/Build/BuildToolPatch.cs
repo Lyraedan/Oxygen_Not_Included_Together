@@ -39,17 +39,14 @@ namespace ONI_MP.Patches.ToolPatches.Build
                 if (!MultiplayerSession.InSession || __instance == null)
                     return;
 
-                var def = AccessTools.Field(typeof(BuildTool), "def").GetValue(__instance) as BuildingDef;
-                var selectedElements = AccessTools.Field(typeof(BuildTool), "selectedElements")
-                    .GetValue(__instance) as IList<Tag>;
+                var def = __instance.def;
+                var selectedElements = __instance.selectedElements;
                 var orientation = __instance.GetBuildingOrientation;
 
                 if (def == null || selectedElements == null)
                     return;
 
-                // Log result
-                // Log result
-                GameObject obj = Grid.Objects[cell, (int)def.ObjectLayer];
+                GameObject obj = Grid.Objects[cell, (int) def.ObjectLayer];
                 if (obj != null)
                 {
                     DebugConsole.Log($"[BuildTool] Successfully placed {def.PrefabID} at cell {cell}");
