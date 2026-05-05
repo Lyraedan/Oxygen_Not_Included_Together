@@ -30,6 +30,16 @@ namespace ONI_MP.Misc
 			}
 		}
 
+		public static Sprite LoadEmbeddedSprite(string resourceName, out Texture2D texture)
+		{
+			using var _ = Profiler.Scope();
+			texture = LoadEmbeddedTexture(resourceName);
+			if (texture == null)
+				return null;
+
+			return Sprite.Create(texture, new Rect(0, 0, texture.width, texture.height), new Vector2f(0.5f, 0.5f));
+		}
+
 		// TODO: Maybe add caching to these asset bundle functions, Would it be easier to have a typed <T> loader instead of individual functions?
 
 		public static AssetBundle LoadEmbeddedAssetBundle(string resourceName)

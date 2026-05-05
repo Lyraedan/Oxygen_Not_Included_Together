@@ -147,6 +147,8 @@ namespace ONI_MP
         public ColorRGB PlayerColor { get; set; } = new ColorRGB(255, 255, 255);
 
         public LanSettings LanSettings { get; set; } = new LanSettings();
+
+        public bool PuftAsLoadingIcon { get; set; } = true; // So people can disable it if they want to use the default smily face or the Pip loading mod, but for this mod. True by default
     }
 
     public class LanSettings
