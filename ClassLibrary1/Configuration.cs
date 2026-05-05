@@ -59,8 +59,8 @@ namespace ONI_MP
             set => Client.PlayerColor.SetFromColor32(value);
         }
 
-        [JsonIgnore]
         [Option("STRINGS.UI.CONFIGURATION.TITLES.MISC_SETTINGS.PUFT_LOADINGSCREEN", "STRINGS.UI.CONFIGURATION.TOOLTIPS.MISC_SETTINGS.PUFT_LOADINGSCREEN", "STRINGS.UI.CONFIGURATION.HEADERS.D_MISC_SETTINGS")]
+        [JsonIgnore]
         public bool PuftAsLoadingIcon
         {
             get => Client.PuftAsLoadingIcon;
