@@ -20,5 +20,7 @@ namespace ONI_MP.Patches.World
                 }
             }
         }
+
+        // There is a few more functions like IsAreaClear that do currently restrict to active world. Unsure if this causes problems atm
     }
 }
