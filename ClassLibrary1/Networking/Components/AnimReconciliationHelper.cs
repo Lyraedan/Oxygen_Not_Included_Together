@@ -33,17 +33,28 @@ namespace ONI_MP.Networking.Components
 						KAnimControllerBase_Patches.ForbidAnims();
 					}
 					ForceAnimUpdate(kbac, source);
-                    kbac.SetElapsedTime(elapsedTime);
+					TrySetElapsedTime(kbac, elapsedTime);
                     return;
 				}
 
 				float localElapsed = kbac.GetElapsedTime();
 				if (Mathf.Abs(localElapsed - elapsedTime) > DriftThreshold)
-                    kbac.SetElapsedTime(elapsedTime);
+                    TrySetElapsedTime(kbac, elapsedTime);
             }
-			catch (Exception ex)
+            catch (Exception ex)
 			{
 				DebugConsole.LogWarning($"[{source}] Anim reconciliation failed: {ex}");
+			}
+		}
+
+		internal static void TrySetElapsedTime(KBatchedAnimController kbac, float elapsedTime)
+		{
+			try
+			{
+                kbac.SetElapsedTime(elapsedTime);
+            } catch(Exception e)
+			{
+				DebugConsole.LogWarning("[AnimReconciliationHelper] Something went wrong setting elapsed time");
 			}
 		}
 

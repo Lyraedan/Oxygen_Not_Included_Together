@@ -98,96 +98,48 @@ namespace ONI_MP.Networking.Packets.Tools.Build
                 return;
             }
 
-            var tags = MaterialTags.Select(t => new Tag(t)).ToList();
+            var selected_elements = MaterialTags.Select(t => new Tag(t)).ToList();
             Vector3 pos  = Grid.CellToPosCBC(Cell, Grid.SceneLayer.Building);
+            GameObject visualizer = Util.KInstantiate(def.BuildingPreview, pos);
 
-            GameObject gameObject = null;
-            bool shouldReplace = CanReplace(def, out GameObject existingObject);
-
-            if (!shouldReplace)
+            GameObject builtItem = def.TryPlace(visualizer, pos, Orientation, selected_elements, "DEFAULT_FACADE"); // Build like normal;
+            if (builtItem == null && def.ReplacementLayer != ObjectLayer.NumLayers) // Handle replacement
             {
-                GameObject visualizer = Util.KInstantiate(def.BuildingPreview, pos);
-                gameObject = def.TryPlace(visualizer, pos, Orientation, tags, "DEFAULT_FACADE"); // Build like normal
-            } 
-            else
-            {
-                // Something here went wrong
-                if (existingObject == null)
-                    return;
-
-                gameObject = def.TryReplaceTile(existingObject, pos, Orientation, tags, "DEFAULT_FACADE"); // Try replace
+                GameObject replacementCanidate = def.GetReplacementCandidate(Cell);
+                if (replacementCanidate != null && !def.IsReplacementLayerOccupied(Cell))
+                {
+                    BuildingComplete component = replacementCanidate.GetComponent<BuildingComplete>();
+                    if (component != null && component.Def.Replaceable && def.CanReplace(replacementCanidate))
+                    {
+                        Tag tag = replacementCanidate.GetComponent<PrimaryElement>().Element.tag;
+                        if (tag.GetHash() == 1542131326)
+                            tag = SimHashes.Snow.CreateTag();
+                        if (component.Def != def || selected_elements[0] != tag)
+                        {
+                            builtItem = def.TryReplaceTile(visualizer, pos, Orientation, selected_elements, "DEFAULT_FACADE");
+                            Grid.Objects[Cell, (int)def.ReplacementLayer] = builtItem;
+                        }
+                    }
+                }
             }
-            SetPriority(gameObject);
-        }
-
-        private bool CanReplace(BuildingDef newDef, out GameObject existingObject)
-        {
-            existingObject = null;
-
-            if (newDef.ReplacementLayer == ObjectLayer.NumLayers)
-                return false;
-
-            Vector3 pos = Grid.CellToPosCBC(Cell, Grid.SceneLayer.Building);
-            if (!newDef.IsValidReplaceLocation(pos, Orientation, newDef.ReplacementLayer, ObjectLayer))
-                return false;
-
-            var obj = Grid.Objects[Cell, (int)newDef.ReplacementLayer];
-            if (obj == null)
-                return false;
-
-            var building = obj.GetComponent<Building>();
-            if (building == null)
-                return false;
-
-            var existingDef = building.Def;
-            if (existingDef == null)
-                return false;
-
-            existingObject = obj;
-
-            // same building (different material)
-            if (existingDef == newDef)
-                return true;
-
-            bool existingIsTile = existingDef.IsTilePiece;
-            bool newIsTile = newDef.IsTilePiece;
-
-            bool existingIsFoundation = existingDef.IsFoundation;
-            bool newIsFoundation = newDef.IsFoundation;
-
-            bool existingIsReplaceable = existingDef.Replaceable;
-            bool newIsReplaceable = newDef.Replaceable;
-
-            // Tile on tile
-            if (existingIsTile && newIsTile)
-                return true;
-
-            // Foundation on foundation
-            if (existingIsFoundation && newIsFoundation)
-                return true;
-
-            // Cross type checks
-            if (existingIsTile != newIsTile || existingIsFoundation != newIsFoundation)
-                return false;
-
-            // Replacable
-            if (existingIsReplaceable && newIsReplaceable)
-                return true;
-
-            return false;
+            SetPriority(builtItem);
         }
 
         private void SetPriority(GameObject gameObject)
         {
+            if (gameObject == null)
+                return;
+
             Prioritizable prioritizable = gameObject?.GetComponent<Prioritizable>();
             prioritizable?.SetMasterPriority(Priority);
         }
 
         // TODO: Implement later when sandbox eventually gets done
-        private void InstantBuild(BuildingDef def, List<Tag> tags)
+        private void InstantBuild(BuildingDef def, List<Tag> selected_elements)
         {
+            if (def == null) return;
             // default to 30 degrees
-            def.Build(Cell, Orientation, null, tags, 30f, "DEFAULT_FACADE", playsound: false, GameClock.Instance.GetTime());
+            def.Build(Cell, Orientation, null, selected_elements, 30f, "DEFAULT_FACADE", playsound: false, GameClock.Instance.GetTime());
         }
 
     }
