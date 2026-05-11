@@ -1,11 +1,20 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Text;
 using ONI_MP.DebugTools;
+using ONI_MP.Misc;
 using UnityEngine;
+using static Grid.Restriction;
+using static LogicGateVisualizer;
+using static STRINGS.DUPLICANTS.MODIFIERS;
 
 namespace ONI_MP.Networking
 {
+    /// <summary>
+    /// KNOWN ISSUE: If the simulation is paused, other player visualizers act strange
+    /// KNOWN ISSUE: Ladders visual seems to act inconsistently, sometimes it'll appear, sometimes it won't
+    /// </summary>
     public class PlayerBuildingVisualizer
     {
         public enum VisualizerType
@@ -15,27 +24,30 @@ namespace ONI_MP.Networking
             TILE
         }
 
-        private GameObject visualiser;
+        private GameObject visualizer;
         private string lastPrefabId = string.Empty;
-        private Color color = Color.white;
-        private VisualizerType visualizerType = VisualizerType.BUILDING; // TODO Implement this
+        private Color color = Color.white; // Base color
 
-        private Color visualColor 
+        private VisualizerType visualizerType = VisualizerType.BUILDING;
+        private Orientation CurrentOrientation;
+        private BuildingDef CurrentDef;
+
+        private Color currentColor = Color.white; // Color based on if the tile is valid or not
+
+        private Color visualColor // Valid color
         { 
             get
             {
                 return Color.Lerp(color, Color.white, 0.75f);
             }
         }
-        private Color darkerColor
+        private Color darkerColor // Invalid color
         {
             get
             {
                 return Color.Lerp(color, Color.black, 0.75f);
             }
         }
-
-        BuildingDef CurrentDef;
 
         private int _cell = Grid.InvalidCell;
         public int Cell
@@ -45,12 +57,27 @@ namespace ONI_MP.Networking
                 if (_cell == value)
                     return;
 
-                if (visualiser != null && CurrentDef != null)
+                if (visualizer != null && CurrentDef != null)
                 {
-                    visualiser.transform.position = Grid.CellToPosCBC(value, CurrentDef.SceneLayer);
-                    if (visualiser.TryGetComponent<KBatchedAnimController>(out var kbac))
+                    visualizer.transform.position = Grid.CellToPosCBC(value, CurrentDef.SceneLayer);
+                    if (visualizer.TryGetComponent<KBatchedAnimController>(out var kbac))
                     {
-                        kbac.TintColour = visualColor; // Force all to white right now
+                        UpdateVisualColor(value);
+                        kbac.TintColour = currentColor;
+                    }
+
+                    switch (visualizerType)
+                    {
+                        case VisualizerType.UTILITY:
+                            UpdateUtilityConnectionVis(value);
+                            break;
+                        case VisualizerType.TILE:
+                            UpdateTileVisual(value);
+                            break;
+                        default:
+                        case VisualizerType.BUILDING:
+                            // Nothing to do
+                            break;
                     }
                 }
 
@@ -68,8 +95,10 @@ namespace ONI_MP.Networking
         public void UpdateVisualizer(VisualizerType type, string buildingPrefabId, Vector3 position, Orientation orientation, Color visualColor)
         {
             this.color = visualColor;
+            this.CurrentOrientation = orientation;
+            int posCell = Grid.PosToCell(position);
 
-            if (lastPrefabId.Equals(buildingPrefabId) && !visualiser.IsNullOrDestroyed())
+            if (lastPrefabId.Equals(buildingPrefabId) && !visualizer.IsNullOrDestroyed())
             {
                 UpdateCell(position); // Instead of updating the visualizer object update its position
                 return;
@@ -78,10 +107,16 @@ namespace ONI_MP.Networking
             // Destroy the visualiser if nothing is selected
             if (string.IsNullOrEmpty(buildingPrefabId) || !lastPrefabId.Equals(buildingPrefabId))
             {
-                if (!visualiser.IsNullOrDestroyed())
+                if (!visualizer.IsNullOrDestroyed())
                 {
-                    Util.KDestroyGameObject(visualiser); // Destroy the visualiser
-                    visualiser = null;
+                    switch(visualizerType)
+                    {
+                        case VisualizerType.TILE:
+                            RemoveTileVisual(posCell); // Unique tile removal
+                            break;
+                    }
+                    Util.KDestroyGameObject(visualizer); // Destroy the visualiser
+                    visualizer = null;
                 }
             }
 
@@ -94,32 +129,75 @@ namespace ONI_MP.Networking
                 CurrentDef = def;
                 lastPrefabId = buildingPrefabId;
 
-                int posCell = Grid.PosToCell(position);
                 Vector3 pos = Grid.CellToPosCBC(posCell, def.SceneLayer);
-                visualiser = GameUtil.KInstantiate(def.BuildingPreview, pos, Grid.SceneLayer.Front, "OtherPlayerBuildingVisualizer", LayerMask.NameToLayer("Place"));
-                visualiser.transform.SetPosition(pos);
-                visualiser.SetActive(true);
+                visualizer = GameUtil.KInstantiate(def.BuildingPreview, pos, Grid.SceneLayer.Front, "OtherPlayerBuildingVisualizer", LayerMask.NameToLayer("Place"));
+                visualizer.transform.SetPosition(pos);
+                visualizer.SetActive(true);
 
-                if(visualiser.TryGetComponent<Rotatable>(out var rotatable))
+                switch(visualizerType)
                 {
-                    rotatable.SetOrientation(orientation);
-                }
-
-                if (visualiser.TryGetComponent<KBatchedAnimController>(out var kbac))
-                {
-                    kbac.visibilityType = KAnimControllerBase.VisibilityType.Always;
-                    kbac.isMovable = true;
-                    kbac.Offset = Vector3.zero;
-                    kbac.TintColour = visualColor; // White by default
-
-                    kbac.SetLayer(LayerMask.NameToLayer("Place"));
-                    kbac.Play("place");
-                } 
-                else
-                {
-                    visualiser.SetLayerRecursively(LayerMask.NameToLayer("Place"));
+                    default:
+                    case VisualizerType.BUILDING:
+                        HandleBuildingVisual(posCell);
+                        break;
+                    // These are unimplemented atm
+                    case VisualizerType.UTILITY:
+                        HandleUtlilityVisual(posCell);
+                        break;
+                    case VisualizerType.TILE:
+                        HandleTileVisual(posCell);
+                        break;
                 }
             }
+        }
+
+        private void HandleBuildingVisual(int cell)
+        {
+            if (visualizer.TryGetComponent<Rotatable>(out var rotatable))
+            {
+                rotatable.SetOrientation(CurrentOrientation);
+            }
+
+            if (visualizer.TryGetComponent<KBatchedAnimController>(out var kbac))
+            {
+                kbac.visibilityType = KAnimControllerBase.VisibilityType.Always;
+                kbac.isMovable = true;
+                kbac.Offset = Vector3.zero;
+                UpdateVisualColor(cell);
+                kbac.TintColour = visualColor;
+
+                kbac.SetLayer(LayerMask.NameToLayer("Place"));
+                kbac.Play("place");
+            }
+            else
+            {
+                visualizer.SetLayerRecursively(LayerMask.NameToLayer("Place"));
+            }
+        }
+
+        private void HandleUtlilityVisual(int cell)
+        {
+            
+        }
+
+        private void UpdateUtilityConnectionVis(int cell)
+        {
+            // Called when the Cell changes
+        }
+
+        private void HandleTileVisual(int cell)
+        {
+            
+        }
+
+        private void RemoveTileVisual(int cell)
+        {
+            // Called when the build tool closes SPECIFIC to the TILE type
+        }
+
+        private void UpdateTileVisual(int cell)
+        {
+
         }
 
         public void UpdateCell(Vector3 position)
@@ -128,6 +206,18 @@ namespace ONI_MP.Networking
             if (cell != Grid.InvalidCell)
             {
                 Cell = cell;
+            }
+        }
+
+        public void UpdateVisualColor(int cell)
+        {
+            bool isValid = BuildingUtils.ValidCell(visualizer, CurrentDef, cell, CurrentOrientation);
+            if (isValid)
+            {
+                currentColor = visualColor;
+            } else
+            {
+                currentColor = darkerColor;
             }
         }
     }

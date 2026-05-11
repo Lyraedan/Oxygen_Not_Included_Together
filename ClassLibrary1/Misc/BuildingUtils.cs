@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Text;
+using UnityEngine;
+using static LogicGateVisualizer;
 
 namespace ONI_MP.Misc
 {
@@ -105,6 +107,26 @@ namespace ONI_MP.Misc
                 default:
                     return layer;
             }
+        }
+
+        public static bool ValidCell(GameObject visualizer, BuildingDef def, int cell, Orientation orientation)
+        {
+            if (Grid.IsValidCell(cell)
+                && Grid.IsVisible(cell))
+            {
+                bool IsValidPlaceLocation = def.IsValidPlaceLocation(visualizer, cell, orientation, out string failReason);
+                bool IgnorableFailReason =
+                    failReason == global::STRINGS.UI.TOOLTIPS.HELP_BUILDLOCATION_WALL
+                    || failReason == global::STRINGS.UI.TOOLTIPS.HELP_BUILDLOCATION_CORNER
+                    || failReason == global::STRINGS.UI.TOOLTIPS.HELP_BUILDLOCATION_CORNER_FLOOR
+                    || (failReason == global::STRINGS.UI.TOOLTIPS.HELP_BUILDLOCATION_BACK_WALL_REQUIRED);
+
+                bool validCell = (IsValidPlaceLocation || IgnorableFailReason);
+                bool replacement = false;
+                return (validCell || replacement);
+            }
+
+            return false;
         }
     }
 }
