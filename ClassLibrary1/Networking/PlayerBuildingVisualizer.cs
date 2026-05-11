@@ -254,10 +254,11 @@ namespace ONI_MP.Networking
 									Grid.Objects[targetCell, (int)CurrentDef.ReplacementLayer] = visualizer;
 								}
 							}
-							TileVisualizer.RefreshCell(targetCell, CurrentDef.TileLayer, CurrentDef.ReplacementLayer);
 						}
 					}
 				}
+				if(visualizerSeated)
+					TileVisualizer.RefreshCell(targetCell, CurrentDef.TileLayer, CurrentDef.ReplacementLayer);
 			}
 		}
 
