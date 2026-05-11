@@ -135,9 +135,14 @@ namespace ONI_MP.Networking
 			// Handle visualiser
 			if(!cursorState.Equals(CursorState.BUILD))
 			{
-				buildingVisualiser.UpdateVisualizer(string.Empty, Vector3.zero, Orientation.Neutral, Color.white); // Flag visualizer for removal
+				RemoveBuildingVisualizer();
 			}
 		}
+
+		public void RemoveBuildingVisualizer()
+		{
+            buildingVisualiser.UpdateVisualizer(string.Empty, Vector3.zero, Orientation.Neutral, Color.white); // Flag visualizer for removal
+        }
 
 		private Image CreateCursorImage(GameObject parent, Texture2D cursorTexture)
 		{

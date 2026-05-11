@@ -128,6 +128,7 @@ namespace ONI_MP.Networking
 
 			if (cursor != null && cursor.gameObject != null)
 			{
+				cursor.RemoveBuildingVisualizer();
 				cursor.StopAllCoroutines();
 				Object.Destroy(cursor.gameObject);
 			}
@@ -145,6 +146,7 @@ namespace ONI_MP.Networking
 				var cursor = kvp.Value;
 				if (cursor != null && cursor.gameObject != null)
 				{
+					cursor.RemoveBuildingVisualizer(); // Remove the building visualizer if there is one
 					cursor.StopAllCoroutines();
 					Object.Destroy(cursor.gameObject);
 				}
