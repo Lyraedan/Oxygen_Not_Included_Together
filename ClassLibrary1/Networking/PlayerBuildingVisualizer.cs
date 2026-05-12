@@ -193,31 +193,32 @@ namespace ONI_MP.Networking
 		{
 			if (!Grid.IsValidBuildingCell(Cell))
 			{
-				bool hasReplacementLayer = CurrentDef.ReplacementLayer != ObjectLayer.NumLayers;
-
-				if (CurrentDef.isKAnimTile)
-				{
-					GameObject tileLayerObject = Grid.Objects[Cell, (int)CurrentDef.TileLayer];
-					if (tileLayerObject == null || !tileLayerObject.TryGetComponent<Constructable>(out _))
-					{
-						World.Instance.blockTileRenderer.RemoveBlock(CurrentDef, false, SimHashes.Void, Cell);
-					}
-					GameObject replacementLayerObject = hasReplacementLayer ? null : Grid.Objects[Cell, (int)CurrentDef.ReplacementLayer];
-					if (replacementLayerObject == null || replacementLayerObject == visualizer)
-					{
-						World.Instance.blockTileRenderer.RemoveBlock(CurrentDef, true, SimHashes.Void, Cell);
-					}
-				}
-				if (Grid.Objects[Cell, (int)CurrentDef.TileLayer] == visualizer)
-				{
-					Grid.Objects[Cell, (int)CurrentDef.TileLayer] = null;
-				}
-				if (hasReplacementLayer && Grid.Objects[Cell, (int)CurrentDef.ReplacementLayer] == visualizer)
-				{
-					Grid.Objects[Cell, (int)CurrentDef.ReplacementLayer] = null;
-				}
-				TileVisualizer.RefreshCell(Cell, CurrentDef.TileLayer, CurrentDef.ReplacementLayer);
+				return;
 			}
+
+			bool hasReplacementLayer = CurrentDef.ReplacementLayer != ObjectLayer.NumLayers;
+			if (CurrentDef.isKAnimTile)
+			{
+				GameObject tileLayerObject = Grid.Objects[Cell, (int)CurrentDef.TileLayer];
+				if (tileLayerObject == null || !tileLayerObject.TryGetComponent<Constructable>(out _))
+				{
+					World.Instance.blockTileRenderer.RemoveBlock(CurrentDef, false, SimHashes.Void, Cell);
+				}
+				GameObject replacementLayerObject = hasReplacementLayer ? null : Grid.Objects[Cell, (int)CurrentDef.ReplacementLayer];
+				if (replacementLayerObject == null || replacementLayerObject == visualizer)
+				{
+					World.Instance.blockTileRenderer.RemoveBlock(CurrentDef, true, SimHashes.Void, Cell);
+				}
+			}
+			if (Grid.Objects[Cell, (int)CurrentDef.TileLayer] == visualizer)
+			{
+				Grid.Objects[Cell, (int)CurrentDef.TileLayer] = null;
+			}
+			if (hasReplacementLayer && Grid.Objects[Cell, (int)CurrentDef.ReplacementLayer] == visualizer)
+			{
+				Grid.Objects[Cell, (int)CurrentDef.ReplacementLayer] = null;
+			}
+			TileVisualizer.RefreshCell(Cell, CurrentDef.TileLayer, CurrentDef.ReplacementLayer);		
 		}
 		private bool CanReplace(int cell)
 		{
