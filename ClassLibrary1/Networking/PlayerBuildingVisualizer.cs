@@ -187,7 +187,7 @@ namespace ONI_MP.Networking
 			if (visualizer.TryGetComponent<KBatchedAnimController>(out var kbac))
 			{
 				UpdateVisualColor(cell);
-				kbac.TintColour = visualColor;
+				kbac.TintColour = currentColor;
 			}
 		}
 
@@ -275,7 +275,6 @@ namespace ONI_MP.Networking
 				{
 					UpdateVisualColor(Cell);
 					ColoredCells[Cell] = currentColor;
-					TileVisualizer.RefreshCell(targetCell, CurrentDef.TileLayer, CurrentDef.ReplacementLayer);
 				}
 			}
 		}
