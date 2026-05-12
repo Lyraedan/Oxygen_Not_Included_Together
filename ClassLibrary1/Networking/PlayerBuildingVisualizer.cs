@@ -283,7 +283,9 @@ namespace ONI_MP.Networking
 		public void UpdatePosition(Vector3 positionTarget, bool force = false)
 		{
 			int cell = Grid.PosToCell(positionTarget);
-			if (force || cell != Grid.InvalidCell && cell != Cell)
+			if (force || cell != Grid.InvalidCell 
+				//&& cell != Cell
+				)
 			{
 				switch (_visualizerType)
 				{
