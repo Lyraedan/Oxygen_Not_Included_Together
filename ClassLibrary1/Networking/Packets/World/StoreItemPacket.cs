@@ -92,12 +92,12 @@ namespace ONI_MP.Networking.Packets.World
             Transform target_transform;
             if (FxPrefix == FXPrefix.Delivered)
             {
-                locString = STRINGS.UI.ONI.DELIVERED;
+                locString = global::STRINGS.UI.DELIVERED;
                 target_transform = storage.transform;
             }
             else
             {
-                locString = STRINGS.UI.ONI.PICKEDUP;
+                locString = global::STRINGS.UI.PICKEDUP;
                 target_transform = go.transform;
             }
 
