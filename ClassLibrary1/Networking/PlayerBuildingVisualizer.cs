@@ -119,7 +119,7 @@ namespace ONI_MP.Networking
 			var renderer = textureGO.AddComponent<SpriteRenderer>();
 			var mat = new Material(Shader.Find("TextMeshPro/Sprite"))
 			{
-				renderQueue = 3500
+				renderQueue = 4501
 			};
 			mat.SetInt("_ZWrite", 1);
 			renderer.material = mat;
