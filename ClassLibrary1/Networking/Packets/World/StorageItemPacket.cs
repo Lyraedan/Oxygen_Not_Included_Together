@@ -7,13 +7,14 @@ using UnityEngine;
 using static Storage;
 using Klei;
 using Shared.Interfaces.Networking;
+using System.ComponentModel;
 
 namespace ONI_MP.Networking.Packets.World
 {
     /// <summary>
     /// Modified version of GroundItemPickedUpPacket
     /// </summary>
-    public class StoreItemPacket : IPacket, IBulkablePacket
+    public class StorageItemPacket : IPacket, IBulkablePacket
     {
         private static readonly HashSet<int> PendingPickupNetIds = [];
 
@@ -21,6 +22,9 @@ namespace ONI_MP.Networking.Packets.World
         public int StorageNetId;
         public FXPrefix FxPrefix;
         public bool DoDiseaseTransfer;
+
+        public int ConsumedPrefabHash;
+        public float ConsumedAmount; // Mass / Units
 
         public int MaxPackSize => 500;
 
@@ -47,6 +51,9 @@ namespace ONI_MP.Networking.Packets.World
             writer.Write(StorageNetId);
             writer.Write((int)FxPrefix);
             writer.Write(DoDiseaseTransfer);
+
+            writer.Write(ConsumedPrefabHash);
+            writer.Write(ConsumedAmount);
         }
 
         public void Deserialize(BinaryReader reader)
@@ -56,11 +63,27 @@ namespace ONI_MP.Networking.Packets.World
             StorageNetId = reader.ReadInt32();
             FxPrefix = (FXPrefix)reader.ReadInt32();
             DoDiseaseTransfer = reader.ReadBoolean();
+
+            ConsumedPrefabHash = reader.ReadInt32();
+            ConsumedAmount = reader.ReadSingle();
         }
 
         public void OnDispatched()
         {
             using var _ = Profiler.Scope();
+
+            // FX Only
+            if (NetId == 0)
+            {
+                if (!NetworkIdentityRegistry.TryGetComponent<Storage>(StorageNetId, out var container))
+                    return;
+
+                if (PopFXManager.Instance != null && ConsumedPrefabHash != 0)
+                {
+                    DisplayFX(null, container); // FX Only
+                }
+                return;
+            }
 
             if (!NetworkIdentityRegistry.TryGetComponent<Pickupable>(NetId, out var pickupable))
             {
@@ -81,29 +104,42 @@ namespace ONI_MP.Networking.Packets.World
             Util.KDestroyGameObject(pickupable.gameObject);
         }
 
-        public void DisplayFX(GameObject go, Storage storage)
+        public void DisplayFX(GameObject pickupable, Storage storage)
         {
-            if (PopFXManager.Instance == null)
-                return;
-
-            PrimaryElement component = go.GetComponent<PrimaryElement>();
-
-            LocString locString;
-            Transform target_transform;
-            if (FxPrefix == FXPrefix.Delivered)
+            Tag prefabTag = new Tag(ConsumedPrefabHash);
+            GameObject prefab = Assets.GetPrefab(prefabTag);
+            if (prefab != null)
             {
-                locString = global::STRINGS.UI.DELIVERED;
-                target_transform = storage.transform;
-            }
-            else
-            {
-                locString = global::STRINGS.UI.PICKEDUP;
-                target_transform = go.transform;
-            }
+                LocString locString;
+                Sprite sprite;
+                if (FxPrefix == FXPrefix.Delivered)
+                {
+                    // Added too storage
+                    locString = global::STRINGS.UI.DELIVERED;
+                    sprite = PopFXManager.Instance.sprite_Plus;
+                }
+                else
+                {
+                    // Taken from storage
+                    locString = global::STRINGS.UI.PICKEDUP;
+                    sprite = PopFXManager.Instance.sprite_Negative;
+                }
 
-            Vector3 offset = Vector3.zero;
-            string text = (Assets.IsTagCountable(go.PrefabID()) ? string.Format(locString, (int)component.Units, go.GetProperName()) : string.Format(locString, GameUtil.GetFormattedMass(component.Units), go.GetProperName()));
-            PopFXManager.Instance.SpawnFX(Def.GetUISprite(go).first, (FxPrefix == FXPrefix.Delivered) ? PopFXManager.Instance.sprite_Plus : PopFXManager.Instance.sprite_Negative, text, target_transform, offset);
+                int amount = (int)ConsumedAmount;
+                if(pickupable != null)
+                {
+                    PrimaryElement component = pickupable.GetComponent<PrimaryElement>();
+                    amount = (int)component.Units;
+                }
+
+                string text = Assets.IsTagCountable(prefabTag)
+                    ? string.Format(locString, amount, prefab.GetProperName())
+                    : string.Format(locString, GameUtil.GetFormattedMass(amount), prefab.GetProperName());
+
+                PopFXManager.Instance.SpawnFX(
+                    Def.GetUISprite(prefab).first, sprite,
+                    text, storage.transform, Vector3.zero);
+            }
         }
 
         public void HandleDiseaseTransfer(GameObject go, Storage storage)

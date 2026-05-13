@@ -120,7 +120,7 @@ namespace ONI_MP.Networking
 			_lookupFailCount = 0;
 			// TODO Rope into 1
 			GroundItemPickedUpPacket.ClearPending();
-			StoreItemPacket.ClearPending();
+			StorageItemPacket.ClearPending();
 
 			PlayAnimPacket.ClearState();
 		}

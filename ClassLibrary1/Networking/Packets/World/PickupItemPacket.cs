@@ -50,6 +50,8 @@ namespace ONI_MP.Networking.Packets.World
                 return;
 
             PrimaryElement component = go.GetComponent<PrimaryElement>();
+            if (component == null)
+                return;
 
             LocString locString = global::STRINGS.UI.PICKEDUP;
             Transform target_transform = go.transform;
