@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking.Components;
 
 namespace ONI_MP.Networking.Packets.Tools.Build
 {
@@ -18,6 +19,7 @@ namespace ONI_MP.Networking.Packets.Tools.Build
         public List<string> MaterialTags = new List<string>();
         public float Temperature;
         public string FacadeID = "DEFAULT_FACADE";
+        public int WorkerNetId;
 
         // Utility buildings
         public UtilityConnections UtilityConnectionFlags;
@@ -44,6 +46,8 @@ namespace ONI_MP.Networking.Packets.Tools.Build
 
             writer.Write((int)ObjectLayer);
             writer.Write(IsReplacement);
+
+            writer.Write(WorkerNetId);
         }
 
         public void Deserialize(BinaryReader reader)
@@ -71,6 +75,8 @@ namespace ONI_MP.Networking.Packets.Tools.Build
             UtilityConnectionFlags = (UtilityConnections)reader.ReadInt32();
             ObjectLayer = (ObjectLayer)reader.ReadInt32();
             IsReplacement = reader.ReadBoolean();
+
+            WorkerNetId = reader.ReadInt32();
         }
 
         public void OnDispatched()
@@ -108,27 +114,33 @@ namespace ONI_MP.Networking.Packets.Tools.Build
             GameObject existing = Grid.Objects[Cell, layerIndex];
             if (existing != null)
             {
-                if (existing.GetComponent<Constructable>() != null || IsReplacement)
+                if (existing.TryGetComponent<Constructable>(out Constructable con)) {
+                    if(NetworkIdentityRegistry.TryGet(WorkerNetId, out var identity) &&
+                       identity.TryGetComponent<WorkerBase>(out var worker))
+                    {
+                        con.initialTemperature = Temperature;
+                        con.SelectedElementsTags = tags;
+                        con.FinishConstruction(UtilityConnectionFlags, worker);
+                    }
+                } else
                 {
-                    Util.KDestroyGameObject(existing);
+                    var builtObj = def.Build(
+                        Cell,
+                        Orientation,
+                        null,
+                        tags,
+                        Temperature,
+                        FacadeID,
+                        playsound: false,
+                        GameClock.Instance.GetTime()
+                    );
+
+                    // Apply wire/pipe connections for utility buildings
+                    if (builtObj != null && (int)UtilityConnectionFlags != 0)
+                    {
+                        ApplyUtilityConnections(builtObj, def);
+                    }
                 }
-            }
-
-            var builtObj = def.Build(
-                    Cell,
-                    Orientation,
-                    null,
-                    tags,
-                    Temperature,
-                    FacadeID,
-                    playsound: false,
-                    GameClock.Instance.GetTime()
-            );
-
-            // Apply wire/pipe connections for utility buildings
-            if (builtObj != null && (int)UtilityConnectionFlags != 0)
-            {
-                ApplyUtilityConnections(builtObj, def);
             }
 
             DebugConsole.Log($"[BuildCompletePacket] Finalized {PrefabID} at cell {Cell}");
@@ -142,6 +154,12 @@ namespace ONI_MP.Networking.Packets.Tools.Build
                 vis.UpdateConnections(UtilityConnectionFlags);
                 vis.Refresh();
             }
+        }
+
+        private void ApplyUtilityConnections(KAnimGraphTileVisualizer vis, UtilityConnections flags)
+        {
+            vis.UpdateConnections(flags);
+            vis.Refresh();
         }
     }
 }

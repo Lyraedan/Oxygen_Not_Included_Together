@@ -5,6 +5,7 @@ using ONI_MP.Misc;
 using ONI_MP.Networking.Packets.World;
 using ONI_MP.Patches.World;
 using Shared.Profiling;
+using TemplateClasses;
 using UnityEngine;
 
 using static EnergyGenerator;
@@ -48,7 +49,7 @@ namespace ONI_MP.Networking.Components
 		private Generator generator;
         private Storage storage;
 
-		private Operational operational;
+        private Operational operational;
 		private int cell;
 
 		private Variant lastSentValue;
@@ -436,7 +437,8 @@ namespace ONI_MP.Networking.Components
         {
             if (storage == null || data.Length < 2) return;
 
-            storage.ConsumeAllIgnoringDisease();
+            //storage.ConsumeAllIgnoringDisease();
+            ClearStorage(storage);
 
             int count = data[1].Int;
             if (count == 0) return;
@@ -475,10 +477,22 @@ namespace ONI_MP.Networking.Components
                         }
 
                         scrapObject.SetActive(true);
-                        storage.Store(scrapObject, true);
+                        storage.Store(scrapObject, true, true);
                     }
                 }
             }
+
+            EncodeStorageContents(storage, out Variant[] storageData);
+        }
+
+        // Clears the storage items without triggering the events
+        private static void ClearStorage(Storage storage)
+        {
+            for(int i = storage.items.Count - 1; i >= 0; i--)
+            {
+                storage.items[i].DeleteObject();
+            }
+            storage.items.Clear();
         }
 
         #endregion

@@ -65,13 +65,13 @@ namespace ONI_MP.Networking.Packets.World
 			StructureStateSyncer.HandlePacket(this);
 		}
 
-        public static bool VariantValueChanged(Variant a, Variant b)
+        public static bool VariantValueChanged(Variant a, Variant b, float epsilon = 0.01f)
         {
             if (a.Type != b.Type) return true;
             switch (a.Type)
             {
                 case Variant.TypeCode.Float:
-                    if (Mathf.Abs(a.Float - b.Float) > 0.01f) return true;
+                    if (Mathf.Abs(a.Float - b.Float) > epsilon) return true;
                     break;
                 case Variant.TypeCode.Int:
                     if (a.Int != b.Int) return true;
