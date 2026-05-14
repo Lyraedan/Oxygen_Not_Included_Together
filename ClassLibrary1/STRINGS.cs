@@ -23,6 +23,11 @@ namespace ONI_MP
                     {
                         public static LocString MAX_MESSAGES_PER_POLL = "Max Messages Per Poll";
 						public static LocString SAVE_FILE_TRANSFER_CHUNK = "Save Chunk Size (KB)";
+
+						public class SERVER_SETTINGS
+						{
+							public static LocString HARD_SYNC_AT_CYCLE_START = "Hard Sync On Cycle Start";
+						}
                     }
 
                     public class CLIENT_SETTINGS
@@ -49,6 +54,11 @@ namespace ONI_MP
                     {
                         public static LocString MAX_MESSAGES_PER_POLL = "STEAMWORKS ONLY:\nMaximum number of incoming Steam networking messages processed per poll tick on the server.\nHigher values reduce latency spikes under heavy traffic but may increase CPU usage per frame.\nLower values improve frame stability but can increase message backlog and delay processing during bursts.\n\nRecommended range: 32–128 (default: 128)";
 						public static LocString SAVE_FILE_TRANSFER_CHUNK = "Size (in kilobytes) of each data chunk used when transferring save files over the network.\nSmaller values reduce bandwidth spikes and improve reliability on unstable connections but increase transfer time due to more packets.\nLarger values speed up transfers but may cause higher bandwidth bursts or fragmentation.\n\nRecommended range: 16–256 KB (default: 256 KB).";
+
+                        public class SERVER_SETTINGS
+                        {
+                            public static LocString HARD_SYNC_AT_CYCLE_START = "Perform a hard sync at the start of every new cycle\n\nDoes not use up you're one hard sync per cycle";
+                        }
                     }
 
                     public class CLIENT_SETTINGS

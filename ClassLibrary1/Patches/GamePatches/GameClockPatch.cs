@@ -77,8 +77,8 @@ namespace ONI_MP.Patches.GamePatches
 
 					DebugConsole.Log($"[HardSync] New cycle detected ({currentCycle}) — Hard Sync disabled.");
 
-					// Hard Sync Removed by request
-					// CoroutineRunner.RunOne(DelayedHardSync());
+                    if (Configuration.Instance.HardSyncOnCycleStart)
+                        CoroutineRunner.RunOne(DelayedHardSync());
 				}
 			}
 			catch (Exception ex)
@@ -92,7 +92,7 @@ namespace ONI_MP.Patches.GamePatches
 			using var _ = Profiler.Scope();
 
 			yield return new WaitForSecondsRealtime(5f); // wait to ensure ONI's autosave completes (generous wait time)
-			GameServerHardSync.PerformHardSync();
+			GameServerHardSync.PerformHardSync(false);
 		}
 	}
 }

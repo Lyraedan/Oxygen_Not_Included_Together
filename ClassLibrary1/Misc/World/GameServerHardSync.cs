@@ -27,7 +27,7 @@ namespace ONI_MP.Networking
 			}
 		}
 
-		public static void PerformHardSync()
+		public static void PerformHardSync(bool consumeDailyUse = false)
 		{
 			using var _ = Profiler.Scope();
 
@@ -51,10 +51,10 @@ namespace ONI_MP.Networking
 			}
 
 			DebugConsole.Log($"[HardSync] Starting hard sync for {numberOfClientsAtTimeOfSync} client(s)...");
-			CoroutineRunner.RunOne(HardSyncCoroutine());
+			CoroutineRunner.RunOne(HardSyncCoroutine(consumeDailyUse));
 		}
 
-		private static IEnumerator HardSyncCoroutine()
+		private static IEnumerator HardSyncCoroutine(bool consumeDailyUse = false)
 		{
 			using var _ = Profiler.Scope();
 
@@ -70,7 +70,7 @@ namespace ONI_MP.Networking
 			float estimatedTransferDuration = chunkCount * SaveFileRequestPacket.SAVE_DATA_SEND_DELAY;
 			yield return new WaitForSecondsRealtime(estimatedTransferDuration * numberOfClientsAtTimeOfSync);
 
-			hardSyncDoneThisCycle = true;
+			hardSyncDoneThisCycle = consumeDailyUse;
             hardSyncInProgress = false;
 			// With the ready state I do not think this is needed anymore
 			//SpeedControlScreen.Instance?.Unpause(false);

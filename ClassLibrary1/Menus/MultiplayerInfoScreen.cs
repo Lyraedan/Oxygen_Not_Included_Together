@@ -325,7 +325,7 @@ namespace ONI_MP.Menus
                         Close();
                         if (MultiplayerSession.ConnectedPlayers.Count > 0)
                         {
-                            GameServerHardSync.PerformHardSync();
+                            GameServerHardSync.PerformHardSync(true);
                         }
                         else
                         {

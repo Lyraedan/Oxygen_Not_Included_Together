@@ -35,6 +35,14 @@ namespace ONI_MP
             set => Host.SaveFileTransferChunkKB = Mathf.Clamp(value, 1, 1024);
         }
 
+        [Option("STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.HARD_SYNC_AT_CYCLE_START", "STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.SERVER_SETTINGS.HARD_SYNC_AT_CYCLE_START", "STRINGS.UI.CONFIGURATION.HEADERS.A_HOST_SETTINGS")]
+        [JsonIgnore]
+        public bool HardSyncOnCycleStart
+        {
+            get => Host.Server.HardSyncAtCycleStart;
+            set => Host.Server.HardSyncAtCycleStart = value;
+        }
+
         [Option("STRINGS.UI.CONFIGURATION.TITLES.CLIENT_SETTINGS.MAX_MESSAGES_PER_POLL", "STRINGS.UI.CONFIGURATION.TOOLTIPS.CLIENT_SETTINGS.MAX_MESSAGES_PER_POLL", "STRINGS.UI.CONFIGURATION.HEADERS.B_CLIENT_SETTINGS")]
         [JsonIgnore]
         public int ClientMaxMessagesPerPoll
@@ -149,6 +157,8 @@ namespace ONI_MP
 
         [JsonProperty] public LanSettings LanSettings { get; set; } = new LanSettings();
         [JsonProperty] public LobbySettings Lobby { get; set; } = new LobbySettings();
+        [JsonProperty] public ServerSettings Server { get; set; } = new ServerSettings();
+
     }
 
     [Serializable]
@@ -160,7 +170,12 @@ namespace ONI_MP
         [JsonProperty] public LanSettings LanSettings { get; set; } = new LanSettings();
         [JsonProperty] public bool PuftAsLoadingIcon { get; set; } = true;
         [JsonProperty] public bool UseCustomLoadingScreenColor { get; set; } = true;
+    }
 
+    [Serializable]
+    public class ServerSettings
+    {
+        [JsonProperty] public bool HardSyncAtCycleStart { get; set; } = false;
     }
 
     [Serializable]
