@@ -1,224 +1,375 @@
-﻿using System;
+﻿using ONI_MP.DebugTools;
+using ONI_MP.Misc;
+using Rendering;
+using Rendering.World;
+using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
-using ONI_MP.DebugTools;
-using ONI_MP.Misc;
 using UnityEngine;
-using static Grid.Restriction;
-using static LogicGateVisualizer;
-using static STRINGS.DUPLICANTS.MODIFIERS;
-
+using static ONI_MP.STRINGS.UI.MP_CHATWINDOW;
 namespace ONI_MP.Networking
 {
-    /// <summary>
-    /// KNOWN ISSUE: If the simulation is paused, other player visualizers act strange
-    /// KNOWN ISSUE: Ladders visual seems to act inconsistently, sometimes it'll appear, sometimes it won't
-    /// </summary>
-    public class PlayerBuildingVisualizer
-    {
-        public enum VisualizerType
-        {
-            BUILDING,
-            UTILITY,
-            TILE
-        }
+	/// <summary>
+	/// KNOWN ISSUE: If the simulation is paused, other player visualizers act strange
+	/// KNOWN ISSUE: Ladders visual seems to act inconsistently, sometimes it'll appear, sometimes it won't
+	/// </summary>
+	public class PlayerBuildingVisualizer
+	{
+		public enum VisualizerType
+		{
+			BUILDING,
+			UTILITY,
+			TILE,
 
-        private GameObject visualizer;
-        private string lastPrefabId = string.Empty;
-        private Color color = Color.white; // Base color
+			INVALID = -1
+		}
 
-        private VisualizerType visualizerType = VisualizerType.BUILDING;
-        private Orientation CurrentOrientation;
-        private BuildingDef CurrentDef;
+		private GameObject _visualizer;
+		private string lastPrefabId = string.Empty;
 
-        private Color currentColor = Color.white; // Color based on if the tile is valid or not
+		private Color _color = Color.white;
 
-        private Color visualColor // Valid color
-        { 
-            get
-            {
-                return Color.Lerp(color, Color.white, 0.75f);
-            }
-        }
-        private Color darkerColor // Invalid color
-        {
-            get
-            {
-                return Color.Lerp(color, Color.black, 0.75f);
-            }
-        }
+		public Color Color
+		{
+			get => _color;
+			set
+			{
+				if (_color == value)
+					return;
+				visualColor = Color.Lerp(value, Color.white, 0.75f);
+				visualColorInvalid = Color.Lerp(value, Color.red, 0.75f);
+				_color = value;
+			}
+		} // Base color
 
-        private int _cell = Grid.InvalidCell;
-        public int Cell
-        {
-            set
-            {
-                if (_cell == value)
-                    return;
+		private VisualizerType _visualizerType = VisualizerType.BUILDING;
+		private Orientation CurrentOrientation = Orientation.Neutral;
+		private BuildingDef CurrentDef = null;
 
-                if (visualizer != null && CurrentDef != null)
-                {
-                    visualizer.transform.position = Grid.CellToPosCBC(value, CurrentDef.SceneLayer);
-                    if (visualizer.TryGetComponent<KBatchedAnimController>(out var kbac))
-                    {
-                        UpdateVisualColor(value);
-                        kbac.TintColour = currentColor;
-                    }
+		private Color currentColor = Color.white; // Color based on if the tile is valid or not
+		private Color visualColor = Color.white, visualColorInvalid = Color.red;
 
-                    switch (visualizerType)
-                    {
-                        case VisualizerType.UTILITY:
-                            UpdateUtilityConnectionVis(value);
-                            break;
-                        case VisualizerType.TILE:
-                            UpdateTileVisual(value);
-                            break;
-                        default:
-                        case VisualizerType.BUILDING:
-                            // Nothing to do
-                            break;
-                    }
-                }
 
-                OnCellChanged?.Invoke(value);
-                _cell = value;
-            }
-            get
-            {
-                return _cell;
-            }
-        }
 
-        public System.Action<int> OnCellChanged; // Leave this incase we want to do something with it later
+		private int _cell = Grid.InvalidCell;
+		public int Cell
+		{
+			set
+			{
+				if (_cell == value)
+					return;
+				OnCellChanged?.Invoke(value);
+				_cell = value;
+			}
+			get
+			{
+				return _cell;
+			}
+		}
 
-        public void UpdateVisualizer(VisualizerType type, string buildingPrefabId, Vector3 position, Orientation orientation, Color visualColor)
-        {
-            this.color = visualColor;
-            this.CurrentOrientation = orientation;
-            int posCell = Grid.PosToCell(position);
+		public System.Action<int> OnCellChanged; // Leave this incase we want to do something with it later
 
-            if (lastPrefabId.Equals(buildingPrefabId) && !visualizer.IsNullOrDestroyed())
-            {
-                UpdateCell(position); // Instead of updating the visualizer object update its position
-                return;
-            }
+		SpriteRenderer TileSpriteRenderer;
+		static Dictionary<BuildingDef, BlockTileRenderer.RenderInfo> _tileInfos = [];
+		static Dictionary<BuildingDef, Sprite> _placeSprites = [];
+		void SetTileRenderer()
+		{
+			if (TileSpriteRenderer == null)
+				InstantiateTileRenderer();
+			UpdateTileTexture(CurrentDef);
+		}
+		void MoveTileRenderer(int cell)
+		{
+			var pos = Grid.CellToPosCCC(cell, Grid.SceneLayer.FXFront);
+			TileSpriteRenderer.transform.SetPosition(pos);
+			UpdateVisualColor(cell);
+			TileSpriteRenderer.color = currentColor;
+		}
 
-            // Destroy the visualiser if nothing is selected
-            if (string.IsNullOrEmpty(buildingPrefabId) || !lastPrefabId.Equals(buildingPrefabId))
-            {
-                if (!visualizer.IsNullOrDestroyed())
-                {
-                    switch(visualizerType)
-                    {
-                        case VisualizerType.TILE:
-                            RemoveTileVisual(posCell); // Unique tile removal
-                            break;
-                    }
-                    Util.KDestroyGameObject(visualizer); // Destroy the visualiser
-                    visualizer = null;
-                }
-            }
+		void UpdateTileTexture(BuildingDef def)
+		{
+			if (!_placeSprites.TryGetValue(def, out var sprite))
+			{
+				if (!_tileInfos.TryGetValue(def, out var renderInfo))
+				{
+					renderInfo = _tileInfos[def] = new BlockTileRenderer.RenderInfo(World.Instance.blockTileRenderer, (int)def.TileLayer, LayerMask.NameToLayer("Place"), def, SimHashes.Void);
+				}
+				var tex = renderInfo.material.mainTexture as Texture2D;
+				var uv = renderInfo.atlasInfo.First().uvBox;
+				float uMin = uv.x;
+				float vMin = uv.y;
+				float uMax = uv.z;
+				float vMax = uv.w;
 
-            BuildingDef def = Assets.GetBuildingDef(buildingPrefabId);
-            if (def == CurrentDef) // Same def somehow leaked through
-                return;
+				UnityEngine.Rect rect = new UnityEngine.Rect(
+					uMin * tex.width,
+					vMin * tex.height,
+					(uMax - uMin) * tex.width,
+					(vMax - vMin) * tex.height
+				);
+				sprite = Sprite.Create(tex, rect, new(0.5f, 0.5f), 128); // 128 ppu 
+			}
+			TileSpriteRenderer.sprite = sprite;
+		}
 
-            if (def != null)
-            {
-                CurrentDef = def;
-                lastPrefabId = buildingPrefabId;
+		void InstantiateTileRenderer()
+		{
+			var textureGO = new GameObject("TileRenderer");
+			var renderer = textureGO.AddComponent<SpriteRenderer>();
+			var mat = new Material(Shader.Find("TextMeshPro/Sprite"))
+			{
+				renderQueue = 4501
+			};
+			mat.SetInt("_ZWrite", 1);
+			renderer.material = mat;
+			TileSpriteRenderer = renderer;
+		}
 
-                Vector3 pos = Grid.CellToPosCBC(posCell, def.SceneLayer);
-                visualizer = GameUtil.KInstantiate(def.BuildingPreview, pos, Grid.SceneLayer.Front, "OtherPlayerBuildingVisualizer", LayerMask.NameToLayer("Place"));
-                visualizer.transform.SetPosition(pos);
-                visualizer.SetActive(true);
 
-                switch(visualizerType)
-                {
-                    default:
-                    case VisualizerType.BUILDING:
-                        HandleBuildingVisual(posCell);
-                        break;
-                    // These are unimplemented atm
-                    case VisualizerType.UTILITY:
-                        HandleUtlilityVisual(posCell);
-                        break;
-                    case VisualizerType.TILE:
-                        HandleTileVisual(posCell);
-                        break;
-                }
-            }
-        }
+		VisualizerType DermineBuildingType(string prefabId)
+		{
+			var def = Assets.GetBuildingDef(prefabId);
+			if (def == null || def.BuildingPreview == null)
+				return VisualizerType.INVALID;
 
-        private void HandleBuildingVisual(int cell)
-        {
-            if (visualizer.TryGetComponent<Rotatable>(out var rotatable))
-            {
-                rotatable.SetOrientation(CurrentOrientation);
-            }
+			if (def.IsTilePiece
+				&& def.isKAnimTile
+				&& !def.BuildingComplete.TryGetComponent<Door>(out _)
+				&& def.TileLayer != ObjectLayer.LadderTile)
+			{
+				if (def.BuildingComplete.GetComponent<IHaveUtilityNetworkMgr>() != null)
+				{
+					return VisualizerType.UTILITY;
+				}
+				else if (!def.BuildingComplete.TryGetComponent<KBatchedAnimController>(out _))
+				{
+					return VisualizerType.TILE;
+				}
+			}
+			return VisualizerType.BUILDING;
+		}
+		void InstantiateNewVisualizer(Vector3 targetPos)
+		{
+			int posCell = Grid.PosToCell(targetPos);
+			Vector3 pos = Grid.CellToPosCBC(posCell, CurrentDef.SceneLayer);
+			//_visualizer = GameUtil.KInstantiate(CurrentDef.BuildingPreview, pos, Grid.SceneLayer.FXFront, "OtherPlayerBuildingVisualizer", LayerMask.NameToLayer("Place"));
 
-            if (visualizer.TryGetComponent<KBatchedAnimController>(out var kbac))
-            {
-                kbac.visibilityType = KAnimControllerBase.VisibilityType.Always;
-                kbac.isMovable = true;
-                kbac.Offset = Vector3.zero;
-                UpdateVisualColor(cell);
-                kbac.TintColour = visualColor;
+			_visualizer = new GameObject();
+			_visualizer.SetActive(false);
+			var anim = _visualizer.AddComponent<KBatchedAnimController>();
+			anim.isMovable = true;
+			anim.sceneLayer = Grid.SceneLayer.FXFront;
+			anim.AnimFiles = CurrentDef.AnimFiles;
+			anim.defaultAnim = "place";
+			_visualizer.transform.SetPosition(pos);
+			_visualizer.SetActive(true);
+			SetSize(CurrentDef.WidthInCells, CurrentDef.HeightInCells);
+			UpdateRotation();
+			if (_visualizer.TryGetComponent<KBatchedAnimController>(out var kbac))
+			{
+				kbac.visibilityType = KAnimControllerBase.VisibilityType.Always;
+				kbac.isMovable = true;
+				kbac.Offset = Vector3.zero;
+				kbac.TintColour = visualColor;
+				kbac.SetLayer(LayerMask.NameToLayer("Place"));
+				if (CurrentDef.BuildingComplete.GetComponent<IHaveUtilityNetworkMgr>() != null)
+					kbac.Play("None_place"); //default non-connected pipe
+				else
+					kbac.Play("place");
+			}
+			else
+			{
+				_visualizer.SetLayerRecursively(LayerMask.NameToLayer("Place"));
+			}
+			UpdatePosition(targetPos, true);
+		}
+		void DestroyVisualizer()
+		{
+			if (!_visualizer.IsNullOrDestroyed())
+			{
+				Util.KDestroyGameObject(_visualizer); // Destroy the visualiser
+				_visualizer = null;
+			}
+			RemoveTileVisual();
+		}
 
-                kbac.SetLayer(LayerMask.NameToLayer("Place"));
-                kbac.Play("place");
-            }
-            else
-            {
-                visualizer.SetLayerRecursively(LayerMask.NameToLayer("Place"));
-            }
-        }
+		public void UpdateVisualizer(string buildingPrefabId, Vector3 position, Orientation orientation, Color visualColor)
+		{
+			if (visualColor != Color)
+			{
+				Color = visualColor;
+			}
+			this.CurrentOrientation = orientation;
 
-        private void HandleUtlilityVisual(int cell)
-        {
-            
-        }
+			if (lastPrefabId.Equals(buildingPrefabId) && !_visualizer.IsNullOrDestroyed())
+			{
+				UpdatePosition(position); // Instead of updating the visualizer object update its position
+				return;
+			}
+			//determine new vis type
+			var newVisType = DermineBuildingType(buildingPrefabId);
+			DestroyVisualizer();
+			Cell = Grid.InvalidCell;
 
-        private void UpdateUtilityConnectionVis(int cell)
-        {
-            // Called when the Cell changes
-        }
+			if (string.IsNullOrEmpty(buildingPrefabId))
+			{
+				CurrentDef = null;
+				lastPrefabId = string.Empty;
+				_visualizerType = VisualizerType.INVALID;
+				return;
+			}
+			_visualizerType = newVisType;
 
-        private void HandleTileVisual(int cell)
-        {
-            
-        }
+			if (newVisType == VisualizerType.INVALID)
+				return;
 
-        private void RemoveTileVisual(int cell)
-        {
-            // Called when the build tool closes SPECIFIC to the TILE type
-        }
+			BuildingDef def = Assets.GetBuildingDef(buildingPrefabId);
+			//if (def == CurrentDef) // Same def somehow leaked through
+			//	return;
+			CurrentDef = def;
+			lastPrefabId = buildingPrefabId;
+			if (newVisType == VisualizerType.TILE)
+			{
+				SetTileRenderer();
+				UpdateTileVisual(Grid.PosToCell(position));
+			}
+			else
+				InstantiateNewVisualizer(position);
+		}
 
-        private void UpdateTileVisual(int cell)
-        {
+		private void UpdateBuildingVisual(int cell)
+		{
+			var pos = Grid.CellToPosCBC(cell, CurrentDef.SceneLayer);
+			_visualizer.transform.SetPosition(pos);
+			UpdateRotation();
+			if (_visualizer.TryGetComponent<KBatchedAnimController>(out var kbac))
+			{
+				UpdateVisualColor(cell);
+				kbac.TintColour = currentColor;
+			}
+		}
 
-        }
+		private void UpdateRotation()
+		{
+			if (_visualizer.TryGetComponent<KBatchedAnimController>(out var kbac))
+			{
+				kbac.Pivot = this.GetVisualizerPivot();
+				kbac.Rotation = this.GetVisualizerRotation();
+				kbac.Offset = this.GetVisualizerOffset();
+				kbac.FlipX = this.GetVisualizerFlipX();
+				kbac.FlipY = this.GetVisualizerFlipY();
+			}
+		}
+		#region rotatableClone
 
-        public void UpdateCell(Vector3 position)
-        {
-            int cell = Grid.PosToCell(position);
-            if (cell != Grid.InvalidCell)
-            {
-                Cell = cell;
-            }
-        }
+		int width, height;
+		private Vector3 pivot = Vector3.zero;
+		private Vector3 visualizerOffset = Vector3.zero;
 
-        public void UpdateVisualColor(int cell)
-        {
-            bool isValid = BuildingUtils.ValidCell(visualizer, CurrentDef, cell, CurrentOrientation);
-            if (isValid)
-            {
-                currentColor = visualColor;
-            } else
-            {
-                currentColor = darkerColor;
-            }
-        }
-    }
+		public bool GetVisualizerFlipX() => this.CurrentOrientation == Orientation.FlipH;
+
+		public bool GetVisualizerFlipY() => this.CurrentOrientation == Orientation.FlipV;
+		public float GetVisualizerRotation()
+		{
+			switch (CurrentDef.PermittedRotations)
+			{
+				case PermittedRotations.R90:
+				case PermittedRotations.R360:
+					return -90f * (float)this.CurrentOrientation;
+				default:
+					return 0.0f;
+			}
+		}
+		public Vector3 GetVisualizerPivot()
+		{
+			Vector3 pivot = this.pivot;
+			switch (this.CurrentOrientation)
+			{
+				case Orientation.FlipH:
+					pivot.x = -this.pivot.x;
+					break;
+			}
+			return pivot;
+		}
+		private Vector3 GetVisualizerOffset()
+		{
+			Vector3 visualizerOffset;
+			switch (this.CurrentOrientation)
+			{
+				case Orientation.FlipH:
+					visualizerOffset = new Vector3(-this.visualizerOffset.x, this.visualizerOffset.y, this.visualizerOffset.z);
+					break;
+				case Orientation.FlipV:
+					visualizerOffset = new Vector3(this.visualizerOffset.x, 1f, this.visualizerOffset.z);
+					break;
+				default:
+					visualizerOffset = this.visualizerOffset;
+					break;
+			}
+			return visualizerOffset;
+		}
+
+		public void SetSize(int width, int height)
+		{
+			this.width = width;
+			this.height = height;
+			if (width % 2 == 0)
+			{
+				this.pivot = new Vector3(-0.5f, 0.5f, 0.0f);
+				this.visualizerOffset = new Vector3(0.5f, 0.0f, 0.0f);
+			}
+			else
+			{
+				this.pivot = new Vector3(0.0f, 0.5f, 0.0f);
+				this.visualizerOffset = Vector3.zero;
+			}
+		}
+
+		#endregion
+
+		private void RemoveTileVisual()
+		{
+			if (TileSpriteRenderer == null)
+				return;
+			TileSpriteRenderer.DeleteObject();
+			TileSpriteRenderer = null;
+		}
+
+		private void UpdateTileVisual(int cell) => MoveTileRenderer(cell);
+
+		public void UpdatePosition(Vector3 positionTarget, bool force = false)
+		{
+			int cell = Grid.PosToCell(positionTarget);
+			if (force || cell != Grid.InvalidCell
+				//&& cell != Cell
+				)
+			{
+				switch (_visualizerType)
+				{
+					case VisualizerType.BUILDING:
+					case VisualizerType.UTILITY:
+						UpdateBuildingVisual(cell);
+						break;
+					case VisualizerType.TILE:
+						UpdateTileVisual(cell);
+						break;
+				}
+				Cell = cell;
+			}
+		}
+
+		public void UpdateVisualColor(int cell)
+		{
+			if (BuildingUtils.ValidCell(CurrentDef.BuildingPreview, CurrentDef, cell, CurrentOrientation))
+			{
+				currentColor = visualColor;
+			}
+			else
+			{
+				currentColor = visualColorInvalid;
+			}
+		}
+	}
 }

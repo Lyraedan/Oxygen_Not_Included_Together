@@ -64,13 +64,13 @@ namespace ONI_MP.Networking.Components
 						// DebugConsole.Log($"[NetworkIdentity] Generated Deterministic NetId {detId} for building {gameObject.name}");
 					}
 				}
-				DebugConsole.Log($"[NetworkIdentity] Generated Deterministic NetId {NetId} for {gameObject.name}");
+				//DebugConsole.Log($"[NetworkIdentity] Generated Deterministic NetId {NetId} for {gameObject.name}");
 			}
 
 			if (NetId == 0)
 			{
 				NetId = NetworkIdentityRegistry.Register(this);
-				DebugConsole.Log($"[NetworkIdentity] Generated Random NetId {NetId} for {gameObject.name}");
+				//DebugConsole.Log($"[NetworkIdentity] Generated Random NetId {NetId} for {gameObject.name}");
 			}
 			else
 			{
@@ -97,7 +97,7 @@ namespace ONI_MP.Networking.Components
 			// Re-register with new NetId
 			NetworkIdentityRegistry.RegisterOverride(this, netIdOverride);
 
-			DebugConsole.Log($"[NetworkIdentity] Overridden NetId. New NetId = {NetId} for {gameObject.name}");
+			//DebugConsole.Log($"[NetworkIdentity] Overridden NetId. New NetId = {NetId} for {gameObject.name}");
 		}
 
 
@@ -107,7 +107,7 @@ namespace ONI_MP.Networking.Components
 
 			RemoteProgressRegistry.Clear(NetId);
 			NetworkIdentityRegistry.Unregister(NetId);
-			DebugConsole.Log($"[NetworkIdentity] Unregistered NetId {NetId} for {gameObject.name}");
+			//DebugConsole.Log($"[NetworkIdentity] Unregistered NetId {NetId} for {gameObject.name}");
 			base.OnCleanUp();
 		}
 	}

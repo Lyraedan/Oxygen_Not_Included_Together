@@ -20,7 +20,6 @@ namespace ONI_MP.Networking.Packets.Core
 		public CursorState CursorState;
 		public string BuildingPrefabId;
 		public Orientation BuildingOrientation = Orientation.Neutral;
-		public PlayerBuildingVisualizer.VisualizerType BuildingVisualizerType = PlayerBuildingVisualizer.VisualizerType.BUILDING;
 
 		// Viewport for targeted sync
 		public int ViewMinX, ViewMinY, ViewMaxX, ViewMaxY;
@@ -38,9 +37,8 @@ namespace ONI_MP.Networking.Packets.Core
 			writer.Write(ViewMaxX);
 			writer.Write(ViewMaxY);
 			writer.Write(BuildingPrefabId);
-            writer.Write((int)BuildingOrientation);
-			writer.Write((int)BuildingVisualizerType);
-        }
+			writer.Write((int)BuildingOrientation);
+		}
 
 		public void Deserialize(BinaryReader reader)
 		{
@@ -56,7 +54,6 @@ namespace ONI_MP.Networking.Packets.Core
 			ViewMaxY = reader.ReadInt32();
 			BuildingPrefabId = reader.ReadString();
 			BuildingOrientation = (Orientation)reader.ReadInt32();
-			BuildingVisualizerType = (PlayerBuildingVisualizer.VisualizerType)reader.ReadInt32();
 		}
 
 		public void OnDispatched()
@@ -68,14 +65,11 @@ namespace ONI_MP.Networking.Packets.Core
 
 			if (MultiplayerSession.TryGetCursorObject(PlayerID, out PlayerCursor cursor))
 			{
-				if (cursor != null)
-				{
-                    cursor.SetState(CursorState);
-                    cursor.SetColor(Color);
-                    cursor.SetVisibility(true);
-                    cursor.StopCoroutine("InterpolateCursorPosition");
-                    cursor.StartCoroutine(InterpolateCursorPosition(cursor, cursor.transform, Position));
-				}
+				cursor.SetState(CursorState);
+				cursor.SetColor(Color);
+				cursor.SetVisibility(true);
+				cursor.StopCoroutine("InterpolateCursorPosition");
+				cursor.StartCoroutine(InterpolateCursorPosition(cursor, cursor.transform, Position));
 			}
 			else
 			{
@@ -113,17 +107,17 @@ namespace ONI_MP.Networking.Packets.Core
 				float t = elapsed / duration;
 				target.position = Vector3.Lerp(start, targetPos, t);
 				UpdateVisualizer(cursor, target.position);
-                yield return null;
+				yield return null;
 			}
 
 			target.position = targetPos;
-            UpdateVisualizer(cursor, target.position);
-        }
+			UpdateVisualizer(cursor, target.position);
+		}
 
 		private void UpdateVisualizer(PlayerCursor cursor, Vector3 position)
 		{
-			cursor.buildingVisualiser.UpdateVisualizer(BuildingVisualizerType, BuildingPrefabId, position, BuildingOrientation, Color);
-        }
+			cursor.buildingVisualiser.UpdateVisualizer(BuildingPrefabId, position, BuildingOrientation, Color);
+		}
 
 	}
 }

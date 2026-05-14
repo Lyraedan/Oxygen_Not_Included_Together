@@ -10,11 +10,36 @@ namespace ONI_MP.Patches.World
 {
 	public static class StoragePatches
 	{
+        [HarmonyPatch(typeof(Storage), nameof(Storage.Remove))]
+        public static class StorageRemovePatch
+        {
+            public static void Postfix(Storage __instance, GameObject go)
+            {
+                using var _ = Profiler.Scope();
+
+                if (!MultiplayerSession.IsHost || !MultiplayerSession.InSession) return;
+                if (__instance == null || go == null) return;
+
+                var storageIdentity = __instance.GetNetIdentity();
+                if (storageIdentity == null || storageIdentity.NetId == 0) return;
+
+                var pe = go.GetComponent<PrimaryElement>();
+                PacketSender.SendToAllClients(new StorageItemPacket
+                {
+                    NetId = 0, // FX Only
+                    StorageNetId = storageIdentity.NetId,
+                    DoDiseaseTransfer = false,
+                    FxPrefix = Storage.FXPrefix.PickedUp,
+                    ConsumedPrefabHash = go.PrefabID().GetHashCode(),
+                    ConsumedAmount = pe?.Mass ?? 0f
+                });
+            }
+        }
+
         // Pickupable.OnCleanUp only fires when the object is destroyed. Items that are
         // reparented into Storage (seeds into planters, eggs into incubators, live
         // critters, non-stackable items) stay alive and never trigger OnCleanUp, so
-        // clients keep rendering them on the ground. Mirror the pickup on Store() so
-        // the existing GroundItemPickedUpPacket path removes the client-side ghost.
+        // clients keep rendering them on the ground.
         [HarmonyPatch(typeof(Storage), nameof(Storage.Store), new System.Type[] { typeof(GameObject), typeof(bool), typeof(bool), typeof(bool), typeof(bool) })]
         public static class StorageStorePatch
         {
@@ -28,23 +53,37 @@ namespace ONI_MP.Patches.World
                     if (go == null)
                         return;
 
-                    var identity = go.GetNetIdentity();
-                    if (identity == null || identity.NetId == 0)
-                        return;
-
-                    //PacketSender.SendToAllClients(new GroundItemPickedUpPacket { NetId = identity.NetId });
-
                     var storageIdentity = __instance.GetNetIdentity();
                     if (storageIdentity == null || storageIdentity.NetId == 0)
                         return;
 
-                    PacketSender.SendToAllClients(new StoreItemPacket
+                    var identity = go.GetNetIdentity();
+                    var pe = go.GetComponent<PrimaryElement>();
+
+                    if (identity != null && identity.NetId != 0)
                     {
-                        NetId = identity.NetId,
-                        StorageNetId = storageIdentity.NetId,
-                        DoDiseaseTransfer = do_disease_transfer,
-                        FxPrefix = Storage.FXPrefix.Delivered
-                    });
+                        PacketSender.SendToAllClients(new StorageItemPacket
+                        {
+                            NetId = identity.NetId,
+                            StorageNetId = storageIdentity.NetId,
+                            DoDiseaseTransfer = do_disease_transfer,
+                            FxPrefix = Storage.FXPrefix.Delivered,
+                            ConsumedPrefabHash = go.PrefabID().GetHashCode(),
+                            ConsumedAmount = pe?.Mass ?? 0
+                        });
+                    }
+                    else
+                    {
+                        PacketSender.SendToAllClients(new StorageItemPacket
+                        {
+                            NetId = 0, // FX Only
+                            StorageNetId = storageIdentity.NetId,
+                            DoDiseaseTransfer = false,
+                            FxPrefix = Storage.FXPrefix.Delivered,
+                            ConsumedPrefabHash = go.PrefabID().GetHashCode(),
+                            ConsumedAmount = pe?.Mass ?? 0
+                        });
+                    }
                 }
                 catch (System.Exception ex)
                 {

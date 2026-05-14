@@ -6,10 +6,10 @@ using System.Linq;
 using Shared.Profiling;
 using ONI_MP.Misc;
 
-[HarmonyPatch(typeof(Constructable), "FinishConstruction")]
+[HarmonyPatch(typeof(Constructable), nameof(Constructable.FinishConstruction))]
 public static class ConstructablePatch
 {
-	public static void Prefix(Constructable __instance)
+	public static void Prefix(Constructable __instance, WorkerBase workerForGameplayEvent)
 	{
 		using var _ = Profiler.Scope();
 
@@ -41,8 +41,6 @@ public static class ConstructablePatch
 			utilityConnectionFlags = tileVis.Connections;
 		}
 
-        BuildingUtils.GetLayerInfo(building, out var objectLayer, out var isReplacement);
-
 		/*
         IHaveUtilityNetworkMgr mgr = def.BuildingComplete.GetComponent<IHaveUtilityNetworkMgr>();
         if (mgr != null)
@@ -54,7 +52,8 @@ public static class ConstructablePatch
             }
 		}*/
 
-        var packet = new BuildCompletePacket
+		int workerId = workerForGameplayEvent.GetNetId();
+		var packet = new BuildCompletePacket
 		{
 			Cell = cell,
 			PrefabID = def.PrefabID,
@@ -63,8 +62,8 @@ public static class ConstructablePatch
 			Temperature = temp,
 			FacadeID = facade,
 			UtilityConnectionFlags = utilityConnectionFlags,
-			ObjectLayer = objectLayer,
-			IsReplacement = isReplacement
+			ObjectLayer = def.ObjectLayer,
+			WorkerNetId = workerId
 		};
 
 		PacketSender.SendToAllClients(packet);

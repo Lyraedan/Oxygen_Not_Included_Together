@@ -7,13 +7,6 @@ namespace ONI_MP
 	{
 		public class UI
 		{
-			// Oxygen Not Included defaults
-			public class ONI
-			{
-				public static LocString DELIVERED = "Delivered: {0} {1}";
-				public static LocString PICKEDUP = "Picked up: {0} {1}";
-			}
-
 			public class CONFIGURATION
 			{
 				public class HEADERS

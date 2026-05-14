@@ -97,8 +97,7 @@ namespace ONI_MP.Networking.Packets.Tools.Build
                 DebugConsole.LogWarning($"[BuildPacket] Unknown building def: {PrefabID}");
                 return;
             }
-
-            var selected_elements = MaterialTags.Select(t => TagManager.Create(t)).ToList();
+			var selected_elements = MaterialTags.Select(t => TagManager.Create(t)).ToList();
             Vector3 pos  = Grid.CellToPosCBC(Cell, Grid.SceneLayer.Building);
             GameObject visualizer = Util.KInstantiate(def.BuildingPreview, pos);
 
@@ -123,6 +122,7 @@ namespace ONI_MP.Networking.Packets.Tools.Build
                 }
             }
             SetPriority(builtItem);
+            DebugConsole.Log("[BuildPacket] Built item " + def);
         }
 
         private void SetPriority(GameObject gameObject)
@@ -138,8 +138,7 @@ namespace ONI_MP.Networking.Packets.Tools.Build
         private void InstantBuild(BuildingDef def, List<Tag> selected_elements)
         {
             if (def == null) return;
-            // default to 30 degrees
-            def.Build(Cell, Orientation, null, selected_elements, 30f, "DEFAULT_FACADE", playsound: false, GameClock.Instance.GetTime());
+            def.Build(Cell, Orientation, null, selected_elements, 295f, "DEFAULT_FACADE", playsound: false, GameClock.Instance.GetTime());
         }
 
     }

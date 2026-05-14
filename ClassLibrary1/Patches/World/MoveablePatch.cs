@@ -13,13 +13,13 @@ public static class MoveablePatch
 		using var _ = Profiler.Scope();
 
 		__instance.onPickupComplete += OnPickup;
-		DebugConsole.Log($"[Movable.OnSpawn] Attached to: {STRINGS.UI.StripLinkFormatting(__instance.gameObject.GetProperName())} ({__instance.GetInstanceID()})");
+		//DebugConsole.Log($"[Movable.OnSpawn] Attached to: {STRINGS.UI.StripLinkFormatting(__instance.gameObject.GetProperName())} ({__instance.GetInstanceID()})");
 	}
 	static void OnPickup(GameObject go)
 	{
 		using var _ = Profiler.Scope();
 
-		DebugConsole.Log($"[Movable.onPickupComplete] Picked up {go.name}");
+		//DebugConsole.Log($"[Movable.onPickupComplete] Picked up {go.name}");
 
 		if (!MultiplayerSession.IsHost)
 			return;
@@ -30,7 +30,7 @@ public static class MoveablePatch
 		if (!go.TryGetComponent<NetworkIdentity>(out var identity))
 			return;
 
-		DebugConsole.Log($"[Movable.onPickupComplete] Picked up NetID {identity.NetId}");
+		//DebugConsole.Log($"[Movable.onPickupComplete] Picked up NetID {identity.NetId}");
 
 		// Optional: PacketSender.SendToAll(new DespawnPacket { NetId = identity.NetId });
 	}

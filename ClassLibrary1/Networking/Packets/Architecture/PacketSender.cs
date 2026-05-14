@@ -343,7 +343,7 @@ namespace ONI_MP.Networking
 				DebugConsole.LogWarning("[PacketSender] Not in a multiplayer session, cannot send to other peers");
 				return;
 			}
-			DebugConsole.Log("[PacketSender] Sending packet to all other peers: " + packet.GetType().Name + " from host");
+			//DebugConsole.Log("[PacketSender] Sending packet to all other peers: " + packet.GetType().Name + " from host");
 
 			if (MultiplayerSession.IsHost)
 				SendToAllClients(packet);
@@ -385,7 +385,7 @@ namespace ONI_MP.Networking
 				DebugConsole.LogWarning("[PacketSender] Not in a multiplayer session, cannot send to other peers");
 				return;
 			}
-			DebugConsole.Log("[PacketSender] Sending packet to all other peers: " + packet.GetType().Name);
+			//DebugConsole.Log("[PacketSender] Sending packet to all other peers: " + packet.GetType().Name);
 
 			if (MultiplayerSession.IsHost)
 				SendToAllClients(packet);

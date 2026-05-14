@@ -38,7 +38,7 @@ namespace ONI_MP.Networking.Components
 			using var _ = Profiler.Scope();
 
 			AssignColor();
-        }
+		}
 
 		public void ResetColor()
 		{
@@ -51,19 +51,19 @@ namespace ONI_MP.Networking.Components
 		{
 			using var _ = Profiler.Scope();
 
-            bool useRandom = Configuration.GetClientProperty<bool>("UseRandomPlayerColor");
+			bool useRandom = Configuration.GetClientProperty<bool>("UseRandomPlayerColor");
 			if (useRandom)
 			{
 				color = UnityEngine.Random.ColorHSV(0f, 1f, 0.6f, 1f, 0.8f, 1f);
-                DebugConsole.Log("[CursorManager] Setting cursor color to random color " + color.ToString());
-            }
-            else
+				DebugConsole.Log("[CursorManager] Setting cursor color to random color " + color.ToString());
+			}
+			else
 			{
 				Color32 set_color = Configuration.Instance.CursorColor;
 				color = set_color;
 				DebugConsole.Log("[CursorManager] Setting cursor color from config to " + set_color.ToString() + " | " + color.ToString());
 			}
-        }
+		}
 
 		private void Update()
 		{
@@ -113,28 +113,22 @@ namespace ONI_MP.Networking.Components
 
 			string buildToolPrefabId = string.Empty;
 			Orientation buildingOrientation = Orientation.Neutral;
-			PlayerBuildingVisualizer.VisualizerType buildingVisualizerType = PlayerBuildingVisualizer.VisualizerType.BUILDING;
 
 			var interfaceTool = PlayerController.Instance.ActiveTool;
 			if (interfaceTool is BuildTool buildTool)
 			{
-				if(buildTool.def != null)
+				if (buildTool.def != null)
 				{
 					buildToolPrefabId = buildTool.def.PrefabID;
 					buildingOrientation = buildTool.buildingOrientation;
-
-					bool isTile = buildTool.def.IsTilePiece;
-					bool isUtility = buildTool.def.BuildingComplete.GetComponent<IHaveUtilityNetworkMgr>() != null;
-					if(isUtility)
-					{
-                        buildingVisualizerType = PlayerBuildingVisualizer.VisualizerType.UTILITY;
-                    }
-					else if(isTile)
-					{
-                        buildingVisualizerType = PlayerBuildingVisualizer.VisualizerType.TILE;
-                    }
-					// Otherwise default to building
-                }
+				}
+			}
+			else if (interfaceTool is BaseUtilityBuildTool utilityBuildTool)
+			{
+				if (utilityBuildTool.def != null)
+				{
+					buildToolPrefabId = utilityBuildTool.def.PrefabID;
+				}
 			}
 
 			var packet = new PlayerCursorPacket
@@ -149,7 +143,6 @@ namespace ONI_MP.Networking.Components
 				ViewMaxY = maxY,
 				BuildingPrefabId = buildToolPrefabId,
 				BuildingOrientation = buildingOrientation,
-				BuildingVisualizerType = buildingVisualizerType
 			};
 
 			if (MultiplayerSession.IsHost)

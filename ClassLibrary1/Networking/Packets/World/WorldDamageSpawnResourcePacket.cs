@@ -83,7 +83,7 @@ namespace ONI_MP.Networking.Packets.World
 			DebugConsole.Log("[WorldDamageSpawnResourcePacket] Synchronized Network ID");
 
 			// First check GroundItemPickedUp, then PickupItem then StoreItem, TODO: Rope into 1 list
-			if (GroundItemPickedUpPacket.TryConsumePending(NetId) || StoreItemPacket.TryConsumePending(NetId))
+			if (GroundItemPickedUpPacket.TryConsumePending(NetId) || StorageItemPacket.TryConsumePending(NetId))
 			{
 				DebugConsole.Log($"[WorldDamageSpawnResourcePacket] Consumed pending ground-item pickup for NetId {NetId}");
 				Util.KDestroyGameObject(dropped);

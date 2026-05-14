@@ -5,6 +5,8 @@ using System.IO;
 using System.Linq;
 using Shared.Profiling;
 using UnityEngine;
+using ONI_MP.Networking.Components;
+using Rendering;
 
 namespace ONI_MP.Networking.Packets.Tools.Build
 {
@@ -18,12 +20,12 @@ namespace ONI_MP.Networking.Packets.Tools.Build
         public List<string> MaterialTags = new List<string>();
         public float Temperature;
         public string FacadeID = "DEFAULT_FACADE";
+        public int WorkerNetId;
 
         // Utility buildings
         public UtilityConnections UtilityConnectionFlags;
 
         public ObjectLayer ObjectLayer;
-        public bool IsReplacement;
 
         public void Serialize(BinaryWriter writer)
         {
@@ -43,7 +45,8 @@ namespace ONI_MP.Networking.Packets.Tools.Build
             writer.Write((int)UtilityConnectionFlags);
 
             writer.Write((int)ObjectLayer);
-            writer.Write(IsReplacement);
+
+            writer.Write(WorkerNetId);
         }
 
         public void Deserialize(BinaryReader reader)
@@ -70,7 +73,8 @@ namespace ONI_MP.Networking.Packets.Tools.Build
 
             UtilityConnectionFlags = (UtilityConnections)reader.ReadInt32();
             ObjectLayer = (ObjectLayer)reader.ReadInt32();
-            IsReplacement = reader.ReadBoolean();
+
+            WorkerNetId = reader.ReadInt32();
         }
 
         public void OnDispatched()
@@ -88,9 +92,9 @@ namespace ONI_MP.Networking.Packets.Tools.Build
             {
                 DebugConsole.LogWarning($"[BuildCompletePacket] Unknown building def: {PrefabID}");
                 return;
-            }
+			}
 
-            var tags = MaterialTags.Select(t => new Tag(t)).ToList();
+			var tags = MaterialTags.Select(t => new Tag(t)).ToList();
 
             if (tags.Count == 0)
             {
@@ -98,33 +102,59 @@ namespace ONI_MP.Networking.Packets.Tools.Build
                 tags.Add(SimHashes.SandStone.CreateTag());
             }
 
-            int layerIndex = (int)ObjectLayer;
 
+			bool isBridge = def.BuildingComplete.GetComponent<ConduitBridgeBase>() || def.BuildingComplete.GetComponent<WireUtilityNetworkLink>() || def.BuildingComplete.GetComponent<LogicUtilityNetworkLink>() || PrefabID == ContactConductivePipeBridgeConfig.ID;
+			int layerIndex = (int)ObjectLayer;
             // Destroy ghost/constructable if it still exists
             GameObject existing = Grid.Objects[Cell, layerIndex];
+
+            if(existing == null && isBridge)
+            {
+                bool vertical = Orientation == Orientation.R90 || Orientation == Orientation.R270;
+                //todo: account for other width bridges; get the offsets from bridge width instead
+                int firstToCheck = vertical ? Grid.CellAbove(Cell) : Grid.CellLeft(Cell);
+                int secondToCheck = vertical ? Grid.CellBelow(Cell) : Grid.CellRight(Cell);
+
+				existing = Grid.Objects[firstToCheck, layerIndex];
+                if(existing == null)
+					existing = Grid.Objects[secondToCheck, layerIndex];
+			}
+
             if (existing != null)
             {
-                if (existing.GetComponent<Constructable>() != null || IsReplacement)
+                //if (existing.TryGetComponent<Constructable>(out Constructable con))
+                //{
+                //    if (NetworkIdentityRegistry.TryGet(WorkerNetId, out var identity) &&
+                //       identity.TryGetComponent<WorkerBase>(out var worker))
+                //    {
+                //        con.initialTemperature = Temperature;
+                //        con.SelectedElementsTags = tags;
+                //        con.FinishConstruction(UtilityConnectionFlags, worker);
+                //    }
+                //}
+                //else
                 {
-                    Util.KDestroyGameObject(existing);
+                    // Clean up dangling visualizers
+                    Object.Destroy(existing);
+                    Grid.Objects[Cell, layerIndex] = null;
+
+                    var builtObj = def.Build(
+                        Cell,
+                        Orientation,
+                        null,
+                        tags,
+                        Temperature,
+                        FacadeID,
+                        playsound: false,
+                        GameClock.Instance.GetTime()
+                    );
+
+                    // Apply wire/pipe connections for utility buildings
+                    if (builtObj != null && (int)UtilityConnectionFlags != 0)
+                    {
+                        ApplyUtilityConnections(builtObj, def);
+                    }
                 }
-            }
-
-            var builtObj = def.Build(
-                    Cell,
-                    Orientation,
-                    null,
-                    tags,
-                    Temperature,
-                    FacadeID,
-                    playsound: false,
-                    GameClock.Instance.GetTime()
-            );
-
-            // Apply wire/pipe connections for utility buildings
-            if (builtObj != null && (int)UtilityConnectionFlags != 0)
-            {
-                ApplyUtilityConnections(builtObj, def);
             }
 
             DebugConsole.Log($"[BuildCompletePacket] Finalized {PrefabID} at cell {Cell}");
@@ -138,6 +168,12 @@ namespace ONI_MP.Networking.Packets.Tools.Build
                 vis.UpdateConnections(UtilityConnectionFlags);
                 vis.Refresh();
             }
+        }
+
+        private void ApplyUtilityConnections(KAnimGraphTileVisualizer vis, UtilityConnections flags)
+        {
+            vis.UpdateConnections(flags);
+            vis.Refresh();
         }
     }
 }

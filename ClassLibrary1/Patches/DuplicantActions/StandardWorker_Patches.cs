@@ -28,7 +28,8 @@ namespace ONI_MP.Patches.DuplicantActions
                 typeof(DefragmentationZone),
                 typeof(RancherWorkable),
                 typeof(LiquidPumpingStation),
-				typeof(IceKettleWorkable)
+				typeof(IceKettleWorkable),
+				typeof(Sleepable)
             };
 
 			public static void Postfix(StandardWorker __instance, StartWorkInfo start_work_info)

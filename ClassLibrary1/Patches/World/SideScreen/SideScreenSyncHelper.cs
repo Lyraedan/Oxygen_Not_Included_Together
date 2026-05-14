@@ -141,7 +141,9 @@ namespace ONI_MP.Patches.World.SideScreen
 			if (BuildingConfigPacket.IsApplyingPacket) return;
 			if (target == null) return;
 
-			var identity = target.AddOrGet<NetworkIdentity>();
+			var identity = target.GetNetIdentity();
+			if (identity == null || identity.NetId == 0)
+				return;
 
 			var packet = new BuildingConfigPacket
 			{

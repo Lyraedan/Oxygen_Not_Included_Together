@@ -9,7 +9,7 @@ using UnityEngine;
 
 namespace ONI_MP.Patches.ToolPatches.Build
 {
-    [HarmonyPatch(typeof(BuildTool), "TryBuild")]
+    [HarmonyPatch(typeof(BuildTool), nameof(BuildTool.TryBuild))]
     public static class BuildToolPatch
     {
         static void Prefix(BuildTool __instance, int cell)
