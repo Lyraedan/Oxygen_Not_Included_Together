@@ -135,6 +135,7 @@ namespace ONI_MP.Networking
 				return VisualizerType.INVALID;
 
 			if (def.IsTilePiece
+				&& def.isKAnimTile
 				&& !def.BuildingComplete.TryGetComponent<Door>(out _)
 				&& def.TileLayer != ObjectLayer.LadderTile)
 			{
@@ -142,15 +143,12 @@ namespace ONI_MP.Networking
 				{
 					return VisualizerType.UTILITY;
 				}
-				else
+				else if (!def.BuildingComplete.TryGetComponent<KBatchedAnimController>(out _))
 				{
 					return VisualizerType.TILE;
 				}
 			}
-			else
-			{
-				return VisualizerType.BUILDING;
-			}
+			return VisualizerType.BUILDING;
 		}
 		void InstantiateNewVisualizer(Vector3 targetPos)
 		{
@@ -244,8 +242,6 @@ namespace ONI_MP.Networking
 		private void UpdateBuildingVisual(int cell)
 		{
 			var pos = Grid.CellToPosCBC(cell, CurrentDef.SceneLayer);
-			//if (CurrentDef.WidthInCells % 2 == 0)
-			//	pos.x += 0.5f;
 			_visualizer.transform.SetPosition(pos);
 			UpdateRotation();
 			if (_visualizer.TryGetComponent<KBatchedAnimController>(out var kbac))
