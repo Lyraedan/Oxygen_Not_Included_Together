@@ -17,7 +17,7 @@ namespace ONI_MP.Networking.Components.StructureStateSyncers
         protected int cell;
         protected Variant lastSentValue;
         protected bool lastSentActive;
-        protected Variant[] lastOptionalValues;
+        protected List<Variant> lastOptionalValues;
         protected bool checkOptionalsValuesForChanges = true; // bypass optional values check
 
         private bool _initialized;
@@ -86,20 +86,13 @@ namespace ONI_MP.Networking.Components.StructureStateSyncers
                     IsActive = currentActive,
                     OptionalValues = optionalValues,
                 };
-                BuildPacket(packet);
 
                 PacketSender.SendToAllClients(packet, PacketSendMode.Unreliable);
-                DebugConsole.Log($"Sent host update from: {GetType().Name} | " +
-                                 $"Net ID: {packet.NetId}" + 
-                                 $"Value: {currentValue} | Active: {currentActive} | " +
-                                 $"Was Forced: {ShouldForceSync()} | " +
-                                 $"OptionalValues: [{string.Join(", ", optionalValues?.Select(v => v.ToString()) ?? [])}]");
             }
         }
 
-        protected abstract void SampleState(out Variant value, out bool active, out Variant[] optionalValues);
+        protected abstract void SampleState(out Variant value, out bool active, out List<Variant> optionalValues);
         protected abstract void ApplyState(StructureStatePacket packet);
-        protected abstract void BuildPacket(StructureStatePacket packet);
 
         protected abstract bool ShouldForceSync();
 

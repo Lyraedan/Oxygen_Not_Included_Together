@@ -20,16 +20,11 @@ namespace ONI_MP.Networking.Components.StructureStateSyncers
             batteryTracker = GetComponent<BatteryTracker>();
         }
 
-        protected override void SampleState(out Variant value, out bool active, out Variant[] optionalValues)
+        protected override void SampleState(out Variant value, out bool active, out List<Variant> optionalValues)
         {
             value = battery?.JoulesAvailable ?? 0f;
             active = false;
-            optionalValues = [];
-        }
-
-        protected override void BuildPacket(StructureStatePacket packet)
-        {
-
+            optionalValues = new List<Variant>();
         }
 
         protected override void ApplyState(StructureStatePacket packet)

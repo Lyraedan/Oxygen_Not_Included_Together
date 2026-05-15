@@ -7,6 +7,7 @@ using ONI_MP.Misc;
 using UnityEngine;
 using ONI_MP.Networking.Components.StructureStateSyncers;
 using static ONI_MP.STRINGS.UI.MP_OVERLAY;
+using System.Collections.Generic;
 
 namespace ONI_MP.Networking.Packets.World
 {
@@ -17,7 +18,7 @@ namespace ONI_MP.Networking.Packets.World
         public int Cell;
 		public Variant Value; // Joules for Battery, Progress for others
 
-		public Variant[] OptionalValues = []; // Extra things (such as EnergyGenerator mass, storage amount etc)
+		public List<Variant> OptionalValues = []; // Extra things (such as EnergyGenerator mass, storage amount etc)
 
 		public bool IsActive; // Operational active state
 
@@ -30,8 +31,8 @@ namespace ONI_MP.Networking.Packets.World
             Value.Write(writer);
 			writer.Write(IsActive);
 
-            writer.Write(OptionalValues.Length);
-            for (int i = 0; i < OptionalValues.Length; i++)
+            writer.Write(OptionalValues.Count);
+            for (int i = 0; i < OptionalValues.Count; i++)
             {
                 OptionalValues[i].Write(writer);
             }
@@ -47,7 +48,7 @@ namespace ONI_MP.Networking.Packets.World
 			IsActive = reader.ReadBoolean();
 
             int length = reader.ReadInt32();
-            OptionalValues = new Variant[length];
+            OptionalValues = new List<Variant>(length);
             for (int i = 0; i < length; i++)
             {
                 OptionalValues[i] = Variant.Read(reader);
@@ -102,13 +103,13 @@ namespace ONI_MP.Networking.Packets.World
             return false;
         }
 
-        public static bool OptionalValuesChanged(Variant[] a, Variant[] b)
+        public static bool OptionalValuesChanged(List<Variant> a, List<Variant> b)
         {
             if (a == null && b == null) return false;
             if (a == null || b == null) return true;
-            if (a.Length != b.Length) return true;
+            if (a.Count != b.Count) return true;
 
-            for (int i = 0; i < a.Length; i++)
+            for (int i = 0; i < a.Count; i++)
             {
                 bool changed = VariantValueChanged(a[i], b[i]);
                 if (changed) return true;

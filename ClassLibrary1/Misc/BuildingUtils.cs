@@ -29,7 +29,7 @@ namespace ONI_MP.Misc
             return false;
         }
 
-        public static void EncodeStorageContents(Storage storage, out Variant[] optionalValues)
+        public static void EncodeStorageContents(Storage storage, out List<Variant> optionalValues)
         {
             var items = new List<StorageData>();
             for (int i = 0; i < storage.items.Count; i++)
@@ -51,24 +51,23 @@ namespace ONI_MP.Misc
                 });
             }
 
-            optionalValues = new Variant[2 + items.Count * 6];
-            optionalValues[0] = storage.capacityKg;
-            optionalValues[1] = items.Count;
-            int idx = 2;
+            optionalValues = new List<Variant>(2 + items.Count * 6);
+            optionalValues.Add(storage.capacityKg);
+            optionalValues.Add(items.Count);
             foreach (var item in items)
             {
-                optionalValues[idx++] = item.PrefabTagHash;
-                optionalValues[idx++] = item.Mass;
-                optionalValues[idx++] = item.Units;
-                optionalValues[idx++] = item.Temperature;
-                optionalValues[idx++] = item.DiseaseIdx;
-                optionalValues[idx++] = item.DiseaseCount;
+                optionalValues.Add(item.PrefabTagHash);
+                optionalValues.Add(item.Mass);
+                optionalValues.Add(item.Units);
+                optionalValues.Add(item.Temperature);
+                optionalValues.Add(item.DiseaseIdx);
+                optionalValues.Add(item.DiseaseCount);
             }
         }
 
-        public static void RebuildStorageFromData(Storage storage, Variant[] data, string diseaseReason = "Multiplayer Sync")
+        public static void RebuildStorageFromData(Storage storage, List<Variant> data, string diseaseReason = "Multiplayer Sync")
         {
-            if (storage == null || data.Length < 2) return;
+            if (storage == null || data.Count < 2) return;
             ClearStorage(storage);
 
             int count = data[1].Int;
@@ -77,7 +76,7 @@ namespace ONI_MP.Misc
             for (int i = 0; i < count; i++)
             {
                 int baseIdx = 2 + i * 6;
-                if (baseIdx + 6 > data.Length) break;
+                if (baseIdx + 6 > data.Count) break;
 
                 int hash = data[baseIdx].Int;
                 float mass = data[baseIdx + 1].Float;

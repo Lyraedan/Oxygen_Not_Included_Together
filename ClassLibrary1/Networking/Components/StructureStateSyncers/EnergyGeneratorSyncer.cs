@@ -21,32 +21,30 @@ namespace ONI_MP.Networking.Components.StructureStateSyncers
             storage = energyGen?.storage;
         }
 
-        protected override void SampleState(out Variant value, out bool active, out Variant[] optionalValues)
+        protected override void SampleState(out Variant value, out bool active, out List<Variant> optionalValues)
         {
             value = generator?.JoulesAvailable ?? 0f;
             active = false;
 
             if (energyGen == null || !energyGen.hasMeter || storage == null)
             {
-                optionalValues = [];
+                optionalValues = new List<Variant>();
                 return;
             }
 
             var inputItem = energyGen.formula.inputs[0];
-            optionalValues =
-            [
+            optionalValues = new List<Variant>
+            {
                 storage.GetMassAvailable(inputItem.tag),
                 inputItem.maxStoredMass
-            ];
+            };
         }
-
-        protected override void BuildPacket(StructureStatePacket packet) { }
 
         protected override void ApplyState(StructureStatePacket packet)
         {
             if (generator == null) return;
 
-            if (packet.OptionalValues.Length >= 2 && energyGen != null)
+            if (packet.OptionalValues.Count >= 2 && energyGen != null)
             {
                 float mass = packet.OptionalValues[0].Float;
                 float storedMass = packet.OptionalValues[1].Float;

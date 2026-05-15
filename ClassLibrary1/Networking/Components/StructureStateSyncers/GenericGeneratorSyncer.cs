@@ -16,11 +16,11 @@ namespace ONI_MP.Networking.Components.StructureStateSyncers
             generator = new Generator();
         }
 
-        protected override void SampleState(out Variant value, out bool active, out Variant[] optionalValues)
+        protected override void SampleState(out Variant value, out bool active, out List<Variant> optionalValues)
         {
             value = generator?.JoulesAvailable ?? 0f;
             active = false;
-            optionalValues = [];
+            optionalValues = new List<Variant>();
         }
 
         protected override void ApplyState(StructureStatePacket packet)
@@ -30,8 +30,6 @@ namespace ONI_MP.Networking.Components.StructureStateSyncers
 
             generator.AssignJoulesAvailable(packet.Value.Float);
         }
-
-        protected override void BuildPacket(StructureStatePacket packet) { }
 
         protected override bool ShouldForceSync()
         {

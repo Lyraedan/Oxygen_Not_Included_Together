@@ -79,7 +79,7 @@ namespace ONI_MP.Patches.World
     {
         public static void Postfix(FlushToilet __instance)
         {
-            using var _ = Shared.Profiling.Profiler.Scope();
+            using var _ = Profiler.Scope();
             __instance.gameObject.AddOrGet<ToiletSyncer>();
         }
     }
@@ -89,7 +89,7 @@ namespace ONI_MP.Patches.World
     {
         public static void Postfix(Toilet __instance)
         {
-            using var _ = Shared.Profiling.Profiler.Scope();
+            using var _ = Profiler.Scope();
             __instance.gameObject.AddOrGet<ToiletSyncer>();
         }
     }

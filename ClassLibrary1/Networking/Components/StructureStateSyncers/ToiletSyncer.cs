@@ -14,6 +14,7 @@ namespace ONI_MP.Networking.Components.StructureStateSyncers
         private Toilet outhouseToilet;
         private Storage storage;
         private ConduitConsumer conduitConsumer;
+        private KPrefabID prefabID;
 
         protected override void Initialize()
         {
@@ -21,10 +22,10 @@ namespace ONI_MP.Networking.Components.StructureStateSyncers
             outhouseToilet = GetComponent<Toilet>();
             storage = GetComponent<Storage>();
             conduitConsumer = GetComponent<ConduitConsumer>();
-            checkOptionalsValuesForChanges = false;
+            prefabID = GetComponent<KPrefabID>();
         }
 
-        protected override void SampleState(out Variant value, out bool active, out Variant[] optionalValues)
+        protected override void SampleState(out Variant value, out bool active, out List<Variant> optionalValues)
         {
             if (flushToilet != null)
             {
@@ -40,26 +41,39 @@ namespace ONI_MP.Networking.Components.StructureStateSyncers
             }
             active = false;
             BuildingUtils.EncodeStorageContents(storage, out optionalValues);
+            optionalValues.Add(operational?.IsFunctional ?? true);
         }
-
-        protected override void BuildPacket(StructureStatePacket packet) { }
 
         protected override void ApplyState(StructureStatePacket packet)
         {
-            if (storage == null || packet.OptionalValues.Length < 2) return;
+            if (storage == null) return;
             BuildingUtils.RebuildStorageFromData(storage, packet.OptionalValues);
-            SyncToiletVisualState();
+            SyncToilet(packet);
+
+            // Seems to solve out of order
+            //if (packet.OptionalValues.Count > 0)
+            //{
+            //    bool functional = packet.OptionalValues[0].Boolean;
+            //    if (functional)
+            //    {
+            //        prefabID.AddTag(GameTags.Operational);
+            //    } 
+            //    else
+            //    {
+            //        prefabID.RemoveTag(GameTags.Operational);
+            //    }
+            //}
         }
 
-        private void SyncToiletVisualState()
+        private void SyncToilet(StructureStatePacket packet)
         {
             if (flushToilet != null)
-                SyncFlushToilet();
+                SyncFlushToilet(packet);
             else if (outhouseToilet != null)
-                SyncOuthouse();
+                SyncOuthouse(packet);
         }
 
-        private void SyncFlushToilet()
+        private void SyncFlushToilet(StructureStatePacket packet)
         {
             float totalWater = 0f, totalWaste = 0f, totalGunk = 0f;
 
@@ -86,23 +100,10 @@ namespace ONI_MP.Networking.Components.StructureStateSyncers
             flushToilet.gunkMeter?.SetPositionPercent(gunkPct);
         }
 
-        private void SyncOuthouse()
+        private void SyncOuthouse(StructureStatePacket packet)
         {
-            float wasteMass = 0f;
-            foreach (var item in storage.items)
-            {
-                if (item == null) continue;
-                var pe = item.GetComponent<PrimaryElement>();
-                if (pe == null) continue;
-                if (pe.ElementID == outhouseToilet.solidWastePerUse.elementID)
-                    wasteMass += pe.Mass;
-            }
-
-            int flushes = Mathf.RoundToInt(wasteMass / outhouseToilet.solidWastePerUse.mass);
-            outhouseToilet.FlushesUsed = Mathf.Min(flushes, outhouseToilet.maxFlushes);
-
-            var meter = outhouseToilet.meter;
-            meter?.SetPositionPercent((float)outhouseToilet.FlushesUsed / outhouseToilet.maxFlushes);
+            outhouseToilet.FlushesUsed = packet.Value.Int;
+            outhouseToilet.meter?.SetPositionPercent((float)outhouseToilet.FlushesUsed / outhouseToilet.maxFlushes);
         }
 
         protected override bool ShouldForceSync()

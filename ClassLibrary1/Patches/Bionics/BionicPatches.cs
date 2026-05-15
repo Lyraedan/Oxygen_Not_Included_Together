@@ -82,6 +82,9 @@ namespace ONI_MP.Patches.Bionics
                 if (__instance.effects == null)
                     return false;
 
+                if (__instance.resume == null)
+                    return false;
+
                 if (__instance.gameObject == null)
                     return false;
 
