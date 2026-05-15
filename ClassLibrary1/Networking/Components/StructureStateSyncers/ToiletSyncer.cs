@@ -84,24 +84,6 @@ namespace ONI_MP.Networking.Components.StructureStateSyncers
             flushToilet.fillMeter?.SetPositionPercent(fillPct);
             flushToilet.contaminationMeter?.SetPositionPercent(wastePct);
             flushToilet.gunkMeter?.SetPositionPercent(gunkPct);
-
-            // Force state machine out of disconnected by advancing it to the correct state based on storage contents
-            var smi = flushToilet.smi;
-            if (smi == null || !smi.IsRunning()) return;
-
-            var sm = smi.sm;
-            if(totalWaste + totalGunk > 0.001f)
-            {
-                smi.GoTo(sm.flushed);
-            }
-            else if(full)
-            {
-                smi.GoTo(sm.ready.idle);
-            }
-            else
-            {
-                smi.GoTo(sm.filling);
-            }
         }
 
         private void SyncOuthouse()
@@ -121,28 +103,6 @@ namespace ONI_MP.Networking.Components.StructureStateSyncers
 
             var meter = outhouseToilet.meter;
             meter?.SetPositionPercent((float)outhouseToilet.FlushesUsed / outhouseToilet.maxFlushes);
-
-            // Force state machine out of needsdirt
-            var smi = outhouseToilet.smi;
-            if (smi == null || !smi.IsRunning()) return;
-
-            var sm = smi.sm;
-
-            bool hasDirt = storage.Has(GameTags.Dirt);
-            int flushesRemaining = outhouseToilet.maxFlushes - outhouseToilet.FlushesUsed;
-
-            if(outhouseToilet.FlushesUsed >= outhouseToilet.maxFlushes)
-            {
-                smi.GoTo(sm.full);
-            }
-            else if(hasDirt)
-            {
-                smi.GoTo(sm.ready);
-            }
-            else
-            {
-                smi.GoTo(sm.needsdirt);
-            }
         }
 
         protected override bool ShouldForceSync()
