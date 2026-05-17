@@ -305,6 +305,8 @@ namespace ONI_Together.Misc
 
         public static void TryRefreshFilterSideScreen(FilterSideScreen filter, GameObject go)
         {
+            if (filter.targetFilterable == null) return;
+
             filter.RefreshUI();
         }
 
