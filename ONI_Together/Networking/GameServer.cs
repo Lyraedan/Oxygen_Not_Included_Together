@@ -34,13 +34,13 @@ namespace ONI_Together.Networking
 
 			SetState(ServerState.Preparing);
 
-            NetworkConfig.TransportServer.OnError = () => SetState(ServerState.Error);
-            NetworkConfig.TransportServer.Prepare();
+			NetworkConfig.TransportServer.OnError = () => SetState(ServerState.Error);
+			NetworkConfig.TransportServer.Prepare();
 			CursorManager.Instance.AssignColor();
 
 			SetState(ServerState.Starting);
 
-			MultiplayerSession.SetIsHost(true);
+			MultiplayerSession.IsHost = true;
 			NetworkConfig.TransportServer.Start();
 
 			DebugConsole.Log("[GameServer] Game Server started!");
@@ -58,9 +58,9 @@ namespace ONI_Together.Networking
 
 			SetState(ServerState.Stopped);
 
-            NetworkConfig.TransportServer.CloseConnections();
+			NetworkConfig.TransportServer.CloseConnections();
 			NetworkConfig.TransportServer.Stop();
-			MultiplayerSession.SetIsHost(false);
+			MultiplayerSession.IsHost = false;
 
 			//MultiplayerSession.InSession = false;
 
