@@ -113,6 +113,7 @@ namespace ONI_Together.Networking.Components
 
 			string buildToolPrefabId = string.Empty;
 			Orientation buildingOrientation = Orientation.Neutral;
+			bool allowedToPlaceBuilding = true;
 
 			var interfaceTool = PlayerController.Instance.ActiveTool;
 			if (interfaceTool is BuildTool buildTool)
@@ -121,6 +122,7 @@ namespace ONI_Together.Networking.Components
 				{
 					buildToolPrefabId = buildTool.def.PrefabID;
 					buildingOrientation = buildTool.buildingOrientation;
+					allowedToPlaceBuilding = buildTool.def.IsValidPlaceLocation(buildTool.visualizer, cursorWorldPos, buildingOrientation, out var _) || buildTool.def.IsValidReplaceLocation(cursorWorldPos, buildingOrientation, buildTool.def.ReplacementLayer, buildTool.def.ObjectLayer);
 				}
 			}
 			else if (interfaceTool is BaseUtilityBuildTool utilityBuildTool)
@@ -128,6 +130,7 @@ namespace ONI_Together.Networking.Components
 				if (utilityBuildTool.def != null)
 				{
 					buildToolPrefabId = utilityBuildTool.def.PrefabID;
+					allowedToPlaceBuilding = utilityBuildTool.CheckValidPathPiece(Grid.PosToCell(cursorWorldPos));
 				}
 			}
 
@@ -143,6 +146,7 @@ namespace ONI_Together.Networking.Components
 				ViewMaxY = maxY,
 				BuildingPrefabId = buildToolPrefabId,
 				BuildingOrientation = buildingOrientation,
+				BuildingAllowed = allowedToPlaceBuilding,
 			};
 
 			if (MultiplayerSession.IsHost)

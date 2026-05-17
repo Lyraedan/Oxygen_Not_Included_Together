@@ -20,6 +20,7 @@ namespace ONI_Together.Networking.Packets.Core
 		public CursorState CursorState;
 		public string BuildingPrefabId;
 		public Orientation BuildingOrientation = Orientation.Neutral;
+		public bool BuildingAllowed;
 
 		// Viewport for targeted sync
 		public int ViewMinX, ViewMinY, ViewMaxX, ViewMaxY;
@@ -38,6 +39,7 @@ namespace ONI_Together.Networking.Packets.Core
 			writer.Write(ViewMaxY);
 			writer.Write(BuildingPrefabId);
 			writer.Write((int)BuildingOrientation);
+			writer.Write(BuildingAllowed);
 		}
 
 		public void Deserialize(BinaryReader reader)
@@ -54,6 +56,7 @@ namespace ONI_Together.Networking.Packets.Core
 			ViewMaxY = reader.ReadInt32();
 			BuildingPrefabId = reader.ReadString();
 			BuildingOrientation = (Orientation)reader.ReadInt32();
+			BuildingAllowed = reader.ReadBoolean();
 		}
 
 		public void OnDispatched()
@@ -116,7 +119,7 @@ namespace ONI_Together.Networking.Packets.Core
 
 		private void UpdateVisualizer(PlayerCursor cursor, Vector3 position)
 		{
-			cursor.buildingVisualiser.UpdateVisualizer(BuildingPrefabId, position, BuildingOrientation, Color);
+			cursor.buildingVisualiser.UpdateVisualizer(BuildingPrefabId, position, BuildingOrientation, Color, BuildingAllowed);
 		}
 
 	}

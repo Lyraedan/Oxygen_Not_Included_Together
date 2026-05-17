@@ -50,6 +50,7 @@ namespace ONI_Together.Networking
 
 		private Color currentColor = Color.white; // Color based on if the tile is valid or not
 		private Color visualColor = Color.white, visualColorInvalid = Color.red;
+		private bool _allowedToPlaceVis;
 
 
 
@@ -84,7 +85,6 @@ namespace ONI_Together.Networking
 		{
 			var pos = Grid.CellToPosCCC(cell, Grid.SceneLayer.FXFront);
 			TileSpriteRenderer.transform.SetPosition(pos);
-			UpdateVisualColor(cell);
 			TileSpriteRenderer.color = currentColor;
 		}
 
@@ -195,13 +195,15 @@ namespace ONI_Together.Networking
 			RemoveTileVisual();
 		}
 
-		public void UpdateVisualizer(string buildingPrefabId, Vector3 position, Orientation orientation, Color visualColor)
+		public void UpdateVisualizer(string buildingPrefabId, Vector3 position, Orientation orientation, Color visualColor, bool allowedToPlaceVis)
 		{
 			if (visualColor != Color)
 			{
 				Color = visualColor;
 			}
 			this.CurrentOrientation = orientation;
+			this._allowedToPlaceVis = allowedToPlaceVis;
+			UpdateVisualColor();
 
 			if (lastPrefabId.Equals(buildingPrefabId) && !_visualizer.IsNullOrDestroyed())
 			{
@@ -246,7 +248,6 @@ namespace ONI_Together.Networking
 			UpdateRotation();
 			if (_visualizer.TryGetComponent<KBatchedAnimController>(out var kbac))
 			{
-				UpdateVisualColor(cell);
 				kbac.TintColour = currentColor;
 			}
 		}
@@ -360,9 +361,9 @@ namespace ONI_Together.Networking
 			}
 		}
 
-		public void UpdateVisualColor(int cell)
+		public void UpdateVisualColor()
 		{
-			if (BuildingUtils.ValidCell(CurrentDef.BuildingPreview, CurrentDef, cell, CurrentOrientation))
+			if (_allowedToPlaceVis)
 			{
 				currentColor = visualColor;
 			}

@@ -141,7 +141,7 @@ namespace ONI_Together.Networking
 
 		public void RemoveBuildingVisualizer()
 		{
-            buildingVisualiser.UpdateVisualizer(string.Empty, Vector3.zero, Orientation.Neutral, Color.white); // Flag visualizer for removal
+            buildingVisualiser.UpdateVisualizer(string.Empty, Vector3.zero, Orientation.Neutral, Color.white, false); // Flag visualizer for removal
         }
 
 		private Image CreateCursorImage(GameObject parent, Texture2D cursorTexture)
