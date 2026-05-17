@@ -28,9 +28,9 @@ namespace ONI_Together_API
 
 			if (!ReflectionHelper.TryGetPropertyGetter("ONI_Together.Networking.MultiplayerSession, ONI_Together", "IsHost", out _IsHostGetter))
 				return false;
-			if (!ReflectionHelper.TryGetPropertyGetter("ONI_Together.Networking.MultiplayerSession, ONI_Together", "LocalSteamID", out _LocalSteamIDGetter))
+			if (!ReflectionHelper.TryGetPropertyGetter("ONI_Together.Networking.MultiplayerSession, ONI_Together", "LocalUserID", out _LocalUserIDGetter))
 				return false;
-			if (!ReflectionHelper.TryGetPropertyGetter("ONI_Together.Networking.MultiplayerSession, ONI_Together", "HostSteamID", out _HostSteamIDGetter))
+			if (!ReflectionHelper.TryGetPropertyGetter("ONI_Together.Networking.MultiplayerSession, ONI_Together", "HostUserID", out _HostUserIDGetter))
 				return false;
 
 
@@ -44,7 +44,7 @@ namespace ONI_Together_API
 		static bool typesInitialized = false;
 
 		static FieldInfo _InSessionFieldInfo;
-		static MethodInfo _IsHostGetter, _IsClientGetter, _LocalSteamIDGetter, _HostSteamIDGetter;
+		static MethodInfo _IsHostGetter, _IsClientGetter, _LocalUserIDGetter, _HostUserIDGetter;
 
 		public static bool InSession
 		{
@@ -76,24 +76,24 @@ namespace ONI_Together_API
 				return (bool)_IsClientGetter.Invoke(null, null);
 			}
 		}
-		public static ulong LocalSteamID
+		public static ulong LocalUserID
 		{
 			get
 			{
 				Init();
-				if (_LocalSteamIDGetter == null)
+				if (_LocalUserIDGetter == null)
 					return 0uL;
-				return (ulong) _LocalSteamIDGetter.Invoke(null, null);
+				return (ulong) _LocalUserIDGetter.Invoke(null, null);
 			}
 		}
-		public static ulong HostSteamID
+		public static ulong HostUserID
 		{
 			get
 			{
 				Init();
-				if (_HostSteamIDGetter == null)
+				if (_HostUserIDGetter == null)
 					return 0uL;
-				return (ulong)_HostSteamIDGetter.Invoke(null, null);
+				return (ulong)_HostUserIDGetter.Invoke(null, null);
 			}
 		}
 

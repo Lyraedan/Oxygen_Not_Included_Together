@@ -21,6 +21,8 @@ namespace ONI_Together.Networking
 
 		[System.Obsolete] //Keep for api compatibility
 		public static ulong LocalSteamID => LocalUserID;
+		[System.Obsolete] //Keep for api compatibility
+		public static ulong HostSteamID => HostUserID;
 
 		public static ulong HostUserID { get; set; } = Utils.NilUlong();
 

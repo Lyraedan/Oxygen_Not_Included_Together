@@ -16,7 +16,6 @@ namespace Shared.Helpers
 			using var _ = Profiler.Scope();
 
 			var startTime = System.DateTime.Now;
-
 			var PacketsToRegister = asm.GetTypes().Where(p =>
 				!p.IsInterface &&
 				 p.GetInterfaces().Contains(typeof(IPacket)) &&
