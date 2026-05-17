@@ -1,6 +1,8 @@
 using HarmonyLib;
+using ONI_Together.DebugTools;
 using ONI_Together.Networking.Packets.Chores;
 using Shared.Profiling;
+using System;
 using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
@@ -13,11 +15,6 @@ namespace ONI_Together.Networking.Components
 		public static readonly HashSet<int> PendingImmediate = new();
 
 		private const float BroadcastIntervalSeconds = 0.5f;
-
-		private static readonly FieldInfo _providersField =
-			AccessTools.Field(typeof(ChoreConsumer), "providers");
-		private static readonly FieldInfo _selectedField =
-			AccessTools.Field(typeof(KSelectable), "selected");
 
 		[MyCmpGet] private NetworkIdentity identity;
 		[MyCmpGet] private ChoreConsumer consumer;
@@ -45,18 +42,25 @@ namespace ONI_Together.Networking.Components
 			if (!immediate && timeSinceLastBroadcast < BroadcastIntervalSeconds) return;
 			timeSinceLastBroadcast = 0f;
 
-			BroadcastSnapshot();
-		}
+            try
+            {
+                BroadcastSnapshot();
+            }
+            catch (Exception ex)
+            {
+                DebugConsole.LogError($"[DuplicantChoreBroadcaster] Failed to broadcast for dupe {identity.NetId}: {ex}");
+            }
+        }
 
 		private void BroadcastSnapshot()
 		{
 			using var _ = Profiler.Scope();
 
-			var providers = _providersField.GetValue(consumer) as List<ChoreProvider>;
+			var providers = consumer.providers;
 			if (providers == null) return;
 
 			bool wasSelected = selectable.IsSelected;
-			_selectedField.SetValue(selectable, true);
+			selectable.selected = true;
 
 			try
 			{
@@ -72,8 +76,8 @@ namespace ONI_Together.Networking.Components
 			}
 			finally
 			{
-				_selectedField.SetValue(selectable, wasSelected);
-			}
+				selectable.selected = wasSelected;
+            }
 
 			int listIndex = 0;
 			var packet = new ChoreErrandsPacket { DupeNetId = identity.NetId };

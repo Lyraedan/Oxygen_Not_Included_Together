@@ -11,22 +11,9 @@ namespace ONI_Together.Patches.Chores
 {
 	public static class MinionTodoSideScreenPatch
 	{
-		private static readonly FieldInfo _priorityGroupsField =
-			AccessTools.Field(typeof(MinionTodoSideScreen), "priorityGroups");
-		private static readonly FieldInfo _choreEntriesField =
-			AccessTools.Field(typeof(MinionTodoSideScreen), "choreEntries");
-		private static readonly FieldInfo _refreshHandleField =
-			AccessTools.Field(typeof(MinionTodoSideScreen), "refreshHandle");
-		private static readonly MethodInfo _populateElementsMethod =
-			AccessTools.Method(typeof(MinionTodoSideScreen), "PopulateElements");
-		private static readonly FieldInfo _buttonColorCurrentField =
-			AccessTools.Field(typeof(MinionTodoSideScreen), "buttonColorSettingCurrent");
-		private static readonly FieldInfo _buttonColorStandardField =
-			AccessTools.Field(typeof(MinionTodoSideScreen), "buttonColorSettingStandard");
-
 		private static int _subscribedNetId;
 
-		[HarmonyPatch(typeof(MinionTodoSideScreen), "SetTarget")]
+		[HarmonyPatch(typeof(MinionTodoSideScreen), nameof(MinionTodoSideScreen.SetTarget))]
 		public static class SetTarget_Patch
 		{
 			public static void Postfix(GameObject target)
@@ -39,7 +26,7 @@ namespace ONI_Together.Patches.Chores
 			}
 		}
 
-		[HarmonyPatch(typeof(MinionTodoSideScreen), "ClearTarget")]
+		[HarmonyPatch(typeof(MinionTodoSideScreen), nameof(MinionTodoSideScreen.ClearTarget))]
 		public static class ClearTarget_Patch
 		{
 			public static void Postfix()
@@ -66,13 +53,13 @@ namespace ONI_Together.Patches.Chores
 			_subscribedNetId = 0;
 		}
 
-		[HarmonyPatch(typeof(MinionTodoSideScreen), "PopulateElements")]
+		[HarmonyPatch(typeof(MinionTodoSideScreen), nameof(MinionTodoSideScreen.PopulateElements))]
 		public static class PopulateElements_Patch
 		{
 			public static bool Prefix(MinionTodoSideScreen __instance)
 			{
 				using var _ = Profiler.Scope();
-				if (!MultiplayerSession.IsClient) return true;
+				if (MultiplayerSession.IsHost) return true;
 
 				RescheduleRefresh(__instance);
 
@@ -90,11 +77,10 @@ namespace ONI_Together.Patches.Chores
 
 		private static void RescheduleRefresh(MinionTodoSideScreen screen)
 		{
-			var handle = (SchedulerHandle)_refreshHandleField.GetValue(screen);
+			var handle = screen.refreshHandle;
 			handle.ClearScheduler();
-			handle = UIScheduler.Instance.Schedule("RefreshToDoList", 0.1f,
-				_ => _populateElementsMethod.Invoke(screen, new object[] { null }));
-			_refreshHandleField.SetValue(screen, handle);
+			handle = UIScheduler.Instance.Schedule("RefreshToDoList", 0.1f,_ => screen.PopulateElements(null));
+			screen.refreshHandle = handle;
 		}
 
 		private static void RenderCurrent(MinionTodoSideScreen screen, ErrandEntry? current, GameObject target)
@@ -111,9 +97,8 @@ namespace ONI_Together.Patches.Chores
 
 		private static void RenderUpcoming(MinionTodoSideScreen screen, List<ErrandEntry> entries, GameObject target)
 		{
-			var priorityGroups = _priorityGroupsField.GetValue(screen)
-				as List<Tuple<PriorityScreen.PriorityClass, int, HierarchyReferences>>;
-			var choreEntries = _choreEntriesField.GetValue(screen) as List<MinionTodoChoreEntry>;
+			var priorityGroups = screen.priorityGroups;
+			var choreEntries = screen.choreEntries;
 			if (priorityGroups == null || choreEntries == null) return;
 
 			int activeCount = 0;
@@ -220,10 +205,9 @@ namespace ONI_Together.Patches.Chores
 		{
 			var button = uiEntry.GetComponentInChildren<KButton>();
 			if (button == null || button.bgImage == null) return;
-			var color = data.IsCurrent
-				? _buttonColorCurrentField.GetValue(screen) as ColorStyleSetting
-				: _buttonColorStandardField.GetValue(screen) as ColorStyleSetting;
+			var color = data.IsCurrent ? screen.buttonColorSettingCurrent : screen.buttonColorSettingStandard;
 			if (color == null) return;
+
 			button.bgImage.colorStyleSetting = color;
 			button.bgImage.ApplyColorStyleSetting();
 		}
