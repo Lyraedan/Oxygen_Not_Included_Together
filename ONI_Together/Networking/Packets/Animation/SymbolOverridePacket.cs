@@ -90,7 +90,7 @@ namespace ONI_Together.Networking.Packets.Animation
 				return;
 			if (!NetworkIdentityRegistry.TryGetComponent<SymbolOverrideController>(NetId, out var soc))
 			{
-				DebugConsole.LogWarning("[SymbolOverridePacket] Could not find symbolOverrideController for minion with netid " + NetId);
+				//DebugConsole.LogWarning("[SymbolOverridePacket] Could not find symbolOverrideController for minion with netid " + NetId);
 				return;
 			}
 			KAnim.Build.Symbol override_symbol = null;

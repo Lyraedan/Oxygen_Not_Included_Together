@@ -22,6 +22,7 @@ namespace ONI_Together.Networking.Packets.World
 
 	public class BuildingConfigPacket : IPacket
 	{
+		private ulong Sender; // Who triggered this
 		public int NetId;
 		public int Cell; // Deterministic location-based identification
 		public int ConfigHash; // Hash of the property name (e.g. "Threshold", "Logic")
@@ -40,6 +41,8 @@ namespace ONI_Together.Networking.Packets.World
 		{
 			using var _ = Profiler.Scope();
 
+			Sender = NetworkConfig.GetLocalID();
+			writer.Write(Sender);
 			writer.Write(NetId);
 			writer.Write(Cell);
 			writer.Write(ConfigHash);
@@ -53,6 +56,7 @@ namespace ONI_Together.Networking.Packets.World
 		{
 			using var _ = Profiler.Scope();
 
+			Sender = reader.ReadUInt64();
 			NetId = reader.ReadInt32();
 			Cell = reader.ReadInt32();
 			ConfigHash = reader.ReadInt32();
@@ -65,6 +69,10 @@ namespace ONI_Together.Networking.Packets.World
 		public void OnDispatched()
 		{
 			using var _ = Profiler.Scope();
+
+			// We sent this ignore
+			if (Sender == NetworkConfig.GetLocalID())
+				return;
 
 			//DebugConsole.Log($"[BuildingConfigPacket] Received a config update packet. NetId={NetId}, Cell={Cell}");
 
