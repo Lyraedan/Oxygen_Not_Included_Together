@@ -1,4 +1,4 @@
-﻿using ONI_MP.Networking.Packets.Architecture;
+﻿using ONI_Together.Networking.Packets.Architecture;
 
 namespace Shared.Interfaces.Networking
 {

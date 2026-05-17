@@ -1,0 +1,21 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+	  <TargetFramework>net8.0</TargetFramework>
+	  <ImplicitUsings>enable</ImplicitUsings>
+	  <Nullable>enable</Nullable>
+	  <DoNotBuildAsMod>true</DoNotBuildAsMod>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+	<PackageReference Include="RiptideNetworking.Riptide" Version="2.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+	  <ProjectReference Include="..\ONI_Together\ONI_Together.csproj" ReferenceOutputAssembly="false" ExcludeAssets="All" />
+	  <ProjectReference Include="..\Shared\Shared.csproj" />
+  </ItemGroup>
+	
+</Project>
