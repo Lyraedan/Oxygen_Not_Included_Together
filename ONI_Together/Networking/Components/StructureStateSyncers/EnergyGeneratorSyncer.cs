@@ -33,11 +33,12 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
             }
 
             var inputItem = energyGen.formula.inputs[0];
-            optionalValues = new List<Variant>
+            optionalValues = new List<Variant>() 
             {
                 storage.GetMassAvailable(inputItem.tag),
                 inputItem.maxStoredMass
             };
+            
         }
 
         protected override void ApplyState(StructureStatePacket packet)

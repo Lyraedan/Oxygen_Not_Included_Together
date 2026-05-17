@@ -10,7 +10,7 @@ using Shared.Profiling;
 
 namespace ONI_Together.Patches.World
 {
-    [HarmonyPatch(typeof(Battery), "OnSpawn")]
+    [HarmonyPatch(typeof(Battery), nameof(Battery.OnSpawn))]
     public static class BatterySpawnPatch
     {
         public static void Postfix(Battery __instance)
@@ -21,7 +21,7 @@ namespace ONI_Together.Patches.World
         }
     }
 
-    [HarmonyPatch(typeof(Generator), "OnSpawn")]
+    [HarmonyPatch(typeof(Generator), nameof(Generator.OnSpawn))]
     public static class GeneratorSpawnPatch
     {
         public static void Postfix(Generator __instance)

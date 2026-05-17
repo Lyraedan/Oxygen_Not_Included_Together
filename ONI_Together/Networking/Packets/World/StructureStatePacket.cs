@@ -51,7 +51,7 @@ namespace ONI_Together.Networking.Packets.World
             OptionalValues = new List<Variant>(length);
             for (int i = 0; i < length; i++)
             {
-                OptionalValues[i] = Variant.Read(reader);
+                OptionalValues.Add(Variant.Read(reader));
             }
         }
 

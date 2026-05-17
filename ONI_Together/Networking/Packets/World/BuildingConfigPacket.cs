@@ -31,8 +31,12 @@ namespace ONI_Together.Networking.Packets.World
 		public string StringValue = ""; // For tag names and text fields
 
 		public static bool IsApplyingPacket = false;
+        
+		// Delay refreshing because things like storage lockers cause lag
+		private static float _lastRefreshTime = -999f;
+        private const float REFRESH_COOLDOWN = 0.1f; // ~30 frames at 60fps, consistent regardless of FPS
 
-		public void Serialize(BinaryWriter writer)
+        public void Serialize(BinaryWriter writer)
 		{
 			using var _ = Profiler.Scope();
 
@@ -100,8 +104,9 @@ namespace ONI_Together.Networking.Packets.World
 				}
 				finally
 				{
-					IsApplyingPacket = false;
-				}
+                    RefreshSideScreenIfOpen(identity.gameObject);
+                    IsApplyingPacket = false;
+                }
 
                 // HOST RELAY: If host received this from a client, re-broadcast to all other clients
                 if (MultiplayerSession.IsHost)
@@ -130,7 +135,6 @@ namespace ONI_Together.Networking.Packets.World
             if (BuildingConfigHandlerRegistry.TryHandle(go, this))
 			{
 				DebugConsole.Log($"[BuildingConfigPacket] Handled by registry for {go.name}");
-                RefreshSideScreenIfOpen(go);
                 return;
 			}
 
@@ -143,10 +147,13 @@ namespace ONI_Together.Networking.Packets.World
             using var _ = Profiler.Scope();
             if (go == null) return;
 
+            if (Time.unscaledTime - _lastRefreshTime < REFRESH_COOLDOWN) return;
+            _lastRefreshTime = Time.unscaledTime;
+
             try
             {
-				if(go.TryGetComponent<KSelectable>(out var selectable) && SelectTool.Instance.selected == selectable)
-				{
+                if (go.TryGetComponent<KSelectable>(out var selectable) && SelectTool.Instance.selected == selectable)
+                {
                     SelectTool.Instance.Select(null);
                     SelectTool.Instance.Select(selectable);
                 }
