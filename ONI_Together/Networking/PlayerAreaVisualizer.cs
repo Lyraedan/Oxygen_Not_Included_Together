@@ -145,14 +145,14 @@ namespace ONI_Together.Networking
             UpdateText(size, center);
         }
 
-        private void UpdateText(Vector3 vector, Vector3 vector2)
+        private void UpdateText(Vector3 size, Vector3 center)
         {
             if (_areaVisualizerText != Guid.Empty)
             {
-                Vector2I vector2I = new Vector2I(Mathf.RoundToInt(vector.x), Mathf.RoundToInt(vector.y));
+                Vector2I sizeI = new Vector2I(Mathf.RoundToInt(size.x), Mathf.RoundToInt(size.y));
                 LocText component = NameDisplayScreen.Instance.GetWorldText(_areaVisualizerText).GetComponent<LocText>();
-                component.text = string.Format(global::STRINGS.UI.TOOLS.TOOL_AREA_FMT, vector2I.x, vector2I.y, vector2I.x * vector2I.y);
-                TransformExtensions.SetPosition(position: vector2, transform: component.transform);
+                component.text = string.Format(global::STRINGS.UI.TOOLS.TOOL_AREA_FMT, sizeI.x, sizeI.y, sizeI.x * sizeI.y);
+                TransformExtensions.SetPosition(position: center, transform: component.transform);
             }
         }
 
