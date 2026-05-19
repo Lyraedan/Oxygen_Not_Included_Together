@@ -18,12 +18,19 @@ namespace ONI_Together.Networking.Packets.Core
 		public Vector3 Position;
 		public Color Color;
 		public CursorState CursorState;
+
+		// Building visualizer
 		public string BuildingPrefabId;
 		public Orientation BuildingOrientation = Orientation.Neutral;
 		public bool BuildingAllowed;
 
-		// Viewport for targeted sync
-		public int ViewMinX, ViewMinY, ViewMaxX, ViewMaxY;
+		// Build area display (The <number> x <numer> display area)
+		public bool Dragging = false;
+		public Vector3 AreaDownPos;
+		public DragTool.Mode DragMode = DragTool.Mode.Box;
+
+        // Viewport for targeted sync
+        public int ViewMinX, ViewMinY, ViewMaxX, ViewMaxY;
 
 		public void Serialize(BinaryWriter writer)
 		{
@@ -37,9 +44,14 @@ namespace ONI_Together.Networking.Packets.Core
 			writer.Write(ViewMinY);
 			writer.Write(ViewMaxX);
 			writer.Write(ViewMaxY);
+
 			writer.Write(BuildingPrefabId);
 			writer.Write((int)BuildingOrientation);
 			writer.Write(BuildingAllowed);
+
+			writer.Write(Dragging);
+			writer.Write(AreaDownPos);
+			writer.Write((int)DragMode);
 		}
 
 		public void Deserialize(BinaryReader reader)
@@ -54,9 +66,14 @@ namespace ONI_Together.Networking.Packets.Core
 			ViewMinY = reader.ReadInt32();
 			ViewMaxX = reader.ReadInt32();
 			ViewMaxY = reader.ReadInt32();
+
 			BuildingPrefabId = reader.ReadString();
 			BuildingOrientation = (Orientation)reader.ReadInt32();
 			BuildingAllowed = reader.ReadBoolean();
+
+			Dragging = reader.ReadBoolean();
+            AreaDownPos = reader.ReadVector3();
+			DragMode = (DragTool.Mode)reader.ReadInt32();
 		}
 
 		public void OnDispatched()
@@ -109,17 +126,18 @@ namespace ONI_Together.Networking.Packets.Core
 				elapsed += Time.unscaledDeltaTime;
 				float t = elapsed / duration;
 				target.position = Vector3.Lerp(start, targetPos, t);
-				UpdateVisualizer(cursor, target.position);
+				UpdateVisualizers(cursor, target.position);
 				yield return null;
 			}
 
 			target.position = targetPos;
-			UpdateVisualizer(cursor, target.position);
+			UpdateVisualizers(cursor, target.position);
 		}
 
-		private void UpdateVisualizer(PlayerCursor cursor, Vector3 position)
+		private void UpdateVisualizers(PlayerCursor cursor, Vector3 position)
 		{
 			cursor.buildingVisualiser.UpdateVisualizer(BuildingPrefabId, position, BuildingOrientation, Color, BuildingAllowed);
+			cursor.areaVisualizer.UpdateArea(Color, AreaDownPos, Position, Dragging, DragMode);
 		}
 
 	}

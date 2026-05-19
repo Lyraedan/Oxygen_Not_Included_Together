@@ -111,11 +111,13 @@ namespace ONI_Together.Networking.Components
 				maxX = x2; maxY = y2;
 			}
 
-			string buildToolPrefabId = string.Empty;
-			Orientation buildingOrientation = Orientation.Neutral;
-			bool allowedToPlaceBuilding = true;
-
 			var interfaceTool = PlayerController.Instance.ActiveTool;
+            
+			// Building visualizer
+            string buildToolPrefabId = string.Empty;
+            Orientation buildingOrientation = Orientation.Neutral;
+            bool allowedToPlaceBuilding = true;
+            
 			if (interfaceTool is BuildTool buildTool)
 			{
 				if (buildTool.def != null)
@@ -134,6 +136,26 @@ namespace ONI_Together.Networking.Components
 				}
 			}
 
+			// Area visualizer
+			Vector3 areaDownPos = Vector3.zero;
+			bool dragging = false;
+			DragTool.Mode dragMode = DragTool.Mode.Box;
+
+			if(interfaceTool is DragTool dragTool)
+			{
+                dragging = dragTool.Dragging;
+
+                if (dragging)
+				{
+					dragMode = dragTool.mode;
+					areaDownPos = dragTool.downPos;
+
+					if(Input.GetKey((KeyCode)Global.GetInputManager().GetDefaultController().GetInputForAction(Action.DragStraight))) {
+						dragMode = DragTool.Mode.Line;
+					}
+				}
+			}
+
 			var packet = new PlayerCursorPacket
 			{
 				PlayerID = MultiplayerSession.LocalUserID,
@@ -144,10 +166,15 @@ namespace ONI_Together.Networking.Components
 				ViewMinY = minY,
 				ViewMaxX = maxX,
 				ViewMaxY = maxY,
+				
 				BuildingPrefabId = buildToolPrefabId,
 				BuildingOrientation = buildingOrientation,
 				BuildingAllowed = allowedToPlaceBuilding,
-			};
+
+				Dragging = dragging,
+                AreaDownPos = areaDownPos,
+				DragMode = dragMode
+            };
 
 			if (MultiplayerSession.IsHost)
 			{

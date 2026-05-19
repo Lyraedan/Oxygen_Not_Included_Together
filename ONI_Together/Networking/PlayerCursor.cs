@@ -34,6 +34,7 @@ namespace ONI_Together.Networking
 		private Material originalMaterial = null;
 
 		public PlayerBuildingVisualizer buildingVisualiser = new PlayerBuildingVisualizer();
+		public PlayerAreaVisualizer areaVisualizer = new PlayerAreaVisualizer();
 
         private readonly Dictionary<CursorState, float> cursorActionThresholds = new Dictionary<CursorState, float>()
 				{
@@ -144,7 +145,12 @@ namespace ONI_Together.Networking
             buildingVisualiser.UpdateVisualizer(string.Empty, Vector3.zero, Orientation.Neutral, Color.white, false); // Flag visualizer for removal
         }
 
-		private Image CreateCursorImage(GameObject parent, Texture2D cursorTexture)
+		public void RemoveAreaVisualizer()
+		{
+			areaVisualizer.DestroyArea();
+		}
+
+        private Image CreateCursorImage(GameObject parent, Texture2D cursorTexture)
 		{
 			using var _ = Profiler.Scope();
 
