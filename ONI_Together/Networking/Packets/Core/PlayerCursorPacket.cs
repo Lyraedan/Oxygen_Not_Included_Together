@@ -33,53 +33,76 @@ namespace ONI_Together.Networking.Packets.Core
         // Viewport for targeted sync
         public int ViewMinX, ViewMinY, ViewMaxX, ViewMaxY;
 
-		public void Serialize(BinaryWriter writer)
-		{
-			using var _ = Profiler.Scope();
+        public void Serialize(BinaryWriter writer)
+        {
+            using var _ = Profiler.Scope();
 
-			writer.Write(PlayerID);
-			writer.Write(Position);
-			writer.Write(Color);
-			writer.Write((int)CursorState);
-			writer.Write(ViewMinX);
-			writer.Write(ViewMinY);
-			writer.Write(ViewMaxX);
-			writer.Write(ViewMaxY);
+            writer.Write(PlayerID);
+            writer.Write(Position);
+            writer.Write(Color);
 
-			writer.Write(BuildingPrefabId);
-			writer.Write((int)BuildingOrientation);
-			writer.Write(BuildingAllowed);
+            ushort flags = 0;
+            flags |= (ushort)((int)CursorState & 0xF);
+            flags |= (ushort)(((int)BuildingOrientation & 0x7) << 4);
+            flags |= (ushort)(((int)DragMode & 0x7) << 7);
 
-			writer.Write(Dragging);
-			writer.Write(AreaDownPos);
-			writer.Write((int)DragMode);
-			writer.Write(LengthLimit);
-		}
+            if (BuildingAllowed)
+                flags |= 1 << 10;
 
-		public void Deserialize(BinaryReader reader)
-		{
-			using var _ = Profiler.Scope();
+            if (Dragging)
+                flags |= 1 << 11;
 
-			PlayerID = reader.ReadUInt64();
-			Position = reader.ReadVector3();
-			Color = reader.ReadColor();
-			CursorState = (CursorState)reader.ReadInt32();
-			ViewMinX = reader.ReadInt32();
-			ViewMinY = reader.ReadInt32();
-			ViewMaxX = reader.ReadInt32();
-			ViewMaxY = reader.ReadInt32();
+            writer.Write(flags);
 
-			BuildingPrefabId = reader.ReadString();
-			BuildingOrientation = (Orientation)reader.ReadInt32();
-			BuildingAllowed = reader.ReadBoolean();
+            uint viewMin = ((uint)(ushort)ViewMinX << 16) | (ushort)ViewMinY;
+            uint viewMax = ((uint)(ushort)ViewMaxX << 16) | (ushort)ViewMaxY;
 
-			Dragging = reader.ReadBoolean();
-            AreaDownPos = reader.ReadVector3();
-			DragMode = (DragTool.Mode)reader.ReadInt32();
-			LengthLimit = reader.ReadVector2();
-		}
+            writer.Write(viewMin);
+            writer.Write(viewMax);
 
-		public void OnDispatched()
+            writer.Write(BuildingPrefabId);
+
+            if (Dragging)
+            {
+                writer.Write(AreaDownPos);
+                writer.Write(LengthLimit);
+            }
+        }
+
+        public void Deserialize(BinaryReader reader)
+        {
+            using var _ = Profiler.Scope();
+
+            PlayerID = reader.ReadUInt64();
+            Position = reader.ReadVector3();
+            Color = reader.ReadColor();
+
+            ushort flags = reader.ReadUInt16();
+            CursorState = (CursorState)(flags & 0xF);
+            BuildingOrientation = (Orientation)((flags >> 4) & 0x7);
+            DragMode = (DragTool.Mode)((flags >> 7) & 0x7);
+            BuildingAllowed = (flags & (1 << 10)) != 0;
+            Dragging = (flags & (1 << 11)) != 0;
+
+            uint viewMin = reader.ReadUInt32();
+            uint viewMax = reader.ReadUInt32();
+
+            ViewMinX = (short)(viewMin >> 16);
+            ViewMinY = (short)(viewMin & 0xFFFF);
+
+            ViewMaxX = (short)(viewMax >> 16);
+            ViewMaxY = (short)(viewMax & 0xFFFF);
+
+            BuildingPrefabId = reader.ReadString();
+
+            if (Dragging)
+            {
+                AreaDownPos = reader.ReadVector3();
+                LengthLimit = reader.ReadVector2();
+            }
+        }
+
+        public void OnDispatched()
 		{
 			using var _ = Profiler.Scope();
 
