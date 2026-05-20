@@ -27,7 +27,6 @@ namespace ONI_Together.Networking.Components
 			}
 			updateTimer -= updateIntervalSeconds;
 			PacketSender.DispatchPendingBulkPackets();
-			NetworkConfig.TransportPacketSender.Flush();
 		}
 	}
 }

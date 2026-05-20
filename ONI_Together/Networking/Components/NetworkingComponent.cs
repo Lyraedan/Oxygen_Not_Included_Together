@@ -54,6 +54,7 @@ namespace ONI_Together.Networking.Components
 				// Check for inactive transfers and request missing chunks
 				ONI_Together.Misc.World.SaveChunkAssembler.CheckInactiveTransfers();
 			}
+            NetworkConfig.TransportPacketSender.Flush();
         }
 
         private void OnApplicationQuit()
