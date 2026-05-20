@@ -11,11 +11,6 @@ namespace ONI_Together.Networking.Transport.Lan
     {
         private const int MAX_PAYLOAD_BYTES = 1000;
 
-        public RiptidePacketSender()
-        {
-            MaxPacketsPerSecond = 500; // Limit to only 500 packets a second
-        }
-
         public override bool SendPacket(object conn, IPacket packet, PacketSendMode sendType = PacketSendMode.ReliableImmediate)
         {
             using var _ = Profiler.Scope();

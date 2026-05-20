@@ -13,8 +13,9 @@ namespace ONI_Together
 				{
 					public static LocString A_HOST_SETTINGS = "Host Settings";
 					public static LocString B_CLIENT_SETTINGS = "Client Settings";
-					public static LocString C_CURSOR_SETTINGS = "Cursor Settings";
-					public static LocString D_MISC_SETTINGS = "Misc Settings";
+					public static LocString C_NETWORK_SETTINGS = "General Network Settings";
+                    public static LocString D_CURSOR_SETTINGS = "Cursor Settings";
+					public static LocString E_MISC_SETTINGS = "Misc Settings";
 
 					// Additional lobby options header
                     public static LocString SERVER_SETTINGS = "Server Settings";
@@ -39,6 +40,12 @@ namespace ONI_Together
                         public static LocString MAX_MESSAGES_PER_POLL = "Max Messages Per Poll";
                         public static LocString TIMEOUT_SECONDS = "Connection Timeout (seconds)";
                     }
+
+					public class NETWORK_SETTINGS
+					{
+						public static LocString ENABLE_PACKET_QUEUE = "Enable Packet Queue";
+						public static LocString MAX_PACKETS_PER_SECOND = "Max Packets Per Second";
+					}
 
                     public class CURSOR_SETTINGS
                     {
@@ -72,6 +79,12 @@ namespace ONI_Together
 						public static LocString MAX_MESSAGES_PER_POLL = "STEAMWORKS ONLY:\nMaximum number of incoming Steam networking messages processed per poll tick on the client.\nHigher values reduce input and state update latency under heavy network load but may increase per-frame CPU usage.\nLower values improve frame stability but can cause message backlog and delayed processing during traffic spikes.\n\nRecommended range: 8–64 (default: 16)";
 						public static LocString TIMEOUT_SECONDS = "How long the client waits (in seconds) for a response from the server before timing out.\nIncrease this if you are timing out while trying to connect.\n\nMinimum: 30. (default: 30)";
 
+                    }
+
+                    public class NETWORK_SETTINGS
+                    {
+                        public static LocString ENABLE_PACKET_QUEUE = "When enabled, outgoing packets are queued and sent at a limited rate per frame to prevent network saturation.\nWhen disabled, all packets are sent immediately without throttling.";
+                        public static LocString MAX_PACKETS_PER_SECOND = "Maximum number of packets to send per second per connection when the packet queue is enabled.\nExcess packets are buffered and sent in subsequent frames.\n\nRanges: (500 - 1000)";
                     }
 
                     public class CURSOR_SETTINGS
