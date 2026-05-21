@@ -12,33 +12,48 @@ namespace ONI_Together.Networking.Packets.Core
 {
     public class DedicatedServerMessagePacket : IPacket
     {
+        public ulong SenderId;
         public int PacketID;
         public byte[] PacketData;
-        public int SendType; // Reliable, Unreliable
+        public int SendType;
 
         public void Serialize(BinaryWriter writer)
         {
-            using var _ = Profiler.Scope();
-
             writer.Write(PacketID);
             writer.Write(SendType);
+            writer.Write(SenderId);
             writer.Write(PacketData.Length);
             writer.Write(PacketData);
         }
 
         public void Deserialize(BinaryReader reader)
         {
-            using var _ = Profiler.Scope();
-
             PacketID = reader.ReadInt32();
             SendType = reader.ReadInt32();
+            SenderId = reader.ReadUInt64();
             int length = reader.ReadInt32();
             PacketData = reader.ReadBytes(length);
         }
 
         public void OnDispatched()
         {
-            using var _ = Profiler.Scope();
+            if (!MultiplayerSession.IsHost && MultiplayerSession.LocalUserID == MultiplayerSession.HostUserID)
+            {
+                MultiplayerSession.IsHost = true;
+                MultiplayerSession.IsBehindDedicatedServer = true;
+            }
+
+            if (SenderId != 0 && MultiplayerSession.IsHost && !MultiplayerSession.ConnectedPlayers.ContainsKey(SenderId))
+            {
+                var player = new MultiplayerPlayer(SenderId);
+                if (MultiplayerSession.ConnectedPlayers.TryGetValue(MultiplayerSession.HostUserID, out var hostPlayer))
+                {
+                    player.Connection = hostPlayer.Connection;
+                    MultiplayerSession.ConnectedPlayers[SenderId] = player;
+                }
+            }
+
+            MultiplayerSession.IsBehindDedicatedServer = true;
 
             if (!PacketRegistry.HasRegisteredPacket(PacketID))
             {
@@ -46,16 +61,12 @@ namespace ONI_Together.Networking.Packets.Core
                 return;
             }
 
-            DebugConsole.Log("Recieved a packet from a dedicated server with packet id: " + PacketID);
-
             var packet = PacketRegistry.Create(PacketID);
-
             using (var ms = new MemoryStream(PacketData))
             using (var reader = new BinaryReader(ms))
             {
                 packet.Deserialize(reader);
             }
-
             packet.OnDispatched();
         }
     }

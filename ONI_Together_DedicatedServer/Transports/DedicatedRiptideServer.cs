@@ -88,60 +88,91 @@ namespace ONI_Together_DedicatedServer.Transports
 
         private void OnServerMessageReceived(object sender, MessageReceivedEventArgs e)
         {
-            using var _ = Profiler.Scope();
-
             ulong clientId = e.FromConnection.Id;
             byte[] rawData = e.Message.GetBytes();
-            int size = rawData.Length;
 
-            if (ConnectedPlayers.TryGetValue(clientId, out ONI.Player player))
+            if (!ConnectedPlayers.TryGetValue(clientId, out var player))
+                return;
+
+            MessageSendMode SendMode = MessageSendMode.Reliable;
+
+            if (player.IsMaster)
             {
-                int packetType = 0;
-                if (rawData.Length >= 4)
-                    packetType = BitConverter.ToInt32(rawData, 0);
-
-                Console.WriteLine(
-                    $"\nServer received packet from {clientId}, " +
-                    $"PacketType={packetType}, Size={size} bytes"
-                );
-
-                MessageSendMode SendMode = MessageSendMode.Reliable;
-                // Wrap this as a DedicatedServerMessagePacket
-                byte[] relayedPacketData = Utils.SerializePacketForSending(Utils.DEDICATED_SERVER_PACKET_ID, (writer) =>
+                // --- CHECK FOR ROUTING HEADER ---
+                // Format: [0xDD][TargetId(8 bytes)][inner packet bytes]
+                if (rawData.Length >= 9 && rawData[0] == 0xDD)
                 {
-                    writer.Write(packetType); // PacketID
-                    writer.Write((int)SendMode); // Send Type
+                    ulong targetId = BitConverter.ToUInt64(rawData, 1);
+                    byte[] innerData = new byte[rawData.Length - 9];
+                    Buffer.BlockCopy(rawData, 9, innerData, 0, innerData.Length);
+
+                    int innerPacketType = innerData.Length >= 4
+                        ? BitConverter.ToInt32(innerData, 0) : 0;
+
+                    Console.WriteLine($"Routing master packet {innerPacketType} to slave {targetId}");
+
+                    byte[] relayed = Utils.SerializePacketForSending(Utils.DEDICATED_SERVER_PACKET_ID, (writer) =>
+                    {
+                        writer.Write(innerPacketType);
+                        writer.Write((int)SendMode);
+                        writer.Write(clientId);                    // SenderId = master
+                        writer.Write(innerData.Length);
+                        writer.Write(innerData);
+                    });
+
+                    var msg = Riptide.Message.Create(SendMode, 1);
+                    msg.AddBytes(relayed);
+
+                    if (ConnectedPlayers.TryGetValue(targetId, out var targetPlayer))
+                    {
+                        targetPlayer.Connection.Send(msg);
+                    }
+                    return;
+                }
+
+                // --- BROADCAST TO ALL SLAVES (no routing header) ---
+                Console.WriteLine("Broadcasting master packet to all slaves");
+
+                byte[] relayedPacket = Utils.SerializePacketForSending(Utils.DEDICATED_SERVER_PACKET_ID, (writer) =>
+                {
+                    int packetType = rawData.Length >= 4 ? BitConverter.ToInt32(rawData, 0) : 0;
+                    writer.Write(packetType);
+                    writer.Write((int)SendMode);
+                    writer.Write(clientId);                        // SenderId = master
                     writer.Write(rawData.Length);
-                    writer.Write(rawData); // PacketData
+                    writer.Write(rawData);
                 });
 
-                Riptide.Message msg = Riptide.Message.Create(SendMode, 1);
-                msg.AddBytes(relayedPacketData);
+                var broadcastMsg = Riptide.Message.Create(SendMode, 1);
+                broadcastMsg.AddBytes(relayedPacket);
 
-                // Check if player.IsMaster
-                // If we're not the master, send this to the master
-                // If we're the master, send it to everyone else and not the master
-                if (player.IsMaster)
+                foreach (var slave in ConnectedPlayers.Values.Where(p => !p.IsMaster))
                 {
-                    //_server.SendToAll(msg);
-                    Console.WriteLine("Broadcasting master packet to clients");
-                    var slaves = ConnectedPlayers.Values.Where(p => !p.IsMaster);
-                    if (slaves.Any())
-                    {
-                        foreach (ONI.Player client in slaves)
-                        {
-                            client.Connection.Send(msg);
-                        }
-                    }
+                    slave.Connection.Send(broadcastMsg);
                 }
-                else
+            }
+            else
+            {
+                // Slave → Master: always relay with sender ID
+                Console.WriteLine($"Relaying slave packet to master");
+                int packetType = rawData.Length >= 4 ? BitConverter.ToInt32(rawData, 0) : 0;
+
+                byte[] slaveRelayed = Utils.SerializePacketForSending(Utils.DEDICATED_SERVER_PACKET_ID, (writer) =>
                 {
-                    Console.WriteLine("Recieved packet from client, sending to master!");
-                    ONI.Player master = ConnectedPlayers.Values.Where(p => p.IsMaster).FirstOrDefault();
-                    if (master != null)
-                    {
-                        _server?.Send(msg, master.Connection);
-                    }
+                    writer.Write(packetType);
+                    writer.Write((int)SendMode);
+                    writer.Write(clientId);                        // SenderId = slave
+                    writer.Write(rawData.Length);
+                    writer.Write(rawData);
+                });
+
+                var slaveMsg = Riptide.Message.Create(SendMode, 1);
+                slaveMsg.AddBytes(slaveRelayed);
+
+                var master = ConnectedPlayers.Values.FirstOrDefault(p => p.IsMaster);
+                if (master != null)
+                {
+                    _server?.Send(slaveMsg, master.Connection);
                 }
             }
         }

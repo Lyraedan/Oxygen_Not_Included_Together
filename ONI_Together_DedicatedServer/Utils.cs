@@ -10,7 +10,14 @@ namespace ONI_Together_DedicatedServer
 {
     public static class Utils
     {
-        public static readonly int DEDICATED_SERVER_PACKET_ID = -235098231;
+        public static int DEDICATED_SERVER_PACKET_ID => ComputePacketHash("ONI_Together.Networking.Packets.Core.DedicatedServerMessagePacket");
+
+        private static int ComputePacketHash(string typeFullName)
+        {
+            using var sha256 = System.Security.Cryptography.SHA256.Create();
+            var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(typeFullName));
+            return BitConverter.ToInt32(bytes, 0);
+        }
 
         public static string FormatBytes(long bytes)
         {

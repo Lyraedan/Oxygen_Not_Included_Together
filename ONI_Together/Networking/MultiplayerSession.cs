@@ -43,14 +43,21 @@ namespace ONI_Together.Networking
 
 		public static readonly Dictionary<ulong, string> KnownPlayerNames = new Dictionary<ulong, string>();
 
-		public static void Clear()
+        /// <summary>
+        /// Indicate the game is connected through a dedicated server relay rather than directly to a host
+        /// </summary>
+        public static bool IsBehindDedicatedServer = false;
+
+
+        public static void Clear()
 		{
 			using var _ = Profiler.Scope();
 
 			ConnectedPlayers.Clear();
 			KnownPlayerNames.Clear();
 			HostUserID = Utils.NilUlong();
-			WorkProgressPatch.ClearTracking();
+            IsBehindDedicatedServer = false;
+            WorkProgressPatch.ClearTracking();
 			RemoteProgressRegistry.ClearAll();
 			DebugConsole.Log("[MultiplayerSession] Session cleared.");
 		}

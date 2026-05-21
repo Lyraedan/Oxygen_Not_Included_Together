@@ -231,7 +231,18 @@ namespace ONI_Together.Networking
 				return false;
 			}
 
-			return SendToConnection(player.Connection, packet, sendType);
+            if (MultiplayerSession.IsBehindDedicatedServer && MultiplayerSession.IsHost)
+            {
+                byte[] serialized = SerializePacketForSending(packet);
+                byte[] withRouting = new byte[1 + 8 + serialized.Length];
+                withRouting[0] = 0xDD;
+                Buffer.BlockCopy(BitConverter.GetBytes(steamID), 0, withRouting, 1, 8);
+                Buffer.BlockCopy(serialized, 0, withRouting, 9, serialized.Length);
+
+                return NetworkConfig.TransportPacketSender.SendToConnection(player.Connection, new RawBytesPacket(withRouting), sendType);
+            }
+
+            return SendToConnection(player.Connection, packet, sendType);
 		}
 
 		private static bool CanBroadcastTo(MultiplayerPlayer player)
