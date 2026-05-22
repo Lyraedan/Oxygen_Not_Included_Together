@@ -25,13 +25,13 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 			NetId = netId;
 			TargetDiseaseIdx = element.DiseaseIdx;
 			TargetDiseaseCount = element.DiseaseCount;
-		//	DebugConsole.Log("[VitalStatsPacket] Vital stat packet for " + element.GetProperName());
-			foreach(var amountInstance in amounts)
-			{
-				VitalAmounts[amountInstance.amount.Id] = amountInstance.value;
-			}
+            //	DebugConsole.Log("[VitalStatsPacket] Vital stat packet for " + element.GetProperName());
+            foreach (var amountInstance in amounts.ModifierList)
+            {
+                VitalAmounts[amountInstance.amount.Id] = amountInstance.value;
+            }
 
-		}
+        }
 
 		public void Serialize(BinaryWriter writer)
 		{
