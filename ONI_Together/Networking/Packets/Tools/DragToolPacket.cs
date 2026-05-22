@@ -125,7 +125,10 @@ namespace ONI_Together.Networking.Packets.Tools
 			HashSet<string>  cachedFilters        = [];
 			if (isFilteredTool)
 			{
-				cachedFilters = filteredToolInstance.currentFilterTargets?.Keys.ToHashSet();
+				cachedFilters = cachedFilters = filteredToolInstance.currentFilters
+					.Where(t => t.state == ToolParameterMenu.ToggleState.On)
+					.Select(t => t.name)
+					.ToHashSet(); ;
 				ApplyFilterData(filteredToolInstance, currentFilterTargets);
 			}
 
@@ -189,15 +192,23 @@ namespace ONI_Together.Networking.Packets.Tools
 		{
 			using var _ = Profiler.Scope();
 
-			var currentFilterKeys = tool.currentFilterTargets.Keys.ToList();
+			var currentFilters = tool.currentFilters;
 
-			foreach (var target in currentFilterKeys)
+			foreach(var toggle in currentFilters)
 			{
-				tool.currentFilterTargets[target] = ToolParameterMenu.ToggleState.Off;
+				toggle.state = ToolParameterMenu.ToggleState.Off;
 			}
+
 			foreach(var target in targets)
 			{
-				tool.currentFilterTargets[target] = ToolParameterMenu.ToggleState.On;
+				foreach(var toggle in currentFilters)
+				{
+					if(toggle.name == target)
+					{
+						toggle.state = ToolParameterMenu.ToggleState.On;
+						break;
+                    }
+				}
 			}
 		}
 
@@ -205,10 +216,10 @@ namespace ONI_Together.Networking.Packets.Tools
 		{
 			using var _ = Profiler.Scope();
 
-			foreach (var target in tool.currentFilterTargets)
+			foreach (var target in tool.currentFilters)
 			{
-				if (target.Value == ToolParameterMenu.ToggleState.On)
-					currentFilterTargets.Add(target.Key);
+				if (target.state == ToolParameterMenu.ToggleState.On)
+					currentFilterTargets.Add(target.name);
 			}
 		}
 	}
