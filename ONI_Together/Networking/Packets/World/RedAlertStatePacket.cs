@@ -40,13 +40,16 @@ namespace ONI_Together.Networking.Packets.World
             try
             {
                 activeWorld.AlertManager.ToggleRedAlert(IsRedAlert);
-                if (IsRedAlert && ClusterManager.Instance.activeWorldId == ActiveWorldID) // Our active world is the same as the one that was toggled
+                if (ClusterManager.Instance.activeWorldId == ActiveWorldID)
                 {
-                    KMonoBehaviour.PlaySound(GlobalAssets.GetSound("HUD_Click_Open"));
-                }
-                else
-                {
-                    KMonoBehaviour.PlaySound(GlobalAssets.GetSound("HUD_Click_Close"));
+                    if (IsRedAlert) // Our active world is the same as the one that was toggled
+                    {
+                        KMonoBehaviour.PlaySound(GlobalAssets.GetSound("HUD_Click_Open"));
+                    }
+                    else
+                    {
+                        KMonoBehaviour.PlaySound(GlobalAssets.GetSound("HUD_Click_Close"));
+                    }
                 }
             }
             finally
