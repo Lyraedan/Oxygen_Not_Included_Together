@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using UnityEngine;
 
 namespace ONI_Together.Misc
 {
@@ -12,7 +13,7 @@ namespace ONI_Together.Misc
     /// </summary>
     public struct Variant
     {
-        public enum TypeCode : byte { Float, Int, Byte, String, Boolean }
+        public enum TypeCode : byte { Float, Int, Byte, String, Boolean, Vector3, Vector2 }
 
         public TypeCode Type;
         public float Float;
@@ -20,6 +21,8 @@ namespace ONI_Together.Misc
         public byte Byte;
         public string String;
         public bool Boolean;
+        public Vector3 Vector3;
+        public Vector2 Vector2;
 
         public void Write(BinaryWriter writer)
         {
@@ -31,6 +34,8 @@ namespace ONI_Together.Misc
                 case TypeCode.Byte: writer.Write(Byte); break;
                 case TypeCode.String: writer.Write(String); break;
                 case TypeCode.Boolean: writer.Write(Boolean); break;
+                case TypeCode.Vector3: writer.Write(Vector3); break;
+                case TypeCode.Vector2: writer.Write(Vector2); break;
             }
         }
 
@@ -44,6 +49,8 @@ namespace ONI_Together.Misc
                 case TypeCode.Byte: v.Byte = reader.ReadByte(); break;
                 case TypeCode.String: v.String = reader.ReadString(); break;
                 case TypeCode.Boolean: v.Boolean = reader.ReadBoolean(); break;
+                case TypeCode.Vector3: v.Vector3 = reader.ReadVector3(); break;
+                case TypeCode.Vector2: v.Vector2 = reader.ReadVector2(); break;
             }
             return v;
         }
@@ -53,6 +60,8 @@ namespace ONI_Together.Misc
         public static implicit operator Variant(byte b) => new Variant { Type = TypeCode.Byte, Byte = b };
         public static implicit operator Variant(string s) => new Variant { Type = TypeCode.String, String = s };
         public static implicit operator Variant(bool b) => new Variant { Type = TypeCode.Boolean, Boolean = b };
+        public static implicit operator Variant(Vector3 v) => new Variant { Type = TypeCode.Vector3, Vector3 = v };
+        public static implicit operator Variant(Vector2 v) => new Variant { Type = TypeCode.Vector2, Vector2 = v };
 
         public readonly override string ToString()
         {
@@ -63,6 +72,8 @@ namespace ONI_Together.Misc
                 TypeCode.Byte => Byte.ToString(),
                 TypeCode.String => String,
                 TypeCode.Boolean => Boolean.ToString(),
+                TypeCode.Vector3 => Vector3.ToString(),
+                TypeCode.Vector2 => Vector2.ToString(),
                 _ => "Unknown"
             };
         }

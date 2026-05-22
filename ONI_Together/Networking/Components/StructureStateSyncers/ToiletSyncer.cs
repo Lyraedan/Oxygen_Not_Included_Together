@@ -30,7 +30,7 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
         {
             active = false;
             BuildingUtils.EncodeStorageContents(storage, out optionalValues);
-            optionalValues.Add(operational?.IsFunctional ?? true);
+            optionalValues.Add(operational?.IsOperational ?? true);
             if (flushToilet != null)
             {
                 value = storage?.MassStored() ?? 0f;
