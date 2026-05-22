@@ -48,9 +48,9 @@ internal static class MainMenuPatch
 		);
 		makeButton.Invoke(__instance, new object[] { multiplayerInfo });
 
-		UpdatePromos();
-		UpdateDLC();
-		UpdateBuildNumber();
+		//UpdatePromos();
+		//UpdateDLC();
+		//UpdateBuildNumber();
 		AddSocials(__instance);
 
 		UpdateLogo();
@@ -112,159 +112,39 @@ internal static class MainMenuPatch
 		}
 
 	}
-	private static void UpdatePromos()
-	{
-		using var _ = Profiler.Scope();
 
-		GameObject uiGroup = GameObject.Find("UI Group");
-		if (uiGroup == null)
-			return;
+    // Rework this to add a vertical layout group on the bottom left side of the screen
+    private static void AddSocials(MainMenu menu)
+    {
+        using var _ = Profiler.Scope();
 
-		GameObject topLeftColumns = GameObject.Find("TopLeftColumns");
-		if (topLeftColumns == null)
-			return;
+        GameObject socialsContainer = new GameObject("ONI_Together_SocialsContainer", typeof(RectTransform));
+        socialsContainer.transform.SetParent(menu.transform, false);
 
-		GameObject promoContainer = new GameObject("ONI_Together_PromoContainer", typeof(RectTransform));
-		promoContainer.transform.SetParent(uiGroup.transform, false);
+        RectTransform socialsRect = socialsContainer.GetComponent<RectTransform>();
+        socialsRect.anchorMin = new Vector2(0f, 0f);
+        socialsRect.anchorMax = new Vector2(0f, 0f);
+        socialsRect.pivot = new Vector2(0f, 0f);
+        socialsRect.anchoredPosition = new Vector2(20f, 20f);
 
-		RectTransform promoRect = promoContainer.GetComponent<RectTransform>();
-		promoRect.anchorMin = new Vector2(0f, 0f);
-		promoRect.anchorMax = new Vector2(0f, 0f);
-		promoRect.pivot = new Vector2(0f, 0f);
-		promoRect.anchoredPosition = new Vector2(30f, 30f);
-		promoRect.sizeDelta = new Vector2(1000f, 215f);
+        var layout = socialsContainer.AddComponent<VerticalLayoutGroup>();
+        layout.childAlignment = TextAnchor.LowerLeft;
+        layout.spacing = 10f;
+        layout.childForceExpandHeight = false;
+        layout.childForceExpandWidth = false;
+        layout.childControlHeight = false;
+        layout.childControlWidth = false;
 
-		string[] motdNames = { "MOTDBox_A", "MOTDBox_B", "MOTDBox_C" };
-		float bannerWidth = 300f;
-		float bannerHeight = 215f;
-		float spacing = 10f;
+        var discordSprite = ResourceLoader.LoadEmbeddedTexture("ONI_Together.Assets.discord.png");
+        AddSocialButton(socialsContainer.transform, ONI_Together.STRINGS.UI.MAINMENU.DISCORD_INFO, "https://discord.gg/jpxveK6mmY", discordSprite);
 
-		for (int i = 0; i < motdNames.Length; i++)
-		{
-			Transform banner = topLeftColumns.transform.Find("MOTD/" + motdNames[i]);
-			if (banner != null)
-			{
-				banner.SetParent(promoContainer.transform, false);
+        int buttonCount = socialsContainer.transform.childCount;
+        float buttonHeight = 96f;
+        float totalHeight = buttonCount * buttonHeight + (buttonCount - 1) * layout.spacing;
+        socialsRect.sizeDelta = new Vector2(100f, totalHeight);
+    }
 
-				RectTransform bannerRect = banner.GetComponent<RectTransform>();
-				bannerRect.anchorMin = new Vector2(0f, 0f);
-				bannerRect.anchorMax = new Vector2(0f, 0f);
-				bannerRect.pivot = new Vector2(0f, 0f);
-				bannerRect.sizeDelta = new Vector2(bannerWidth, bannerHeight);
-				bannerRect.anchoredPosition = new Vector2((bannerWidth + spacing) * i, 0f);
-			}
-		}
-	}
-
-	private static void UpdateDLC()
-	{
-		using var _ = Profiler.Scope();
-
-		Transform dlcLogos = GameObject.Find("DLCLogos (1)")?.transform;
-		Transform topLeft = GameObject.Find("TopLeftColumns")?.transform;
-
-		if (dlcLogos == null || topLeft == null)
-			return;
-
-		dlcLogos.SetParent(topLeft, true);
-
-		var rect = dlcLogos.GetComponent<RectTransform>();
-		rect.anchorMin = new Vector2(0f, 1f);
-		rect.anchorMax = new Vector2(0f, 1f);
-		rect.pivot = new Vector2(0f, 1f);
-		rect.anchoredPosition = new Vector2(20f, 0f);
-		rect.localScale = Vector3.one;
-
-		dlcLogos.SetAsFirstSibling();
-	}
-
-	private static void UpdateBuildNumber()
-	{
-		using var _ = Profiler.Scope();
-
-		GameObject promoContainer = GameObject.Find("ONI_Together_PromoContainer");
-		GameObject watermark = GameObject.Find("BuildWatermark");
-
-		if (promoContainer == null)
-			return;
-
-		if (watermark == null)
-			return;
-
-		RectTransform promoRect = promoContainer.GetComponent<RectTransform>();
-		RectTransform watermarkRect = watermark.GetComponent<RectTransform>();
-
-		// Re-parent the watermark to the same parent as the promo container
-		watermark.transform.SetParent(promoContainer.transform.parent, worldPositionStays: false);
-
-		// Anchor it to bottom-left
-		watermarkRect.anchorMin = new Vector2(0f, 0f);
-		watermarkRect.anchorMax = new Vector2(0f, 0f);
-		watermarkRect.pivot = new Vector2(0f, 0f);
-
-		// Place it just above the DLC panels (which are 215 high)
-		watermarkRect.anchoredPosition = new Vector2(30f, 260f);
-	}
-
-	private static void AddSocials(MainMenu menu)
-	{
-		using var _ = Profiler.Scope();
-
-		var promoContainer = GameObject.Find("ONI_Together_PromoContainer");
-		if (promoContainer == null)
-		{
-			return;
-		}
-
-		GameObject socialsContainer = new GameObject("ONI_Together_SocialsContainer", typeof(RectTransform));
-		socialsContainer.transform.SetParent(promoContainer.transform.parent, false);
-
-		RectTransform socialsRect = socialsContainer.GetComponent<RectTransform>();
-		socialsRect.anchorMin = new Vector2(0f, 0f);
-		socialsRect.anchorMax = new Vector2(0f, 0f);
-		socialsRect.pivot = new Vector2(0f, 0f);
-
-		bool spacedOutEnabled = DlcManager.IsContentSubscribed(DlcManager.EXPANSION1_ID);
-		DebugConsole.Log($"Spacedout enabled: {spacedOutEnabled}");
-		if (!spacedOutEnabled)
-		{
-			// place right next to the promos
-			socialsRect.anchoredPosition = new Vector2(
-					promoContainer.GetComponent<RectTransform>().anchoredPosition.x + 925f,
-					30f
-			);
-		}
-		else
-		{
-			// place left next to promos
-			socialsRect.anchoredPosition = new Vector2(
-					promoContainer.GetComponent<RectTransform>().anchoredPosition.x - 525f,
-					30f
-			);
-		}
-
-
-		var layout = socialsContainer.AddComponent<HorizontalLayoutGroup>();
-		layout.childAlignment = TextAnchor.MiddleLeft;
-		layout.spacing = 10f;
-		layout.childForceExpandHeight = false;
-		layout.childForceExpandWidth = false;
-		layout.childControlHeight = false;
-		layout.childControlWidth = false;
-
-		// Example Discord button
-		var discordSprite = ResourceLoader.LoadEmbeddedTexture("ONI_Together.Assets.discord.png");
-		AddSocialButton(socialsContainer.transform, ONI_Together.STRINGS.UI.MAINMENU.DISCORD_INFO, "https://discord.gg/jpxveK6mmY", discordSprite);
-
-		// Automatically resize the container to properly fit the buttons
-		int buttonCount = socialsContainer.transform.childCount;
-		float buttonWidth = 96f;
-		float totalWidth = buttonCount * buttonWidth + (buttonCount - 1) * layout.spacing;
-
-		socialsRect.sizeDelta = new Vector2(totalWidth, 100f); // keep the same height
-	}
-
-	private static void AddSocialButton(Transform parent, string tooltip, string url, Texture2D spriteSheet)
+    private static void AddSocialButton(Transform parent, string tooltip, string url, Texture2D spriteSheet)
 	{
 		using var _ = Profiler.Scope();
 
