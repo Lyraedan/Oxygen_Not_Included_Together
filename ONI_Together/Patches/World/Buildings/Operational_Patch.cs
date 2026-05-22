@@ -8,6 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Shared.Profiling;
+using ONI_Together.Misc;
 
 namespace ONI_Together.Patches.World.Buildings
 {
@@ -67,6 +68,9 @@ namespace ONI_Together.Patches.World.Buildings
             {
 	            using var _ = Profiler.Scope();
 
+				if (!Utils.IsMainThread())
+					return true;
+
                 if (!MultiplayerSession.IsClient)
                     return true;
 
@@ -87,7 +91,10 @@ namespace ONI_Together.Patches.World.Buildings
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.IsClient)
+                if (!Utils.IsMainThread())
+                    return true;
+
+                if (!MultiplayerSession.IsClient)
 					return true;
 
 				if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
@@ -105,7 +112,10 @@ namespace ONI_Together.Patches.World.Buildings
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.IsClient)
+                if (!Utils.IsMainThread())
+                    return true;
+
+                if (!MultiplayerSession.IsClient)
 					return true;
 
 				if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))

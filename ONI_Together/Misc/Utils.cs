@@ -12,6 +12,7 @@ using System.Text;
 using Shared.Profiling;
 using TMPro;
 using UnityEngine;
+using System.Threading;
 
 namespace ONI_Together.Misc
 {
@@ -23,6 +24,11 @@ namespace ONI_Together.Misc
 		/// Note: We might be wiling to receive larger messages, and our peer might, too.
 		/// </summary>
 		public static int MaxSteamNetworkingSocketsMessageSizeSend = 512 * 1024;
+
+		public static bool IsMainThread()
+		{
+			return Thread.CurrentThread.ManagedThreadId == MultiplayerMod.MainThreadId;
+        }
 
 		/// <summary>
 		/// Force quites the game without the Klei metrics that can cause crashes

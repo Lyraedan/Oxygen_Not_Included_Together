@@ -8,6 +8,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Shared.Profiling;
+using ONI_Together.Networking.Components;
 
 namespace ONI_Together.Networking.Packets.World.Buildings
 {
@@ -55,6 +56,7 @@ namespace ONI_Together.Networking.Packets.World.Buildings
 
 			if (!NetworkIdentityRegistry.TryGet(NetId, out var entity))
 				return;
+
 			if (!entity.TryGetComponent<ClientReceiver_Operational>(out var client))
 				return;
 
