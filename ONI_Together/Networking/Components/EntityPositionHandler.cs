@@ -1,4 +1,5 @@
 using System;
+using ONI_Together.Networking.Packets.Core;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -6,8 +7,8 @@ namespace ONI_Together.Networking.Components
 {
 	public class EntityPositionHandler : KMonoBehaviour
 	{
-        [MyCmpGet] KBatchedAnimController kbac;
-        [MyCmpGet] Navigator navigator;
+        [MyCmpGet] public KBatchedAnimController kbac;
+        [MyCmpGet] public Navigator navigator;
 
         private Vector3 lastSentPosition;
 		private float lastSendTime;
@@ -23,6 +24,11 @@ namespace ONI_Together.Networking.Components
 
         private const float SNAP_DISTANCE = 1.5f;
         private const float LERP_SPEED = 20f;
+
+        private float _lastRequestTime;
+        private const float REQUEST_COOLDOWN = 0.5f;
+        private const float STALE_THRESHOLD = 2f;
+		private const float HEARTBEAT_INTERVAL = 1f;
 
         public override void OnSpawn()
 		{
@@ -43,9 +49,11 @@ namespace ONI_Together.Networking.Components
 			if (!MultiplayerSession.InSession)
 				return;
 
-			if (MultiplayerSession.IsClient)
+            if (MultiplayerSession.IsClient)
 			{
 				UpdatePosition();
+                // Only do this if this entity is NOT visible by the host but is visible by the client
+                TryRequestEntityPositionIfVisible();
                 return;
 			}
 
@@ -56,6 +64,23 @@ namespace ONI_Together.Networking.Components
 			SendPositionUpdate();
 		}
 
+        private void TryRequestEntityPositionIfVisible()
+        {
+            if (WorldStateSyncer.TryGetLocalViewport(out var viewport))
+            {
+                int cell = Grid.PosToCell(transform.position);
+                if (WorldStateSyncer.IsCellInRect(cell, viewport) && Time.unscaledTime - _lastRequestTime > REQUEST_COOLDOWN)
+                {
+                    // serverTimestamp is stale or we've never heard from the host
+                    if (serverTimestamp == 0 || Time.unscaledTime - (serverTimestamp / 1000f) > STALE_THRESHOLD)
+                    {
+                        PacketSender.SendToHost(new EntityPositionRequestPacket { NetId = this.GetNetId() });
+                        _lastRequestTime = Time.unscaledTime;
+                    }
+                }
+            }
+        }
+
         private void SendPositionUpdate()
         {
 	        using var _ = Profiler.Scope();
@@ -65,14 +90,13 @@ namespace ONI_Together.Networking.Components
 		        Vector3 currentPosition = transform.position;
 		        float currentTime = Time.unscaledTime;
 
-		        if (currentTime - lastSendTime < MIN_DT)
+                if (currentTime - lastSendTime < MIN_DT)
 			        return;
 
-				// Disable so stationary dupes get their position synced
-		        /*
-		        if (Vector3.Distance(currentPosition, lastSentPosition) < PositionThreshold)
+                bool moved = Vector3.Distance(currentPosition, lastSentPosition) >= PositionThreshold;
+                bool heartbeatDue = currentTime - lastSendTime >= HEARTBEAT_INTERVAL;
+                if (!moved && !heartbeatDue)
 			        return;
-				*/
 
 		        NavType navType = NavType.Floor;
 		        if (navigator != null && navigator.CurrentNavType != NavType.NumNavTypes)

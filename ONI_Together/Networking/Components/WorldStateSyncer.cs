@@ -122,6 +122,32 @@ namespace ONI_Together.Networking.Components
                    y >= rect.yMin - margin && y < rect.yMax + margin;
         }
 
+		/// <summary>
+		/// Uses the existing _clientViewports list to check if it is visible
+		/// </summary>
+        public bool IsCellVisibleToAnyClientViewport(int cell, int margin = 2)
+        {
+            if (!Grid.IsValidCell(cell)) return false;
+            Grid.CellToXY(cell, out int x, out int y);
+            foreach (var kvp in _clientViewports)
+            {
+                if (!MultiplayerSession.ConnectedPlayers.TryGetValue(kvp.Key, out var player) || player.Connection == null)
+                    continue;
+                var rect = kvp.Value;
+                if (x >= rect.xMin - margin && x < rect.xMax + margin &&
+                    y >= rect.yMin - margin && y < rect.yMax + margin)
+                    return true;
+            }
+            return false;
+        }
+
+        public static bool IsCellInRect(int cell, RectInt rect, int margin = 2)
+        {
+            Grid.CellToXY(cell, out int x, out int y);
+            return x >= rect.xMin - margin && x < rect.xMax + margin &&
+                   y >= rect.yMin - margin && y < rect.yMax + margin;
+        }
+
         public static bool TryGetLocalViewport(out RectInt viewport, int margin = 2)
 		{
 			using var _ = Profiler.Scope();
