@@ -68,6 +68,7 @@ namespace ONI_Together.Networking.Components
 		        if (currentTime - lastSendTime < MIN_DT)
 			        return;
 
+				// Disable so stationary dupes get their position synced
 		        if (Vector3.Distance(currentPosition, lastSentPosition) < PositionThreshold)
 			        return;
 
