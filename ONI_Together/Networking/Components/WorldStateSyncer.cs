@@ -56,6 +56,9 @@ namespace ONI_Together.Networking.Components
 			_pinnedAreas.Clear();
 		}
 
+		/// <summary>
+		/// All the connected players viewports as updated by their Player Cursor Packet
+		/// </summary>
 		private readonly Dictionary<ulong, RectInt> _clientViewports = new Dictionary<ulong, RectInt>();
 
 		private void Awake()
@@ -65,12 +68,12 @@ namespace ONI_Together.Networking.Components
 			Instance = this;
 		}
 
-		public void UpdateClientView(ulong steamId, int minX, int minY, int maxX, int maxY)
+		public void UpdateClientView(ulong userId, int minX, int minY, int maxX, int maxY)
 		{
 			using var _ = Profiler.Scope();
 
 			// Update or add
-			_clientViewports[steamId] = new RectInt(minX, minY, maxX - minX, maxY - minY);
+			_clientViewports[userId] = new RectInt(minX, minY, maxX - minX, maxY - minY);
 		}
 
 		public void GetClientsViewingCell(int cell, HashSet<ulong> recipients, int margin = 2)
