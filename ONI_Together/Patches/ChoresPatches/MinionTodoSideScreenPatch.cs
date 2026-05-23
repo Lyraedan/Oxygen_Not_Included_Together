@@ -59,6 +59,7 @@ namespace ONI_Together.Patches.Chores
 			public static bool Prefix(MinionTodoSideScreen __instance)
 			{
 				using var _ = Profiler.Scope();
+				if (!MultiplayerSession.InSession) return true;
 				if (MultiplayerSession.IsHost) return true;
 
 				RescheduleRefresh(__instance);
