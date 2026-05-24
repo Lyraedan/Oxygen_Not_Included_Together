@@ -20,9 +20,10 @@ namespace ONI_Together.Patches.Chores
 			{
 				using var _ = Profiler.Scope();
 				if (!MultiplayerSession.IsClient || target == null) return;
-				var identity = target.GetComponent<NetworkIdentity>();
-				if (identity == null) return;
-				SubscribeTo(identity.NetId);
+				if (target.TryGetNetIdentity(out var identity))
+				{
+					SubscribeTo(identity.NetId);
+				}
 			}
 		}
 
