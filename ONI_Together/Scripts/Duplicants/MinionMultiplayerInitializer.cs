@@ -24,13 +24,12 @@ namespace ONI_Together.Scripts.Duplicants
 		IEnumerator WaitForSessionAndInit()
 		{
 			yield return new WaitUntil((() => MultiplayerSession.InSession));
-				InitializeMP();
+			InitializeMP();
 		}
 
 		void InitializeMP(object _ = null)
 		{
 			using var scope = Profiler.Scope();
-
 			StartCoroutine(DelayedInit());
 		}
 		
