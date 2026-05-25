@@ -74,7 +74,9 @@ To get started with building the mod, follow these steps:
    
 7. **Run dotnet tool restore in packet manager console** (Or any other viable console)
 
-8. **Build the project**  
+8. **IF YOU'RE ON LINUX YOU WILL NEED DOTNET 6.0 TO RUN THE PUBLICISER SEE INSTRUCTIONS [*HERE*](https://github.com/Lyraedan/Oxygen_Not_Included_Together/wiki/Setting-up-publiciser-requirement-on-Linux)**
+
+9. **Build the project**  
    Once the `ManagedPath` is correctly set, build the project.  
    If everything is configured correctly, the build should succeed.
    If there are missing reference errors, restart Visual Studio, the solution creates a publicized reference library the first time a build runs and this can confuse the IDE.
