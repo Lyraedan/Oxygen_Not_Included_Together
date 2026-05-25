@@ -72,7 +72,7 @@ To get started with building the mod, follow these steps:
    ```
 5. **(optional) Restore NuGet packages**
    
-7. Run dotnet tool restore in packet manager console (Or any other viable console)
+7. **Run dotnet tool restore in packet manager console** (Or any other viable console)
 
 8. **Build the project**  
    Once the `ManagedPath` is correctly set, build the project.  
