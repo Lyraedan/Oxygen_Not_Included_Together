@@ -19,6 +19,8 @@ namespace ONI_Together.Patches.Events
         {
             public static void Postfix(TextLinkHandler __instance, UnityEngine.EventSystems.PointerEventData eventData)
             {
+                return;
+                // Disabled, interfers with the DB
                 using var _ = Profiler.Scope();
 
                 if (eventData.button != PointerEventData.InputButton.Left || !__instance.text.AllowLinks)
