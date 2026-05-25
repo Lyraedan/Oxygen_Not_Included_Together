@@ -100,11 +100,15 @@
 		Outputs="@(PubliciseAssembliesInputs->'$(SolutionDir)PublicisedAssembly\%(Filename)_public%(Extension)')"
 		>
 
-		<Publicise
+		<Message Text="Publicizing $(Inputs)" Importance="High"/>
+		<MakeDir Directories="$(SolutionDir)/PublicisedAssembly"/>
+		<Exec Command='dotnet tool run assembly-publicizer -o "$(SolutionDir)PublicisedAssembly/%(PubliciseAssembliesInputs.Filename)_public%(PubliciseAssembliesInputs.Extension)" "%(PubliciseAssembliesInputs.Identity)"' />
+
+	<!--<Publicise
 			InputAssemblies="@(PubliciseAssembliesInputs)"
 			OutputPath="$(SolutionDir)\PublicisedAssembly"
 			PubliciseCompilerGenerated="false"
-			/>
+			/>-->
 		<!--
 		    Publicise also does internal incremental "compilation", and
 		    doesn't change the timestamp on the target file when it does
