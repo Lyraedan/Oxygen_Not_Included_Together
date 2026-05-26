@@ -157,6 +157,10 @@
 			<HintPath>$(GameLibsFolder)\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
 			<Private>false</Private>
 		</Reference>
+		<Reference Include="ImGui">
+            <HintPath>$(GameLibsFolder)/ImGui.dll</HintPath>
+            <Private>false</Private>
+        </Reference>
 	</ItemGroup>
 
 	<ItemGroup Condition="'$(IsPacked)' == 'true'">
