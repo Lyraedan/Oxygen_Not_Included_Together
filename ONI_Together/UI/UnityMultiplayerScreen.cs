@@ -628,11 +628,24 @@ namespace ONI_Together.UI
 				STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.HARD_SYNC_AT_CYCLE_START,
 				STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.SERVER_SETTINGS.HARD_SYNC_AT_CYCLE_START)
 				.SetOnFromCode(Configuration.Instance.Host.Server.HardSyncAtCycleStart);
+
+			AddOrGetLobbySettingsEntry_Toggle("PauseSimOnPlayerLeft", TogglePauseSimOnPlayerLeftSetting,
+				STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.PAUSE_SIM_ON_PLAYER_DISCONNECT,
+				STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.SERVER_SETTINGS.PAUSE_SIM_ON_PLAYER_DISCONNECT)
+				.SetOnFromCode(Configuration.Instance.Host.Server.PauseSimOnPlayerDisconnect);
 		}
+		
 		void ToggleHardSyncSetting(bool hardSyncEnabled)
 		{
 			var config = Configuration.Instance;
 			config.Host.Server.HardSyncAtCycleStart = hardSyncEnabled;
+			config.Save();
+		}
+
+		void TogglePauseSimOnPlayerLeftSetting(bool enabled)
+		{
+			var config = Configuration.Instance;
+			config.Host.Server.PauseSimOnPlayerDisconnect = enabled;
 			config.Save();
 		}
 

@@ -448,6 +448,15 @@ namespace ONI_Together.Misc
             }
         }
 
+        public static void PauseSimOnPlayerLeft()
+        {
+	        if (!MultiplayerSession.IsHost) return;
+	        if (!Configuration.Instance.PauseSimOnPlayerDisconnect) return;
+	        
+	        if(!SpeedControlScreen.Instance.IsPaused)
+				SpeedControlScreen.Instance.TogglePause(false);
+        }
+
         #region SaveLoadRoot Extensions
         private static readonly FieldInfo optionalComponentListField =
 				typeof(SaveLoadRoot).GetField("m_optionalComponentTypeNames", BindingFlags.NonPublic | BindingFlags.Instance);

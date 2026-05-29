@@ -54,6 +54,14 @@ namespace ONI_Together
             set => Host.Server.HardSyncAtCycleStart = value;
         }
 
+        [Option("STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.PAUSE_SIM_ON_PLAYER_DISCONNECT", "STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.SERVER_SETTINGS.PAUSE_SIM_ON_PLAYER_DISCONNECT", "STRINGS.UI.CONFIGURATION.HEADERS.A_HOST_SETTINGS")]
+        [JsonIgnore]
+        public bool PauseSimOnPlayerDisconnect
+        {
+            get => Host.Server.PauseSimOnPlayerDisconnect;
+            set => Host.Server.PauseSimOnPlayerDisconnect = value;
+        }
+
         [Option("STRINGS.UI.CONFIGURATION.TITLES.CLIENT_SETTINGS.MAX_MESSAGES_PER_POLL", "STRINGS.UI.CONFIGURATION.TOOLTIPS.CLIENT_SETTINGS.MAX_MESSAGES_PER_POLL", "STRINGS.UI.CONFIGURATION.HEADERS.B_CLIENT_SETTINGS")]
         [JsonIgnore]
         public int ClientMaxMessagesPerPoll
@@ -221,6 +229,7 @@ namespace ONI_Together
     public class ServerSettings
     {
         [JsonProperty] public bool HardSyncAtCycleStart { get; set; } = false;
+        [JsonProperty] public bool PauseSimOnPlayerDisconnect { get; set; } = false;
     }
 
     [Serializable]

@@ -33,7 +33,7 @@ namespace ONI_Together.Patches
 			}
 		}
 
-		[HarmonyPatch("TogglePause")]
+		[HarmonyPatch(nameof(SpeedControlScreen.TogglePause))]
 		[HarmonyPostfix]
 		public static void TogglePause_Postfix(SpeedControlScreen __instance)
 		{
