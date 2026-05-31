@@ -255,6 +255,16 @@ namespace ONI_Together
 
             MainThreadId = Thread.CurrentThread.ManagedThreadId;
             MainThread = SynchronizationContext.Current;
+            
+            //Game.Instance.OnSpawnComplete += OnGameSpawnComplete;
+        }
+        
+        private static void OnGameSpawnComplete()
+        {
+	        if (MultiplayerSession.IsHostInSession && MultiplayerSession.SessionHasPlayers)
+	        {
+		        GameServerHardSync.PerformHardSync(false);
+	        }
         }
 
         public static void InitializeAllIntegrations()

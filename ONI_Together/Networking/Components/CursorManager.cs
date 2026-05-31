@@ -142,7 +142,7 @@ namespace ONI_Together.Networking.Components
 			DragTool.Mode dragMode = DragTool.Mode.Box;
 			Vector2 lengthLimit = Vector2.zero;
 
-            if (interfaceTool is DragTool dragTool)
+			if (interfaceTool is DragTool dragTool and not BuildTool and not BaseUtilityBuildTool)
 			{
                 dragging = dragTool.Dragging;
 

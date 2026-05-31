@@ -41,13 +41,13 @@ namespace ONI_Together.Patches.World
         {
 	        using var _ = Profiler.Scope();
 
-            // Your logic here
             TryCreateLobbyAfterLoad("[Multiplayer] Lobby created after world load.");
             if (MultiplayerSession.InSession)
             {
 				//SpeedControlScreen.Instance?.Unpause(true); // Force pause the game
 			}
             //ReadyManager.SendReadyStatusPacket(Networking.States.ClientReadyState.Ready);
+
         }
 
         private static void TryCreateLobbyAfterLoad(string logMessage)
