@@ -16,7 +16,7 @@ Steam workshop: [You can find its workshop page here](https://steamcommunity.com
 
 ## Demo
 
-![Multiplayer Demo](https://i.imgur.com/VfiPUkn.jpeg)
+![Multiplayer Demo](https://i.ibb.co/G136FH2/download.jpg)
 
 ---
 
