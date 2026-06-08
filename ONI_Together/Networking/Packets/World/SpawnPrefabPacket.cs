@@ -8,31 +8,29 @@ namespace ONI_Together.Networking.Packets.World;
 public class SpawnPrefabPacket : IPacket
 {
     public int NetId;
-    public string PrefabHash;
+    public int Hash;
     public Vector3 Position;
 
     public bool HasElementData = false;
-    public ushort ElementIndex;
     public float Mass;
     public float Temperature;
     public byte DiseaseIndex;
     public int DiseaseCount;
 
-    public SpawnPrefabPacket(int netId, string prefabHash, Vector3 position)
+    public SpawnPrefabPacket(int netId, int hash, Vector3 position)
     {
         NetId = netId;
-        PrefabHash = prefabHash;
+        Hash = hash;
         Position = position;
         HasElementData = false;
     }
     
-    public SpawnPrefabPacket(int netId, string prefabHash, Vector3 position, ushort elementIndex, float mass, float temperature, byte diseaseIndex, int diseaseCount)
+    public SpawnPrefabPacket(int netId, int hash, Vector3 position, float mass, float temperature, byte diseaseIndex, int diseaseCount)
     {
         NetId = netId;
-        PrefabHash = prefabHash;
+        Hash = hash;
         Position = position;
         HasElementData = true;
-        ElementIndex = elementIndex;
         Mass = mass;
         Temperature = temperature;
         DiseaseIndex = diseaseIndex;
@@ -42,12 +40,11 @@ public class SpawnPrefabPacket : IPacket
     public void Serialize(BinaryWriter writer)
     {
         writer.Write(NetId);
-        writer.Write(PrefabHash);
+        writer.Write(Hash);
         writer.Write(Position);
         writer.Write(HasElementData);
         if (!HasElementData) return;
         
-        writer.Write(ElementIndex);
         writer.Write(Mass);
         writer.Write(Temperature);
         writer.Write(DiseaseIndex);
@@ -57,12 +54,11 @@ public class SpawnPrefabPacket : IPacket
     public void Deserialize(BinaryReader reader)
     {
         NetId = reader.ReadInt32();
-        PrefabHash = reader.ReadString();
+        Hash = reader.ReadInt32();
         Position = reader.ReadVector3();
         HasElementData = reader.ReadBoolean();
         if (!HasElementData) return;
         
-        ElementIndex = reader.ReadUInt16();
         Mass = reader.ReadSingle();
         Temperature = reader.ReadSingle();
         DiseaseIndex =  reader.ReadByte();
@@ -76,13 +72,13 @@ public class SpawnPrefabPacket : IPacket
         GameObject go;
         if (HasElementData)
         {
-            var element = ElementLoader.GetElement(new Tag(ElementIndex));
+            var element = ElementLoader.GetElement(new Tag(Hash));
             if (element == null) return;
             go = element.substance.SpawnResource(Position, Mass, Temperature, DiseaseIndex, DiseaseCount);
         }
         else
         {
-            var prefab = Assets.GetPrefab(TagManager.Create(PrefabHash));
+            var prefab = Assets.GetPrefab(new Tag(Hash));
             if (prefab == null) return;
             go = Util.KInstantiate(prefab, Position);
             go.SetActive(true);
