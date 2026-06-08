@@ -56,6 +56,27 @@ namespace ONI_Together.DebugTools
         private List<InspectWindowState> _inspectWindows = new();
         private int _nextWindowId;
 
+        // --- Bandwidth tracking ---
+        private const int BW_HISTORY_SECONDS = 60;
+        private class TypeBw
+        {
+            public string Name;
+            public long TotalBytes;
+            public int TotalCount;
+            public float WindowBytes;
+            public float WindowCount;
+            public float[] History = new float[BW_HISTORY_SECONDS];
+            public int HistoryIdx;
+        }
+        private Dictionary<string, TypeBw> _inBw = new();
+        private Dictionary<string, TypeBw> _outBw = new();
+        private bool _showBw = false;
+        private int _bwView = 0; // 0 = combined, 1 = incoming, 2 = outgoing
+
+        private int _pageSize = 100;
+        private int _inPage;
+        private int _outPage;
+
         public static PacketTracker Init()
         {
             using var _ = Profiler.Scope();
@@ -77,6 +98,30 @@ namespace ONI_Together.DebugTools
             return buf[idx];
         }
 
+        private static void RecordBw(Dictionary<string, TypeBw> dict, string name, int bytes)
+        {
+            if (!dict.TryGetValue(name, out var b))
+                dict[name] = b = new TypeBw { Name = name };
+            b.TotalBytes += bytes;
+            b.TotalCount++;
+            b.WindowBytes += bytes;
+            b.WindowCount++;
+        }
+
+        private static void FinalizeBwSecond()
+        {
+            foreach (var b in _instance._inBw.Values) FinalizeOne(b);
+            foreach (var b in _instance._outBw.Values) FinalizeOne(b);
+        }
+
+        private static void FinalizeOne(TypeBw b)
+        {
+            b.History[b.HistoryIdx] = b.WindowBytes;
+            b.HistoryIdx = (b.HistoryIdx + 1) % BW_HISTORY_SECONDS;
+            b.WindowBytes = 0;
+            b.WindowCount = 0;
+        }
+
         public static void TrackSent(PacketTrackData data)
         {
             if (_instance._paused) return;
@@ -84,6 +129,7 @@ namespace ONI_Together.DebugTools
             data.Timestamp = Time.realtimeSinceStartup;
             BufferAdd(_instance._outgoingBuf, ref _instance._outgoingHead, ref _instance._outgoingCount, data);
             _instance._ppsOutCount++;
+            RecordBw(_instance._outBw, data.packet.GetType().Name, data.size);
         }
 
         public static void TrackIncoming(PacketTrackData data)
@@ -93,6 +139,7 @@ namespace ONI_Together.DebugTools
             data.Timestamp = Time.realtimeSinceStartup;
             BufferAdd(_instance._incomingBuf, ref _instance._incomingHead, ref _instance._incomingCount, data);
             _instance._ppsInCount++;
+            RecordBw(_instance._inBw, data.packet.GetType().Name, data.size);
         }
 
         public void Clear()
@@ -107,6 +154,8 @@ namespace ONI_Together.DebugTools
             _instance._incomingPps = 0;
             _instance._outgoingPps = 0;
             _instance._inspectWindows.Clear();
+            _instance._inBw.Clear();
+            _instance._outBw.Clear();
             _paused = false;
         }
 
@@ -121,6 +170,7 @@ namespace ONI_Together.DebugTools
                 _ppsInCount = 0;
                 _ppsOutCount = 0;
                 _lastPpsTime = now;
+                FinalizeBwSecond();
             }
         }
 
@@ -164,9 +214,15 @@ namespace ONI_Together.DebugTools
             ImGui.TextColored(new Vector4(1f, 0.6f, 0.2f, 1f),
                 $"{_outgoingPps:F1}/s");
             ImGui.SameLine();
+            float totalBw = _inBw.Values.Sum(b => b.TotalBytes) + _outBw.Values.Sum(b => b.TotalBytes);
+            float totalBwSec = _inBw.Values.Sum(b => AvgRecent(b)) + _outBw.Values.Sum(b => AvgRecent(b));
+            ImGui.Text($"  {Utils.FormatBytes((long)totalBwSec)}/s");
+            ImGui.SameLine();
             float textW = ImGui.CalcTextSize("Tracked: 50000/50000").x + 30;
             ImGui.Text($"  Tracked: {_incomingCount + _outgoingCount}");
-            ImGui.SameLine(lw - textW);
+            ImGui.SameLine(lw - textW - 100);
+            ImGui.Checkbox("BW", ref _showBw);
+            ImGui.SameLine();
             if (ImGui.Button(_paused ? "Resume" : "Pause"))
                 _paused = !_paused;
             ImGui.SameLine();
@@ -178,7 +234,7 @@ namespace ONI_Together.DebugTools
             {
                 ImGui.InputText("Filter##InFilter", ref incoming_filter, 64);
                 ImGui.Separator();
-                DrawTable("in_table", _incomingBuf, _incomingHead, _incomingCount, incoming_filter);
+                DrawTable("in_table", _incomingBuf, _incomingHead, _incomingCount, incoming_filter, ref _inPage);
             }
 
             ImGui.Separator();
@@ -187,10 +243,181 @@ namespace ONI_Together.DebugTools
             {
                 ImGui.InputText("Filter##OutFilter", ref outgoing_filter, 64);
                 ImGui.Separator();
-                DrawTable("out_table", _outgoingBuf, _outgoingHead, _outgoingCount, outgoing_filter);
+                DrawTable("out_table", _outgoingBuf, _outgoingHead, _outgoingCount, outgoing_filter, ref _outPage);
+            }
+
+            if (_showBw)
+            {
+                ImGui.Separator();
+                DrawBandwidth();
             }
 
             DrawInspectWindows();
+        }
+
+        private static float AvgRecent(TypeBw b)
+        {
+            float sum = 0;
+            int n = 0;
+            for (int i = 0; i < BW_HISTORY_SECONDS; i++)
+            {
+                float v = b.History[(b.HistoryIdx - 1 - i + BW_HISTORY_SECONDS) % BW_HISTORY_SECONDS];
+                sum += v;
+                if (v > 0) n++;
+            }
+            return n > 0 ? sum / n : 0;
+        }
+
+        public void DrawBandwidth()
+        {
+            string[] views = { "Combined", "Incoming", "Outgoing" };
+            ImGui.Combo("View", ref _bwView, views, views.Length);
+            ImGui.Separator();
+
+            var combined = new Dictionary<string, TypeBw>();
+            void Merge(Dictionary<string, TypeBw> src)
+            {
+                foreach (var kv in src)
+                {
+                    if (!combined.TryGetValue(kv.Key, out var c))
+                        combined[kv.Key] = c = new TypeBw { Name = kv.Key };
+                    c.TotalBytes += kv.Value.TotalBytes;
+                    c.TotalCount += kv.Value.TotalCount;
+                    for (int i = 0; i < BW_HISTORY_SECONDS; i++)
+                        c.History[i] += kv.Value.History[i];
+                }
+            }
+
+            List<TypeBw> items;
+            if (_bwView == 0)
+            {
+                Merge(_inBw); Merge(_outBw);
+                items = combined.Values.ToList();
+            }
+            else if (_bwView == 1)
+                items = _inBw.Values.ToList();
+            else
+                items = _outBw.Values.ToList();
+
+            if (items.Count == 0)
+            {
+                ImGui.TextDisabled("No bandwidth data yet.");
+                return;
+            }
+
+            items.Sort((a, b) => -a.TotalBytes.CompareTo(b.TotalBytes));
+
+            long grandTotal = items.Sum(i => i.TotalBytes);
+            float curTotalBw = items.Sum(i => AvgRecent(i));
+
+            ImGui.Text($"Total: {Utils.FormatBytes((long)curTotalBw)}/s  |  All time: {Utils.FormatBytes(grandTotal)}");
+            ImGui.Spacing();
+
+            float availW = ImGui.GetContentRegionAvail().x;
+            if (ImGui.BeginTable("bw_table", 5,
+                ImGuiTableFlags.Borders | ImGuiTableFlags.RowBg | ImGuiTableFlags.ScrollY,
+                new Vector2(0, 300)))
+            {
+                ImGui.TableSetupColumn("Packet Type", ImGuiTableColumnFlags.WidthStretch);
+                ImGui.TableSetupColumn("Share", ImGuiTableColumnFlags.WidthFixed, 44);
+                ImGui.TableSetupColumn("Bandwidth", ImGuiTableColumnFlags.WidthFixed, 100);
+                ImGui.TableSetupColumn("Pkts/s", ImGuiTableColumnFlags.WidthFixed, 55);
+                ImGui.TableSetupColumn("Avg Size", ImGuiTableColumnFlags.WidthFixed, 60);
+                ImGui.TableHeadersRow();
+
+                long maxBytes = items[0].TotalBytes;
+                foreach (var item in items)
+                {
+                    float share = grandTotal > 0 ? (float)item.TotalBytes / grandTotal : 0;
+                    float curBw = AvgRecent(item);
+                    float curPps = item.TotalCount / Mathf.Max(1f, Time.realtimeSinceStartup);
+                    int avgSize = item.TotalCount > 0 ? (int)(item.TotalBytes / item.TotalCount) : 0;
+
+                    ImGui.TableNextRow();
+
+                    ImGui.TableNextColumn();
+                    ImGui.Text(item.Name);
+
+                    ImGui.TableNextColumn();
+                    ImGui.Text($"{share * 100:F0}%");
+
+                    ImGui.TableNextColumn();
+                    ImGui.Text(Utils.FormatBytes((long)curBw) + "/s");
+
+                    ImGui.TableNextColumn();
+                    ImGui.Text($"{curPps:F1}");
+
+                    ImGui.TableNextColumn();
+                    ImGui.Text(Utils.FormatBytes(avgSize));
+
+                    // Bar overlay on the row
+                    if (maxBytes > 0)
+                    {
+                        var dl = ImGui.GetWindowDrawList();
+                        var min = ImGui.GetItemRectMin();
+                        var max = ImGui.GetItemRectMax();
+                        float barW = (float)item.TotalBytes / maxBytes * (availW - 10);
+                        uint col = ImGui.GetColorU32(new Vector4(0.3f, 0.6f, 1f, 0.25f));
+                        dl.AddRectFilled(
+                            new Vector2(min.x - 4, min.y),
+                            new Vector2(min.x - 4 + barW, max.y),
+                            col);
+                    }
+                }
+                ImGui.EndTable();
+            }
+
+            // Mini bandwidth-over-time sparklines for top 5
+            ImGui.Spacing();
+            ImGui.Text("Bandwidth history (last 60s)");
+            ImGui.Separator();
+
+            var top5 = items.Take(5).ToList();
+            float totalW = ImGui.GetContentRegionAvail().x;
+            float sparkH = 40;
+
+            foreach (var item in top5)
+            {
+                var col = ImGui.GetColorU32(new Vector4(0.4f, 0.7f, 1f, 0.8f));
+
+                var pos = ImGui.GetCursorScreenPos();
+                var size = new Vector2(totalW, sparkH);
+                ImGui.Dummy(size);
+
+                if (ImGui.IsItemHovered())
+                    ImGui.SetTooltip($"{item.Name}: {Utils.FormatBytes((long)AvgRecent(item))}/s");
+
+                float peak = 1;
+                for (int i = 0; i < BW_HISTORY_SECONDS; i++)
+                {
+                    float v = item.History[(item.HistoryIdx - 1 - i + BW_HISTORY_SECONDS) % BW_HISTORY_SECONDS];
+                    if (v > peak) peak = v;
+                }
+
+                var dl = ImGui.GetWindowDrawList();
+                float prevX = pos.x;
+                float prevY = pos.y + sparkH;
+                float sum = 0;
+                for (int i = 0; i < BW_HISTORY_SECONDS; i++)
+                {
+                    float v = item.History[(item.HistoryIdx - 1 - i + BW_HISTORY_SECONDS) % BW_HISTORY_SECONDS];
+                    float x = pos.x + totalW - (i / (float)(BW_HISTORY_SECONDS - 1)) * totalW;
+                    float y = pos.y + sparkH - (v / peak) * sparkH;
+                    dl.AddLine(new Vector2(prevX, prevY), new Vector2(x, y), col, 1.5f);
+                    prevX = x;
+                    prevY = y;
+                    sum += v;
+                }
+
+                // Legend text beside sparkline
+                float avg = sum / BW_HISTORY_SECONDS;
+                var textPos = new Vector2(pos.x + 4, pos.y + 2);
+                dl.AddText(textPos, ImGui.GetColorU32(new Vector4(1, 1, 1, 1)),
+                    $"{item.Name}");
+                dl.AddText(new Vector2(pos.x + 4, pos.y + sparkH - 14),
+                    ImGui.GetColorU32(new Vector4(0.7f, 0.7f, 0.7f, 1f)),
+                    $"{Utils.FormatBytes((long)avg)}/s  peak: {Utils.FormatBytes((long)peak)}/s");
+            }
         }
 
         private void OpenInspectWindow(PacketTrackData data)
@@ -276,7 +503,7 @@ namespace ONI_Together.DebugTools
             }
         }
 
-        private void DrawTable(string id, PacketTrackData[] buf, int head, int count, string filter)
+        private void DrawTable(string id, PacketTrackData[] buf, int head, int count, string filter, ref int page)
         {
             bool hasFilter = !string.IsNullOrEmpty(filter);
 
@@ -290,23 +517,65 @@ namespace ONI_Together.DebugTools
                 ImGui.TableSetupColumn("Age", ImGuiTableColumnFlags.WidthFixed, 50);
                 ImGui.TableHeadersRow();
 
-                for (int i = 0; i < count; i++)
+                if (hasFilter)
                 {
-                    var entry = BufferGet(buf, head, count, i);
-
-                    if (hasFilter)
+                    int shown = 0;
+                    for (int i = 0; i < count; i++)
                     {
+                        var entry = BufferGet(buf, head, count, i);
                         string typeName = entry.packet.GetType().Name;
                         string idStr = entry.packet.GetType().GetHashCode().ToString();
-                        bool match = typeName.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0
-                                  || idStr.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0;
-                        if (!match) continue;
+                        if (typeName.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0
+                            || idStr.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0)
+                        {
+                            DrawRow(entry, count - i);
+                            shown++;
+                        }
                     }
+                    ImGui.TableNextRow();
+                    ImGui.TableNextColumn();
+                    ImGui.TextDisabled($"{shown} filtered entries");
+                }
+                else
+                {
+                    int totalPages = Math.Max(1, (count + _pageSize - 1) / _pageSize);
+                    page = Math.Clamp(page, 0, totalPages - 1);
 
-                    DrawRow(entry, i);
+                    int startIdx = page * _pageSize;
+                    int endIdx = Math.Min(startIdx + _pageSize, count);
+
+                    for (int i = startIdx; i < endIdx; i++)
+                    {
+                        var entry = BufferGet(buf, head, count, i);
+                        DrawRow(entry, count - i);
+                    }
                 }
 
                 ImGui.EndTable();
+            }
+
+            // Page navigation
+            if (!hasFilter && count > _pageSize)
+            {
+                int totalPages = Math.Max(1, (count + _pageSize - 1) / _pageSize);
+                page = Math.Clamp(page, 0, totalPages - 1);
+
+                if (ImGui.Button("< Prev") && page > 0)
+                    page--;
+                ImGui.SameLine();
+                ImGui.Text($"  Page {page + 1}/{totalPages}  ({Math.Min(_pageSize, count - page * _pageSize)} entries)  ");
+                ImGui.SameLine();
+                if (ImGui.Button("Next >") && page < totalPages - 1)
+                    page++;
+
+                if (page != totalPages - 1)
+                {
+                    ImGui.SameLine();
+                    if (ImGui.SmallButton("Latest"))
+                        page = 0;
+                    if (ImGui.SmallButton("Oldest"))
+                        page = totalPages - 1;
+                }
             }
         }
 

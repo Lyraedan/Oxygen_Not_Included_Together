@@ -341,6 +341,9 @@ namespace ONI_Together.DebugTools
                 ImGui.Indent();
                 if (ImGui.Button("Open Popout"))
                     OpenPopout("Packet Tracker", () => packetTracker?.ShowInTab());
+                ImGui.SameLine();
+                if (ImGui.Button("Open Bandwidth Popout"))
+                    OpenPopout("Bandwidth", () => packetTracker?.DrawBandwidth());
                 packetTracker?.ShowInTab();
                 ImGui.Unindent();
             }
