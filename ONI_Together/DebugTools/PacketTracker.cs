@@ -52,6 +52,7 @@ namespace ONI_Together.DebugTools
             public int Id;
             public PacketTrackData Data;
             public bool Open = true;
+            public HashSet<string> ExpandedFields = new();
         }
         private List<InspectWindowState> _inspectWindows = new();
         private int _nextWindowId;
@@ -510,7 +511,60 @@ namespace ONI_Together.DebugTools
                             ImGui.TableNextColumn();
                             try
                             {
-                                ImGui.Text(FormatFieldValue(field.GetValue(data.packet), field.FieldType));
+                                object val = field.GetValue(data.packet);
+                                bool isList = field.FieldType.IsGenericType
+                                    && field.FieldType.GetGenericTypeDefinition() == typeof(List<>);
+                                bool isArr = field.FieldType.IsArray;
+
+                                if ((isList || isArr) && val != null)
+                                {
+                                    var list = (System.Collections.IList)val;
+                                    int count = list.Count;
+                                    string label = isList ? $"[Count: {count}]" : $"[Length: {count}]";
+                                    bool expanded = win.ExpandedFields.Contains(field.Name);
+                                    if (ImGui.Selectable(label, expanded))
+                                    {
+                                        if (expanded) win.ExpandedFields.Remove(field.Name);
+                                        else win.ExpandedFields.Add(field.Name);
+                                    }
+
+                                    if (expanded)
+                                    {
+                                        int maxShow = Math.Min(count, 100);
+                                        Type elemType = isList
+                                            ? field.FieldType.GetGenericArguments()[0]
+                                            : field.FieldType.GetElementType();
+                                        for (int i = 0; i < maxShow; i++)
+                                        {
+                                            ImGui.TableNextRow();
+                                            ImGui.TableNextColumn();
+                                            ImGui.Text($"  [{i}]");
+                                            ImGui.TableNextColumn();
+                                            ImGui.Text(GetFriendlyTypeName(elemType));
+                                            ImGui.TableNextColumn();
+                                            ImGui.Text(GetFieldSizeHint(elemType));
+                                            ImGui.TableNextColumn();
+                                            try
+                                            {
+                                                ImGui.Text(FormatFieldValue(list[i], elemType));
+                                            }
+                                            catch
+                                            {
+                                                ImGui.TextDisabled("?");
+                                            }
+                                        }
+                                        if (count > maxShow)
+                                        {
+                                            ImGui.TableNextRow();
+                                            ImGui.TableNextColumn();
+                                            ImGui.Text($"  ... and {count - maxShow} more");
+                                        }
+                                    }
+                                }
+                                else
+                                {
+                                    ImGui.Text(FormatFieldValue(val, field.FieldType));
+                                }
                             }
                             catch
                             {
