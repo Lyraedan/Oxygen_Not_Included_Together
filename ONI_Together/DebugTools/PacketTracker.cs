@@ -505,13 +505,13 @@ namespace ONI_Together.DebugTools
                             ImGui.TableNextColumn();
                             ImGui.Text(field.Name);
                             ImGui.TableNextColumn();
-                            ImGui.Text(GetFriendlyTypeName(field.FieldType));
-                            ImGui.TableNextColumn();
-                            ImGui.Text(GetFieldSizeHint(field.FieldType));
-                            ImGui.TableNextColumn();
                             try
                             {
                                 object val = field.GetValue(data.packet);
+                                ImGui.Text(GetFriendlyTypeName(field.FieldType, val));
+                                ImGui.TableNextColumn();
+                                ImGui.Text(GetFieldSizeHint(val, field.FieldType));
+                                ImGui.TableNextColumn();
                                 bool isList = field.FieldType.IsGenericType
                                     && field.FieldType.GetGenericTypeDefinition() == typeof(List<>);
                                 bool isArr = field.FieldType.IsArray;
@@ -540,13 +540,14 @@ namespace ONI_Together.DebugTools
                                             ImGui.TableNextColumn();
                                             ImGui.Text($"  [{i}]");
                                             ImGui.TableNextColumn();
-                                            ImGui.Text(GetFriendlyTypeName(elemType));
-                                            ImGui.TableNextColumn();
-                                            ImGui.Text(GetFieldSizeHint(elemType));
-                                            ImGui.TableNextColumn();
                                             try
                                             {
-                                                ImGui.Text(FormatFieldValue(list[i], elemType));
+                                                object elemVal = list[i];
+                                                ImGui.Text(GetFriendlyTypeName(elemType, elemVal));
+                                                ImGui.TableNextColumn();
+                                                ImGui.Text(GetFieldSizeHint(elemVal, elemType));
+                                                ImGui.TableNextColumn();
+                                                ImGui.Text(FormatFieldValue(elemVal, elemType));
                                             }
                                             catch
                                             {
@@ -683,11 +684,18 @@ namespace ONI_Together.DebugTools
             {
                 var name = type.GetGenericTypeDefinition().Name;
                 name = name.Substring(0, name.IndexOf('`'));
-                var args = string.Join(", ", type.GetGenericArguments().Select(GetFriendlyTypeName));
+                var args = string.Join(", ", type.GetGenericArguments().Select(t => GetFriendlyTypeName(t)));
                 return $"{name}<{args}>";
             }
             if (type.IsEnum) return "enum";
             return type.Name;
+        }
+
+        private static string GetFriendlyTypeName(Type type, object val)
+        {
+            if (type == typeof(Variant))
+                return $"Variant ({((Variant)val).Type})";
+            return GetFriendlyTypeName(type);
         }
 
         private static string GetFieldSizeHint(Type type)
@@ -704,8 +712,29 @@ namespace ONI_Together.DebugTools
             if (type.IsEnum) return GetFieldSizeHint(Enum.GetUnderlyingType(type));
             if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(List<>)) return "~";
             if (type.IsArray)  return "~";
+            if (type == typeof(Variant)) return "~";
             if (!type.IsValueType) return "~";
             return "?";
+        }
+
+        private static string GetFieldSizeHint(object val, Type type)
+        {
+            if (type == typeof(Variant))
+            {
+                var v = (Variant)val;
+                return v.Type switch
+                {
+                    Variant.TypeCode.Float   => "4",
+                    Variant.TypeCode.Int     => "4",
+                    Variant.TypeCode.Byte    => "1",
+                    Variant.TypeCode.String  => "~",
+                    Variant.TypeCode.Boolean => "1",
+                    Variant.TypeCode.Vector3 => "12",
+                    Variant.TypeCode.Vector2 => "8",
+                    _ => "?"
+                };
+            }
+            return GetFieldSizeHint(type);
         }
 
         private static string FormatFieldValue(object val, Type type)
@@ -742,6 +771,21 @@ namespace ONI_Together.DebugTools
             {
                 var arr = (Array)val;
                 return $"[Length: {arr?.Length ?? 0}]";
+            }
+            if (type == typeof(Variant))
+            {
+                var v = (Variant)val;
+                return v.Type switch
+                {
+                    Variant.TypeCode.Float   => v.Float.ToString("F4"),
+                    Variant.TypeCode.Int     => v.Int.ToString(),
+                    Variant.TypeCode.Byte    => v.Byte.ToString(),
+                    Variant.TypeCode.String  => $"\"{v.String}\"",
+                    Variant.TypeCode.Boolean => v.Boolean.ToString(),
+                    Variant.TypeCode.Vector3 => $"({v.Vector3.x:F3}, {v.Vector3.y:F3}, {v.Vector3.z:F3})",
+                    Variant.TypeCode.Vector2 => $"({v.Vector2.x:F3}, {v.Vector2.y:F3})",
+                    _ => $"? ({(byte)v.Type})"
+                };
             }
             if (type.IsEnum) return $"{val}";
             return val.ToString() ?? "";
