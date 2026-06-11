@@ -68,12 +68,14 @@ namespace ONI_Together.Scripts.Duplicants
 				if (smc != null) smc.enabled = false;
 
 			go.AddOrGet<ClientReceiver_ChoreErrands>();
+			go.AddOrGet<ClientReceiver_StatusItems>();
 		}
 
 		void InitializeHost(GameObject go)
 		{
 			go.AddOrGet<DuplicantStateSender>();
 			go.AddOrGet<DuplicantChoreBroadcaster>();
+			go.AddOrGet<DuplicantStatusBroadcaster>();
 		}
 	}
 }
