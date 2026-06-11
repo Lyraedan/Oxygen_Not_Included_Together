@@ -25,7 +25,8 @@ public static class WorkProgressPatch
 			return;
 
 		float workTime = __instance.GetWorkTime();
-		if (workTime <= 0f || float.IsInfinity(workTime) || float.IsNaN(workTime))
+		//					this was preventing digging progress being sent
+		if (workTime <= 0f /*|| float.IsInfinity(workTime)*/ || float.IsNaN(workTime))
 			return;
 
 		float percentComplete = __instance.GetPercentComplete();
