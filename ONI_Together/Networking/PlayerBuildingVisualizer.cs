@@ -94,8 +94,9 @@ namespace ONI_Together.Networking
 			{
 				if (!_tileInfos.TryGetValue(def, out var renderInfo))
 				{
-					renderInfo = _tileInfos[def] = new BlockTileRenderer.RenderInfo(World.Instance.blockTileRenderer, (int)def.TileLayer, LayerMask.NameToLayer("Place"), def, SimHashes.Void);
+					renderInfo = _tileInfos[def] = new BlockTileRenderer.RenderInfo(World.Instance.blockTileRenderer, (int)def.TileLayer, LayerMask.NameToLayer("Place"), def, SimHashes.Void, false);
 				}
+				
 				var tex = renderInfo.material.mainTexture as Texture2D;
 				var uv = renderInfo.atlasInfo.First().uvBox;
 				float uMin = uv.x;
