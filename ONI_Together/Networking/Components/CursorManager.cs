@@ -139,7 +139,7 @@ namespace ONI_Together.Networking.Components
 					buildToolPrefabId = utilityBuildTool.def.PrefabID;
 					allowedToPlaceBuilding = utilityBuildTool.CheckValidPathPiece(Grid.PosToCell(cursorWorldPos));
 
-					utilityPathData = EncodeUtilityPath(utilityBuildTool.path);
+					utilityPathData = BuildingUtils.EncodeUtilityPath(utilityBuildTool.path);
 					if (utilityPathData != null && utilityPathData.Length > 0)
 						hasUtilityPath = true;
 				}
@@ -207,72 +207,7 @@ namespace ONI_Together.Networking.Components
 			}
 		}
 
-		private static uint[] EncodeUtilityPath(List<BaseUtilityBuildTool.PathNode> path)
-		{
-			if (path == null || path.Count <= 1)
-				return null;
-
-			List<uint> chunks = new List<uint>();
-			int pos = 0;
-			int count = path.Count;
-
-			while (pos < count)
-			{
-				int chunkEnd = pos + 13;
-				if (chunkEnd > count)
-					chunkEnd = count;
-
-				int chunkSize = chunkEnd - pos;
-				if (chunkSize <= 1)
-					break;
-
-				int firstCell = path[pos].cell;
-				uint data = (uint)(firstCell & 0x1FFFF);
-
-				int segmentsPacked = 0;
-				int segmentCount = 0;
-				int i = pos + 1;
-
-				while (i < chunkEnd && segmentCount < 3)
-				{
-					int from = path[i - 1].cell;
-					int to = path[i].cell;
-					UtilityConnections dir = UtilityConnectionsExtensions.DirectionFromToCell(from, to);
-					if (dir == (UtilityConnections)0)
-						break;
-
-					int dirIndex;
-					if (dir == UtilityConnections.Right) dirIndex = 0;
-					else if (dir == UtilityConnections.Up) dirIndex = 1;
-					else if (dir == UtilityConnections.Left) dirIndex = 2;
-					else dirIndex = 3;
-
-					int len = 1;
-					i++;
-					while (i < chunkEnd && len < 4)
-					{
-						int prev = path[i - 1].cell;
-						int curr = path[i].cell;
-						if (UtilityConnectionsExtensions.DirectionFromToCell(prev, curr) != dir)
-							break;
-						len++;
-						i++;
-					}
-
-					int seg = (dirIndex & 0x3) | (((len - 1) & 0x3) << 2);
-					segmentsPacked |= seg << (segmentCount * 4);
-					segmentCount++;
-				}
-
-				data |= (uint)(segmentsPacked & 0xFFF) << 17;
-				data |= (uint)(segmentCount & 0x3) << 29;
-
-				chunks.Add(data);
-				pos = i;
-			}
-
-			return chunks.ToArray();
-		}
+		
 
 		private Vector3 GetCursorWorldPosition()
 		{

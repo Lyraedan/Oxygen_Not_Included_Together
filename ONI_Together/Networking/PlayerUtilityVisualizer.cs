@@ -1,17 +1,11 @@
 using System.Collections.Generic;
+using ONI_Together.Misc;
 using UnityEngine;
 
 namespace ONI_Together.Networking
 {
 	public class PlayerUtilityVisualizer
 	{
-		private const int FIRST_CELL_BITS = 17;
-		private const int SEG_BITS = 4;
-		private const int SEG_COUNT_BITS = 2;
-		private const int MAX_SEGMENTS = 3;
-		private const int MAX_LEN_PER_SEG = 4;
-		private const int MAX_CELLS_PER_CHUNK = 1 + MAX_SEGMENTS * MAX_LEN_PER_SEG; // 13
-
 		private Dictionary<int, GameObject> _visualizers = new Dictionary<int, GameObject>();
 		private string _currentPrefabId = string.Empty;
 		private BuildingDef _currentDef;
@@ -45,7 +39,7 @@ namespace ONI_Together.Networking
 				}
 			}
 
-			int[] cells = DecodePath(pathData);
+			int[] cells = BuildingUtils.DecodeUtilityPath(pathData);
 			if (cells == null || cells.Length == 0)
 			{
 				ClearPath();
@@ -82,70 +76,6 @@ namespace ONI_Together.Networking
 			_visualizers.Clear();
 			_currentPrefabId = string.Empty;
 			_currentDef = null;
-		}
-
-		public static int[] DecodePath(uint[] pathData)
-		{
-			if (pathData == null || pathData.Length == 0)
-				return null;
-
-			List<int> cells = new List<int>(pathData.Length * MAX_CELLS_PER_CHUNK);
-
-			foreach (uint chunk in pathData)
-			{
-				if (chunk == 0)
-					continue;
-
-				int[] chunkCells = DecodeChunk(chunk);
-				if (chunkCells != null)
-					cells.AddRange(chunkCells);
-			}
-
-			return cells.ToArray();
-		}
-
-		private static int[] DecodeChunk(uint data)
-		{
-			if (data == 0)
-				return null;
-
-			int firstCell = (int)(data & ((1 << FIRST_CELL_BITS) - 1));
-			int segmentsPacked = (int)((data >> FIRST_CELL_BITS) & ((1 << (SEG_BITS * MAX_SEGMENTS)) - 1));
-			int segmentCount = (int)((data >> (FIRST_CELL_BITS + SEG_BITS * MAX_SEGMENTS)) & ((1 << SEG_COUNT_BITS) - 1));
-
-			if (!Grid.IsValidCell(firstCell))
-				return null;
-
-			List<int> cells = new List<int>(MAX_CELLS_PER_CHUNK);
-			cells.Add(firstCell);
-			int cell = firstCell;
-
-			for (int s = 0; s < segmentCount && s < MAX_SEGMENTS; s++)
-			{
-				int seg = (segmentsPacked >> (s * SEG_BITS)) & 0xF;
-				int dir = seg & 0x3;
-				int len = ((seg >> 2) & 0x3) + 1;
-
-				int delta;
-				switch (dir)
-				{
-					case 0: delta = 1; break;
-					case 1: delta = Grid.WidthInCells; break;
-					case 2: delta = -1; break;
-					case 3: delta = -Grid.WidthInCells; break;
-					default: continue;
-				}
-
-				for (int i = 0; i < len; i++)
-				{
-					cell += delta;
-					if (!Grid.IsValidCell(cell))
-						break;
-					cells.Add(cell);
-				}
-			}
-
-			return cells.ToArray();
 		}
 
 		private void CreateSingleVisualizer(int cell)
