@@ -16,25 +16,22 @@ public static class SpawnUtils
     }
     
     /// <summary>
-    /// Spawns a prefab by <see cref="Tag"/> on the host, assigns it a <see cref="NetworkIdentity"/>,
+    /// Spawns a prefab by <see cref="GameObject"/> on the host, assigns it a <see cref="NetworkIdentity"/>,
     /// and broadcasts a <see cref="SpawnPrefabPacket"/> to all clients so they replicate the spawn.
     /// Uses <c>Util.KInstantiate</c> under the hood with network sync built in.
     /// </summary>
     /// <param name="tag">The prefab tag to spawn.</param>
     /// <param name="position">World position for the new GameObject.</param>
     /// <returns>The spawned GameObject on the host, or <c>null</c> if not host or prefab not found.</returns>
-    public static GameObject KNetInstantiate(Tag tag, Vector3 position, bool isActive = true)
+    public static GameObject KNetInstantiate(GameObject prefab, Vector3 position, bool isActive = true)
     {
         if (!MultiplayerSession.IsHost) return null;
-        
-        var prefab = Assets.GetPrefab(tag);
-        if (prefab == null) return null;
         
         var go = Util.KInstantiate(prefab, position);
         go.SetActive(isActive);
         var identity = AssignIdentity(go);
 
-        SpawnPrefabPacket packet = new SpawnPrefabPacket(identity.NetId, tag.hash, position);
+        SpawnPrefabPacket packet = new SpawnPrefabPacket(identity.NetId, go.PrefabID().GetHashCode(), position);
         packet.IsActive = isActive;
         PacketSender.SendToAllClients(packet);
         return go;
