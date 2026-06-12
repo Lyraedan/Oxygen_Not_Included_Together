@@ -215,7 +215,6 @@ namespace ONI_Together.Networking.Components
             int netId = identity.NetId;
             if (_tracked.ContainsKey(netId)) return;
 
-            go.GetNetIdentity(); // ensures identity exists
             _tracked[netId] = new BuildingEntry
             {
                 go = go,
