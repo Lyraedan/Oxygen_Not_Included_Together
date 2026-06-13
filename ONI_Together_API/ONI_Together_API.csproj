@@ -13,6 +13,7 @@
     <PackageProjectUrl>https://github.com/Lyraedan/Oxygen_Not_Included_Together</PackageProjectUrl>
     <RepositoryUrl>https://github.com/Lyraedan/Oxygen_Not_Included_Together</RepositoryUrl>
     <PackageTags>oni;oxygen-not-included;oxygen-not-included-together;oxygen-not-included-multiplayer;oni-together;onitogether;oni-multiplayer</PackageTags>
+    <PackageReadmeFile>README_NUGET.md</PackageReadmeFile>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
     <IncludeBuildOutput>true</IncludeBuildOutput>
   </PropertyGroup>
@@ -27,5 +28,8 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="$(OutputPath)\*.dll" Pack="false" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\README_NUGET.md" Pack="true" PackagePath="\" />
   </ItemGroup>
 </Project>
