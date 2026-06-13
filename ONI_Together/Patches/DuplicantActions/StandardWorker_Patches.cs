@@ -55,6 +55,9 @@ namespace ONI_Together.Patches.DuplicantActions
                 }
 
                 PacketSender.SendToAllClients(new StandardWorker_WorkingState_Packet(__instance, start_work_info.workable, true));
+
+				if (__instance.smi is MultitoolController.Instance multitoolSmi)
+					PacketSender.SendToAllClients(new MultiToolSyncPacket(__instance, multitoolSmi));
 			}
 		}
 

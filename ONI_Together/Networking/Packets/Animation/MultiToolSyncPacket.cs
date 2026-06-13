@@ -64,6 +64,10 @@ namespace ONI_Together.Networking.Packets.Animation
 				DebugConsole.LogWarning("[MultiToolSyncPacket] " + HitEffectPrefabId + " was not found");
 				return;
 			}
+
+			if (worker.smi != null && worker.smi.IsRunning())
+				return;
+
 			worker.smi = new MultitoolController.Instance(workable, worker, Context, hiteffect);
 			worker.smi.StartSM();
 			//DebugConsole.Log("[MultiToolSyncPacket] Started multitool smi for " + workable.name + " on worker " + worker.name + " with context " + Context);
