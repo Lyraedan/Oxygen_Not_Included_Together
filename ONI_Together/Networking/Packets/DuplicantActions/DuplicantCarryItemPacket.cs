@@ -79,7 +79,7 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 				return;
 			}
 
-			DebugConsole.Log($"[DuplicantCarryItemPacket] Creating carry proxy: dupe={NetId} anim={AnimFileName} prefabHash={ItemPrefabHash}");
+			//DebugConsole.Log($"[DuplicantCarryItemPacket] Creating carry proxy: dupe={NetId} anim={AnimFileName} prefabHash={ItemPrefabHash}");
 
 			// Create inactive so KBatchedAnimController.Awake() doesn't fire before AnimFiles is set
 			var proxy = new GameObject(proxyName);
@@ -95,7 +95,7 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 			if (animData != null && animData.animCount > 0)
 			{
 				var firstAnim = animData.GetAnim(0);
-				DebugConsole.Log($"[DuplicantCarryItemPacket] Playing anim: {firstAnim.name} (index 0 of {animData.animCount})");
+				//DebugConsole.Log($"[DuplicantCarryItemPacket] Playing anim: {firstAnim.name} (index 0 of {animData.animCount})");
 				animCtrl.initialAnim = firstAnim.name.ToString();
 			}
 			else
@@ -119,7 +119,7 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 				animCtrl.Play(firstAnim.hash, KAnim.PlayMode.Loop);
 			}
 
-			DebugConsole.Log($"[DuplicantCarryItemPacket] Carry proxy created: {proxyName}");
+			//DebugConsole.Log($"[DuplicantCarryItemPacket] Carry proxy created: {proxyName}");
 			ShowPopFX(dupeAnim.transform);
 		}
 

@@ -96,7 +96,7 @@ namespace ONI_Together.Patches.World
                             var animFile = itemAnimCtrl?.AnimFiles?[0]?.name;
                             if (animFile != null)
                             {
-                                DebugConsole.Log($"[StorageStorePatch] Sending carry packet: dupe={storageIdentity.NetId} item={go.PrefabID()} anim={animFile}");
+                                //DebugConsole.Log($"[StorageStorePatch] Sending carry packet: dupe={storageIdentity.NetId} item={go.PrefabID()} anim={animFile}");
                                 PacketSender.SendToAllClients(new DuplicantCarryItemPacket
                                 {
                                     NetId = storageIdentity.NetId,
@@ -106,10 +106,10 @@ namespace ONI_Together.Patches.World
                                     IsCarrying = true
                                 });
                             }
-                            else
+                            /*else
                             {
                                 DebugConsole.LogWarning($"[StorageStorePatch] Item {go.PrefabID()} has no anim file (ctrl={itemAnimCtrl != null})");
-                            }
+                            }*/
                         }
                     }
                     else
