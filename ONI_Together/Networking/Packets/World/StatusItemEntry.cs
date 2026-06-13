@@ -5,29 +5,39 @@ namespace ONI_Together.Networking.Packets.World
 {
     public struct StatusItemEntry
     {
-        public string ItemId;
-        public string CategoryId;
+        public int ItemHash;
+        public int CategoryHash;
         public string DisplayName;
         public string Tooltip;
 
         public void Serialize(BinaryWriter writer)
         {
             using var _ = Profiler.Scope();
-            writer.Write(ItemId ?? string.Empty);
-            writer.Write(CategoryId ?? string.Empty);
-            writer.Write(DisplayName ?? string.Empty);
-            writer.Write(Tooltip ?? string.Empty);
+            writer.Write(ItemHash);
+            writer.Write(CategoryHash);
+
+            byte flags = 0;
+            if (DisplayName != null) flags |= 1;
+            if (Tooltip != null) flags |= 2;
+            writer.Write(flags);
+
+            if ((flags & 1) != 0) writer.Write(DisplayName);
+            if ((flags & 2) != 0) writer.Write(Tooltip);
         }
 
         public static StatusItemEntry Deserialize(BinaryReader reader)
         {
             using var _ = Profiler.Scope();
+            int itemHash = reader.ReadInt32();
+            int categoryHash = reader.ReadInt32();
+            byte flags = reader.ReadByte();
+
             return new StatusItemEntry
             {
-                ItemId = reader.ReadString(),
-                CategoryId = reader.ReadString(),
-                DisplayName = reader.ReadString(),
-                Tooltip = reader.ReadString(),
+                ItemHash = itemHash,
+                CategoryHash = categoryHash,
+                DisplayName = (flags & 1) != 0 ? reader.ReadString() : null,
+                Tooltip = (flags & 2) != 0 ? reader.ReadString() : null,
             };
         }
     }

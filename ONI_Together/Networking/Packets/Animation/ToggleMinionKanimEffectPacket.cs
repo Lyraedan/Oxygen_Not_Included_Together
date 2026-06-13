@@ -50,6 +50,7 @@ public class ToggleMinionKanimEffectPacket : IPacket
 		toggler.GetComponentInParent<AnimEventHandler>()?.SetContext(Context);
 
 		var hash = Hash.SDBMLower(Event);
-		toggler.eventSource.Trigger(hash, null);
+		//data gets ignored by subscriptions
+		toggler.Trigger(hash, null);
 	}
 }

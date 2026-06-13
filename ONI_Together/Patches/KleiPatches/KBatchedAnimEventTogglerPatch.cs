@@ -53,10 +53,6 @@ public static class KBatchedAnimEventTogglerPatch
 				return;
 
 			var eventName = enable ? toggler.enableEvent : toggler.disableEvent;
-
-			if (eventName == "LaserOn" || eventName == "LaserOff")
-				return;
-
 			DuplicantPatch.ToggleEffect(identity.gameObject, eventName, contextStr, enable);
 		}
 		catch (System.Exception)
