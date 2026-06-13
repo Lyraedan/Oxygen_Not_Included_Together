@@ -1,4 +1,4 @@
-name: Publish to NuGet
+name: Publish to NuGet & GitHub Packages
 on:
   push:
     tags: [ 'v*' ]
@@ -10,6 +10,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
+      packages: write
 
     steps:
       - uses: actions/checkout@v4
@@ -30,5 +31,8 @@ jobs:
       - name: Pack
         run: dotnet pack ONI_Together_API/ONI_Together_API.csproj -c Release --no-build -o nupkg
 
-      - name: Push
+      - name: Push to NuGet.org
         run: dotnet nuget push nupkg/*.nupkg --source https://api.nuget.org/v3/index.json
+
+      - name: Push to GitHub Packages
+        run: dotnet nuget push nupkg/*.nupkg --source https://nuget.pkg.github.com/Lyraedan/index.json --api-key ${{ secrets.GITHUB_TOKEN }}
