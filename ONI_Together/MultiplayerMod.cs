@@ -59,8 +59,6 @@ namespace ONI_Together
 				PacketTracker.Init();
 				DebugConsole.Log("[ONI_Together] Loaded Oxygen Not Included Together Multiplayer Mod.");
 
-                PacketRegistry.RegisterDefaults();
-
                 // CHECKPOINT 1
                 System.IO.File.AppendAllText(logPath, "[Trace] Checkpoint 1: Pre-DebugMenu\n");
 				DebugMenu.Init();
@@ -247,6 +245,7 @@ namespace ONI_Together
             base.OnAllModsLoaded(harmony, mods);
 			///does weird force restarts; replaced with plib version checker that doesnt restart the game
 			//ModUpdater.Updater.CheckForUpdate();
+			PacketRegistry.RegisterDefaults();
 			InitializeAllIntegrations(); // All mods should be loaded, now find and initialize any integrations
 #if DEBUG
             UnitTestRegistry.DiscoverTests();
