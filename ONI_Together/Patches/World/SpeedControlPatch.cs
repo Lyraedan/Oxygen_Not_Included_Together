@@ -25,6 +25,14 @@ namespace ONI_Together.Patches
 		// Authority gate: while in a session, the host must not resume/unpause the sim
 		// until every connected player is ready. Pausing is always allowed; only resume
 		// is blocked. IsSyncing lets remote-applied speed changes through.
+		//
+		// Coverage: this gate hooks the user-facing resume entry points — SetSpeed and
+		// TogglePause (the play buttons / spacebar). SpeedControlScreen.Unpause() is NOT
+		// patched. Nothing resumes via Unpause() today (the old auto-resume calls in
+		// AllClientsReadyPacket / HardSyncCompletePacket / SaveLoaderPatch are commented
+		// out), but any future code that resumes programmatically must route through this
+		// gate (check ReadyManager.CanHostResume()) or add an Unpause prefix here —
+		// otherwise it bypasses the safety.
 		private static bool ResumeBlocked()
 		{
 			if (IsSyncing) return false;
