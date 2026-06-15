@@ -64,6 +64,11 @@ namespace ONI_Together.Patches
 			{
 				if (IsSyncing) return;
 
+				// Harmony still runs postfixes when a prefix returns false. If the resume
+				// gate blocked this SetSpeed, the local speed never changed — so don't
+				// broadcast it, or clients would resume while the host stays paused.
+				if (ResumeBlocked()) return;
+
 				var packet = new SpeedChangePacket((SpeedChangePacket.SpeedState)Speed);
 
 				PacketSender.SendToAllOtherPeers(packet);
