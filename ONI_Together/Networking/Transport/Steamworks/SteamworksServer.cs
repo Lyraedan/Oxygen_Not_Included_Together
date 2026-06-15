@@ -234,7 +234,17 @@ namespace ONI_Together.Networking.Transport.Steam
             }
             player.Connection = conn;
 
+            // Authority: a (re)connecting client is loading and must be forced Unready the
+            // moment it begins connecting — not just at object creation. This keeps the
+            // host's all-ready check from transiently passing while the client loads.
+            // SetPlayerReadyState safely no-ops for the host's own entry.
+            ReadyManager.SetPlayerReadyState(player, ClientReadyState.Unready);
+
             DebugConsole.Log($"[GameServer] Connection to {clientId} fully established!");
+
+            // Host owns the roster/visibility: recompute and rebroadcast show/hide + text.
+            ReadyManager.RefreshScreen();
+            ReadyManager.RefreshReadyState();
             //SaveFileRequestPacket.SendSaveFile(clientId); // Old method
             //GoogleDriveUtils.UploadAndSendToClient(clientId); // Upload to googledrive and send to the client
         }

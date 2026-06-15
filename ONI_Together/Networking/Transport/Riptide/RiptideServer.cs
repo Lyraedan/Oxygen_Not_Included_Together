@@ -4,6 +4,7 @@ using Riptide.Utils;
 using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Packets.Architecture;
+using ONI_Together.Networking.States;
 using Shared.Profiling;
 using ONI_Together.Networking.Transfer;
 using System.Collections.Generic;
@@ -147,8 +148,18 @@ namespace ONI_Together.Networking.Transport.Lan
                 player.PlayerName = Utils.GetLocalPlayerName();
             }
 
+            // Authority: a (re)connecting client is loading and must be forced Unready the
+            // moment it begins connecting — not just at object creation. This keeps the
+            // host's all-ready check from transiently passing while the client loads.
+            // SetPlayerReadyState safely no-ops for the host's own entry.
+            ReadyManager.SetPlayerReadyState(player, ClientReadyState.Unready);
+
             AddClientToList(e.Client.Id);
             DebugConsole.Log($"New client connected: {clientId}");
+
+            // Host owns the roster/visibility: recompute and rebroadcast show/hide + text.
+            ReadyManager.RefreshScreen();
+            ReadyManager.RefreshReadyState();
         }
 
         private void ServerOnClientDisconnected(object sender, ServerDisconnectedEventArgs e)

@@ -128,7 +128,9 @@ namespace ONI_Together.Networking
 			int count = 0;
 			foreach (MultiplayerPlayer player in MultiplayerSession.ConnectedPlayers.Values)
 			{
-				if (player.readyState.Equals(ClientReadyState.Ready))
+				// The host is always considered ready regardless of its stored flag.
+				if (player.PlayerId == MultiplayerSession.HostUserID
+					|| player.readyState.Equals(ClientReadyState.Ready))
 				{
 					count++;
 				}
@@ -162,6 +164,21 @@ namespace ONI_Together.Networking
 		}
 
 		/// <summary>
+		/// The authority gate for resuming the sim. The host may only resume/unpause
+		/// when every connected player is ready. Outside a session there is nothing to
+		/// gate. This is the real safety — UI visibility must never permit resume.
+		/// </summary>
+		public static bool CanHostResume()
+		{
+			using var _ = Profiler.Scope();
+
+			if (!MultiplayerSession.InSession)
+				return true;
+
+			return IsEveryoneReady();
+		}
+
+		/// <summary>
 		/// HOST ONLY - Check if all connected clients are ready
 		/// </summary>
 		/// <returns></returns>
@@ -172,6 +189,10 @@ namespace ONI_Together.Networking
 			bool result = true;
 			foreach (MultiplayerPlayer player in MultiplayerSession.ConnectedPlayers.Values)
 			{
+				// The host is always considered ready regardless of its stored flag.
+				if (player.PlayerId == MultiplayerSession.HostUserID)
+					continue;
+
 				if (player.readyState == ClientReadyState.Unready)
 				{
 					result = false;
