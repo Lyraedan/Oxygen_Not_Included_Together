@@ -64,6 +64,16 @@ namespace ONI_Together.Networking.Packets.Core
 			//this packet should only be sent by clients to the host
 			if (MultiplayerSession.IsHost)
 			{
+				// Authoritative choke point: let the inner packet veto being relayed/applied
+				// (e.g. a client-originated resume while not all players are ready). Without
+				// this the host would fan a rejected resume out to the other clients even
+				// though it refuses to resume its own sim.
+				if (innerPacket is IHostRelayGate gate && !gate.HostShouldProcess())
+				{
+					DebugConsole.Log($"[HostBroadcastPacket] dropped gated {innerPacket.GetType().Name} relay from {SenderId}");
+					return; //neither apply nor rebroadcast
+				}
+
 				//trigger it on the host
 				innerPacket.OnDispatched();
 				//send it to all other clients except the sender
