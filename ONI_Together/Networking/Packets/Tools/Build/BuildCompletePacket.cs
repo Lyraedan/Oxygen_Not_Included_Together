@@ -134,8 +134,11 @@ namespace ONI_Together.Networking.Packets.Tools.Build
                 //}
                 //else
                 {
-                    // Clean up dangling visualizers
-                    Object.Destroy(existing);
+                    // Clean up using ONI's proper lifecycle to ensure automation port visualizers
+                    // are removed from LogicCircuitManager.uiVisElements synchronously.
+                    // Object.Destroy() would defer cleanup, leaving stale port entries
+                    // that block future building placement.
+                    existing.DeleteObject();
                     Grid.Objects[Cell, layerIndex] = null;
 
                     var builtObj = def.Build(

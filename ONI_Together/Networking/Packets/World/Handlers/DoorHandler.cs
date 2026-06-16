@@ -26,6 +26,15 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 			if (door == null) return false;
 
 			Door.ControlState state = (Door.ControlState)(int)packet.Value;
+
+			// Skip if already transitioning to this state. Without this check,
+			// the host relay (which re-serializes the packet with the host's Sender ID)
+			// causes the client to receive its own state change back.
+			// QueueStateChange sees requestedState == nextState and takes the cancel
+			// path: requestedState = controlState, which resets the door to its old state.
+			if (door.RequestedState == state)
+				return true;
+
 			door.QueueStateChange(state);
 			//DebugConsole.Log($"[DoorHandler] Set DoorState={state} on {go.name}");
 			return true;

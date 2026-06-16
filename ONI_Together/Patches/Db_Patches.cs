@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using ONI_Together.Patches.World.SideScreen;
 using System;
 using System.Collections.Generic;
@@ -20,6 +20,8 @@ namespace ONI_Together.Patches
 	            using var _ = Profiler.Scope();
 
                 Door_QueueStateChange_Patch.ExecutePatch();
+                Door_Sim200ms_Patch.ExecutePatch();
+                Door_OnCleanUp_Patch.ExecutePatch();
 
 			}
         }

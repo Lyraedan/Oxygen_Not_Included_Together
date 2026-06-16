@@ -1,4 +1,4 @@
-﻿using ONI_Together.DebugTools;
+using ONI_Together.DebugTools;
 using ONI_Together.Networking.Packets.World;
 using System.Collections;
 using System.Collections.Generic;
@@ -83,7 +83,7 @@ namespace ONI_Together.Networking.Components
                 Buildings = stateList
             };
 
-            PacketSender.SendToAllClients(packet, PacketSendMode.Unreliable);
+            PacketSender.SendToAllClients(packet, PacketSendMode.Reliable);
         }
 
         public void OnPacketReceived(BuildingStatePacket packet)
@@ -122,6 +122,11 @@ namespace ONI_Together.Networking.Components
             {
                 if (building == null) continue;
 
+                // Skip doors - they are synced via BuildingConfigPacket/DoorHandler,
+                // not by building list reconciliation. Destroying and respawning doors
+                // triggers Door.OnCleanUp which displaces elements and creates ore debris.
+                if (building.GetComponent<Door>() != null) continue;
+
                 ObjectLayer layer = building.Def.TileLayer;
                 int cell = Grid.PosToCell(building);
                 var kpid = building.GetComponent<KPrefabID>();
@@ -146,6 +151,9 @@ namespace ONI_Together.Networking.Components
             {
                 if (building == null) continue;
 
+                // Skip doors in the local set too - they're synced separately
+                if (building.GetComponent<Door>() != null) continue;
+
                 int cell = Grid.PosToCell(building);
                 var kpid = building.GetComponent<KPrefabID>();
                 if (kpid == null) continue;
@@ -160,6 +168,10 @@ namespace ONI_Together.Networking.Components
 
                 var def = Assets.GetBuildingDef(remote.PrefabName);
                 if (def == null) continue;
+
+                // Skip doors
+                if (def.BuildingComplete != null && def.BuildingComplete.GetComponent<Door>() != null)
+                    continue;
 
                 if (!localSet.Contains((remote.Cell, def.TileLayer, remote.PrefabName)))
                 {
@@ -193,28 +205,20 @@ namespace ONI_Together.Networking.Components
             {
                 try
                 {
-                    Vector3 pos = Grid.CellToPosCBC(cell, def.SceneLayer);
-                    GameObject go = Util.KInstantiate(Assets.GetPrefab(def.Tag), pos);
+                    // Use the building def's default construction materials
+                    // Use the building def's default construction materials
+                    var tags = def.DefaultElements();
+                    if (tags == null || tags.Count == 0)
+                        tags = new List<Tag> { SimHashes.SandStone.CreateTag() };
+
+                    float temp = 293.15f;
+
+                    var go = def.Build(cell, Orientation.Neutral, null, tags, temp,
+                        "DEFAULT_FACADE", playsound: false, GameClock.Instance.GetTime());
 
                     if (go != null)
                     {
-                        var primaryElement = go.GetComponent<PrimaryElement>();
-                        if (primaryElement != null)
-                        {
-                            var safeElement = ElementLoader.FindElementByHash(SimHashes.SandStone)
-                                ?? ElementLoader.FindElementByHash(SimHashes.Dirt)
-                                ?? ElementLoader.elements?.FirstOrDefault(e => e.IsSolid);
-
-                            if (safeElement != null)
-                            {
-                                primaryElement.SetElement(safeElement.id, true);
-                                primaryElement.Temperature = 293.15f;
-                                if (primaryElement.Mass <= 0.001f)
-                                    primaryElement.Mass = 100f;
-                            }
-                        }
-
-                        go.SetActive(true);
+                        DebugConsole.Log($"[BuildingSyncer] Spawned {prefabName} at {cell} via def.Build");
                     }
                 }
                 catch (System.Exception ex)
