@@ -363,5 +363,40 @@ namespace ONI_Together.Misc
 
             return cells.ToArray();
         }
+
+        /// <summary>
+        /// Iterates every ILogicUIElement in uiVisElements and removes any whose
+        /// cell has no Building component on any object layer. Called periodically
+        /// to sweep up orphaned port entries that survive the normal cleanup path.
+        /// </summary>
+        public static void CleanupOrphanedLogicVisElements()
+        {
+            var mgr = Game.Instance.logicCircuitManager;
+            var elems = mgr.GetVisElements();
+            for (int i = elems.Count - 1; i >= 0; i--)
+            {
+                var elem = elems[i];
+                int cell = elem.GetLogicUICell();
+                if (!Grid.IsValidCell(cell))
+                    continue;
+
+                bool hasBuilding = false;
+                foreach (var layer in Grid.ObjectLayers)
+                {
+                    if (layer.TryGetValue(cell, out var obj) && obj != null)
+                    {
+                        if (obj.GetComponent<Building>() != null)
+                        {
+                            hasBuilding = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!hasBuilding)
+                    mgr.RemoveVisElem(elem);
+            }
+        }
+
     }
 }

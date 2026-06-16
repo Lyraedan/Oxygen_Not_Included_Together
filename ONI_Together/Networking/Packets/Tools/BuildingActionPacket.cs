@@ -1,7 +1,11 @@
-﻿using ONI_Together.DebugTools;
+﻿using System.Collections;
+using ONI_Together.DebugTools;
+using ONI_Together.Misc;
 using ONI_Together.Networking.Packets.Architecture;
 using Shared.Profiling;
 using System.IO;
+using ONI_Together.Misc;
+using UnityEngine;
 
 namespace ONI_Together.Networking.Packets.Tools
 {
@@ -78,14 +82,22 @@ namespace ONI_Together.Networking.Packets.Tools
 				}
 				finally
 				{
+					
 					ProcessingIncoming = false;
 				}
 			}
 			catch (System.Exception ex)
 			{
+				//CoroutineRunner.RunOne(DelayedRemoveOrphanedPorts());
 				ProcessingIncoming = false;
 				DebugConsole.LogError($"[BuildingActionPacket] Exception handling {Action} on NetId {NetId}: {ex}");
 			}
+		}
+
+		IEnumerator DelayedRemoveOrphanedPorts()
+		{
+			yield return new WaitForSecondsRealtime(0.5f);
+			BuildingUtils.CleanupOrphanedLogicVisElements();
 		}
 	}
 }
