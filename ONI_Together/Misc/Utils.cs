@@ -450,6 +450,9 @@ namespace ONI_Together.Misc
 
         public static void PauseSimOnPlayerLeft()
         {
+	        // Host check first: this also runs on clients (e.g. RiptideClient peer-left), and
+	        // must bail before reading the host-only PauseSimOnPlayerDisconnect config.
+	        if (!MultiplayerSession.IsHost) return;
 	        if (!Configuration.Instance.PauseSimOnPlayerDisconnect) return;
 
 	        PauseSimIfRunning();
