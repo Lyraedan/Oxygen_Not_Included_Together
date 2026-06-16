@@ -223,6 +223,12 @@ namespace ONI_Together
         [JsonProperty] public bool PuftAsLoadingIcon { get; set; } = true;
         [JsonProperty] public bool UseCustomLoadingScreenColor { get; set; } = true;
         [JsonProperty] public int TimeoutSeconds { get; set; } = 30;
+        [JsonProperty] public bool ChatWindowPositionSaved { get; set; } = false;
+        [JsonProperty] public float ChatPositionX { get; set; } = 0;
+        [JsonProperty] public float ChatPositionY { get; set; } = 250;
+        [JsonProperty] public float ChatWidth { get; set; } = 400;
+        [JsonProperty] public float ChatHeight { get; set; } = 230;
+        [JsonProperty] public bool ChatWindowExpanded { get; set; } = true;
     }
 
     [Serializable]

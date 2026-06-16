@@ -24,6 +24,7 @@ namespace ONI_Together.UI
 		private GameObject header;
 		private GameObject chatbox;
 		private GameObject resizeHandles;
+		private RectTransform chatWindowRootRT;
 		private bool expanded = false;
 
 		public struct PendingMessage
@@ -76,11 +77,27 @@ namespace ONI_Together.UI
             var chatWindowRoot = new GameObject("ChatWindowRoot", typeof(RectTransform));
             chatWindowRoot.transform.SetParent(transform, false);
             var rootRT = chatWindowRoot.GetComponent<RectTransform>();
+            chatWindowRootRT = rootRT;
             rootRT.anchorMin = new Vector2(0.5f, 0);
             rootRT.anchorMax = new Vector2(0.5f, 0);
             rootRT.pivot = new Vector2(0.5f, 0);
-            rootRT.anchoredPosition = new Vector2(0, 250);
-            rootRT.sizeDelta = new Vector2(400, 230);
+
+            var config = Configuration.Instance.Client;
+            rootRT.sizeDelta = new Vector2(config.ChatWidth, config.ChatHeight);
+            if (config.ChatWindowPositionSaved)
+            {
+                rootRT.anchoredPosition = new Vector2(config.ChatPositionX, config.ChatPositionY);
+            }
+            else
+            {
+                var scaler = GameScreenManager.Instance.ssOverlayCanvas.GetComponent<KCanvasScaler>();
+                float scale = scaler != null ? scaler.GetCanvasScale() : 1f;
+                float canvasW = Screen.width / scale;
+                float canvasH = Screen.height / scale;
+                float startX = canvasW * 0.5f - rootRT.rect.width * (1f - rootRT.pivot.x) - 20f;
+                float startY = -canvasH * 0.5f + rootRT.rect.height * rootRT.pivot.y + 130f;
+                rootRT.anchoredPosition = new Vector2(startX, startY);
+            }
 
             header = new GameObject("ChatHeader", typeof(RectTransform), typeof(Image), typeof(Button));
             header.transform.SetParent(chatWindowRoot.transform, false);
@@ -94,13 +111,7 @@ namespace ONI_Together.UI
 
             var drag = header.AddComponent<UIDragHandler>();
             drag.target = rootRT;
-			KCanvasScaler scaler = GameScreenManager.Instance.ssOverlayCanvas.GetComponent<KCanvasScaler>();
-			float scale = scaler != null ? scaler.GetCanvasScale() : 1f;
-			float canvasW = Screen.width / scale;
-			float canvasH = Screen.height / scale;
-			float startX = canvasW * 0.5f - rootRT.rect.width * (1f - rootRT.pivot.x) - 20f;
-			float startY = -canvasH * 0.5f + rootRT.rect.height * rootRT.pivot.y + 130f;
-			rootRT.anchoredPosition = new Vector2(startX, startY);
+            drag.OnDragEnded += SaveChatWindowState;
 
             var chatboxContents = new GameObject("Chatbox_Contents");
             chatboxContents.transform.SetParent(chatWindowRoot.transform, false);
@@ -158,7 +169,9 @@ namespace ONI_Together.UI
             headerTextRT.offsetMin = new Vector2(5, 0);
             headerTextRT.offsetMax = new Vector2(-5, 0);
 
-            expanded = true;
+            expanded = Configuration.Instance.Client.ChatWindowExpanded;
+            chatbox.SetActive(expanded);
+            headerText.text = expanded ? STRINGS.UI.MP_CHATWINDOW.RESIZE.RETRACT : STRINGS.UI.MP_CHATWINDOW.RESIZE.EXPAND;
             header.GetComponent<Button>().onClick.AddListener(() =>
             {
                 if (drag.WasDragged)
@@ -167,6 +180,10 @@ namespace ONI_Together.UI
                 expanded = !expanded;
                 chatbox.SetActive(expanded);
                 headerText.text = expanded ? STRINGS.UI.MP_CHATWINDOW.RESIZE.RETRACT : STRINGS.UI.MP_CHATWINDOW.RESIZE.EXPAND;
+
+                var config = Configuration.Instance.Client;
+                config.ChatWindowExpanded = expanded;
+                Configuration.Instance.Save();
             });
 
             header.transform.SetAsLastSibling();
@@ -185,6 +202,55 @@ namespace ONI_Together.UI
             ProcessMessageQueue();
 
             StartCoroutine(FixInputFieldDisplay());
+        }
+
+        private void OnDestroy()
+        {
+            SaveChatWindowState();
+        }
+
+        private void SaveChatWindowState()
+        {
+            if (chatWindowRootRT == null) return;
+
+            var config = Configuration.Instance.Client;
+            config.ChatPositionX = chatWindowRootRT.anchoredPosition.x;
+            config.ChatPositionY = chatWindowRootRT.anchoredPosition.y;
+            config.ChatWidth = chatWindowRootRT.sizeDelta.x;
+            config.ChatHeight = chatWindowRootRT.sizeDelta.y;
+            config.ChatWindowPositionSaved = true;
+            config.ChatWindowExpanded = expanded;
+            Configuration.Instance.Save();
+        }
+
+        private void ResetChatWindowState()
+        {
+            if (chatWindowRootRT == null) return;
+
+            chatWindowRootRT.sizeDelta = new Vector2(400, 230);
+
+            var scaler = GameScreenManager.Instance.ssOverlayCanvas.GetComponent<KCanvasScaler>();
+            float scale = scaler != null ? scaler.GetCanvasScale() : 1f;
+            float canvasW = Screen.width / scale;
+            float canvasH = Screen.height / scale;
+            float startX = canvasW * 0.5f - chatWindowRootRT.rect.width * (1f - chatWindowRootRT.pivot.x) - 20f;
+            float startY = -canvasH * 0.5f + chatWindowRootRT.rect.height * chatWindowRootRT.pivot.y + 130f;
+            chatWindowRootRT.anchoredPosition = new Vector2(startX, startY);
+
+            expanded = true;
+            chatbox.SetActive(true);
+            var headerText = header.GetComponentInChildren<TextMeshProUGUI>();
+            if (headerText != null)
+                headerText.text = STRINGS.UI.MP_CHATWINDOW.RESIZE.RETRACT;
+
+            var config = Configuration.Instance.Client;
+            config.ChatWindowPositionSaved = false;
+            config.ChatPositionX = 0;
+            config.ChatPositionY = 250;
+            config.ChatWidth = 400;
+            config.ChatHeight = 230;
+            config.ChatWindowExpanded = true;
+            Configuration.Instance.Save();
         }
 
         public void ProcessMessageQueue()
@@ -325,6 +391,13 @@ namespace ONI_Together.UI
 			else if (inputField.isFocused && Input.GetKeyDown(KeyCode.Escape))
 			{
 				inputField.DeactivateInputField();
+			}
+
+			// Shift+R: reset chat window position and size to defaults
+			if (!inputField.isFocused && Input.GetKeyDown(KeyCode.R) &&
+			    (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)))
+			{
+				ResetChatWindowState();
 			}
 		}
 
@@ -590,9 +663,10 @@ namespace ONI_Together.UI
 			var img = go.GetComponent<Image>();
 			img.color = Color.clear;
 
-			var handle = go.AddComponent<UIResizeHandle>();
+            var handle = go.AddComponent<UIResizeHandle>();
 			handle.target = target;
 			handle.edges = edges;
+			handle.OnDragEnded += SaveChatWindowState;
 		}
 
         public void Clamp(Vector2 position, RectTransform target)

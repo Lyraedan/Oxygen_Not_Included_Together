@@ -14,12 +14,13 @@ public enum ResizeEdge
 	Bottom = 8,
 }
 
-public class UIResizeHandle : MonoBehaviour, IPointerDownHandler, IDragHandler, IPointerEnterHandler, IPointerExitHandler
+public class UIResizeHandle : MonoBehaviour, IPointerDownHandler, IDragHandler, IEndDragHandler, IPointerEnterHandler, IPointerExitHandler
 {
 	public RectTransform target;
 	public ResizeEdge edges;
 	public Vector2 minSize = new Vector2(200, 120);
 	public Vector2 maxSize = new Vector2(800, 600);
+	public System.Action OnDragEnded;
 
 	private Vector2 dragStart;
 	private Vector2 startSize;
@@ -111,6 +112,11 @@ public class UIResizeHandle : MonoBehaviour, IPointerDownHandler, IDragHandler, 
 
 		target.sizeDelta = clampedSize;
 		target.anchoredPosition = newPos;
+	}
+
+	public void OnEndDrag(PointerEventData eventData)
+	{
+		OnDragEnded?.Invoke();
 	}
 
 }

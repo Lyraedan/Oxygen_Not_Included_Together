@@ -3,10 +3,11 @@ using Shared.Profiling;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
-public class UIDragHandler : MonoBehaviour, IPointerDownHandler, IDragHandler
+public class UIDragHandler : MonoBehaviour, IPointerDownHandler, IDragHandler, IEndDragHandler
 {
     [SerializeField] public RectTransform target;
     public bool WasDragged { get; private set; }
+    public System.Action OnDragEnded;
 
     private Vector2 offset;
 
@@ -57,6 +58,11 @@ public class UIDragHandler : MonoBehaviour, IPointerDownHandler, IDragHandler
 
             target.anchoredPosition = newPos;
         }
+    }
+
+    public void OnEndDrag(PointerEventData eventData)
+    {
+        OnDragEnded?.Invoke();
     }
 
 }
