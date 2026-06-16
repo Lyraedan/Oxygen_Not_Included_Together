@@ -473,6 +473,8 @@ namespace ONI_Together.Misc
         /// </summary>
         public static void PauseSimForReadyScreen()
         {
+	        using var _ = Profiler.Scope();
+
 	        PauseSimIfRunning();
         }
 
@@ -484,6 +486,8 @@ namespace ONI_Together.Misc
         /// </summary>
         private static void PauseSimIfRunning()
         {
+	        using var _ = Profiler.Scope();
+
 	        if (!MultiplayerSession.IsHost) return;
 	        if (SpeedControlScreen.Instance == null) return;
 
