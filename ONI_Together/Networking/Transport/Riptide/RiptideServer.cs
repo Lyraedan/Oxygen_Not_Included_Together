@@ -157,6 +157,10 @@ namespace ONI_Together.Networking.Transport.Lan
             AddClientToList(e.Client.Id);
             DebugConsole.Log($"New client connected: {clientId}");
 
+            // A joining client must not leave the rest of the table running while it loads:
+            // pause the sim (broadcast to all peers) so the ready screen freezes the world.
+            Utils.PauseSimForReadyScreen();
+
             // Host owns the roster/visibility: recompute and rebroadcast show/hide + text.
             ReadyManager.RefreshScreen();
             ReadyManager.RefreshReadyState();

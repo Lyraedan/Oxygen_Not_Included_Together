@@ -452,8 +452,24 @@ namespace ONI_Together.Misc
         {
 	        if (!MultiplayerSession.IsHost) return;
 	        if (!Configuration.Instance.PauseSimOnPlayerDisconnect) return;
-	        
+
 	        if(!SpeedControlScreen.Instance.IsPaused)
+				SpeedControlScreen.Instance.TogglePause(false);
+        }
+
+        /// <summary>
+        /// HOST ONLY - Pause the sim when a client joins / starts the ready sync so the
+        /// ready screen reflects a frozen world for everyone. Pausing via TogglePause reuses
+        /// SpeedControlPatch.TogglePause_Postfix, which broadcasts the pause to all peers.
+        /// The !IsPaused guard keeps repeated calls (e.g. reconnect-after-load) a no-op, and
+        /// pausing is never blocked by the resume gate.
+        /// </summary>
+        public static void PauseSimForReadyScreen()
+        {
+	        if (!MultiplayerSession.IsHost) return;
+	        if (SpeedControlScreen.Instance == null) return;
+
+	        if (!SpeedControlScreen.Instance.IsPaused)
 				SpeedControlScreen.Instance.TogglePause(false);
         }
 
