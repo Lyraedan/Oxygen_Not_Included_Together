@@ -302,7 +302,28 @@ namespace ONI_Together.Networking.Transport.Lan
         // it loads it is invisible to IsEveryoneReady. Surface it here so ReadyManager can
         // keep the host gated, the ready screen open, and the roster total honest through
         // the load window.
-        public override int PendingLoadingClientCount => _loadingClients.Count;
+        //
+        // Only count loaders that have actually dropped off the live roster: a client signals
+        // Loading just *before* it disconnects (SaveHelper.LoadWorldSave), so for that brief
+        // window its id is in both _loadingClients and ConnectedPlayers — where it is already
+        // counted (as Unready). Counting it here too would inflate the ready-screen total
+        // (e.g. "1/3" for a single loading client). Matching ConnectedPlayers keeps this in
+        // step with the documented contract ("dropped off the live roster but NOT gone") and
+        // with the gate: an in-roster loader holds the gate via its Unready state, an
+        // off-roster loader holds it via this count — no double count, no gap.
+        public override int PendingLoadingClientCount
+        {
+            get
+            {
+                int count = 0;
+                foreach (ulong id in _loadingClients.Keys)
+                {
+                    if (!MultiplayerSession.ConnectedPlayers.ContainsKey(id))
+                        count++;
+                }
+                return count;
+            }
+        }
 
         public bool ConsumeReconnectFromLoad(ulong id)
         {
