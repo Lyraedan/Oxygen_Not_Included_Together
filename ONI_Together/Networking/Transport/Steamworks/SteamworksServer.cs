@@ -234,7 +234,17 @@ namespace ONI_Together.Networking.Transport.Steam
             }
             player.Connection = conn;
 
+            // Authority: a (re)connecting client is loading and must be forced Unready the
+            // moment it begins connecting — not just at object creation. This keeps the
+            // host's all-ready check from transiently passing while the client loads.
+            // SetPlayerReadyState safely no-ops for the host's own entry.
+            ReadyManager.SetPlayerReadyState(player, ClientReadyState.Unready);
+
             DebugConsole.Log($"[GameServer] Connection to {clientId} fully established!");
+
+            // Steam P2P: the host is never added through this remote-connection path, so
+            // this is always a remote client — no host-loopback case to exclude.
+            ReadyManager.HandleClientConnected(isHostLoopback: false);
             //SaveFileRequestPacket.SendSaveFile(clientId); // Old method
             //GoogleDriveUtils.UploadAndSendToClient(clientId); // Upload to googledrive and send to the client
         }

@@ -7,7 +7,7 @@ using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.World
 {
-	public class SpeedChangePacket : IPacket
+	public class SpeedChangePacket : IPacket, IHostRelayGate
 	{
 		[Flags]
 		public enum SpeedState : int
@@ -50,6 +50,18 @@ namespace ONI_Together.Networking.Packets.World
 			if (SpeedControlScreen.Instance == null)
 				return;
 
+			// Authority (direct/defense-in-depth path): the host must never apply a remote
+			// resume while a player is unready — even though this runs under IsSyncing. The
+			// resume rule lives in one predicate, HostShouldProcess(): HostBroadcastPacket
+			// uses it to veto the wrapped relay path (where this re-check then can't fire),
+			// and SpeedControlPatch.ResumeBlocked() guards local host actions — all three
+			// resolve through ReadyManager.CanHostResume(). Pause packets are always honoured.
+			if (MultiplayerSession.IsHost && !HostShouldProcess())
+			{
+				DebugConsole.Log("[SpeedChangePacket] Ignored remote resume: not all players are ready");
+				return;
+			}
+
 			SpeedControlScreen_SendSpeedPacketPatch.IsSyncing = true;
 			try
 			{
@@ -79,5 +91,15 @@ namespace ONI_Together.Networking.Packets.World
 
 			DebugConsole.Log($"[SpeedChnagePacket] SpeedChangePacket received: Speed set to {Speed}");
 		}
+
+		/// <summary>
+		/// Relay gate (host side): a pause is always allowed, but a resume may only be
+		/// applied AND relayed to the other clients once everyone is ready. This stops the
+		/// host from fanning a client-originated resume out to other clients while it
+		/// correctly refuses to resume its own sim. Mirrors the inline check in
+		/// <see cref="OnDispatched"/>, which stays as defense-in-depth for the direct path.
+		/// </summary>
+		public bool HostShouldProcess()
+			=> Speed == SpeedState.Paused || ReadyManager.CanHostResume();
 	}
 }

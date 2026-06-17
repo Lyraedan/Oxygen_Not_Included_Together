@@ -450,10 +450,54 @@ namespace ONI_Together.Misc
 
         public static void PauseSimOnPlayerLeft()
         {
+	        // Host check first: this also runs on clients (e.g. RiptideClient peer-left), and
+	        // must bail before reading the host-only PauseSimOnPlayerDisconnect config.
 	        if (!MultiplayerSession.IsHost) return;
 	        if (!Configuration.Instance.PauseSimOnPlayerDisconnect) return;
-	        
-	        if(!SpeedControlScreen.Instance.IsPaused)
+
+	        PauseSimIfRunning();
+        }
+
+        /// <summary>
+        /// HOST ONLY - Pause the sim when a client joins / starts the ready sync so the
+        /// ready screen reflects a frozen world for everyone. Unlike PauseSimOnPlayerLeft
+        /// this is intentionally unconditional (not gated by PauseSimOnPlayerDisconnect):
+        /// the ready screen must freeze the world for correctness regardless of host prefs.
+        ///
+        /// Note: this only broadcasts a pause when the host is currently *running* (see the
+        /// !IsPaused guard in PauseSimIfRunning). If the host is already paused, no pause
+        /// packet is sent — the "freeze everyone" guarantee therefore assumes clients already
+        /// mirror the host's paused state (true in normal flow, since client speed tracks the
+        /// host via SpeedChangePacket); it does not retroactively correct a pre-existing
+        /// client/host speed desync.
+        /// </summary>
+        public static void PauseSimForReadyScreen()
+        {
+	        using var _ = Profiler.Scope();
+
+	        // Mirror the InSession guard that RefreshScreen/RefreshReadyState already use, so a
+	        // connect that happens before the session is established (the host's own loopback
+	        // client on LAN host-start) can never pause the sim — independent of how the caller
+	        // computes its loopback flag.
+	        if (!MultiplayerSession.InSession) return;
+
+	        PauseSimIfRunning();
+        }
+
+        /// <summary>
+        /// HOST ONLY - Pause the sim if it is currently running. Pausing via TogglePause
+        /// reuses SpeedControlPatch.TogglePause_Postfix, which broadcasts the pause to all
+        /// peers. The !IsPaused guard keeps repeated calls (e.g. reconnect-after-load) a
+        /// no-op, and pausing is never blocked by the resume gate.
+        /// </summary>
+        private static void PauseSimIfRunning()
+        {
+	        using var _ = Profiler.Scope();
+
+	        if (!MultiplayerSession.IsHost) return;
+	        if (SpeedControlScreen.Instance == null) return;
+
+	        if (!SpeedControlScreen.Instance.IsPaused)
 				SpeedControlScreen.Instance.TogglePause(false);
         }
 

@@ -22,6 +22,33 @@ namespace ONI_Together.Networking
 			SteamLobby.OnLobbyMembersRefreshed += UpdateReadyStateTracking;
 		}
 
+		/// <summary>
+		/// HOST - shared "a client (re)connected" resync, invoked from both transports'
+		/// connect callbacks (which run on the main thread): freeze the world for the ready
+		/// screen and rebroadcast roster/ready state (show/hide + text) to everyone. The
+		/// caller is responsible for marking the (re)connecting player Unready first.
+		///
+		/// <paramref name="isHostLoopback"/> is true for the LAN host's own local client
+		/// connecting to its own server on start; in that case we skip the sim-pause (there
+		/// is no remote player to wait on) but still refresh the roster. The flag is required
+		/// (no default) so every transport must consciously decide whether its connection can
+		/// be a host loopback rather than silently inheriting the "remote" behaviour.
+		/// </summary>
+		public static void HandleClientConnected(bool isHostLoopback)
+		{
+			using var _ = Profiler.Scope();
+
+			// A remote joining client must not leave the rest of the table running while it
+			// loads: pause the sim (broadcast to all peers) so the ready screen freezes the
+			// world. The host's own loopback connect must not pause the sim on host start.
+			if (!isHostLoopback)
+				Utils.PauseSimForReadyScreen();
+
+			// Host owns the roster/visibility: recompute and rebroadcast show/hide + text.
+			RefreshScreen();
+			RefreshReadyState();
+		}
+
 		public static void SendAllReadyPacket()
 		{
 			using var _ = Profiler.Scope();
@@ -112,13 +139,41 @@ namespace ONI_Together.Networking
 			using var _ = Profiler.Scope();
 
 			int readyCount = GetReadyCount();
-			int maxPlayers = MultiplayerSession.ConnectedPlayers.Values.Count;
+			// A client mid load-reconnect is off the roster (Riptide) but still expected, so
+			// add it to the total — otherwise the overlay reads e.g. "2/2" while we are
+			// (correctly) still waiting on the loader.
+			int pendingLoads = NetworkConfig.TransportServer?.PendingLoadingClientCount ?? 0;
+			int maxPlayers = MultiplayerSession.ConnectedPlayers.Values.Count + pendingLoads;
 			string message = string.Format(STRINGS.UI.MP_OVERLAY.SYNC.WAITING_FOR_PLAYERS_SYNC, readyCount, maxPlayers);
 			foreach (MultiplayerPlayer player in MultiplayerSession.ConnectedPlayers.Values)
 			{
-				message += $"{player.PlayerName}: {GetReadyText(player.readyState)}\n";
+				// Show the same readiness the count/gate use (host always reads ready).
+				ClientReadyState displayState = IsConsideredReady(player)
+					? ClientReadyState.Ready
+					: ClientReadyState.Unready;
+				message += $"{player.PlayerName}: {GetReadyText(displayState)}\n";
 			}
 			return message;
+		}
+
+		/// <summary>
+		/// Single source of truth for "is this player ready" used by the overlay text, the
+		/// ready count and the resume gate. The host is always considered ready regardless
+		/// of its stored flag.
+		///
+		/// NOTE: a disconnected client (Connection == null) is deliberately NOT skipped /
+		/// treated as ready. Clients drop their socket precisely *while loading the level*,
+		/// and the host must stay gated through that window — Connection == null cannot tell
+		/// "loading" apart from "crashed". A client that has truly left is removed from
+		/// ConnectedPlayers by the transport / Steam-lobby leave handlers, which clears the
+		/// gate; on a hard crash that removal is just delayed until lobby eviction.
+		/// </summary>
+		private static bool IsConsideredReady(MultiplayerPlayer player)
+		{
+			if (player.PlayerId == MultiplayerSession.HostUserID)
+				return true;
+
+			return player.readyState == ClientReadyState.Ready;
 		}
 
 		private static int GetReadyCount()
@@ -128,10 +183,8 @@ namespace ONI_Together.Networking
 			int count = 0;
 			foreach (MultiplayerPlayer player in MultiplayerSession.ConnectedPlayers.Values)
 			{
-				if (player.readyState.Equals(ClientReadyState.Ready))
-				{
+				if (IsConsideredReady(player))
 					count++;
-				}
 			}
 			return count;
 		}
@@ -162,6 +215,29 @@ namespace ONI_Together.Networking
 		}
 
 		/// <summary>
+		/// The authority gate for resuming the sim. The host may only resume/unpause
+		/// when every connected player is ready. Outside a session there is nothing to
+		/// gate. This is the real safety — UI visibility must never permit resume.
+		/// </summary>
+		public static bool CanHostResume()
+		{
+			using var _ = Profiler.Scope();
+
+			if (!MultiplayerSession.InSession)
+				return true;
+
+			// A client that disconnected to load the level can be removed from the live
+			// roster (Riptide reconnects it under a new id) — IsEveryoneReady would then
+			// stop seeing it and the gate would wrongly open mid-load. Keep gated while any
+			// load is in flight. (Steamworks keeps a Connection==null placeholder instead,
+			// so it reports no pending loads and relies on IsEveryoneReady below.)
+			if (NetworkConfig.TransportServer?.HasPendingLoadingClients == true)
+				return false;
+
+			return IsEveryoneReady();
+		}
+
+		/// <summary>
 		/// HOST ONLY - Check if all connected clients are ready
 		/// </summary>
 		/// <returns></returns>
@@ -169,17 +245,12 @@ namespace ONI_Together.Networking
 		{
 			using var _ = Profiler.Scope();
 
-			bool result = true;
 			foreach (MultiplayerPlayer player in MultiplayerSession.ConnectedPlayers.Values)
 			{
-				if (player.readyState == ClientReadyState.Unready)
-				{
-					result = false;
-
-					break;
-				}
+				if (!IsConsideredReady(player))
+					return false;
 			}
-			return result;
+			return true;
 		}
 
 		internal static void RefreshReadyState()
@@ -190,13 +261,20 @@ namespace ONI_Together.Networking
 				return;
 
 			DebugConsole.Log("Refreshing ready state...");
-			if (MultiplayerSession.ConnectedPlayers.Count <= 1)
+
+			// A client mid load-reconnect has dropped off the roster (Riptide) but is not
+			// gone. Don't take the "only host left -> all ready" shortcut and don't let the
+			// all-ready close fire while a load is in flight, or the ready screen would
+			// vanish (and the gate open) before the client finishes loading.
+			bool loadingPending = NetworkConfig.TransportServer?.HasPendingLoadingClients == true;
+
+			if (!loadingPending && MultiplayerSession.ConnectedPlayers.Count <= 1)
 			{
 				AllClientsReadyPacket.ProcessAllReady();//bypass sending packet if its just the host left
 				return;
 			}
 
-			bool allReady = ReadyManager.IsEveryoneReady();
+			bool allReady = !loadingPending && ReadyManager.IsEveryoneReady();
 			if (allReady)
 			{
 				ReadyManager.SendAllReadyPacket();

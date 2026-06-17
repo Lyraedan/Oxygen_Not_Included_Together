@@ -4,6 +4,7 @@ using Riptide.Utils;
 using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Packets.Architecture;
+using ONI_Together.Networking.States;
 using Shared.Profiling;
 using ONI_Together.Networking.Transfer;
 using System.Collections.Generic;
@@ -147,8 +148,22 @@ namespace ONI_Together.Networking.Transport.Lan
                 player.PlayerName = Utils.GetLocalPlayerName();
             }
 
+            // Authority: a (re)connecting client is loading and must be forced Unready the
+            // moment it begins connecting — not just at object creation. This keeps the
+            // host's all-ready check from transiently passing while the client loads.
+            // SetPlayerReadyState safely no-ops for the host's own entry.
+            ReadyManager.SetPlayerReadyState(player, ClientReadyState.Unready);
+
             AddClientToList(e.Client.Id);
             DebugConsole.Log($"New client connected: {clientId}");
+
+            // Host loopback = the one connect that happens *before* InSession flips true
+            // (it's the host's own local client, whose OnLocalClientConnected then sets
+            // InSession). Every remote join happens after that. NOTE: we can't use
+            // `clientId == CLIENT_ID` here — CLIENT_ID is only assigned in
+            // OnLocalClientConnected, which fires *after* this server-side accept, so it's
+            // still 0 at this point for the loopback.
+            ReadyManager.HandleClientConnected(isHostLoopback: !MultiplayerSession.InSession);
         }
 
         private void ServerOnClientDisconnected(object sender, ServerDisconnectedEventArgs e)
@@ -279,6 +294,34 @@ namespace ONI_Together.Networking.Transport.Lan
                 {
                     _loadingClients.Remove(id);
                 }
+            }
+        }
+
+        // A loading client disconnects (removed from ConnectedPlayers, see
+        // ServerOnClientDisconnected) and later reconnects with a new Riptide id, so while
+        // it loads it is invisible to IsEveryoneReady. Surface it here so ReadyManager can
+        // keep the host gated, the ready screen open, and the roster total honest through
+        // the load window.
+        //
+        // Only count loaders that have actually dropped off the live roster: a client signals
+        // Loading just *before* it disconnects (SaveHelper.LoadWorldSave), so for that brief
+        // window its id is in both _loadingClients and ConnectedPlayers — where it is already
+        // counted (as Unready). Counting it here too would inflate the ready-screen total
+        // (e.g. "1/3" for a single loading client). Matching ConnectedPlayers keeps this in
+        // step with the documented contract ("dropped off the live roster but NOT gone") and
+        // with the gate: an in-roster loader holds the gate via its Unready state, an
+        // off-roster loader holds it via this count — no double count, no gap.
+        public override int PendingLoadingClientCount
+        {
+            get
+            {
+                int count = 0;
+                foreach (ulong id in _loadingClients.Keys)
+                {
+                    if (!MultiplayerSession.ConnectedPlayers.ContainsKey(id))
+                        count++;
+                }
+                return count;
             }
         }
 
