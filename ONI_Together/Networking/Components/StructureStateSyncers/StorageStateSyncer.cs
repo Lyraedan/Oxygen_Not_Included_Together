@@ -27,6 +27,7 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
         {
             storage = GetComponent<Storage>();
             checkOptionalsValuesForChanges = false; // Skip checking optionals for changes since we check temperature in ShouldForceSync and mass is checked via value
+            cullByViewport = false;
         }
 
 

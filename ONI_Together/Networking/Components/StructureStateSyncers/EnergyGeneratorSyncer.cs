@@ -19,6 +19,7 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
             generator = GetComponent<Generator>();
             energyGen = GetComponent<EnergyGenerator>();
             storage = energyGen?.storage;
+            cullByViewport = false;
         }
 
         protected override void SampleState(out Variant value, out bool active, out Dictionary<string, Variant> optionalValues)

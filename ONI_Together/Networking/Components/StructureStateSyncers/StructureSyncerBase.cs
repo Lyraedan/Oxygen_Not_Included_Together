@@ -18,7 +18,7 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
         protected bool lastSentActive;
         protected Dictionary<string, Variant> lastOptionalValues;
         protected bool checkOptionalsValuesForChanges = true;
-        protected bool cullByViewport = true;
+        protected bool cullByViewport = false;
 
         private readonly HashSet<ulong> _viewportScratch = new();
 
@@ -116,6 +116,9 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
 
         private void ClientUpdate()
         {
+            if (!cullByViewport)
+                return;
+            
             if (!WorldStateSyncer.TryGetLocalViewport(out var viewport))
                 return;
 

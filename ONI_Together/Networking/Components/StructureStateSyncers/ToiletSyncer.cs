@@ -24,6 +24,7 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
             storage = GetComponent<Storage>();
             conduitConsumer = GetComponent<ConduitConsumer>();
             prefabID = GetComponent<KPrefabID>();
+            cullByViewport = false;
         }
 
         protected override void SampleState(out Variant value, out bool active, out Dictionary<string, Variant> optionalValues)
