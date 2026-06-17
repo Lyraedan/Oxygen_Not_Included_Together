@@ -1,6 +1,7 @@
 using HarmonyLib;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
+using ONI_Together.Networking.Packets.Tools;
 using ONI_Together.Networking.Packets.World;
 using Shared.Profiling;
 
@@ -14,6 +15,7 @@ namespace ONI_Together.Patches.World
 			using var _ = Profiler.Scope();
 
 			if (PrioritizeStatePacket.IsApplying) return;
+			if (DragToolPacket.ProcessingIncoming) return;
 			if (!MultiplayerSession.InSession) return;
 
 			// Find NetId
