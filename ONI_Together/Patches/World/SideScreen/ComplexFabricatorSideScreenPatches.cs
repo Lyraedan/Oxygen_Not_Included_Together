@@ -8,6 +8,21 @@ using UnityEngine;
 
 namespace ONI_Together.Patches.World.SideScreen
 {
+	[HarmonyPatch(typeof(ComplexFabricatorSideScreen), nameof(ComplexFabricatorSideScreen.Update))]
+	public static class ComplexFabricatorSideScreen_Update_Patch
+	{
+		public static bool Prefix(ComplexFabricatorSideScreen __instance)
+		{
+			using var _ = Profiler.Scope();
+
+			ComplexFabricator targetFab = __instance.targetFab;
+			if (targetFab == null) return false;
+			if (targetFab.GetMyWorld() == null) return false;
+
+			return true;
+		}
+	}
+
 	/// <summary>
 	/// Patches for ComplexFabricator recipe queue changes.
 	/// These are called by the SelectedRecipeQueueScreen UI.
