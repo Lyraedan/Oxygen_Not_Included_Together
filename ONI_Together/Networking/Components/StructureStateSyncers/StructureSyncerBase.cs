@@ -116,9 +116,6 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
 
         private void ClientUpdate()
         {
-            if (!cullByViewport)
-                return;
-            
             if (!WorldStateSyncer.TryGetLocalViewport(out var viewport))
                 return;
 
