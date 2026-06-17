@@ -222,6 +222,14 @@ namespace ONI_Together.Networking
 			if (!MultiplayerSession.InSession)
 				return true;
 
+			// A client that disconnected to load the level can be removed from the live
+			// roster (Riptide reconnects it under a new id) — IsEveryoneReady would then
+			// stop seeing it and the gate would wrongly open mid-load. Keep gated while any
+			// load is in flight. (Steamworks keeps a Connection==null placeholder instead,
+			// so it reports no pending loads and relies on IsEveryoneReady below.)
+			if (NetworkConfig.TransportServer?.HasPendingLoadingClients == true)
+				return false;
+
 			return IsEveryoneReady();
 		}
 
@@ -249,13 +257,20 @@ namespace ONI_Together.Networking
 				return;
 
 			DebugConsole.Log("Refreshing ready state...");
-			if (MultiplayerSession.ConnectedPlayers.Count <= 1)
+
+			// A client mid load-reconnect has dropped off the roster (Riptide) but is not
+			// gone. Don't take the "only host left -> all ready" shortcut and don't let the
+			// all-ready close fire while a load is in flight, or the ready screen would
+			// vanish (and the gate open) before the client finishes loading.
+			bool loadingPending = NetworkConfig.TransportServer?.HasPendingLoadingClients == true;
+
+			if (!loadingPending && MultiplayerSession.ConnectedPlayers.Count <= 1)
 			{
 				AllClientsReadyPacket.ProcessAllReady();//bypass sending packet if its just the host left
 				return;
 			}
 
-			bool allReady = ReadyManager.IsEveryoneReady();
+			bool allReady = !loadingPending && ReadyManager.IsEveryoneReady();
 			if (allReady)
 			{
 				ReadyManager.SendAllReadyPacket();
