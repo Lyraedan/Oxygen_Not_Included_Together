@@ -3,7 +3,7 @@ using System;
 namespace Shared.OxySync.Attributes
 {
     /// <summary>
-    /// Marks a private field for automatic host→client replication.
+    /// Marks a field for automatic host→client replication.
     /// The OxySyncManager polls all [SyncVar] fields every SyncInterval (default 0.5s),
     /// compares current vs last-sent value, and broadcasts changes via SyncVarPacket
     /// or SyncVarBatchPacket.
