@@ -871,10 +871,6 @@ namespace ONI_Together.DebugTools
 
             ImGui.Text($"Registered Behaviours: {OxySyncManager.Instance.RegisteredCount}");
 
-            float interval = OxySyncManager.Instance.SyncInterval;
-            if (ImGui.SliderFloat("Sync Interval (s)", ref interval, 0.05f, 2f))
-                OxySyncManager.Instance.SyncInterval = interval;
-
             ImGui.Separator();
 
             var behaviours = OxySyncManager.Instance.AllBehaviours;
@@ -889,7 +885,7 @@ namespace ONI_Together.DebugTools
                 var behaviour = behaviours[b];
                 if (behaviour.IsNullOrDestroyed()) continue;
 
-                string header = $"{behaviour.GetType().Name} (NetId: {behaviour.NetId})##oxy_{b}";
+                string header = $"{behaviour.GetType().Name} (NetId: {behaviour.NetId}, Sync: {behaviour.SyncInterval:F2}s)##oxy_{b}";
                 if (!ImGui.CollapsingHeader(header)) continue;
 
                 ImGui.Indent();

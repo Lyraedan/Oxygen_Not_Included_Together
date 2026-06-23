@@ -13,19 +13,8 @@ namespace ONI_Together.Networking.OxySync.Components
     {
         public static OxySyncManager? Instance { get; private set; }
 
-        [SerializeField]
-        private float _syncInterval = 0.5f;
-
-        private float _timer;
-
         private readonly List<NetworkBehaviour> _behaviours = new();
         private readonly List<(int Hash, Variant Value)> _changedScratch = new();
-
-        public float SyncInterval
-        {
-            get => _syncInterval;
-            set => _syncInterval = Mathf.Max(0.05f, value);
-        }
 
         public int RegisteredCount => _behaviours.Count;
         public IReadOnlyList<NetworkBehaviour> AllBehaviours => _behaviours;
@@ -106,10 +95,6 @@ namespace ONI_Together.Networking.OxySync.Components
             if (!MultiplayerSession.IsHost) return;
             if (_behaviours.Count == 0) return;
 
-            _timer += Time.unscaledDeltaTime;
-            if (_timer < _syncInterval) return;
-            _timer = 0f;
-
             for (int i = _behaviours.Count - 1; i >= 0; i--)
             {
                 var behaviour = _behaviours[i];
@@ -118,6 +103,11 @@ namespace ONI_Together.Networking.OxySync.Components
                     _behaviours.RemoveAt(i);
                     continue;
                 }
+
+                if (Time.unscaledTime - behaviour._lastSyncTime < behaviour.SyncInterval)
+                    continue;
+
+                behaviour._lastSyncTime = Time.unscaledTime;
 
                 _changedScratch.Clear();
                 var fields = behaviour.SyncVarFields;
