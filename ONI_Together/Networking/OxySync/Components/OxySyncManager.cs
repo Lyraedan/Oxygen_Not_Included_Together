@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.OxySync.Packets;
@@ -37,6 +38,8 @@ namespace ONI_Together.Networking.OxySync.Components
             NetworkBehaviour.OnBehaviourCleanUp += Unregister;
 
             NetworkBehaviour.NetIdQuery = (behaviour) => behaviour.GetComponent<NetworkIdentity>()?.NetId ?? 0;
+
+            NetworkBehaviour.LogWarning = (msg) => DebugConsole.LogWarning(msg);
 
             NetworkBehaviour.IsHostQuery = () => MultiplayerSession.IsHost;
             NetworkBehaviour.IsClientQuery = () => MultiplayerSession.IsClient;

@@ -21,6 +21,7 @@ namespace Shared.OxySync
         public static Func<ulong, int, int, byte[], bool>? SendTargetRpcToPlayer;
 
         public static Func<NetworkBehaviour, int>? NetIdQuery;
+        public static Action<string>? LogWarning;
 
         private List<SyncVarField>? _syncVarFields;
         private Dictionary<int, CachedMethod>? _commandMethods;
@@ -221,6 +222,22 @@ namespace Shared.OxySync
 
         private void InvokeMethod(CachedMethod method, byte[] args)
         {
+            if (method.Info.GetCustomAttribute<ServerAttribute>() != null && !isServer)
+            {
+                LogWarning?.Invoke($"[OxySync] '{method.Info.Name}' is [Server] but called on client — skipped.");
+                return;
+            }
+            if (method.Info.GetCustomAttribute<ClientAttribute>() != null && !isClient)
+            {
+                LogWarning?.Invoke($"[OxySync] '{method.Info.Name}' is [Client] but called on server — skipped.");
+                return;
+            }
+            if (method.Info.GetCustomAttribute<CommandAttribute>()?.RequiresHost == true && !isServer)
+            {
+                LogWarning?.Invoke($"[OxySync] Command '{method.Info.Name}' requires host — skipped.");
+                return;
+            }
+
             if (method.ArgTypes.Length == 0)
             {
                 method.Info.Invoke(this, null);

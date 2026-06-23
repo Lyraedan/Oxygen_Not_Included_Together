@@ -1,7 +1,8 @@
 ﻿using HarmonyLib;
 using ONI_Together.DebugTools;
 using ONI_Together.Networking;
-using ONI_Together.Networking.Packets.World;
+using ONI_Together.Networking.Components;
+using ONI_Together.Networking.OxySync.Components;
 using System;
 using System.Collections;
 using Shared.Profiling;
@@ -21,9 +22,16 @@ namespace ONI_Together.Patches.GamePatches
 		[HarmonyPostfix]
 		public static void OnPrefabInit_Postfix(GameClock __instance)
 		{
-			// Initialize as what the game starts at.
 			_lastSentTime = __instance.GetTime();
 			_lastCycle = __instance.GetCycle();
+
+			// Attach OxySync time sync component directly to GameClock
+			if (!__instance.TryGetComponent<GameTimeSyncComponent>(out var gtsc))
+			{
+				var identity = __instance.gameObject.AddComponent<NetworkIdentity>();
+				identity.NetId = GameTimeSyncComponent.SYSTEM_NETID;
+				__instance.gameObject.AddComponent<GameTimeSyncComponent>();
+			}
         }
 
 		[HarmonyPatch(nameof(GameClock.OnDeserialized))]
@@ -73,16 +81,14 @@ namespace ONI_Together.Patches.GamePatches
 
 				float currentTime = __instance.GetTime();
 
-				// 1. Broadcast world time every 1s
+				// 1. Broadcast world time every 1s via OxySync ClientRpc
 				if (currentTime - _lastSentTime >= 1f)
 				{
 					_lastSentTime = currentTime;
 
-					PacketSender.SendToAllClients(new WorldCyclePacket
-					{
-						Cycle = __instance.GetCycle(),
-						CycleTime = __instance.GetTimeSinceStartOfCycle()
-					}, PacketSendMode.Unreliable);
+					GameTimeSyncComponent.Instance?.BroadcastTime(
+						__instance.GetCycle(),
+						__instance.GetTimeSinceStartOfCycle());
 				}
 
 				// 2. Trigger HardSync at the start of a new cycle
