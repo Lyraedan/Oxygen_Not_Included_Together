@@ -45,6 +45,13 @@ namespace ONI_Together.Networking.OxySync.Components
                 return identity.NetId;
             };
 
+            NetIdentityHelper.OverrideIdentity = (go, netId) =>
+            {
+                var identity = go.AddOrGet<NetworkIdentity>();
+                identity.OverrideNetId(netId);
+                return identity.NetId;
+            };
+
             NetworkBehaviour.LogWarning = (msg) => DebugConsole.LogWarning(msg);
 
             NetworkBehaviour.IsHostQuery = () => MultiplayerSession.IsHost;
