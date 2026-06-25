@@ -33,6 +33,13 @@ namespace ONI_Together.Networking.OxySync.Components
                     ? identity.NetId
                     : 0;
 
+            NetworkBehaviour.NetIdSetter = (behaviour, newNetId) =>
+            {
+                var identity = ResolveIdentity(behaviour);
+                if (identity != null)
+                    identity.OverrideNetId(newNetId);
+            };
+
             NetworkBehaviour.LogWarning = (msg) => DebugConsole.LogWarning(msg);
 
             NetworkBehaviour.IsHostQuery = () => MultiplayerSession.IsHost;
@@ -100,6 +107,18 @@ namespace ONI_Together.Networking.OxySync.Components
             _identityCache.Remove(behaviour);
         }
 
+        private NetworkIdentity? ResolveIdentity(NetworkBehaviour behaviour)
+        {
+            if (_identityCache.TryGetValue(behaviour, out var identity) && !identity.IsNullOrDestroyed())
+                return identity;
+
+            identity = behaviour.GetComponent<NetworkIdentity>();
+            if (identity != null)
+                _identityCache[behaviour] = identity;
+
+            return identity;
+        }
+
         private void Update()
         {
             if (!MultiplayerSession.IsHost) return;
@@ -137,18 +156,9 @@ namespace ONI_Together.Networking.OxySync.Components
 
                 if (_changedScratch.Count == 0) continue;
 
-                if (!_identityCache.TryGetValue(behaviour, out var identity)
-                    || identity.IsNullOrDestroyed())
-                {
-                    identity = behaviour.GetComponent<NetworkIdentity>();
-                    if (identity == null || identity.NetId == 0)
-                    {
-                        if (identity != null)
-                            _identityCache[behaviour] = identity;
-                        continue;
-                    }
-                    _identityCache[behaviour] = identity;
-                }
+                var identity = ResolveIdentity(behaviour);
+                if (identity == null || identity.NetId == 0)
+                    continue;
 
                 int netId = identity.NetId;
 

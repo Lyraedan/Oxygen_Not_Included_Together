@@ -5,7 +5,6 @@ using ONI_Together.Networking.Components;
 using ONI_Together.Networking.OxySync.Components;
 using System;
 using System.Collections;
-using Shared.OxySync;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -29,9 +28,7 @@ namespace ONI_Together.Patches.GamePatches
 			// Attach OxySync time sync component directly to GameClock
 			if (!__instance.TryGetComponent<GameTimeSyncComponent>(out var gtsc))
 			{
-				var identity = __instance.gameObject.AddComponent<NetworkIdentity>();
-				identity.NetId = PredeterminedNetIds.Game_Clock;
-				NetworkIdentityRegistry.RegisterOverride(identity, PredeterminedNetIds.Game_Clock);
+				__instance.gameObject.AddComponent<NetworkIdentity>();
 				__instance.gameObject.AddComponent<GameTimeSyncComponent>();
 			}
         }

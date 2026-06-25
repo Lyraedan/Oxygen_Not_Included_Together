@@ -21,6 +21,7 @@ namespace Shared.OxySync
         public static Func<ulong, int, int, byte[], bool>? SendTargetRpcToPlayer;
 
         public static Func<NetworkBehaviour, int>? NetIdQuery;
+        public static Action<NetworkBehaviour, int>? NetIdSetter;
         public static Action<string>? LogWarning;
 
         private List<SyncVarField>? _syncVarFields;
@@ -32,7 +33,11 @@ namespace Shared.OxySync
         protected bool isClient => IsClientQuery?.Invoke() ?? false;
         protected bool inSession => InSessionQuery?.Invoke() ?? false;
 
-        public virtual int NetId => NetIdQuery?.Invoke(this) ?? 0;
+        public virtual int NetId
+        {
+            get => NetIdQuery?.Invoke(this) ?? 0;
+            set => NetIdSetter?.Invoke(this, value);
+        }
 
         public float SyncInterval = 0.5f;
         public float _lastSyncTime;
