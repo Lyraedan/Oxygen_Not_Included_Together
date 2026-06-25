@@ -2,7 +2,7 @@ namespace Shared.OxySync
 {
     public static class PredeterminedNetIds
     {
-        public const int GameClock = int.MaxValue - 1;
-        public const int SpeedControlScreen = int.MaxValue - 2;
+        public static int Game_Clock = nameof(GameClock).GetHashCode();
+        public static int Speed_Control_Screen = nameof(SpeedControlScreen).GetHashCode();
     }
 }

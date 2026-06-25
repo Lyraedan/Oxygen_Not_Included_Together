@@ -30,8 +30,8 @@ namespace ONI_Together.Patches.GamePatches
 			if (!__instance.TryGetComponent<GameTimeSyncComponent>(out var gtsc))
 			{
 				var identity = __instance.gameObject.AddComponent<NetworkIdentity>();
-				identity.NetId = PredeterminedNetIds.GameClock;
-				NetworkIdentityRegistry.RegisterOverride(identity, PredeterminedNetIds.GameClock);
+				identity.NetId = PredeterminedNetIds.Game_Clock;
+				NetworkIdentityRegistry.RegisterOverride(identity, PredeterminedNetIds.Game_Clock);
 				__instance.gameObject.AddComponent<GameTimeSyncComponent>();
 			}
         }

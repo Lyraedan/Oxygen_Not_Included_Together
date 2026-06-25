@@ -21,8 +21,8 @@ namespace ONI_Together.Patches
 			if (!__instance.TryGetComponent<GameSpeedSyncComponent>(out _))
 			{
 				var identity = __instance.gameObject.AddComponent<NetworkIdentity>();
-				identity.NetId = PredeterminedNetIds.SpeedControlScreen;
-				NetworkIdentityRegistry.RegisterOverride(identity, PredeterminedNetIds.SpeedControlScreen);
+				identity.NetId = PredeterminedNetIds.Speed_Control_Screen;
+				NetworkIdentityRegistry.RegisterOverride(identity, PredeterminedNetIds.Speed_Control_Screen);
 				__instance.gameObject.AddComponent<GameSpeedSyncComponent>();
 			}
 		}
