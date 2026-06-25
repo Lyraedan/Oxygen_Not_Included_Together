@@ -34,7 +34,7 @@ namespace Shared.OxySync
 
         public virtual int NetId => NetIdQuery?.Invoke(this) ?? 0;
 
-        public virtual float SyncInterval => 0.5f;
+        public float SyncInterval = 0.5f;
         public float _lastSyncTime;
 
         public IReadOnlyList<SyncVarField> SyncVarFields =>
