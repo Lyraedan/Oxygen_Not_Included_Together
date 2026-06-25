@@ -10,7 +10,7 @@ namespace Shared.OxySync
         private enum ArgType : byte
         {
             Int, Float, Bool, Byte, Long, Double, String,
-            Vector2, Vector3, Color, Quaternion, ByteArray
+            Vector2, Vector3, Color, Quaternion, ByteArray, ULong
         }
 
         private static readonly Dictionary<Type, ArgType> TypeToTag = new()
@@ -27,9 +27,10 @@ namespace Shared.OxySync
             [typeof(Color)] = ArgType.Color,
             [typeof(Quaternion)] = ArgType.Quaternion,
             [typeof(byte[])] = ArgType.ByteArray,
+            [typeof(ulong)] = ArgType.ULong,
         };
 
-        public static bool IsSupportedType(Type t) => TypeToTag.ContainsKey(t);
+        public static bool IsSupportedType(Type t) => t.IsEnum || TypeToTag.ContainsKey(t);
 
         public static byte[] Serialize(object[] args, Type[] argTypes)
         {
@@ -60,6 +61,13 @@ namespace Shared.OxySync
 
         private static void WriteArg(BinaryWriter writer, object value, Type type)
         {
+            if (type.IsEnum)
+            {
+                writer.Write((byte)ArgType.Int);
+                writer.Write(Convert.ToInt32(value));
+                return;
+            }
+
             ArgType tag = TypeToTag[type];
             writer.Write((byte)tag);
 
@@ -69,8 +77,9 @@ namespace Shared.OxySync
                 case ArgType.Float: writer.Write((float)value); break;
                 case ArgType.Bool: writer.Write((bool)value); break;
                 case ArgType.Byte: writer.Write((byte)value); break;
-                case ArgType.Long: writer.Write((long)value); break;
-                case ArgType.Double: writer.Write((double)value); break;
+                case ArgType.Long:      writer.Write((long)value); break;
+                case ArgType.ULong:     writer.Write((ulong)value); break;
+                case ArgType.Double:    writer.Write((double)value); break;
                 case ArgType.String: writer.Write((string)value ?? string.Empty); break;
                 case ArgType.Vector2: writer.Write((Vector2)value); break;
                 case ArgType.Vector3: writer.Write((Vector3)value); break;
@@ -102,11 +111,14 @@ namespace Shared.OxySync
 
             switch (tag)
             {
-                case ArgType.Int: return reader.ReadInt32();
+                case ArgType.Int:
+                    int intVal = reader.ReadInt32();
+                    return type.IsEnum ? Enum.ToObject(type, intVal) : intVal;
                 case ArgType.Float: return reader.ReadSingle();
                 case ArgType.Bool: return reader.ReadBoolean();
                 case ArgType.Byte: return reader.ReadByte();
                 case ArgType.Long: return reader.ReadInt64();
+                case ArgType.ULong: return reader.ReadUInt64();
                 case ArgType.Double: return reader.ReadDouble();
                 case ArgType.String: return reader.ReadString();
                 case ArgType.Vector2: return reader.ReadVector2();
