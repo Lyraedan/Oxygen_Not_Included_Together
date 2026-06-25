@@ -1,7 +1,9 @@
 ﻿using HarmonyLib;
 using ONI_Together.DebugTools;
 using ONI_Together.Networking;
-using ONI_Together.Networking.Packets.World;
+using ONI_Together.Networking.Components;
+using ONI_Together.Networking.OxySync.Components;
+using Shared.OxySync;
 using System;
 using Shared.Profiling;
 
@@ -12,6 +14,19 @@ namespace ONI_Together.Patches
 	{
 		public static bool IsSyncing = false;
 
+		[HarmonyPatch("OnPrefabInit")]
+		[HarmonyPostfix]
+		public static void OnPrefabInit_Postfix(SpeedControlScreen __instance)
+		{
+			if (!__instance.TryGetComponent<GameSpeedSyncComponent>(out _))
+			{
+				var identity = __instance.gameObject.AddComponent<NetworkIdentity>();
+				identity.NetId = PredeterminedNetIds.SpeedControlScreen;
+				NetworkIdentityRegistry.RegisterOverride(identity, PredeterminedNetIds.SpeedControlScreen);
+				__instance.gameObject.AddComponent<GameSpeedSyncComponent>();
+			}
+		}
+
 		[HarmonyPatch("SetSpeed")]
 		[HarmonyPostfix]
 		public static void SetSpeed_Postfix(int Speed)
@@ -21,11 +36,9 @@ namespace ONI_Together.Patches
 			try
 			{
 				if (IsSyncing) return;
+				if (!MultiplayerSession.InSession) return;
 
-				var packet = new SpeedChangePacket((SpeedChangePacket.SpeedState)Speed);
-
-				PacketSender.SendToAllOtherPeers(packet);
-				DebugConsole.Log($"[SpeedControl] Sent SpeedChangePacket: {packet.Speed}");
+				GameSpeedSyncComponent.Instance?.RequestSetSpeed(Speed);
 			}
 			catch (Exception ex)
 			{
@@ -35,21 +48,21 @@ namespace ONI_Together.Patches
 
 		[HarmonyPatch(nameof(SpeedControlScreen.TogglePause))]
 		[HarmonyPostfix]
-		public static void TogglePause_Postfix(SpeedControlScreen __instance)
+		public static void TogglePause_Postfix()
 		{
 			using var _ = Profiler.Scope();
 
 			try
 			{
 				if (IsSyncing) return;
+				if (!MultiplayerSession.InSession) return;
 
-				var speedState = __instance.IsPaused
-						? SpeedChangePacket.SpeedState.Paused
-						: (SpeedChangePacket.SpeedState)__instance.GetSpeed();
+				// Original TogglePause has already run. Determine the resulting state.
+				var newState = SpeedControlScreen.Instance.IsPaused
+					? (int)GameSpeedSyncComponent.SpeedState.Paused
+					: SpeedControlScreen.Instance.GetSpeed();
 
-				var packet = new SpeedChangePacket(speedState);
-				PacketSender.SendToAllOtherPeers(packet);
-				DebugConsole.Log($"[SpeedControl] Sent SpeedChangePacket (pause toggle): {packet.Speed}");
+				GameSpeedSyncComponent.Instance?.RequestSetSpeed(newState);
 			}
 			catch (Exception ex)
 			{
