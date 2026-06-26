@@ -18,8 +18,6 @@ namespace ONI_Together.Networking.OxySync.Components
 
         public int RegisteredCount => _behaviours.Count;
         public IReadOnlyList<NetworkBehaviour> AllBehaviours => _behaviours;
-        
-        private readonly Dictionary<NetworkBehaviour, NetworkIdentity> _identityCache = new();
 
         private void Awake()
         {
@@ -28,10 +26,7 @@ namespace ONI_Together.Networking.OxySync.Components
             NetworkBehaviour.OnSpawned += Register;
             NetworkBehaviour.OnBehaviourCleanUp += Unregister;
 
-            NetworkBehaviour.NetIdQuery = (behaviour) =>
-                _identityCache.TryGetValue(behaviour, out var identity) && identity != null
-                    ? identity.NetId
-                    : 0;
+            NetworkBehaviour.NetIdQuery = (behaviour) => behaviour.GetComponent<NetworkIdentity>()?.NetId ?? 0;
 
             NetworkBehaviour.NetIdSetter = (behaviour, newNetId) => behaviour.gameObject.AddOrGet<NetworkIdentity>().OverrideNetId(newNetId);
 
@@ -107,28 +102,11 @@ namespace ONI_Together.Networking.OxySync.Components
         {
             if (!_behaviours.Contains(behaviour))
                 _behaviours.Add(behaviour);
-            // Don't cache null — identity may be added later (e.g. GameClock)
-            var identity = behaviour.GetComponent<NetworkIdentity>();
-            if (identity != null)
-                _identityCache[behaviour] = identity;
         }
 
         private void Unregister(NetworkBehaviour behaviour)
         {
             _behaviours.Remove(behaviour);
-            _identityCache.Remove(behaviour);
-        }
-
-        private NetworkIdentity? ResolveIdentity(NetworkBehaviour behaviour)
-        {
-            if (_identityCache.TryGetValue(behaviour, out var identity) && !identity.IsNullOrDestroyed())
-                return identity;
-
-            identity = behaviour.GetComponent<NetworkIdentity>();
-            if (identity != null)
-                _identityCache[behaviour] = identity;
-
-            return identity;
         }
 
         private void Update()
@@ -168,7 +146,7 @@ namespace ONI_Together.Networking.OxySync.Components
 
                 if (_changedScratch.Count == 0) continue;
 
-                var identity = ResolveIdentity(behaviour);
+                var identity = behaviour.GetComponent<NetworkIdentity>();
                 if (identity == null || identity.NetId == 0)
                     continue;
 

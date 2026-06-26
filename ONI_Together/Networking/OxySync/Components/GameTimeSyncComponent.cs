@@ -23,7 +23,7 @@ namespace ONI_Together.Networking.OxySync.Components
             base.OnSpawn();
             Instance = this;
             SyncInterval = 1f; // Every 1 second
-            NetId = PredeterminedNetIds.Game_Clock;
+            NetId = nameof(GameClock).GetHashCode();
         }
 
         public override void OnCleanUp()
