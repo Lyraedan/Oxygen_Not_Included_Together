@@ -25,7 +25,15 @@ namespace ONI_Together.Networking.OxySync.Components
 
         private void Update()
         {
-            if (!isServer || _battery == null) return;
+            if (_battery == null) return;
+            if (isClient)
+            {
+                UpdateMeter(_joulesAvailable);
+                return;
+            }
+            
+            if (!isServer) return;
+            
             _joulesAvailable = _battery.JoulesAvailable;
         }
 
@@ -35,7 +43,6 @@ namespace ONI_Together.Networking.OxySync.Components
 
             _battery.joulesAvailable = newValue;
             RefreshBatteryTracker();
-            UpdateMeter(newValue);
         }
 
         private void UpdateMeter(float joules)

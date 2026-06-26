@@ -28,7 +28,15 @@ namespace ONI_Together.Networking.OxySync.Components
 
         private void Update()
         {
-            if (!isServer || _generator == null) return;
+            if (_generator == null) return;
+            
+            if (isClient)
+            {
+                _energyGen.meter?.SetPositionPercent(_inputMassPercent); // Always updated the meter
+                return;
+            }
+            
+            if (!isServer) return;
 
             _joulesAvailable = _generator.JoulesAvailable;
 
