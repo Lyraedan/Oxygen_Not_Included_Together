@@ -30,7 +30,7 @@ namespace ONI_Together.Misc
             return false;
         }
 
-        public static void EncodeStorageContents(Storage storage, Dictionary<string, Variant> optionalValues, string keyPrefix = "")
+        public static byte[] EncodeStorageToBytes(Storage storage)
         {
             using var ms = new MemoryStream();
             using var writer = new BinaryWriter(ms);
@@ -60,7 +60,17 @@ namespace ONI_Together.Misc
                 writer.Write(pe.DiseaseCount);
             }
 
-            optionalValues[keyPrefix + "stor"] = ms.ToArray();
+            return ms.ToArray();
+        }
+
+        public static void EncodeStorageContents(Storage storage, Dictionary<string, Variant> optionalValues, string keyPrefix = "")
+        {
+            optionalValues[keyPrefix + "stor"] = EncodeStorageToBytes(storage);
+        }
+
+        public static void RebuildStorageFromBytes(Storage storage, byte[] data, string diseaseReason = "Multiplayer Sync")
+        {
+            RebuildFromBlob(storage, data, diseaseReason);
         }
 
         public static void RebuildStorageFromData(Storage storage, Dictionary<string, Variant> data, string keyPrefix = "", string diseaseReason = "Multiplayer Sync")
@@ -69,7 +79,7 @@ namespace ONI_Together.Misc
 
             if (data.TryGetValue(keyPrefix + "stor", out var blobVar) && blobVar.ByteArray != null)
             {
-                RebuildFromBlob(storage, blobVar.ByteArray, diseaseReason);
+                RebuildStorageFromBytes(storage, blobVar.ByteArray, diseaseReason);
                 return;
             }
             

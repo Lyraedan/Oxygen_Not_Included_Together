@@ -80,7 +80,7 @@ namespace ONI_Together.Patches.World
         public static void Postfix(FlushToilet __instance)
         {
             using var _ = Profiler.Scope();
-            __instance.gameObject.AddOrGet<ToiletSyncer>();
+            __instance.gameObject.AddOrGet<ToiletStructureSyncer>();
         }
     }
 
@@ -90,7 +90,7 @@ namespace ONI_Together.Patches.World
         public static void Postfix(Toilet __instance)
         {
             using var _ = Profiler.Scope();
-            __instance.gameObject.AddOrGet<ToiletSyncer>();
+            __instance.gameObject.AddOrGet<ToiletStructureSyncer>();
         }
     }
     
@@ -100,7 +100,7 @@ namespace ONI_Together.Patches.World
         public static void Postfix(Reactor __instance)
         {
             using var _ = Profiler.Scope();
-            __instance.gameObject.AddOrGet<ReactorStateSyncer>();
+            __instance.gameObject.AddOrGet<NuclearReactorSyncer>();
         }
     }
 }
