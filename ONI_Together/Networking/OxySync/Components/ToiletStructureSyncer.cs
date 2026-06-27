@@ -34,6 +34,10 @@ namespace ONI_Together.Networking.OxySync.Components
         [SyncVar]
         private float _gunkPct;
 
+        private Operational _operational;
+        [SyncVar(Hook = nameof(OnOperationalChanged))] 
+        private bool _isOperational;
+
         public override void OnSpawn()
         {
             base.OnSpawn();
@@ -43,6 +47,7 @@ namespace ONI_Together.Networking.OxySync.Components
             _conduitConsumer = GetComponent<ConduitConsumer>();
             _prefabID = GetComponent<KPrefabID>();
             _isFlushToilet = _flushToilet != null;
+            _operational = GetComponent<Operational>();
 
             if (_storage != null)
                 _storage.OnStorageChange += OnLocalStorageChanged;
@@ -64,22 +69,34 @@ namespace ONI_Together.Networking.OxySync.Components
         {
             if (isClient)
             {
-                if (_isFlushToilet && _flushToilet != null)
-                {
-                    _flushToilet.fillMeter?.SetPositionPercent(_waterPct);
-                    _flushToilet.contaminationMeter?.SetPositionPercent(_wastePct);
-                    _flushToilet.gunkMeter?.SetPositionPercent(_gunkPct);
-                }
-                else if (_outhouseToilet != null)
-                {
-                    _outhouseToilet.meter?.SetPositionPercent(
-                        Mathf.Clamp01((float)_flushesUsed / _outhouseToilet.maxFlushes));
-                }
+                UpdateClient();
                 return;
             }
 
             if (!isServer || !inSession) return;
 
+            UpdateServer();
+        }
+
+        private void UpdateClient()
+        {
+            if (_isFlushToilet && _flushToilet != null)
+            {
+                _flushToilet.fillMeter?.SetPositionPercent(_waterPct);
+                _flushToilet.contaminationMeter?.SetPositionPercent(_wastePct);
+                _flushToilet.gunkMeter?.SetPositionPercent(_gunkPct);
+            }
+            else if (_outhouseToilet != null)
+            {
+                _outhouseToilet.meter?.SetPositionPercent(
+                    Mathf.Clamp01((float)_flushesUsed / _outhouseToilet.maxFlushes));
+            }
+
+            UpdateOperationalState(_isOperational);
+        }
+
+        private void UpdateServer()
+        {
             if (_isFlushToilet)
             {
                 if (!_storageDirty || _storage == null) return;
@@ -113,6 +130,8 @@ namespace ONI_Together.Networking.OxySync.Components
             {
                 _flushesUsed = _outhouseToilet != null ? _outhouseToilet.FlushesUsed : 0;
             }
+
+            _isOperational = _operational.IsOperational;
         }
 
         private void OnStorageChanged(byte[] oldValue, byte[] newValue)
@@ -135,6 +154,25 @@ namespace ONI_Together.Networking.OxySync.Components
             bool full = totalWater >= _flushToilet.massConsumedPerUse;
             if (_conduitConsumer != null)
                 _conduitConsumer.enabled = !full;
+        }
+
+        private void OnOperationalChanged(bool oldState, bool newState)
+        {
+            UpdateOperationalState(newState);
+        }
+
+        private void UpdateOperationalState(bool state)
+        {
+            if (state)
+            {
+                if (!_prefabID.HasTag(GameTags.Operational))
+                    _prefabID.AddTag(GameTags.Operational);
+            }
+            else
+            {
+                if (_prefabID.HasTag(GameTags.Operational))
+                    _prefabID.RemoveTag(GameTags.Operational);
+            }
         }
     }
 }
