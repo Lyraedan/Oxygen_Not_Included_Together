@@ -73,24 +73,30 @@ namespace ONI_Together.Networking.OxySync
 
         public static void SubscribeToGroup(int groupId)
         {
-            if (!MultiplayerSession.InSession) return;
-            PacketSender.SendToHost(new InterestGroupSubscribePacket
+            AddPlayerToGroup(MultiplayerSession.LocalUserID, groupId);
+            if (MultiplayerSession.InSession && !MultiplayerSession.IsHost)
             {
-                SenderId = MultiplayerSession.LocalUserID,
-                GroupId = groupId,
-                Subscribe = true,
-            });
+                PacketSender.SendToHost(new InterestGroupSubscribePacket
+                {
+                    SenderId = MultiplayerSession.LocalUserID,
+                    GroupId = groupId,
+                    Subscribe = true,
+                });
+            }
         }
 
         public static void UnsubscribeFromGroup(int groupId)
         {
-            if (!MultiplayerSession.InSession) return;
-            PacketSender.SendToHost(new InterestGroupSubscribePacket
+            RemovePlayerFromGroup(MultiplayerSession.LocalUserID, groupId);
+            if (MultiplayerSession.InSession && !MultiplayerSession.IsHost)
             {
-                SenderId = MultiplayerSession.LocalUserID,
-                GroupId = groupId,
-                Subscribe = false,
-            });
+                PacketSender.SendToHost(new InterestGroupSubscribePacket
+                {
+                    SenderId = MultiplayerSession.LocalUserID,
+                    GroupId = groupId,
+                    Subscribe = false,
+                });
+            }
         }
     }
 }

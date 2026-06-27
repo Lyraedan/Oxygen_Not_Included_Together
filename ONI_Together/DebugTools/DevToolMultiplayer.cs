@@ -880,6 +880,59 @@ namespace ONI_Together.DebugTools
             ImGui.SetNextItemWidth(200);
             ImGui.InputText("Filter", ref _oxySyncFilter, 128);
 
+            if (ImGui.CollapsingHeader("Interest Groups", ImGuiTreeNodeFlags.DefaultOpen))
+            {
+                if (ClusterManager.Instance != null)
+                {
+                    int activeWorld = ClusterManager.Instance.activeWorldId;
+                    ImGui.TextColored(new Vector4(0.3f, 1f, 1f, 1f), $"Active World ID: {activeWorld}");
+                }
+
+                ImGui.Separator();
+                ImGui.Text("Player Group Memberships:");
+                if (MultiplayerSession.InSession)
+                {
+                    foreach (var player in MultiplayerSession.ConnectedPlayers)
+                    {
+                        ulong pid = player.Key;
+                        string name = player.Value.PlayerName ?? pid.ToString();
+                        ImGui.Text($"  {name} ({pid}):");
+                        ImGui.SameLine();
+                        ImGui.PushID($"ig_player_{pid}");
+                        if (ImGui.SmallButton("+1"))
+                        {
+                            InterestGroupManager.AddPlayerToGroup(pid, 1);
+                        }
+                        ImGui.SameLine();
+                        if (ImGui.SmallButton("+2"))
+                        {
+                            InterestGroupManager.AddPlayerToGroup(pid, 2);
+                        }
+                        ImGui.SameLine();
+                        if (ImGui.SmallButton("+3"))
+                        {
+                            InterestGroupManager.AddPlayerToGroup(pid, 3);
+                        }
+                        ImGui.SameLine();
+                        if (ImGui.SmallButton("+4"))
+                        {
+                            InterestGroupManager.AddPlayerToGroup(pid, 4);
+                        }
+                        ImGui.SameLine();
+                        if (ImGui.SmallButton("+5"))
+                        {
+                            InterestGroupManager.AddPlayerToGroup(pid, 5);
+                        }
+                        ImGui.PopID();
+                    }
+                }
+                else
+                {
+                    ImGui.TextDisabled("  Not in a multiplayer session.");
+                }
+                ImGui.TextDisabled("  (-1 = broadcast to all)");
+            }
+
             ImGui.Separator();
 
             if (behaviours.Count == 0)
@@ -991,6 +1044,19 @@ namespace ONI_Together.DebugTools
             ImGui.TextColored(new Vector4(1f, 1f, 0.3f, 1f),
                 $"{behaviour.GetType().Name}  (NetId: {behaviour.NetId}, Sync: {behaviour.SyncInterval:F2}s)  [{goName}]");
 
+            int ig = behaviour.InterestGroup;
+            ImGui.TextColored(new Vector4(0.3f, 1f, 1f, 1f),
+                ig == -1 ? "Interest Group: -1 (broadcast)" : $"Interest Group: {ig}");
+            if (ig != -1 && ClusterManager.Instance != null)
+            {
+                int activeWorld = ClusterManager.Instance.activeWorldId;
+                ImGui.SameLine();
+                if (ig == activeWorld)
+                    ImGui.TextColored(new Vector4(0.3f, 1f, 0.3f, 1f), " (matches active world)");
+                else
+                    ImGui.TextColored(new Vector4(1f, 0.5f, 0.3f, 1f), $" (active world: {activeWorld})");
+            }
+
             ImGui.Separator();
 
             var syncVars = behaviour.SyncVarFields;
@@ -1005,9 +1071,10 @@ namespace ONI_Together.DebugTools
                     var currentValue = behaviour.GetSyncVarValue(field.Hash);
                     string typeName = field.Info.FieldType.Name;
                     string valueStr = currentValue?.ToString() ?? "null";
+                    string groupLabel = field.InterestGroup == -1 ? "" : $" [Group: {field.InterestGroup}]";
 
                     ImGui.PushID($"detail_syncvar_{i}");
-                    ImGui.Text($"{field.Info.Name} ({typeName}): {valueStr}");
+                    ImGui.Text($"{field.Info.Name}{groupLabel} ({typeName}): {valueStr}");
                     ImGui.SameLine();
 
                     if (field.Info.FieldType == typeof(bool))
@@ -1094,7 +1161,8 @@ namespace ONI_Together.DebugTools
                 foreach (var kvp in clientRpcs)
                 {
                     var rpc = kvp.Value;
-                    string label = $"[ClientRpc] {rpc.Info.Name}({string.Join(", ", rpc.ArgTypes.Select(t => t.Name))})";
+                    string groupLabel = rpc.InterestGroup == -1 ? "" : $" [Group: {rpc.InterestGroup}]";
+                    string label = $"[ClientRpc] {rpc.Info.Name}{groupLabel}({string.Join(", ", rpc.ArgTypes.Select(t => t.Name))})";
                     ImGui.PushID($"detail_rpc_{kvp.Key}");
                     ImGui.Text(label);
                     ImGui.SameLine();

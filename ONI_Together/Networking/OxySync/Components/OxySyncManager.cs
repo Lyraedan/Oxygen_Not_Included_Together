@@ -102,12 +102,40 @@ namespace ONI_Together.Networking.OxySync.Components
                 });
                 return true;
             };
+
+            App.OnPostLoadScene += OnPostLoadScene;
+        }
+
+        private void OnPostLoadScene()
+        {
+            if (!Utils.IsInGame()) return;
+            Game.Instance.OnSpawnComplete += InitWorldTracking;
+        }
+
+        private void InitWorldTracking()
+        {
+            Game.Instance.Subscribe(1983128072, OnActiveWorldChanged);
+            if (ClusterManager.Instance != null)
+                InterestGroupManager.SubscribeToGroup(ClusterManager.Instance.activeWorldId);
+            Game.Instance.OnSpawnComplete -= InitWorldTracking;
+        }
+
+        private void OnActiveWorldChanged(object data)
+        {
+            var tuple = (Tuple<int, int>)data;
+            InterestGroupManager.UnsubscribeFromGroup(tuple.second);
+            InterestGroupManager.SubscribeToGroup(tuple.first);
         }
 
         private void OnDestroy()
         {
             NetworkBehaviour.OnSpawned -= Register;
             NetworkBehaviour.OnBehaviourCleanUp -= Unregister;
+
+            App.OnPostLoadScene -= OnPostLoadScene;
+
+            if (Game.Instance != null)
+                Game.Instance.Unsubscribe(1983128072, OnActiveWorldChanged);
 
             if (Instance == this)
                 Instance = null;
@@ -117,6 +145,13 @@ namespace ONI_Together.Networking.OxySync.Components
         {
             if (!_behaviours.Contains(behaviour))
                 _behaviours.Add(behaviour);
+
+            if (behaviour.InterestGroup == -1)
+            {
+                int worldId = behaviour.GetMyWorldId();
+                if (worldId >= 0)
+                    behaviour.InterestGroup = worldId;
+            }
         }
 
         private void Unregister(NetworkBehaviour behaviour)
@@ -202,6 +237,10 @@ namespace ONI_Together.Networking.OxySync.Components
                 }
 
                 behaviour.SyncLastSentValues();
+
+                int currentWorld = behaviour.GetMyWorldId();
+                if (currentWorld >= 0 && currentWorld != behaviour.InterestGroup)
+                    behaviour.InterestGroup = currentWorld;
             }
         }
 
