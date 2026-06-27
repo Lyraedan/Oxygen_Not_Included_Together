@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace Shared.OxySync
 {
-    public abstract class NetworkTransform : NetworkBehaviour
+    public class NetworkTransform : NetworkBehaviour
     {
         [SyncVar(Epsilon = 0.01f)]
         protected Vector3 _netPosition;
