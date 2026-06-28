@@ -37,6 +37,8 @@ namespace ONI_Together.Networking
 		public PlayerAreaVisualizer areaVisualizer = new PlayerAreaVisualizer();
 		public PlayerUtilityVisualizer utilityVisualizer = new PlayerUtilityVisualizer();
 
+		public int InterestGroup = -1;
+
         private readonly Dictionary<CursorState, float> cursorActionThresholds = new Dictionary<CursorState, float>()
 				{
 						{ CursorState.NONE, 0.36f },

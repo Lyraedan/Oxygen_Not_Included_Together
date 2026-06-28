@@ -6,6 +6,7 @@ using Steamworks;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using ONI_Together.Networking.OxySync;
 using Shared.Profiling;
 using UnityEngine;
 using YamlDotNet.Core;
@@ -189,6 +190,19 @@ namespace ONI_Together.Networking.Packets.Core
 			cursor.buildingVisualiser.UpdateVisualizer(BuildingPrefabId, position, BuildingOrientation, Color, BuildingAllowed);
 			cursor.areaVisualizer.UpdateArea(Color, AreaDownPos, Position, Dragging, DragMode, LengthLimit);
 			cursor.utilityVisualizer.UpdatePath(BuildingPrefabId, UtilityPathData, Color);
+
+			// Dynamically adjust the players interest group on the server based off their cursor position
+			if (MultiplayerSession.IsHost)
+			{
+				int currentWorld = cursor.GetMyWorldId();
+				if (currentWorld >= 0 && currentWorld != cursor.InterestGroup)
+				{
+					if (cursor.InterestGroup != -1)
+						InterestGroupManager.RemovePlayerFromGroup(PlayerID, cursor.InterestGroup);
+					cursor.InterestGroup = currentWorld;
+					InterestGroupManager.AddPlayerToGroup(PlayerID, cursor.InterestGroup);
+				}
+			}
 		}
 
 	}

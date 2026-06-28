@@ -102,14 +102,6 @@ namespace ONI_Together.Networking.OxySync.Components
                 });
                 return true;
             };
-
-            App.OnPostLoadScene += OnPostLoadScene;
-        }
-
-        private void OnPostLoadScene()
-        {
-            if (!Utils.IsInGame()) return;
-            Game.Instance.OnSpawnComplete += InitWorldTracking;
         }
 
         private void InitWorldTracking()
@@ -117,7 +109,6 @@ namespace ONI_Together.Networking.OxySync.Components
             Game.Instance.Subscribe(1983128072, OnActiveWorldChanged);
             if (ClusterManager.Instance != null)
                 InterestGroupManager.SubscribeToGroup(ClusterManager.Instance.activeWorldId);
-            Game.Instance.OnSpawnComplete -= InitWorldTracking;
         }
 
         private void OnActiveWorldChanged(object data)
@@ -131,9 +122,7 @@ namespace ONI_Together.Networking.OxySync.Components
         {
             NetworkBehaviour.OnSpawned -= Register;
             NetworkBehaviour.OnBehaviourCleanUp -= Unregister;
-
-            App.OnPostLoadScene -= OnPostLoadScene;
-
+            
             if (Game.Instance != null)
                 Game.Instance.Unsubscribe(1983128072, OnActiveWorldChanged);
 
