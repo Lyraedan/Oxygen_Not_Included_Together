@@ -104,9 +104,7 @@ namespace ONI_Together
                     }
                 }
             }
-
-            
-
+			
             public class PROTOCOL
             {
                 public static LocString NO_METADATA = "Peer is running a build without protocol metadata.";
@@ -748,16 +746,52 @@ namespace ONI_Together
 					public static LocString TEXT = "End Session";
 				}
 			}
-		}
-
-		public class OVERLAYS
-		{
-			public class NETWORKACTIVITY
+			
+			public class TOOLS
 			{
-				public static LocString NAME = "Network Activity";
-				public static LocString DESCRIPTION = "Shows real-time network sync activity per object";
-				public static LocString BUTTON = "Network";
-				public static LocString TOOLTIP = "Display network activity of synced objects";
+				public class FILTERLAYERS
+				{
+					public class OBJECTS
+					{
+						public static LocString NAME = "Objects";
+						public static LocString TOOLTIP = "Show/hide all objects with network activity";
+					}
+
+					public class GASSYNC
+					{
+						public static LocString NAME = "Gas Sync";
+						public static LocString TOOLTIP = "Show/hide gas sync network activity";
+					}
+
+					public class LIQUIDSYNC
+					{
+						public static LocString NAME = "Liquid Sync";
+						public static LocString TOOLTIP = "Show/hide liquid sync network activity";
+					}
+
+					public class ANIMSYNC
+					{
+						public static LocString NAME = "Anim Sync";
+						public static LocString TOOLTIP = "Show/hide animation sync indicators";
+					}
+
+					public class VIEWPORTS
+					{
+						public static LocString NAME = "Viewports";
+						public static LocString TOOLTIP = "Show/hide other players\u0027 camera viewports";
+					}
+				}
+			}
+
+			public class OVERLAYS
+			{
+				public class NETWORKACTIVITY
+				{
+					public static LocString NAME = "Network Activity";
+					public static LocString DESCRIPTION = "Shows real-time network sync activity per object";
+					public static LocString BUTTON = "Network";
+					public static LocString TOOLTIP = "Display network activity of synced objects";
+				}
 			}
 		}
 	}

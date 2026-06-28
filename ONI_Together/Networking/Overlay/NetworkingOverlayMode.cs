@@ -12,6 +12,12 @@ namespace ONI_Together.Networking.Overlay
 		public const string OVERLAY_ICON = "icon_category_automation";
 		public const string OVERLAY_ACTION = "action_overlay_network";
 
+		public const string FILTER_OBJECTS = "OBJECTS";
+		public const string FILTER_GAS_SYNC = "GASSYNC";
+		public const string FILTER_LIQUID_SYNC = "LIQUIDSYNC";
+		public const string FILTER_ANIM_SYNC = "ANIMSYNC";
+		public const string FILTER_VIEWPORTS = "VIEWPORTS";
+
 		private const float HIGH_ACTIVITY_THRESHOLD = 500f;
 		private const float MEDIUM_ACTIVITY_THRESHOLD = 100f;
 
@@ -386,21 +392,21 @@ namespace ONI_Together.Networking.Overlay
 			return new[]
 			{
 				new ToolParameterMenu.ToggleData(ToolParameterMenu.FILTERLAYERS.ALL, ToolParameterMenu.ToggleState.On),
-				new ToolParameterMenu.ToggleData("Objects", ToolParameterMenu.ToggleState.On),
-				new ToolParameterMenu.ToggleData("Gas Sync", ToolParameterMenu.ToggleState.On),
-				new ToolParameterMenu.ToggleData("Liquid Sync", ToolParameterMenu.ToggleState.On),
-				new ToolParameterMenu.ToggleData("Anim Sync", ToolParameterMenu.ToggleState.On),
-				new ToolParameterMenu.ToggleData("Viewports", ToolParameterMenu.ToggleState.On),
+				new ToolParameterMenu.ToggleData(FILTER_OBJECTS, ToolParameterMenu.ToggleState.On),
+				new ToolParameterMenu.ToggleData(FILTER_GAS_SYNC, ToolParameterMenu.ToggleState.On),
+				new ToolParameterMenu.ToggleData(FILTER_LIQUID_SYNC, ToolParameterMenu.ToggleState.On),
+				new ToolParameterMenu.ToggleData(FILTER_ANIM_SYNC, ToolParameterMenu.ToggleState.On),
+				new ToolParameterMenu.ToggleData(FILTER_VIEWPORTS, ToolParameterMenu.ToggleState.On),
 			};
 		}
 
 		public override void OnFiltersChanged()
 		{
-			showObjects = InFilter("Objects", legendFilters);
-			showGasSync = InFilter("Gas Sync", legendFilters);
-			showLiquidSync = InFilter("Liquid Sync", legendFilters);
-			showAnimSync = InFilter("Anim Sync", legendFilters);
-			showViewports = InFilter("Viewports", legendFilters);
+			showObjects = InFilter(FILTER_OBJECTS, legendFilters);
+			showGasSync = InFilter(FILTER_GAS_SYNC, legendFilters);
+			showLiquidSync = InFilter(FILTER_LIQUID_SYNC, legendFilters);
+			showAnimSync = InFilter(FILTER_ANIM_SYNC, legendFilters);
+			showViewports = InFilter(FILTER_VIEWPORTS, legendFilters);
 		}
 
 		public static Color GetCellColor(SimDebugView _, int cell)

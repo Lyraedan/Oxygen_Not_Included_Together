@@ -28,11 +28,11 @@ namespace ONI_Together.Networking.Overlay
 			internal static void Postfix(ICollection<KIconToggleMenu.ToggleInfo> ___overlayToggleInfos)
 			{
 				var info = CreateOverlayToggleInfo(
-					"Network Activity",
+					"Network",
 					NetworkingOverlayMode.OVERLAY_ICON,
 					NetworkingOverlayMode.ID,
 					Action.NumActions,
-					"Displays network activity of synced objects"
+					"Display network activity of synced objects"
 				);
 				if (info != null)
 					___overlayToggleInfos?.Add(info);
@@ -175,7 +175,7 @@ namespace ONI_Together.Networking.Overlay
 					{
 						var args = new object[ps.Length];
 						args[0] = sprite;
-						args[1] = "STRINGS.UI.OVERLAYS.NETWORKACTIVITY.DESCRIPTION";
+						args[1] = STRINGS.UI.OVERLAYS.NETWORKACTIVITY.DESCRIPTION;
 						args[2] = Color.white;
 						args[3] = Color.white;
 						for (int i = 4; i < ps.Length; i++)
