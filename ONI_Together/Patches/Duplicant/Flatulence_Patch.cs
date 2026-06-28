@@ -37,6 +37,10 @@ namespace ONI_Together.Patches.Duplicant
 				if (client || preview)
 					return false;
 
+				// Dupes are somehow still farting at the minion select screen of the printing pod because the sim is running. So if the sim isn't paused, prevent farting
+				if (!SpeedControlScreen.Instance.IsPaused)
+					return false;
+
 				return true;
 			}
 		}
