@@ -9,7 +9,43 @@ namespace ONI_Together.Networking.Overlay
 	public class NetworkingOverlayMode : OverlayModes.Mode
 	{
 		public static readonly HashedString ID = "NetworkActivity";
-		public const string OVERLAY_ICON = "icon_category_automation";
+		private static Sprite _overlayIcon;
+		public static Sprite OverlayIcon
+		{
+			get
+			{
+				if (_overlayIcon == null)
+				{
+					var tex = Misc.ResourceLoader.LoadEmbeddedTexture(
+						"ONI_Together.Assets.network_overlay_icon.png");
+					if (tex != null)
+					{
+						var small = ResizeTexture(tex, 36, 36);
+						UnityEngine.Object.Destroy(tex);
+						small.filterMode = FilterMode.Bilinear;
+						_overlayIcon = Sprite.Create(small,
+							new Rect(0, 0, small.width, small.height),
+							new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect);
+					}
+				}
+				return _overlayIcon;
+			}
+		}
+
+		private static Texture2D ResizeTexture(Texture2D source, int newWidth, int newHeight)
+		{
+			var rt = RenderTexture.GetTemporary(newWidth, newHeight, 0,
+				RenderTextureFormat.Default, RenderTextureReadWrite.Linear);
+			Graphics.Blit(source, rt);
+			var prev = RenderTexture.active;
+			RenderTexture.active = rt;
+			var result = new Texture2D(newWidth, newHeight, TextureFormat.ARGB32, false);
+			result.ReadPixels(new Rect(0, 0, newWidth, newHeight), 0, 0);
+			result.Apply();
+			RenderTexture.active = prev;
+			RenderTexture.ReleaseTemporary(rt);
+			return result;
+		}
 		public const string OVERLAY_ACTION = "action_overlay_network";
 
 		public const string FILTER_OBJECTS = "OBJECTS";
@@ -319,6 +355,13 @@ namespace ONI_Together.Networking.Overlay
 					totalNetworked, activeNow), null,
 					Color.white, null, null, displaySprite: false),
 			};
+
+			if (MultiplayerSession.IsClient && NetworkConfig.TransportClient != null)
+			{
+				int ping = NetworkConfig.TransportClient.GetPing();
+				entries.Add(new LegendEntry(ping >= 0 ? string.Format("Ping: {0}ms", ping) : "Ping: --",
+					null, Color.white, null, null, displaySprite: false));
+			}
 
 			if (showObjects)
 			{

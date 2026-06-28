@@ -29,10 +29,9 @@ namespace ONI_Together.Networking.Overlay
 			{
 				var info = CreateOverlayToggleInfo(
 					"Network",
-					NetworkingOverlayMode.OVERLAY_ICON,
 					NetworkingOverlayMode.ID,
 					Action.NumActions,
-					"Display network activity of synced objects"
+					"Display Network Activity"
 				);
 				if (info != null)
 					___overlayToggleInfos?.Add(info);
@@ -75,8 +74,7 @@ namespace ONI_Together.Networking.Overlay
 		}
 
 		private static KIconToggleMenu.ToggleInfo CreateOverlayToggleInfo(
-			string text, string iconName, HashedString simView,
-			Action hotKey, string tooltip)
+			string text, HashedString simView, Action hotKey, string tooltip)
 		{
 			if (OVERLAY_TOGGLE_TYPE == null)
 			{
@@ -103,7 +101,7 @@ namespace ONI_Together.Networking.Overlay
 			}
 
 			args[0] = text;
-			args[1] = iconName;
+			args[1] = "network_activity";
 			args[2] = simView;
 			args[3] = "";
 			args[4] = hotKey;
@@ -119,7 +117,26 @@ namespace ONI_Together.Networking.Overlay
 					args[i] = null;
 			}
 
-			return cons.Invoke(args) as KIconToggleMenu.ToggleInfo;
+			var info = cons.Invoke(args) as KIconToggleMenu.ToggleInfo;
+			if (info != null)
+			{
+				info.getSpriteCB = () => NetworkingOverlayMode.OverlayIcon;
+				info.getTooltipText = () =>
+				{
+					var list = new List<Tuple<string, TextStyleSetting>>();
+					list.Add(new Tuple<string, TextStyleSetting>(STRINGS.UI.OVERLAYS.NETWORKACTIVITY.TOOLTIP,
+						ToolTipScreen.Instance.defaultTooltipHeaderStyle));
+					if (MultiplayerSession.IsClient && NetworkConfig.TransportClient != null)
+					{
+						int ping = NetworkConfig.TransportClient.GetPing();
+						if (ping >= 0)
+							list.Add(new Tuple<string, TextStyleSetting>($"Ping: {ping}ms",
+								ToolTipScreen.Instance.defaultTooltipBodyStyle));
+					}
+					return list;
+				};
+			}
+			return info;
 		}
 
 		private static OverlayLegend.OverlayInfo CreateOverlayInfo()
@@ -138,7 +155,7 @@ namespace ONI_Together.Networking.Overlay
 			}
 
 			object infoUnit = null;
-			var sprite = Assets.GetSprite(NetworkingOverlayMode.OVERLAY_ICON);
+			var sprite = NetworkingOverlayMode.OverlayIcon;
 			foreach (var cons in infoUnitCons)
 			{
 				var ps = cons.GetParameters();
