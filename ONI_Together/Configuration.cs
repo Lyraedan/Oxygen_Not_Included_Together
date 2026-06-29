@@ -62,6 +62,14 @@ namespace ONI_Together
             set => Host.Server.PauseSimOnPlayerDisconnect = value;
         }
 
+        [Option("STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.SERVER_TICK_RATE", "STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.SERVER_SETTINGS.SERVER_TICK_RATE", "STRINGS.UI.CONFIGURATION.HEADERS.A_HOST_SETTINGS")]
+        [JsonIgnore]
+        public ServerTickRate ServerTickRate
+        {
+            get => Host.Server.TickRate;
+            set => Host.Server.TickRate = value;
+        }
+
         [Option("STRINGS.UI.CONFIGURATION.TITLES.CLIENT_SETTINGS.MAX_MESSAGES_PER_POLL", "STRINGS.UI.CONFIGURATION.TOOLTIPS.CLIENT_SETTINGS.MAX_MESSAGES_PER_POLL", "STRINGS.UI.CONFIGURATION.HEADERS.B_CLIENT_SETTINGS")]
         [JsonIgnore]
         public int ClientMaxMessagesPerPoll
@@ -236,6 +244,17 @@ namespace ONI_Together
     {
         [JsonProperty] public bool HardSyncAtCycleStart { get; set; } = false;
         [JsonProperty] public bool PauseSimOnPlayerDisconnect { get; set; } = false;
+        [JsonProperty] public ServerTickRate TickRate { get; set; } = ServerTickRate.TPS_60;
+    }
+
+    public enum ServerTickRate
+    {
+        TPS_20 = 0,
+        TPS_30 = 1,
+        TPS_60 = 2,
+        TPS_90 = 3,
+        TPS_120 = 4,
+        TPS_128 = 5,
     }
 
     [Serializable]
