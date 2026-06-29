@@ -28,6 +28,7 @@ namespace ONI_Together.Networking.OxySync.Components
             base.OnSpawn();
             Instance = this;
             NetId = nameof(SpeedControlScreen).GetHashCode();
+            InterestGroup = -1;
 
             if (SpeedControlScreen.Instance != null)
             {

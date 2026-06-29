@@ -24,6 +24,7 @@ namespace ONI_Together.Networking.OxySync.Components
             Instance = this;
             SyncInterval = 1f; // Every 1 second
             NetId = nameof(GameClock).GetHashCode();
+            InterestGroup = -1;
         }
 
         public override void OnCleanUp()

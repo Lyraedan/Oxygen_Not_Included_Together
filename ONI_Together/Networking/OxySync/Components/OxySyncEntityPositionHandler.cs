@@ -35,11 +35,13 @@ namespace ONI_Together.Networking.OxySync.Components
         [Server]
         protected override void ServerUpdate()
         {
+            /* Replaced by Interest Groups
             int cell = Grid.PosToCell(transform.position);
             if (WorldStateSyncer.Instance != null
                 && !WorldStateSyncer.Instance.IsCellVisibleToAnyClientViewport(cell, VIEWPORT_MARGIN))
                 return;
-
+            */
+            
             base.ServerUpdate();
 
             if (kbac != null)
@@ -66,6 +68,8 @@ namespace ONI_Together.Networking.OxySync.Components
 
         protected override bool ShouldRequestPosition()
         {
+            return false; // Replaced by interest groups
+            
             if (!WorldStateSyncer.TryGetLocalViewport(out var viewport))
                 return false;
 

@@ -65,6 +65,11 @@ namespace ONI_Together.DebugTools
         // OxySync
         private string _oxySyncFilter = string.Empty;
         private NetworkBehaviour? _selectedBehaviour = null;
+        private int _oxySyncSelectedWorldIdx = 0;
+        private int _oxySyncSelectedTypeIdx = 0;
+        private List<string> _oxySyncTypeNames = new() { "All" };
+        private string[] _oxySyncWorldOptions = new[] { "All", "Group -1 (Broadcast)" };
+        private int[] _oxySyncWorldIds = new[] { -2, -1 };
 
         // Independent popout windows
         private struct PopoutWindow
@@ -875,10 +880,37 @@ namespace ONI_Together.DebugTools
 
             var behaviours = OxySyncManager.Instance.AllBehaviours;
 
-            ImGui.Text($"Registered Behaviours: {behaviours.Count}");
+            BuildOxySyncWorldOptions();
+            BuildOxySyncTypeOptions(behaviours);
+
+            ImGui.SetNextItemWidth(140);
+            if (ImGui.BeginCombo("World", _oxySyncWorldOptions[_oxySyncSelectedWorldIdx]))
+            {
+                for (int i = 0; i < _oxySyncWorldOptions.Length; i++)
+                {
+                    if (ImGui.Selectable(_oxySyncWorldOptions[i], _oxySyncSelectedWorldIdx == i))
+                        _oxySyncSelectedWorldIdx = i;
+                }
+                ImGui.EndCombo();
+            }
+
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(160);
+            if (ImGui.BeginCombo("Type", _oxySyncTypeNames[_oxySyncSelectedTypeIdx]))
+            {
+                for (int i = 0; i < _oxySyncTypeNames.Count; i++)
+                {
+                    if (ImGui.Selectable(_oxySyncTypeNames[i], _oxySyncSelectedTypeIdx == i))
+                        _oxySyncSelectedTypeIdx = i;
+                }
+                ImGui.EndCombo();
+            }
+
             ImGui.SameLine();
             ImGui.SetNextItemWidth(200);
-            ImGui.InputText("Filter", ref _oxySyncFilter, 128);
+            ImGui.InputText("Search", ref _oxySyncFilter, 128);
+
+            ImGui.Text($"Registered Behaviours: {behaviours.Count}");
 
             if (ImGui.CollapsingHeader("Interest Groups", ImGuiTreeNodeFlags.DefaultOpen))
             {
@@ -943,7 +975,10 @@ namespace ONI_Together.DebugTools
                 return;
             }
 
-            bool hasFilter = !string.IsNullOrEmpty(_oxySyncFilter);
+            bool hasTextFilter = !string.IsNullOrEmpty(_oxySyncFilter);
+            int selectedWorldId = _oxySyncWorldIds[_oxySyncSelectedWorldIdx];
+            string selectedTypeName = _oxySyncTypeNames[_oxySyncSelectedTypeIdx];
+            bool hasTypeFilter = _oxySyncSelectedTypeIdx > 0;
             var available = ImGui.GetContentRegionAvail();
 
             if (ImGui.BeginTable("OxySyncTable", 2, ImGuiTableFlags.Resizable | ImGuiTableFlags.NoSavedSettings,
@@ -963,30 +998,56 @@ namespace ONI_Together.DebugTools
                     var b = behaviours[i];
                     if (b.IsNullOrDestroyed()) continue;
 
-                    string typeName = b.GetType().Name;
-                    string netIdStr = b.NetId.ToString();
+                    // World filter
+                    if (selectedWorldId == -1)
+                    {
+                        if (b.InterestGroup != -1) continue;
+                    }
+                    else if (selectedWorldId >= 0)
+                    {
+                        int myWorldId = b.GetMyWorldId();
+                        if (myWorldId < 0 || myWorldId != selectedWorldId) continue;
+                    }
 
-                    if (hasFilter)
+                    string typeName = b.GetType().Name;
+
+                    // Type filter
+                    if (hasTypeFilter && typeName != selectedTypeName) continue;
+
+                    // Text search across Type, NetId, Group, and Object Name
+                    string netIdStr = b.NetId.ToString();
+                    string groupStr = b.InterestGroup.ToString();
+                    string goName = b.gameObject?.name ?? "?";
+
+                    if (hasTextFilter)
                     {
                         bool matchesType = typeName.IndexOf(_oxySyncFilter, StringComparison.OrdinalIgnoreCase) >= 0;
                         bool matchesId = netIdStr.IndexOf(_oxySyncFilter, StringComparison.OrdinalIgnoreCase) >= 0;
-                        if (!matchesType && !matchesId) continue;
+                        bool matchesGroup = groupStr.IndexOf(_oxySyncFilter, StringComparison.OrdinalIgnoreCase) >= 0;
+                        bool matchesName = goName.IndexOf(_oxySyncFilter, StringComparison.OrdinalIgnoreCase) >= 0;
+                        if (!matchesType && !matchesId && !matchesGroup && !matchesName) continue;
                     }
 
                     filteredCount++;
-                    string goName = b.gameObject?.name ?? "?";
                     if (goName.Length > 40)
                         goName = goName[..40] + "…";
                     string label = $"{typeName}  [NetId: {b.NetId}, Group:{b.InterestGroup}]  ({goName})";
                     bool isSelected = b == _selectedBehaviour;
 
+                    // Highlight actively syncing behaviours
+                    if (MultiplayerSession.IsHost && (Time.unscaledTime - b._lastSyncTime) <= 2f)
+                        ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.3f, 1f, 0.3f, 1f));
+
                     if (ImGui.Selectable(label, isSelected))
                     {
                         _selectedBehaviour = b;
                     }
+
+                    if (MultiplayerSession.IsHost && (Time.unscaledTime - b._lastSyncTime) <= 2f)
+                        ImGui.PopStyleColor();
                 }
 
-                if (hasFilter)
+                if (hasTextFilter || selectedWorldId != -2 || hasTypeFilter)
                     ImGui.TextDisabled($"Filtered: {filteredCount} / {behaviours.Count}");
 
                 ImGui.EndChild();
@@ -1045,6 +1106,19 @@ namespace ONI_Together.DebugTools
             string goName = behaviour.gameObject?.name ?? "?";
             ImGui.TextColored(new Vector4(1f, 1f, 0.3f, 1f),
                 $"{behaviour.GetType().Name}  (NetId: {behaviour.NetId}, Sync: {behaviour.SyncInterval:F2}s)  [{goName}]");
+
+            if (MultiplayerSession.IsHost)
+            {
+                bool isSyncing = (Time.unscaledTime - behaviour._lastSyncTime) <= 2f;
+                if (isSyncing)
+                    ImGui.TextColored(new Vector4(0.3f, 1f, 0.3f, 1f), "● Syncing");
+                else
+                    ImGui.TextColored(new Vector4(0.5f, 0.5f, 0.5f, 1f), "○ Idle");
+            }
+            else
+            {
+                ImGui.TextDisabled("Sync status only available on host");
+            }
 
             int ig = behaviour.InterestGroup;
             ImGui.TextColored(new Vector4(0.3f, 1f, 1f, 1f),
@@ -1246,6 +1320,49 @@ namespace ONI_Together.DebugTools
             }
             catch { }
             return null;
+        }
+
+        private void BuildOxySyncWorldOptions()
+        {
+            var worldList = new List<string> { "All", "Group -1 (Broadcast)" };
+            var idList = new List<int> { -2, -1 };
+
+            if (ClusterManager.Instance != null)
+            {
+                foreach (var world in ClusterManager.Instance.WorldContainers)
+                {
+                    if (world != null)
+                    {
+                        string name = world.GetProperName();
+                        if (name.Length > 30)
+                            name = name[..30] + "…";
+                        worldList.Add($"World {world.id}: {name}");
+                        idList.Add(world.id);
+                    }
+                }
+            }
+
+            _oxySyncWorldOptions = worldList.ToArray();
+            _oxySyncWorldIds = idList.ToArray();
+
+            if (_oxySyncSelectedWorldIdx >= _oxySyncWorldOptions.Length)
+                _oxySyncSelectedWorldIdx = 0;
+        }
+
+        private void BuildOxySyncTypeOptions(IReadOnlyList<NetworkBehaviour> behaviours)
+        {
+            var types = new HashSet<string>();
+            for (int i = 0; i < behaviours.Count; i++)
+            {
+                if (!behaviours[i].IsNullOrDestroyed())
+                    types.Add(behaviours[i].GetType().Name);
+            }
+
+            _oxySyncTypeNames = new List<string> { "All" };
+            _oxySyncTypeNames.AddRange(types.OrderBy(t => t));
+
+            if (_oxySyncSelectedTypeIdx >= _oxySyncTypeNames.Count)
+                _oxySyncSelectedTypeIdx = 0;
         }
     }
 }
