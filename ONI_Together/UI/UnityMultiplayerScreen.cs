@@ -112,10 +112,11 @@ namespace ONI_Together.UI
 		Dictionary<LobbyListEntry, LobbyEntryUI> Lobbies = [];
 
 		//AdditionalLobbySettingsSegment
-		GameObject TogglePrefab, CyclePrefab;
+		GameObject TogglePrefab, CyclePrefab, NumberInputPrefab;
 		GameObject SettingsContainer;
 		Dictionary<string, FToggle> SettingsToggles = [];
 		Dictionary<string, FCycle> SettingsCycles = [];
+		Dictionary<string, FInputField2> SettingsNumberInputs = [];
 
 		Callback<LobbyDataUpdate_t> lobbyDataCallback;
 
@@ -249,6 +250,8 @@ namespace ONI_Together.UI
 			TogglePrefab.SetActive(false);
 			CyclePrefab = transform.Find("AdditionalHostSettings/ScrollArea/Content/SwitchPrefab").gameObject;
 			CyclePrefab.SetActive(false);
+			NumberInputPrefab = transform.Find("AdditionalHostSettings/ScrollArea/Content/NumInputPrefab").gameObject;
+			NumberInputPrefab.SetActive(false);
 
 
 			var entryPrefabGO = transform.Find("LobbyList/ScrollArea/Content/EntryPrefab").gameObject;
@@ -633,8 +636,10 @@ namespace ONI_Together.UI
 				STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.PAUSE_SIM_ON_PLAYER_DISCONNECT,
 				STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.SERVER_SETTINGS.PAUSE_SIM_ON_PLAYER_DISCONNECT)
 				.SetOnFromCode(Configuration.Instance.Host.Server.PauseSimOnPlayerDisconnect);
+
+			//AddOrGetLobbySettingsEntry_NumInput("TestNumInput", (i) => Debug.Log("writtenNumber: " + i), "Test Number input", "Test", "e",42);
 		}
-		
+
 		void ToggleHardSyncSetting(bool hardSyncEnabled)
 		{
 			var config = Configuration.Instance;
@@ -667,6 +672,37 @@ namespace ONI_Together.UI
 			optionToggle.gameObject.SetActive(true);
 			return optionToggle;
 		}
+
+		public FInputField2 AddOrGetLobbySettingsEntry_NumInput(string id, System.Action<int> onInputChanged, string label, string tooltip = "", string placeholder = "", int defaultValue = 0)
+		{
+			if (!SettingsNumberInputs.TryGetValue(id, out FInputField2 numOption))
+			{
+				var go = Util.KInstantiateUI(NumberInputPrefab, SettingsContainer, true);
+				var numberInput = go.transform.Find("Input").gameObject.AddOrGet<FInputField2>();
+				numberInput.Text = string.Empty;
+				numberInput.inputField.characterLimit = 10;
+				var settingLabel = go.transform.Find("Label").gameObject.AddOrGet<LocText>();
+				numberInput.transform.Find("TextArea/Placeholder").gameObject.GetComponent<LocText>().SetText(placeholder);
+
+				settingLabel.text = label;
+				if (tooltip.Any())
+					UIUtils.AddSimpleTooltipToObject(settingLabel.transform, tooltip, alignCenter: true, onBottom: true);
+
+				numberInput.AddListener(text => ParseNumber(text, onInputChanged));
+				numOption = SettingsNumberInputs[id] = numberInput;
+			}
+			numOption.SetTextFromData(defaultValue.ToString());
+			numOption.transform.parent.gameObject.SetActive(true);
+			numOption.SetInteractable(true);
+			return numOption;
+		}
+
+		static void ParseNumber(string text, System.Action<int> OnParse)
+		{
+			if (int.TryParse(text, out int value))
+				OnParse(value);
+		}
+
 		public FCycle AddOrGetLobbySettingsEntry_Cycle(string id, List<FCycle.Option> options, System.Action<FCycle.Option> onOptionSelect, string label, string tooltip = "")
 		{
 			if (!SettingsCycles.TryGetValue(id, out var optionCycle))
@@ -741,7 +777,7 @@ namespace ONI_Together.UI
 
 		void StartHostingGame()
 		{
-            switch (CurrentHostMode)
+			switch (CurrentHostMode)
 			{
 				case HostMode.Steam:
 					StartHostingSteamGame();
@@ -754,9 +790,9 @@ namespace ONI_Together.UI
 		private void StartHostingLanGame()
 		{
 			using var _ = Profiler.Scope();
-            NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.RIPTIDE);
+			NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.RIPTIDE);
 
-            string ipAdress = HostIPInput.Text;
+			string ipAdress = HostIPInput.Text;
 			string portText = HostPortInput.Text;
 
 			if (int.TryParse(portText, out int port))
@@ -809,10 +845,10 @@ namespace ONI_Together.UI
 		private void StartHostingSteamGame()
 		{
 			using var _ = Profiler.Scope();
-            NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.STEAMWORKS);
+			NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.STEAMWORKS);
 
-            // Save the host config
-            StoreHostConfigurationSettings();
+			// Save the host config
+			StoreHostConfigurationSettings();
 
 			if (Utils.IsInGame())
 			{
