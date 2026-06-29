@@ -17,6 +17,8 @@ namespace ONI_Together.Networking.OxySync.Components
         private readonly List<NetworkBehaviour> _behaviours = new();
         private readonly Dictionary<int, List<(int Hash, Variant Value)>> _changedByGroup = new();
 
+        private float _tickAccumulator;
+
         public int RegisteredCount => _behaviours.Count;
         public IReadOnlyList<NetworkBehaviour> AllBehaviours => _behaviours;
 
@@ -152,6 +154,12 @@ namespace ONI_Together.Networking.OxySync.Components
         {
             if (!MultiplayerSession.IsHost) return;
             if (_behaviours.Count == 0) return;
+
+            _tickAccumulator += Time.unscaledDeltaTime;
+            _tickAccumulator = Mathf.Min(_tickAccumulator, GameServer.TickInterval * GameServer.MaxMissedTicks);
+            if (_tickAccumulator < GameServer.TickInterval)
+                return;
+            _tickAccumulator -= GameServer.TickInterval;
 
             for (int i = _behaviours.Count - 1; i >= 0; i--)
             {

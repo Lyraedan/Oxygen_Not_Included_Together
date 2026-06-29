@@ -17,8 +17,11 @@ namespace ONI_Together.Networking
 		private static ServerState _state = ServerState.Stopped;
 		public static ServerState State => _state;
 
+		public const float MaxMissedTicks = 3f;
+
 		private static float _tickAccumulator;
 		private static float _tickInterval = 1f / 60f;
+		public static float TickInterval => _tickInterval;
 
 		private static void SetState(ServerState newState)
 		{
@@ -96,7 +99,7 @@ namespace ONI_Together.Networking
 			using var _ = Profiler.Scope();
 
 			_tickAccumulator += Time.unscaledDeltaTime;
-			_tickAccumulator = Mathf.Min(_tickAccumulator, _tickInterval * 3f);
+			_tickAccumulator = Mathf.Min(_tickAccumulator, _tickInterval * MaxMissedTicks);
 			if (_tickAccumulator < _tickInterval)
 				return;
 			_tickAccumulator -= _tickInterval;
