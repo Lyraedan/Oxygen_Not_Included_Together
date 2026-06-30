@@ -5,6 +5,7 @@ using ONI_Together.Networking.OxySync;
 using Shared.OxySync;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -82,6 +83,28 @@ namespace ONI_Together.Networking.Overlay
 		private Canvas _groupLabelCanvas;
 		private const int MAX_GROUP_LABELS = 256;
 
+		private readonly Dictionary<int, GameObject> _syncIcons = new();
+
+		private static Sprite _syncIconSprite;
+		private static Sprite SyncSprite
+		{
+			get
+			{
+				if (_syncIconSprite == null)
+				{
+					var tex = Misc.ResourceLoader.LoadEmbeddedTexture("ONI_Together.Assets.sync_icon.png");
+					if (tex != null)
+					{
+						tex.filterMode = FilterMode.Bilinear;
+						_syncIconSprite = Sprite.Create(tex,
+							new Rect(0, 0, tex.width, tex.height),
+							new Vector2(0.5f, 0.5f), 100f, 0, SpriteMeshType.FullRect);
+					}
+				}
+				return _syncIconSprite;
+			}
+		}
+
 		public NetworkingOverlayMode()
 		{
 			targetLayer = LayerMask.NameToLayer("MaskedOverlay");
@@ -142,6 +165,10 @@ namespace ONI_Together.Networking.Overlay
 			_groupLabels.Clear();
 			_groupLabelCamera = null;
 			_groupLabelCanvas = null;
+
+			foreach (var go in _syncIcons.Values)
+				UnityEngine.Object.Destroy(go);
+			_syncIcons.Clear();
 
 			DisableHighlightTypeOverlay(layerTargets);
 			CameraController.Instance.ToggleColouredOverlayView(false);
@@ -216,6 +243,8 @@ namespace ONI_Together.Networking.Overlay
 
 			UpdateViewportOverlay(min, max);
 
+			UpdateSyncIcons();
+
 			UpdateGroupLabels(min, max);
 		}
 
@@ -274,6 +303,68 @@ namespace ONI_Together.Networking.Overlay
 			return showObjects;
 		}
 
+		private void UpdateSyncIcons()
+		{
+			if (!MultiplayerSession.IsHost) return;
+			if (!showObjects) return;
+
+			var canvas = GameScreenManager.Instance?.worldSpaceCanvas;
+			if (canvas == null) return;
+
+			if (SyncSprite == null) return;
+
+			var activeSet = new HashSet<int>();
+
+			foreach (var identity in layerTargets)
+			{
+				if (identity == null || identity.NetId == 0) continue;
+
+				var behaviours = identity.GetComponents<NetworkBehaviour>();
+				bool isSyncing = behaviours.Any(b => b != null && (Time.unscaledTime - b._lastActiveSyncTime) <= 2f);
+
+				if (!isSyncing) continue;
+
+				activeSet.Add(identity.NetId);
+
+				int cell = Grid.PosToCell(identity.transform.GetPosition());
+				if (cell < 0 || cell >= Grid.CellCount) continue;
+
+				Vector3 targetPos = Grid.CellToPosCCC(cell, Grid.SceneLayer.Building) + new Vector3(0f, Grid.CellSizeInMeters * 0.35f, -0.5f);
+
+				if (_syncIcons.TryGetValue(identity.NetId, out var existingIcon))
+				{
+					existingIcon.transform.position = targetPos;
+					continue;
+				}
+
+				var go = new GameObject($"SyncIcon_{identity.NetId}");
+				go.transform.SetParent(canvas.transform, false);
+
+				var image = go.AddComponent<Image>();
+				image.sprite = SyncSprite;
+				image.raycastTarget = false;
+
+				var rect = go.GetComponent<RectTransform>();
+				rect.sizeDelta = new Vector2(0.35f, 0.35f);
+
+				go.transform.position = targetPos;
+
+				_syncIcons[identity.NetId] = go;
+			}
+
+			var toRemove = new List<int>();
+			foreach (var kvp in _syncIcons)
+			{
+				if (!activeSet.Contains(kvp.Key))
+				{
+					UnityEngine.Object.Destroy(kvp.Value);
+					toRemove.Add(kvp.Key);
+				}
+			}
+			foreach (var key in toRemove)
+				_syncIcons.Remove(key);
+		}
+
 		public override void OnSaveLoadRootRegistered(SaveLoadRoot root)
 		{
 			if (root != null)
@@ -327,6 +418,10 @@ namespace ONI_Together.Networking.Overlay
 					GlobalAssets.Instance.colorSet.cropGrown));
 				entries.Add(new LegendEntry("  Idle (No activity)", null,
 					Color.gray));
+
+				entries.Add(new LegendEntry("", null, Color.white, null, null, displaySprite: false));
+				entries.Add(new LegendEntry("  Syncing (last 2s)", "OxySync actively syncing",
+					Color.white, sprite: SyncSprite));
 			}
 
 			if (showViewports && MultiplayerSession.IsHost && WorldStateSyncer.Instance != null)

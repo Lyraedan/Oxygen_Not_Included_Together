@@ -51,6 +51,7 @@
 		<EmbeddedResource Include="Assets\bundles\networkindicators_mac.bundle" />
 		<EmbeddedResource Include="Assets\bundles\networkindicators_win.bundle" />
 		<EmbeddedResource Include="Assets\network_overlay_icon.png" />
+		<EmbeddedResource Include="Assets\sync_icon.png" />
 	</ItemGroup>
 
 	<ItemGroup>
