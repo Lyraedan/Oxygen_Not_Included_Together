@@ -209,6 +209,8 @@ namespace ONI_Together.Networking
 			return textComponent;
 		}
 
+		public Color CursorColor => playerColor;
+
 		public void SetColor(Color col)
 		{
 			using var _ = Profiler.Scope();

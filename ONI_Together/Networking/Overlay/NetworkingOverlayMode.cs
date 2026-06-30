@@ -53,9 +53,6 @@ namespace ONI_Together.Networking.Overlay
 		public const string OVERLAY_ACTION = "action_overlay_network";
 
 		public const string FILTER_OBJECTS = "OBJECTS";
-		public const string FILTER_GAS_SYNC = "GASSYNC";
-		public const string FILTER_LIQUID_SYNC = "LIQUIDSYNC";
-		public const string FILTER_ANIM_SYNC = "ANIMSYNC";
 		public const string FILTER_VIEWPORTS = "VIEWPORTS";
 		public const string FILTER_GROUPS = "GROUPS";
 
@@ -73,17 +70,11 @@ namespace ONI_Together.Networking.Overlay
 		private NetIdActivityTracker tracker;
 
 		private static float[] _cellActivity;
-		private static bool[] _cellInViewport;
+		private static Color[] _cellInViewport;
 
 		private bool showObjects = true;
-		private bool showGasSync = true;
-		private bool showLiquidSync = true;
-		private bool showAnimSync = true;
 		private bool showViewports = true;
 		private static bool _showGroups = true;
-
-		private readonly HashSet<int> _animSyncNetIds = new HashSet<int>();
-		private bool _animSyncDataValid;
 
 		private GameObject _groupLabelContainer;
 		private List<TextMeshProUGUI> _groupLabels = new List<TextMeshProUGUI>();
@@ -117,7 +108,7 @@ namespace ONI_Together.Networking.Overlay
 			if (_cellActivity == null || _cellActivity.Length != Grid.CellCount)
 				_cellActivity = new float[Grid.CellCount];
 			if (_cellInViewport == null || _cellInViewport.Length != Grid.CellCount)
-				_cellInViewport = new bool[Grid.CellCount];
+				_cellInViewport = new Color[Grid.CellCount];
 			CameraController.Instance.ToggleColouredOverlayView(true);
 			Camera.main.cullingMask |= cameraLayerMask;
 			SelectTool.Instance.SetLayerMask(selectionMask);
@@ -219,45 +210,14 @@ namespace ONI_Together.Networking.Overlay
 				));
 			}
 
-			if (showAnimSync && _animSyncDataValid)
-			{
-				highlights.Add(new OverlayModes.ColorHighlightCondition(
-					(_) => new Color(1f, 0.6f, 0f),
-					(kmb) =>
-					{
-						var ni = kmb as NetworkIdentity;
-						return ni != null && _animSyncNetIds.Contains(ni.NetId);
-					}
-				));
-			}
-
 			var emptyTags = new HashSet<Tag>();
 			UpdateHighlightTypeOverlay(min, max, layerTargets, emptyTags,
 				highlights.ToArray(), OverlayModes.BringToFrontLayerSetting.Constant, targetLayer);
 
-			RefreshAnimSyncData();
 			UpdateCellActivity(min, max);
 			UpdateViewportOverlay(min, max);
 
 			UpdateGroupLabels(min, max);
-		}
-
-		private void RefreshAnimSyncData()
-		{
-			_animSyncNetIds.Clear();
-			if (!showAnimSync || AnimSyncCoordinator.Instance == null)
-			{
-				_animSyncDataValid = false;
-				return;
-			}
-
-			var syncers = AnimSyncCoordinator.GetTrackedSyncers();
-			foreach (var syncer in syncers)
-			{
-				if (syncer != null && syncer.NetId != 0)
-					_animSyncNetIds.Add(syncer.NetId);
-			}
-			_animSyncDataValid = true;
 		}
 
 		private void UpdateCellActivity(Vector2I min, Vector2I max)
@@ -304,7 +264,7 @@ namespace ONI_Together.Networking.Overlay
 			}
 
 			if (_cellInViewport == null || _cellInViewport.Length != Grid.CellCount)
-				_cellInViewport = new bool[Grid.CellCount];
+				_cellInViewport = new Color[Grid.CellCount];
 
 			var viewports = WorldStateSyncer.Instance.ClientViewports;
 			if (viewports.Count == 0)
@@ -315,19 +275,31 @@ namespace ONI_Together.Networking.Overlay
 				for (int x = min.x; x <= max.x; x++)
 				{
 					int cell = Grid.XYToCell(x, y);
-					_cellInViewport[cell] = false;
+					_cellInViewport[cell] = Color.clear;
 					if (!Grid.IsValidCell(cell) || Grid.Solid[cell])
 						continue;
 
+					Color accumulated = Color.black;
+					int count = 0;
 					foreach (var kvp in viewports)
 					{
+						if (!MultiplayerSession.ConnectedPlayers.ContainsKey(kvp.Key))
+							continue;
+
 						var rect = kvp.Value;
 						if (x >= rect.xMin && x < rect.xMax && y >= rect.yMin && y < rect.yMax)
 						{
-							_cellInViewport[cell] = true;
-							break;
+							Color cursorColor = Color.white;
+							if (MultiplayerSession.PlayerCursors.TryGetValue(kvp.Key, out var cursor))
+								cursorColor = cursor.CursorColor;
+
+							accumulated += Color.Lerp(new Color(0f, 0.4f, 1f), cursorColor, 0.5f);
+							count++;
 						}
 					}
+
+					if (count > 0)
+						_cellInViewport[cell] = accumulated / count;
 				}
 			}
 		}
@@ -346,21 +318,7 @@ namespace ONI_Together.Networking.Overlay
 
 		private bool ShouldShowObject(NetworkIdentity identity)
 		{
-			if (!showObjects) return false;
-
-			if (!showGasSync || !showLiquidSync)
-			{
-				var prefab = identity.GetComponent<KPrefabID>();
-				if (prefab != null)
-				{
-					var tag = prefab.PrefabTag;
-					if (!showGasSync && OverlayScreen.GasVentIDs.Contains(tag))
-						return false;
-					if (!showLiquidSync && OverlayScreen.LiquidVentIDs.Contains(tag))
-						return false;
-				}
-			}
-			return true;
+			return showObjects;
 		}
 
 		public override void OnSaveLoadRootRegistered(SaveLoadRoot root)
@@ -420,16 +378,6 @@ namespace ONI_Together.Networking.Overlay
 					Color.gray));
 			}
 
-			if (showAnimSync && _animSyncDataValid)
-			{
-				entries.Add(new LegendEntry("", null, Color.white, null, null, displaySprite: false));
-				entries.Add(new LegendEntry("ANIM SYNC", null,
-					new Color(1f, 0.6f, 0f), null, null, displaySprite: false));
-				entries.Add(new LegendEntry(string.Format("Active: {0} objects",
-					_animSyncNetIds.Count), null,
-					Color.white, null, null, displaySprite: false));
-			}
-
 			if (showViewports && MultiplayerSession.IsHost && WorldStateSyncer.Instance != null)
 			{
 				var viewports = WorldStateSyncer.Instance.ClientViewports;
@@ -440,12 +388,21 @@ namespace ONI_Together.Networking.Overlay
 						new Color(0f, 0.4f, 1f), null, null, displaySprite: false));
 					foreach (var kvp in viewports)
 					{
+						if (!MultiplayerSession.ConnectedPlayers.ContainsKey(kvp.Key))
+							continue;
+
 						var player = MultiplayerSession.GetPlayer(kvp.Key);
 						string name = player?.PlayerName ?? kvp.Key.ToString();
 						var r = kvp.Value;
+
+						Color cursorColor = Color.white;
+						if (MultiplayerSession.PlayerCursors.TryGetValue(kvp.Key, out var cursor))
+							cursorColor = cursor.CursorColor;
+						Color playerViewportColor = Color.Lerp(new Color(0f, 0.4f, 1f), cursorColor, 0.5f);
+
 						entries.Add(new LegendEntry(string.Format("{0}: ({1},{2})-({3},{4})",
 							name, r.xMin, r.yMin, r.xMax, r.yMax),
-							null, new Color(0f, 0.4f, 1f), null, null, displaySprite: false));
+							null, playerViewportColor, null, null, displaySprite: false));
 					}
 				}
 			}
@@ -479,9 +436,6 @@ namespace ONI_Together.Networking.Overlay
 			{
 				new ToolParameterMenu.ToggleData(ToolParameterMenu.FILTERLAYERS.ALL, ToolParameterMenu.ToggleState.On),
 				new ToolParameterMenu.ToggleData(FILTER_OBJECTS, ToolParameterMenu.ToggleState.On),
-				new ToolParameterMenu.ToggleData(FILTER_GAS_SYNC, ToolParameterMenu.ToggleState.On),
-				new ToolParameterMenu.ToggleData(FILTER_LIQUID_SYNC, ToolParameterMenu.ToggleState.On),
-				new ToolParameterMenu.ToggleData(FILTER_ANIM_SYNC, ToolParameterMenu.ToggleState.On),
 				new ToolParameterMenu.ToggleData(FILTER_VIEWPORTS, ToolParameterMenu.ToggleState.On),
 				new ToolParameterMenu.ToggleData(FILTER_GROUPS, ToolParameterMenu.ToggleState.On),
 			};
@@ -490,9 +444,6 @@ namespace ONI_Together.Networking.Overlay
 		public override void OnFiltersChanged()
 		{
 			showObjects = InFilter(FILTER_OBJECTS, legendFilters);
-			showGasSync = InFilter(FILTER_GAS_SYNC, legendFilters);
-			showLiquidSync = InFilter(FILTER_LIQUID_SYNC, legendFilters);
-			showAnimSync = InFilter(FILTER_ANIM_SYNC, legendFilters);
 			showViewports = InFilter(FILTER_VIEWPORTS, legendFilters);
 			_showGroups = InFilter(FILTER_GROUPS, legendFilters);
 		}
@@ -557,9 +508,12 @@ namespace ONI_Together.Networking.Overlay
 				return Color.black;
 			if (Grid.Solid[cell])
 				return Color.black;
+			if (!Grid.IsVisible(cell))
+				return Color.black;
 
 			float bps = _cellActivity[cell];
-			bool inViewport = _cellInViewport != null && _cellInViewport[cell];
+			Color viewportColor = _cellInViewport != null ? _cellInViewport[cell] : Color.clear;
+			bool inViewport = viewportColor.a > 0f;
 
 			Color result = Color.black;
 
@@ -579,8 +533,8 @@ namespace ONI_Together.Networking.Overlay
 
 			if (inViewport)
 			{
-				Color viewportColor = new Color(0f, 0.4f, 1f);
 				result = Color.Lerp(result, viewportColor, 0.4f);
+				result.a = 0.4f;
 			}
 
 			return result;
