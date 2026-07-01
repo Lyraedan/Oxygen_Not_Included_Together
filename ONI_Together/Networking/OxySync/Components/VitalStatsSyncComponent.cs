@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace ONI_Together.Networking.OxySync.Components
 {
-    public class VitalStatsSyncComponent : NetworkBehaviour, ISim1000ms
+    public class VitalStatsSyncComponent : NetworkBehaviour
     {
         [MyCmpReq]
         private NetworkIdentity _identity;
@@ -20,24 +20,33 @@ namespace ONI_Together.Networking.OxySync.Components
         private PrimaryElement _element;
         private Amounts _amounts;
 
+        private float _syncTimer;
+
+        [SyncVar(Hook = nameof(OnSyncedVitalsChanged))]
+        private byte[] _syncedVitals = Array.Empty<byte>();
+
         public override void OnSpawn()
         {
             base.OnSpawn();
             _amounts = gameObject.GetAmounts();
         }
 
-        public void Sim1000ms(float dt)
+        private void Update()
         {
+            if (!MultiplayerSession.IsHostInSession || !MultiplayerSession.SessionHasPlayers)
+                return;
+
+            _syncTimer += Time.unscaledDeltaTime;
+            if (_syncTimer < 1f) return;
+            _syncTimer = 0f;
+
             using var _ = Profiler.Scope();
 
             try
             {
-                if (!MultiplayerSession.IsHostInSession) return;
-                if (!MultiplayerSession.SessionHasPlayers) return;
-
                 var sw = Stopwatch.StartNew();
                 var data = SerializeVitals();
-                CallClientRpc(nameof(RpcSyncVitals), data);
+                _syncedVitals = data;
                 sw.Stop();
                 SyncStats.RecordSync(SyncStats.VitalStats, 1, data.Length, (float)sw.Elapsed.TotalMilliseconds);
             }
@@ -47,18 +56,17 @@ namespace ONI_Together.Networking.OxySync.Components
             }
         }
 
-        [ClientRpc]
-        private void RpcSyncVitals(byte[] data)
+        private void OnSyncedVitalsChanged(byte[] oldData, byte[] newData)
         {
             using var _ = Profiler.Scope();
 
             try
             {
-                Apply(data);
+                Apply(newData);
             }
             catch (Exception ex)
             {
-                DebugConsole.LogError($"[VitalStatsSyncComponent.RpcSyncVitals] Exception: {ex}");
+                DebugConsole.LogError($"[VitalStatsSyncComponent.OnSyncedVitalsChanged] Exception: {ex}");
             }
         }
 
