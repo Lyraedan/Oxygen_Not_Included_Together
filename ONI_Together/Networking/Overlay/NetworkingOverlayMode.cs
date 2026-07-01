@@ -329,11 +329,12 @@ namespace ONI_Together.Networking.Overlay
 				int cell = Grid.PosToCell(identity.transform.GetPosition());
 				if (cell < 0 || cell >= Grid.CellCount) continue;
 
-				Vector3 targetPos = Grid.CellToPosCCC(cell, Grid.SceneLayer.Building) + new Vector3(0f, Grid.CellSizeInMeters * 0.35f, -0.5f);
+				// Bind to grid
+				//Vector3 targetPos = Grid.CellToPosCCC(cell, Grid.SceneLayer.Building) + new Vector3(0f, Grid.CellSizeInMeters * 0.35f, -0.5f);
 
 				if (_syncIcons.TryGetValue(identity.NetId, out var existingIcon))
 				{
-					existingIcon.transform.position = targetPos;
+					existingIcon.transform.position = identity.transform.position + new Vector3(0f, Grid.CellSizeInMeters * 0.35f, -0.5f);
 					continue;
 				}
 
