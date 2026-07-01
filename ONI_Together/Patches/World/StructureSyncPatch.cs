@@ -102,4 +102,14 @@ namespace ONI_Together.Patches.World
             __instance.gameObject.AddOrGet<NuclearReactorSyncer>();
         }
     }
+
+    [HarmonyPatch(typeof(Growing), nameof(Growing.OnSpawn))]
+    public static class Growing_OnSpawn_OxySync_Patch
+    {
+        public static void Postfix(Growing __instance)
+        {
+            using var _ = Profiler.Scope();
+            __instance.gameObject.AddOrGet<PlantSyncComponent>();
+        }
+    }
 }

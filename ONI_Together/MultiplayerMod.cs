@@ -83,7 +83,7 @@ namespace ONI_Together
 				go.AddComponent<PingManager>();
 				//go.AddComponent<BuildingSyncer>(); // Does thing with bridges (Wire Bridge, WireBridge)
 				go.AddComponent<WorldStateSyncer>();
-				go.AddComponent<PlantGrowthSyncer>();
+				go.AddComponent<PlantLifecycleSyncComponent>();
 				go.AddComponent<ConduitFlowSyncer>();
 				go.AddComponent<AnimSyncCoordinator>();
 				go.AddComponent<AnimResyncRequester>();
