@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Threading;
 using ONI_Together_DedicatedServer;
 using ONI_Together_DedicatedServer.ONI;

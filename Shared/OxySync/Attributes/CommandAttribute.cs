@@ -1,4 +1,3 @@
-using ONI_Together.Networking;
 using System;
 
 namespace Shared.OxySync.Attributes
@@ -14,6 +13,5 @@ namespace Shared.OxySync.Attributes
     public class CommandAttribute : Attribute
     {
         public bool RequiresHost { get; set; } = false;
-        public PacketSendMode SendMode { get; set; } = PacketSendMode.Unreliable;
     }
 }

@@ -1,6 +1,4 @@
-﻿using System.Collections.Generic;
-
-namespace ONI_Together_DedicatedServer.Transports
+﻿namespace ONI_Together_DedicatedServer.Transports
 {
     public abstract class DedicatedTransportServer
     {
