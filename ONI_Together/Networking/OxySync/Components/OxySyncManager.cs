@@ -18,7 +18,7 @@ namespace ONI_Together.Networking.OxySync.Components
         public static OxySyncManager? Instance { get; private set; }
 
         private readonly List<NetworkBehaviour> _behaviours = new();
-        private readonly Dictionary<int, List<(int Hash, Variant Value)>> _changedByGroup = new();
+        private readonly Dictionary<(int GroupId, PacketSendMode SendMode), List<(int Hash, Variant Value)>> _changedByGroup = new();
         private readonly HashSet<Type> _explicitGroupTypes = new();
 
         private float _tickAccumulator;
@@ -60,18 +60,18 @@ namespace ONI_Together.Networking.OxySync.Components
             NetworkBehaviour.IsClientQuery = () => MultiplayerSession.IsClient;
             NetworkBehaviour.InSessionQuery = () => MultiplayerSession.InSession;
 
-            NetworkBehaviour.SendCommandToHost = (netId, methodHash, args) =>
+            NetworkBehaviour.SendCommandToHost = (netId, methodHash, args, sendMode) =>
             {
                 PacketSender.SendToHost(new CommandPacket
                 {
                     NetId = netId,
                     MethodHash = methodHash,
                     Args = args,
-                });
+                }, sendMode);
                 return true;
             };
 
-            NetworkBehaviour.SendClientRpcToAll = (netId, methodHash, args) =>
+            NetworkBehaviour.SendClientRpcToAll = (netId, methodHash, args, sendMode) =>
             {
                 PacketSender.SendToAllClients(new ClientRpcPacket
                 {
@@ -79,11 +79,11 @@ namespace ONI_Together.Networking.OxySync.Components
                     MethodHash = methodHash,
                     Args = args,
                     TargetPlayerId = ulong.MaxValue,
-                });
+                }, sendMode);
                 return true;
             };
 
-            NetworkBehaviour.SendClientRpcToGroup = (group, netId, methodHash, args) =>
+            NetworkBehaviour.SendClientRpcToGroup = (group, netId, methodHash, args, sendMode) =>
             {
                 PacketSender.SendToGroup(group, new ClientRpcPacket
                 {
@@ -91,13 +91,13 @@ namespace ONI_Together.Networking.OxySync.Components
                     MethodHash = methodHash,
                     Args = args,
                     TargetPlayerId = ulong.MaxValue,
-                });
+                }, sendMode);
                 return true;
             };
 
             NetworkBehaviour.LocalUserIdQuery = () => MultiplayerSession.LocalUserID;
 
-            NetworkBehaviour.SendTargetRpcToPlayer = (targetPlayer, netId, methodHash, args) =>
+            NetworkBehaviour.SendTargetRpcToPlayer = (targetPlayer, netId, methodHash, args, sendMode) =>
             {
                 PacketSender.SendToPlayer(targetPlayer, new ClientRpcPacket
                 {
@@ -105,7 +105,7 @@ namespace ONI_Together.Networking.OxySync.Components
                     MethodHash = methodHash,
                     Args = args,
                     TargetPlayerId = targetPlayer,
-                });
+                }, sendMode);
                 return true;
             };
         }
@@ -212,10 +212,11 @@ namespace ONI_Together.Networking.OxySync.Components
 
                     int group = field.InterestGroup;
                     if (group == -1) group = behaviour.InterestGroup;
-                    if (!_changedByGroup.TryGetValue(group, out var list))
+                    var key = (group, field.SendMode);
+                    if (!_changedByGroup.TryGetValue(key, out var list))
                     {
                         list = new List<(int Hash, Variant Value)>();
-                        _changedByGroup[group] = list;
+                        _changedByGroup[key] = list;
                     }
                     list.Add((field.Hash, currentVariant));
                 }
@@ -231,7 +232,8 @@ namespace ONI_Together.Networking.OxySync.Components
 
                 foreach (var kvp in _changedByGroup)
                 {
-                    int groupId = kvp.Key;
+                    int groupId = kvp.Key.GroupId;
+                    var sendMode = kvp.Key.SendMode;
                     var updates = kvp.Value;
                     totalChanges += updates.Count;
 
@@ -244,7 +246,7 @@ namespace ONI_Together.Networking.OxySync.Components
                             FieldHash = update.Hash,
                             Value = update.Value,
                             Timestamp = timestamp,
-                        }, PacketSendMode.Unreliable);
+                        }, sendMode);
                     }
                     else
                     {
@@ -252,14 +254,14 @@ namespace ONI_Together.Networking.OxySync.Components
                         {
                             Timestamp = timestamp,
                         };
-                        PacketSender.SendToGroup(groupId, batch, PacketSendMode.Unreliable);
+                        PacketSender.SendToGroup(groupId, batch, sendMode);
                     }
                 }
 
                 bool hasSubscribers = false;
-                foreach (int g in _changedByGroup.Keys)
+                foreach (var key in _changedByGroup.Keys)
                 {
-                    if (InterestGroupManager.GetPlayersInGroup(g).Count > 0)
+                    if (InterestGroupManager.GetPlayersInGroup(key.GroupId).Count > 0)
                     {
                         hasSubscribers = true;
                         break;

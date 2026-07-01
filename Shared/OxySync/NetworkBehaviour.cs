@@ -1,3 +1,4 @@
+using ONI_Together.Networking;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -16,10 +17,10 @@ namespace Shared.OxySync
         public static Func<bool>? IsClientQuery;
         public static Func<bool>? InSessionQuery;
 
-        public static Func<int, int, byte[], bool>? SendCommandToHost;
-        public static Func<int, int, byte[], bool>? SendClientRpcToAll;
-        public static Func<int, int, int, byte[], bool>? SendClientRpcToGroup;
-        public static Func<ulong, int, int, byte[], bool>? SendTargetRpcToPlayer;
+        public static Func<int, int, byte[], PacketSendMode, bool>? SendCommandToHost;
+        public static Func<int, int, byte[], PacketSendMode, bool>? SendClientRpcToAll;
+        public static Func<int, int, int, byte[], PacketSendMode, bool>? SendClientRpcToGroup;
+        public static Func<ulong, int, int, byte[], PacketSendMode, bool>? SendTargetRpcToPlayer;
 
         public static Func<NetworkBehaviour, int>? NetIdQuery;
         public static Action<NetworkBehaviour, int>? NetIdSetter;
@@ -68,6 +69,7 @@ namespace Shared.OxySync
             public MethodInfo? Hook;
             public float Epsilon;
             public int InterestGroup;
+            public PacketSendMode SendMode;
         }
 
         public struct CachedMethod
@@ -76,6 +78,7 @@ namespace Shared.OxySync
             public int Hash;
             public Type[] ArgTypes;
             public int InterestGroup;
+            public PacketSendMode SendMode;
         }
 
         public override void OnSpawn()
@@ -119,6 +122,7 @@ namespace Shared.OxySync
                     Hook = hook,
                     Epsilon = attr.Epsilon,
                     InterestGroup = group,
+                    SendMode = attr.SendMode,
                 });
             }
 
@@ -138,22 +142,22 @@ namespace Shared.OxySync
 
             foreach (var method in methods)
             {
-                if (method.GetCustomAttribute<CommandAttribute>() != null)
+                if (method.GetCustomAttribute<CommandAttribute>() is CommandAttribute cmdAttr)
                 {
-                    (_commandMethods ??= new())[method.Name.GetHashCode()] = MakeCachedMethod(method);
+                    (_commandMethods ??= new())[method.Name.GetHashCode()] = MakeCachedMethod(method, cmdAttr.SendMode);
                 }
-                if (method.GetCustomAttribute<ClientRpcAttribute>() != null)
+                if (method.GetCustomAttribute<ClientRpcAttribute>() is ClientRpcAttribute rpcAttr)
                 {
-                    (_clientRpcMethods ??= new())[method.Name.GetHashCode()] = MakeCachedMethod(method, method.GetCustomAttribute<ClientRpcAttribute>()!.InterestGroup, classDefaultGroup);
+                    (_clientRpcMethods ??= new())[method.Name.GetHashCode()] = MakeCachedMethod(method, rpcAttr.InterestGroup, classDefaultGroup, rpcAttr.SendMode);
                 }
-                if (method.GetCustomAttribute<TargetRpcAttribute>() != null)
+                if (method.GetCustomAttribute<TargetRpcAttribute>() is TargetRpcAttribute trpcAttr)
                 {
-                    (_targetRpcMethods ??= new())[method.Name.GetHashCode()] = MakeCachedMethod(method);
+                    (_targetRpcMethods ??= new())[method.Name.GetHashCode()] = MakeCachedMethod(method, trpcAttr.SendMode);
                 }
             }
         }
 
-        private static CachedMethod MakeCachedMethod(MethodInfo method)
+        private static CachedMethod MakeCachedMethod(MethodInfo method, PacketSendMode sendMode)
         {
             return new CachedMethod
             {
@@ -161,10 +165,11 @@ namespace Shared.OxySync
                 Hash = method.Name.GetHashCode(),
                 ArgTypes = method.GetParameters().Select(p => p.ParameterType).ToArray(),
                 InterestGroup = -1,
+                SendMode = sendMode,
             };
         }
 
-        private static CachedMethod MakeCachedMethod(MethodInfo method, int attrGroup, int classDefaultGroup)
+        private static CachedMethod MakeCachedMethod(MethodInfo method, int attrGroup, int classDefaultGroup, PacketSendMode sendMode)
         {
             return new CachedMethod
             {
@@ -172,6 +177,7 @@ namespace Shared.OxySync
                 Hash = method.Name.GetHashCode(),
                 ArgTypes = method.GetParameters().Select(p => p.ParameterType).ToArray(),
                 InterestGroup = attrGroup != -1 ? attrGroup : classDefaultGroup,
+                SendMode = sendMode,
             };
         }
 
@@ -189,7 +195,8 @@ namespace Shared.OxySync
                 return;
             }
 
-            SendCommandToHost?.Invoke(NetId, hash, serialized);
+            var sendMode = GetCommandSendMode(hash);
+            SendCommandToHost?.Invoke(NetId, hash, serialized, sendMode);
         }
 
         protected void CallClientRpc(string methodName, params object[] args)
@@ -199,13 +206,14 @@ namespace Shared.OxySync
             var hash = methodName.GetHashCode();
             var argTypes = GetClientRpcArgTypes(hash);
             var serialized = RpcSerializer.Serialize(args, argTypes);
+            var sendMode = GetClientRpcSendMode(hash);
 
             int group = GetClientRpcGroup(hash);
             if (group == -1) group = InterestGroup;
             if (group == -1)
-                SendClientRpcToAll?.Invoke(NetId, hash, serialized);
+                SendClientRpcToAll?.Invoke(NetId, hash, serialized, sendMode);
             else
-                SendClientRpcToGroup?.Invoke(group, NetId, hash, serialized);
+                SendClientRpcToGroup?.Invoke(group, NetId, hash, serialized, sendMode);
         }
 
         protected void CallClientRpc(int interestGroup, string methodName, params object[] args)
@@ -215,11 +223,12 @@ namespace Shared.OxySync
             var hash = methodName.GetHashCode();
             var argTypes = GetClientRpcArgTypes(hash);
             var serialized = RpcSerializer.Serialize(args, argTypes);
+            var sendMode = GetClientRpcSendMode(hash);
 
             if (interestGroup == -1)
-                SendClientRpcToAll?.Invoke(NetId, hash, serialized);
+                SendClientRpcToAll?.Invoke(NetId, hash, serialized, sendMode);
             else
-                SendClientRpcToGroup?.Invoke(interestGroup, NetId, hash, serialized);
+                SendClientRpcToGroup?.Invoke(interestGroup, NetId, hash, serialized, sendMode);
         }
 
         protected void CallTargetRpc(ulong targetPlayer, string methodName, params object[] args)
@@ -229,8 +238,9 @@ namespace Shared.OxySync
             var hash = methodName.GetHashCode();
             var argTypes = GetTargetRpcArgTypes(hash);
             var serialized = RpcSerializer.Serialize(args, argTypes);
+            var sendMode = GetTargetRpcSendMode(hash);
 
-            SendTargetRpcToPlayer?.Invoke(targetPlayer, NetId, hash, serialized);
+            SendTargetRpcToPlayer?.Invoke(targetPlayer, NetId, hash, serialized, sendMode);
         }
 
         public virtual void ApplySyncVar(int fieldHash, object value, long timestamp = 0)
@@ -332,6 +342,27 @@ namespace Shared.OxySync
             if (_targetRpcMethods != null && _targetRpcMethods.TryGetValue(hash, out var m))
                 return m.ArgTypes;
             return Array.Empty<Type>();
+        }
+
+        private PacketSendMode GetCommandSendMode(int hash)
+        {
+            if (_commandMethods != null && _commandMethods.TryGetValue(hash, out var m))
+                return m.SendMode;
+            return PacketSendMode.Unreliable;
+        }
+
+        private PacketSendMode GetClientRpcSendMode(int hash)
+        {
+            if (_clientRpcMethods != null && _clientRpcMethods.TryGetValue(hash, out var m))
+                return m.SendMode;
+            return PacketSendMode.Unreliable;
+        }
+
+        private PacketSendMode GetTargetRpcSendMode(int hash)
+        {
+            if (_targetRpcMethods != null && _targetRpcMethods.TryGetValue(hash, out var m))
+                return m.SendMode;
+            return PacketSendMode.Unreliable;
         }
 
         public object? GetSyncVarValue(int fieldHash)

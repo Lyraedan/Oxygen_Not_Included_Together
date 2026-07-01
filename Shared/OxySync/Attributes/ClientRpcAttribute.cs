@@ -1,3 +1,4 @@
+using ONI_Together.Networking;
 using System;
 
 namespace Shared.OxySync.Attributes
@@ -11,5 +12,6 @@ namespace Shared.OxySync.Attributes
     public class ClientRpcAttribute : Attribute
     {
         public int InterestGroup { get; set; } = -1;
+        public PacketSendMode SendMode { get; set; } = PacketSendMode.Unreliable;
     }
 }

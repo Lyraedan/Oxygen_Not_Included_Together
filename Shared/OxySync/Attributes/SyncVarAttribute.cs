@@ -1,3 +1,4 @@
+using ONI_Together.Networking;
 using System;
 
 namespace Shared.OxySync.Attributes
@@ -18,5 +19,6 @@ namespace Shared.OxySync.Attributes
         public string? Hook { get; set; }
         public float Epsilon { get; set; } = 0.01f;
         public int InterestGroup { get; set; } = -1;
+        public PacketSendMode SendMode { get; set; } = PacketSendMode.Unreliable;
     }
 }

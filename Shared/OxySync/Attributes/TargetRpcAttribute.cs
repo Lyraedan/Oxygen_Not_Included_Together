@@ -1,3 +1,4 @@
+using ONI_Together.Networking;
 using System;
 
 namespace Shared.OxySync.Attributes
@@ -10,5 +11,6 @@ namespace Shared.OxySync.Attributes
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
     public class TargetRpcAttribute : Attribute
     {
+        public PacketSendMode SendMode { get; set; } = PacketSendMode.Unreliable;
     }
 }
