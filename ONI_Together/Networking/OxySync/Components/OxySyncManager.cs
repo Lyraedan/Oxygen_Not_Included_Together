@@ -110,27 +110,10 @@ namespace ONI_Together.Networking.OxySync.Components
             };
         }
 
-        private void InitWorldTracking()
-        {
-            Game.Instance.Subscribe(1983128072, OnActiveWorldChanged);
-            if (ClusterManager.Instance != null)
-                InterestGroupManager.SubscribeToGroup(ClusterManager.Instance.activeWorldId);
-        }
-
-        private void OnActiveWorldChanged(object data)
-        {
-            var tuple = (Tuple<int, int>)data;
-            InterestGroupManager.UnsubscribeFromGroup(tuple.second);
-            InterestGroupManager.SubscribeToGroup(tuple.first);
-        }
-
         private void OnDestroy()
         {
             NetworkBehaviour.OnSpawned -= Register;
             NetworkBehaviour.OnBehaviourCleanUp -= Unregister;
-            
-            if (Game.Instance != null)
-                Game.Instance.Unsubscribe(1983128072, OnActiveWorldChanged);
 
             if (Instance == this)
                 Instance = null;

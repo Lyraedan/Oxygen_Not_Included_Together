@@ -1,6 +1,7 @@
 ﻿using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
+using ONI_Together.Networking.OxySync.Components;
 using System.Collections;
 using Shared.Profiling;
 using UnityEngine;
@@ -68,15 +69,15 @@ namespace ONI_Together.Scripts.Duplicants
 				if (smc != null) smc.enabled = false;
 
 			go.AddOrGet<ClientReceiver_ChoreErrands>();
-			var status_receiver = go.AddOrGet<ClientReceiver_StatusItems>();
-			status_receiver.recieverType = ClientReceiver_StatusItems.StatusRecieverType.DUPLICANT;
+			var statusSync = go.AddOrGet<StatusItemsSyncComponent>();
+			statusSync.recieverType = StatusItemsSyncComponent.StatusRecieverType.DUPLICANT;
 		}
 
 		void InitializeHost(GameObject go)
 		{
 			go.AddOrGet<DuplicantStateSender>();
 			go.AddOrGet<DuplicantChoreBroadcaster>();
-			go.AddOrGet<StatusBroadcaster>();
+			go.AddOrGet<StatusItemsSyncComponent>();
 		}
 	}
 }
