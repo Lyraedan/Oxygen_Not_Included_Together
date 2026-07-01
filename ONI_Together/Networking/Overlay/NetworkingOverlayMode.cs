@@ -332,9 +332,10 @@ namespace ONI_Together.Networking.Overlay
 				// Bind to grid
 				//Vector3 targetPos = Grid.CellToPosCCC(cell, Grid.SceneLayer.Building) + new Vector3(0f, Grid.CellSizeInMeters * 0.35f, -0.5f);
 
+				Vector3 targetPos = identity.transform.position + new Vector3(0f, Grid.CellSizeInMeters * 0.35f, -0.5f);
 				if (_syncIcons.TryGetValue(identity.NetId, out var existingIcon))
 				{
-					existingIcon.transform.position = identity.transform.position + new Vector3(0f, Grid.CellSizeInMeters * 0.35f, -0.5f);
+					existingIcon.transform.position = targetPos;
 					continue;
 				}
 
