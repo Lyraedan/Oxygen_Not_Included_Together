@@ -33,10 +33,10 @@
 	<!--Merges all dlls in the output folder into a single dll-->
 	<Target Name="ILRepack" AfterTargets="Build" Condition="'$(IsPacked)' == 'true'">
 		<ItemGroup>
+			<InputAssemblies Include="$(TargetPath)" />
 			<InputAssemblies
 					Include="$(TargetDir)\*.dll"
 					Exclude="$(TargetPath); **/0Harmony.dll; **_public.dll ;**Newtonsoft.Json;**/System.*; **/Microsoft.*; **/Unity*" />
-			<InputAssemblies Include="$(TargetPath)" />
 		</ItemGroup>
 
 		<ILRepack
