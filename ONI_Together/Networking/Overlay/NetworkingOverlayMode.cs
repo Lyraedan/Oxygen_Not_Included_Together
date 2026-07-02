@@ -60,6 +60,7 @@ namespace ONI_Together.Networking.Overlay
 
 		private const float HIGH_ACTIVITY_THRESHOLD = 500f;
 		private const float MEDIUM_ACTIVITY_THRESHOLD = 250f;
+		private const float LEGEND_REFRESH_INTERVAL = 1f;
 
 		private UniformGrid<NetworkIdentity> partition;
 		private readonly HashSet<NetworkIdentity> layerTargets = new HashSet<NetworkIdentity>();
@@ -84,6 +85,7 @@ namespace ONI_Together.Networking.Overlay
 		private const int MAX_GROUP_LABELS = 256;
 
 		private readonly Dictionary<int, GameObject> _syncIcons = new();
+		private float _lastLegendRefresh;
 
 		private static Sprite _syncIconSprite;
 		private static Sprite SyncSprite
@@ -126,6 +128,7 @@ namespace ONI_Together.Networking.Overlay
 		{
 			legendFilters = CreateDefaultFilters();
 			tracker = NetIdActivityTracker.Instance;
+			_lastLegendRefresh = Time.unscaledTime;
 			RegisterSaveLoadListeners();
 			partition = OverlayModes.Mode.PopulatePartition<NetworkIdentity>(new List<Tag>());
 			if (_cellInViewport == null || _cellInViewport.Length != Grid.CellCount)
@@ -244,6 +247,23 @@ namespace ONI_Together.Networking.Overlay
 			UpdateViewportOverlay(min, max);
 			UpdateSyncIcons();
 			UpdateGroupLabels(min, max);
+
+			PacketTracker.Instance?.CalculatePps();
+
+			if (Time.unscaledTime - _lastLegendRefresh >= LEGEND_REFRESH_INTERVAL)
+			{
+				_lastLegendRefresh = Time.unscaledTime;
+				var legend = OverlayLegend.Instance;
+				if (legend != null)
+				{
+					var info = legend.GetOverlayInfo(this);
+					if (info != null)
+					{
+						legend.PopulateGeneratedLegend(info, true);
+						Game.Instance.ForceOverlayUpdate();
+					}
+				}
+			}
 		}
 
 		private void UpdateViewportOverlay(Vector2I min, Vector2I max)

@@ -173,14 +173,14 @@ namespace ONI_Together.DebugTools
             _paused = false;
         }
 
-        private void CalculatePps()
+        public void CalculatePps()
         {
             float now = Time.realtimeSinceStartup;
             float elapsed = now - _lastPpsTime;
             if (elapsed >= 1f)
             {
-                _incomingPps = _ppsInCount / elapsed;
-                _outgoingPps = _ppsOutCount / elapsed;
+                _incomingPps = Mathf.Round(_ppsInCount / elapsed);
+                _outgoingPps = Mathf.Round(_ppsOutCount / elapsed);
                 _ppsInCount = 0;
                 _ppsOutCount = 0;
                 _lastPpsTime = now;

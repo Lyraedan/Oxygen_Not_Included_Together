@@ -798,7 +798,7 @@ namespace ONI_Together
 					public static LocString NAME = "Network Activity";
 					public static LocString DESCRIPTION = "Shows real-time network sync activity per object";
 					public static LocString BUTTON = "Network";
-					public static LocString TOOLTIP = "Network Overlay";
+					public static LocString TOOLTIP = "Displays network activity per object";
 				}
 			}
 		}

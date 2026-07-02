@@ -22,7 +22,7 @@ namespace ONI_Together.Networking.Overlay
 		private static readonly Type OVERLAY_INFO_UNIT_TYPE = typeof(OverlayLegend).GetNestedType(
 			"OverlayInfoUnit", INSTANCE_ALL);
 
-		[HarmonyPatch(typeof(OverlayMenu), "InitializeToggles")]
+		[HarmonyPatch(typeof(OverlayMenu), nameof(OverlayMenu.InitializeToggles))]
 		public static class OverlayMenu_InitializeToggles_Patch
 		{
 			internal static void Postfix(ICollection<KIconToggleMenu.ToggleInfo> ___overlayToggleInfos)
@@ -38,7 +38,29 @@ namespace ONI_Together.Networking.Overlay
 			}
 		}
 
-		[HarmonyPatch(typeof(OverlayScreen), "RegisterModes")]
+		private static bool _prevF5;
+
+		[HarmonyPatch(typeof(OverlayScreen), nameof(OverlayScreen.LateUpdate))]
+		public static class OverlayScreen_LateUpdate_Patch
+		{
+			internal static void Postfix()
+			{
+				bool f5 = Input.GetKey(KeyCode.F5);
+				bool shift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
+				if (shift && f5 && !_prevF5)
+				{
+					var screen = OverlayScreen.Instance;
+					if (screen != null)
+					{
+						bool isActive = screen.mode == NetworkingOverlayMode.ID;
+						screen.ToggleOverlay(isActive ? OverlayModes.None.ID : NetworkingOverlayMode.ID);
+					}
+				}
+				_prevF5 = f5;
+			}
+		}
+
+		[HarmonyPatch(typeof(OverlayScreen), nameof(OverlayScreen.RegisterModes))]
 		public static class OverlayScreen_RegisterModes_Patch
 		{
 			internal static void Postfix(OverlayScreen __instance)
@@ -53,7 +75,7 @@ namespace ONI_Together.Networking.Overlay
 			}
 		}
 
-		[HarmonyPatch(typeof(SimDebugView), "OnPrefabInit")]
+		[HarmonyPatch(typeof(SimDebugView), nameof(SimDebugView.OnPrefabInit))]
 		public static class SimDebugView_OnPrefabInit_Patch
 		{
 			internal static void Postfix(IDictionary<HashedString, Func<SimDebugView, int, Color>> ___getColourFuncs)
@@ -62,7 +84,7 @@ namespace ONI_Together.Networking.Overlay
 			}
 		}
 
-		[HarmonyPatch(typeof(OverlayLegend), "OnSpawn")]
+		[HarmonyPatch(typeof(OverlayLegend), nameof(OverlayLegend.OnSpawn))]
 		public static class OverlayLegend_OnSpawn_Patch
 		{
 			internal static void Prefix(ICollection<OverlayLegend.OverlayInfo> ___overlayInfoList)
@@ -124,8 +146,11 @@ namespace ONI_Together.Networking.Overlay
 				info.getTooltipText = () =>
 				{
 					var list = new List<Tuple<string, TextStyleSetting>>();
-					list.Add(new Tuple<string, TextStyleSetting>(STRINGS.UI.OVERLAYS.NETWORKACTIVITY.TOOLTIP,
+					list.Add(new Tuple<string, TextStyleSetting>(STRINGS.UI.OVERLAYS.NETWORKACTIVITY.NAME,
 						ToolTipScreen.Instance.defaultTooltipHeaderStyle));
+					string hotkey = "<b><color=#F44A4A>[SHIFT + F5]</b></color>";
+					list.Add(new Tuple<string, TextStyleSetting>($"{STRINGS.UI.OVERLAYS.NETWORKACTIVITY.TOOLTIP} {hotkey}",
+						ToolTipScreen.Instance.defaultTooltipBodyStyle));
 					if (MultiplayerSession.IsClient && NetworkConfig.TransportClient != null)
 					{
 						int ping = NetworkConfig.TransportClient.GetPing();
