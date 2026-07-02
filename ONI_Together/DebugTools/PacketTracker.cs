@@ -179,8 +179,8 @@ namespace ONI_Together.DebugTools
             float elapsed = now - _lastPpsTime;
             if (elapsed >= 1f)
             {
-                _incomingPps = Mathf.Round(_ppsInCount / elapsed);
-                _outgoingPps = Mathf.Round(_ppsOutCount / elapsed);
+                _incomingPps = _ppsInCount / elapsed;
+                _outgoingPps = _ppsOutCount / elapsed;
                 _ppsInCount = 0;
                 _ppsOutCount = 0;
                 _lastPpsTime = now;

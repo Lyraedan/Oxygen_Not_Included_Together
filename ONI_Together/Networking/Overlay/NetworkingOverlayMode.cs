@@ -428,12 +428,12 @@ namespace ONI_Together.Networking.Overlay
 
 			if (PacketTracker.Instance != null)
 			{
-				float inPps = PacketTracker.IncomingPps;
-				float outPps = PacketTracker.OutgoingPps;
+				int inPps = Mathf.RoundToInt(PacketTracker.IncomingPps);
+				int outPps = Mathf.RoundToInt(PacketTracker.OutgoingPps);
 				float inBw = PacketTracker.IncomingBandwidth;
 				float outBw = PacketTracker.OutgoingBandwidth;
 				entries.Add(new LegendEntry(
-					string.Format("Packets: \u2193{0:F1}/s  \u2191{1:F1}/s", inPps, outPps),
+					string.Format("Packets: \u2193{0}/s  \u2191{1}/s", inPps, outPps),
 					null, Color.white, null, null, displaySprite: false));
 				entries.Add(new LegendEntry(
 					string.Format("Bandwidth: \u2193{0}/s  \u2191{1}/s",
