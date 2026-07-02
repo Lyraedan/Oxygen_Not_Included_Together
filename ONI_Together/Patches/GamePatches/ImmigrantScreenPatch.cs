@@ -2,6 +2,7 @@ using Database;
 using HarmonyLib;
 using ONI_Together.DebugTools;
 using ONI_Together.Networking;
+using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Networking.Packets.Social;
 using System.Collections;
 using System.Collections.Generic;
@@ -197,11 +198,9 @@ namespace ONI_Together.Patches.GamePatches
             string role = MultiplayerSession.IsHost ? "Host" : "Client";
 			DebugConsole.Log($"[ImmigrantScreen] {role}: Capturing options from containers...");
 
-			// Get containers from ImmigrantScreen (inherited from CharacterSelectionController)
-
 			DebugConsole.Log($"[ImmigrantScreen] Found {__instance.containers.Count} containers");
 
-			var packet = new ImmigrantOptionsPacket();
+			var options = new List<ImmigrantOptionEntry>();
 
 			var containers = __instance.containers.OrderBy(c => c.GetGameObject().transform.GetSiblingIndex()).ToList();
 
@@ -215,29 +214,21 @@ namespace ONI_Together.Patches.GamePatches
 					fromContainer = ImmigrantOptionEntry.FromGameDeliverable(cpc.Info);
 
 				if(fromContainer.IsValid)
-					packet.Options.Add(fromContainer);
+					options.Add(fromContainer);
 				else
 					DebugConsole.Log($"[ImmigrantScreen]   Container {container.GetType().Name} has no stats or carePackageInfo");
 			}
 
-			if (packet.Options.Count > 0)
+			if (options.Count > 0)
 			{
-				// Lock options for this cycle
-				ImmigrantScreenPatch.AvailableOptions = packet.Options;
-				ImmigrantScreenPatch.OptionsLocked = true;
+				DebugConsole.Log($"[ImmigrantScreen] {role}: Broadcasting {options.Count} options (first-opener-wins)");
 
-				DebugConsole.Log($"[ImmigrantScreen] {role}: Broadcasting {packet.Options.Count} options (first-opener-wins)");
+				int worldIndex = __instance.Telepad.GetMyWorldId();
+				var blob = PrintingPodSyncComponent.SerializeOptionsBlob(options);
 
-				if (MultiplayerSession.IsHost)
-				{
-					// Host sends to all clients
-					PacketSender.SendToAllClients(packet);
-				}
-				else
-				{
-					// Client sends to host (host will rebroadcast)
-					PacketSender.SendToHost(packet);
-				}
+				var component = PrintingPodSyncComponent.Instance;
+				if (component != null)
+					component.RequestBroadcastOptions(blob, worldIndex);
 			}
 			else
 			{
@@ -255,46 +246,37 @@ namespace ONI_Together.Patches.GamePatches
 
 			if (!MultiplayerSession.InSession) return true;
 
-			if (MultiplayerSession.IsHost)
+			if (__instance.Telepad == null) return true;
+
+			if (__instance.selectedDeliverables.Count == 0) return false;
+
+			if (MultiplayerSession.IsClient)
 			{
-				// Host: Clear the lock after printing (Postfix will handle this)
-				return true;
+				ITelepadDeliverable selected = __instance.selectedDeliverables[0];
+				var selectedOption = ImmigrantOptionEntry.FromGameDeliverable(selected);
+				var blob = PrintingPodSyncComponent.SerializeSelectionBlob(selectedOption);
+				int worldIndex = __instance.Telepad.GetMyWorldId();
+
+				PrintingPodSyncComponent.Instance?.RequestMakeSelection(blob, worldIndex);
+
+				ImmigrantScreenPatch.ClearOptionsLock();
+				__instance.Deactivate();
+				return false;
 			}
 
-            if (__instance.Telepad == null) return true;
-
-			if (__instance.selectedDeliverables.Count == 0) return false; // Even though selectedDeliverables should always have something at index 0 for whatever reason its empty, so return false to stop crashing
-
-            ITelepadDeliverable selectedDeliverable = __instance.selectedDeliverables[0];
-
-			var packet = new ImmigrantSelectionPacket { selectedOption = ImmigrantOptionEntry.FromGameDeliverable(selectedDeliverable), PrintingPodWorldIndex = __instance.Telepad?.GetMyWorldId() ?? 0 };
-			PacketSender.SendToHost(packet);
-
-			DebugConsole.Log($"[ImmigrantScreen] Client: Selected packet {packet.selectedOption.GetId()}, sending to host");
-
-			// Clear the options lock for the next cycle
-			ImmigrantScreenPatch.ClearOptionsLock();
-
-			// Suppress local printing - host handles it
-			__instance.Deactivate();
-			return false;
+			// Host: let original execute (Telepad.OnAcceptDelivery), Postfix notifies clients
+			return true;
 		}
 
 		public static void Postfix()
 		{
 			using var _ = Profiler.Scope();
 
-			// Host: Clear the lock after printing and notify clients
 			if (MultiplayerSession.IsHost)
 			{
 				DebugConsole.Log("[ImmigrantScreen] Host: Selection made via screen, notifying clients to close");
 
-				// Send -2 to close client screens
-				// NOTE: For host's own selections via OnProceed, the game spawns the entity normally
-				// Entity sync will be handled separately (e.g. via EntitySpawnPacket from a different hook)
-				var packet = new ImmigrantSelectionPacket { PrintingPodWorldIndex = -2 };
-				PacketSender.SendToAllClients(packet);
-
+				PrintingPodSyncComponent.Instance?.BroadcastCloseScreen(0);
 				ImmigrantScreenPatch.ClearOptionsLock();
 			}
 		}
@@ -316,22 +298,19 @@ namespace ONI_Together.Patches.GamePatches
 
 			if (MultiplayerSession.IsClient)
 			{
-				// Client: Send reject to host
 				DebugConsole.Log("[ImmigrantScreen] Client: Sending Reject All to host");
-				var packet = new ImmigrantSelectionPacket { PrintingPodWorldIndex = -1 };
-				PacketSender.SendToHost(packet);
+				int worldIndex = __instance.Telepad.GetMyWorldId();
 
-				// Clear local options and close screen
+				PrintingPodSyncComponent.Instance?.RequestRejectAll(worldIndex);
+
 				ImmigrantScreenPatch.ClearOptionsLock();
 				if (ImmigrantScreen.instance != null)
-				{
 					ImmigrantScreen.instance.Deactivate();
-				}
 
-				return false; // Don't execute original
+				return false;
 			}
 
-			// Host: Let original execute, Postfix will notify clients
+			// Host: let original execute (shows confirmation dialog), Postfix handles broadcast
 			return true;
 		}
 
@@ -345,14 +324,10 @@ namespace ONI_Together.Patches.GamePatches
 			{
 				DebugConsole.Log("[ImmigrantScreen] Host: Reject All, notifying clients");
 
-				// Notify clients to close their screens
-				var packet = new ImmigrantSelectionPacket { PrintingPodWorldIndex = -1 };
-				PacketSender.SendToAllClients(packet);
-
+				PrintingPodSyncComponent.Instance?.BroadcastCloseScreen(-1);
 				ImmigrantScreenPatch.ClearOptionsLock();
 			}
 		}
 	}
 }
-
 

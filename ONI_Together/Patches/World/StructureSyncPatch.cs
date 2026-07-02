@@ -112,4 +112,14 @@ namespace ONI_Together.Patches.World
             __instance.gameObject.AddOrGet<PlantSyncComponent>();
         }
     }
+
+    [HarmonyPatch(typeof(Telepad), nameof(Telepad.OnSpawn))]
+    public static class TelepadSyncPatch
+    {
+        public static void Postfix(Telepad __instance)
+        {
+            using var _ = Profiler.Scope();
+            __instance.gameObject.AddOrGet<PrintingPodSyncComponent>();
+        }
+    }
 }
