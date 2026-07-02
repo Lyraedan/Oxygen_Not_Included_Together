@@ -61,6 +61,9 @@ namespace Shared.OxySync
         {
             base.OnSpawn();
             if (target == null) target = transform;
+            _netPosition = target.position;
+            _netRotation = target.rotation;
+            _netScale = target.localScale;
             SyncInterval = 0.05f;
             _snapshots = new List<SnapshotEntry>(16);
             _netPositionHash = nameof(_netPosition).GetHashCode();

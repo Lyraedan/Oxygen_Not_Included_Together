@@ -19,7 +19,7 @@ namespace ONI_Together.Networking.OxySync.Components
         private float _syncTimer;
         private const float STORAGE_SYNC_DELAY = 0.2f;
 
-        [SyncVar(Hook = nameof(OnStorageChanged))]
+        [SyncVar(Hook = nameof(OnStorageChanged), SendMode = (int) PacketSendMode.ReliableImmediate)]
         private byte[] _storageBlob;
 
         [SyncVar]

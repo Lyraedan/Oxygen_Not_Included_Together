@@ -17,6 +17,7 @@ namespace ONI_Together.DebugTools
     public class PacketTracker
     {
         private static PacketTracker _instance;
+        public static PacketTracker Instance => _instance;
         public int _nextTrackId;
         private bool showWindow = false;
 
@@ -172,7 +173,7 @@ namespace ONI_Together.DebugTools
             _paused = false;
         }
 
-        private void CalculatePps()
+        public void CalculatePps()
         {
             float now = Time.realtimeSinceStartup;
             float elapsed = now - _lastPpsTime;
@@ -186,6 +187,13 @@ namespace ONI_Together.DebugTools
                 FinalizeBwSecond();
             }
         }
+
+        public static float IncomingPps => _instance._incomingPps;
+        public static float OutgoingPps => _instance._outgoingPps;
+        public static int IncomingCount => _instance._incomingCount;
+        public static int OutgoingCount => _instance._outgoingCount;
+        public static float IncomingBandwidth => _instance._inBw.Values.Sum(b => AvgRecent(b));
+        public static float OutgoingBandwidth => _instance._outBw.Values.Sum(b => AvgRecent(b));
 
         public void Toggle()
         {

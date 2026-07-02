@@ -23,6 +23,8 @@ namespace ONI_Together.Networking.OxySync.Components
         private NavType _netNavType;
 
         private const int VIEWPORT_MARGIN = 2;
+        private const float STALE_THRESHOLD = 2f;
+        private float _lastSyncReceivedTime;
 
         public override void OnSpawn()
         {
@@ -35,11 +37,6 @@ namespace ONI_Together.Networking.OxySync.Components
         [Server]
         protected override void ServerUpdate()
         {
-            int cell = Grid.PosToCell(transform.position);
-            if (WorldStateSyncer.Instance != null
-                && !WorldStateSyncer.Instance.IsCellVisibleToAnyClientViewport(cell, VIEWPORT_MARGIN))
-                return;
-
             base.ServerUpdate();
 
             if (kbac != null)
@@ -50,6 +47,12 @@ namespace ONI_Together.Networking.OxySync.Components
 
             if (navigator != null && navigator.CurrentNavType != NavType.NumNavTypes)
                 _netNavType = navigator.CurrentNavType;
+        }
+
+        public override void ApplySyncVar(int fieldHash, object value, long timestamp)
+        {
+            base.ApplySyncVar(fieldHash, value, timestamp);
+            _lastSyncReceivedTime = Time.unscaledTime;
         }
 
         [Client]
@@ -70,7 +73,10 @@ namespace ONI_Together.Networking.OxySync.Components
                 return false;
 
             int cell = Grid.PosToCell(transform.position);
-            return WorldStateSyncer.IsCellInRect(cell, viewport);
+            if (!WorldStateSyncer.IsCellInRect(cell, viewport))
+                return false;
+
+            return Time.unscaledTime - _lastSyncReceivedTime > STALE_THRESHOLD;
         }
 
         protected override void OnServerPositionRequest(ulong requesterId)
@@ -103,6 +109,7 @@ namespace ONI_Together.Networking.OxySync.Components
             if (navigator != null)
                 navigator.SetCurrentNavType(navType);
 
+            _lastSyncReceivedTime = Time.unscaledTime;
             _lastRequestTime = Time.unscaledTime;
         }
 

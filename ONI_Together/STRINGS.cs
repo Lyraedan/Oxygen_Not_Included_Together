@@ -33,6 +33,7 @@ namespace ONI_Together
 							public static LocString HARD_SYNC_AT_CYCLE_START = "Hard Sync On Cycle Start";
 							public static LocString TIMEOUT_SECONDS = "Connection Timeout (seconds)";
 							public static LocString PAUSE_SIM_ON_PLAYER_DISCONNECT = "Pause Simulation On Player Disconnect";
+							public static LocString SERVER_TICK_RATE = "Server Tick Rate";
 						}
                     }
 
@@ -74,6 +75,7 @@ namespace ONI_Together
                             public static LocString HARD_SYNC_AT_CYCLE_START = "Perform a hard sync at the start of every new cycle\n\nDoes not use up your one hard sync per cycle";
                             public static LocString TIMEOUT_SECONDS = "How long the server waits (in seconds) for a response from a connecting or loading client before timing out.\nIncrease this if your friends take a long time to load into the game.\n\nMinimum: 30. (default: 30)";
                             public static LocString PAUSE_SIM_ON_PLAYER_DISCONNECT = "Automatically pauses the simulation when a player disconnects from the server.";
+                            public static LocString SERVER_TICK_RATE = "How many times per second the server processes incoming network messages.\nHigher values reduce latency but increase CPU and bandwidth usage.\n\nRange: 20–128 TPS (default: 60)";
                         }
                     }
 
@@ -104,9 +106,7 @@ namespace ONI_Together
                     }
                 }
             }
-
-            
-
+			
             public class PROTOCOL
             {
                 public static LocString NO_METADATA = "Peer is running a build without protocol metadata.";
@@ -746,6 +746,64 @@ namespace ONI_Together
 				public class ENDSESSION
 				{
 					public static LocString TEXT = "End Session";
+				}
+			}
+			
+			public class TOOLS
+			{
+				public class FILTERLAYERS
+				{
+					public class OBJECTS
+					{
+						public static LocString NAME = "Objects";
+						public static LocString TOOLTIP = "Show/hide all objects with network activity";
+					}
+
+					public class GASSYNC
+					{
+						public static LocString NAME = "Gas Sync";
+						public static LocString TOOLTIP = "Show/hide gas sync network activity";
+					}
+
+					public class LIQUIDSYNC
+					{
+						public static LocString NAME = "Liquid Sync";
+						public static LocString TOOLTIP = "Show/hide liquid sync network activity";
+					}
+
+					public class ANIMSYNC
+					{
+						public static LocString NAME = "Anim Sync";
+						public static LocString TOOLTIP = "Show/hide animation sync indicators";
+					}
+
+					public class VIEWPORTS
+					{
+						public static LocString NAME = "Viewports";
+						public static LocString TOOLTIP = "Show/hide other players\u0027 camera viewports";
+					}
+
+					public class GROUPS
+					{
+						public static LocString NAME = "Interest Groups";
+						public static LocString TOOLTIP = "Show/hide network interest group regions";
+					}
+				}
+			}
+
+			public class OVERLAYS
+			{
+				public class NETWORKACTIVITY
+				{
+					public static LocString NAME = "Network Activity";
+					public static LocString DESCRIPTION = "Shows real-time network sync activity per object";
+					public static LocString BUTTON = "Network";
+					public static LocString TOOLTIP = "Displays network activity per object";
+					public static LocString HOVER_TOOLTIP = "Usage: {0}\nNet ID: {1}";
+					public static LocString HOVER_HIGH = "High ({0}/s)";
+					public static LocString HOVER_MEDIUM = "Medium ({0}/s)";
+					public static LocString HOVER_LOW = "Low ({0}/s)";
+					public static LocString HOVER_IDLE = "Idle (No activity)";
 				}
 			}
 		}

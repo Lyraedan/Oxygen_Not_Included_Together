@@ -5,7 +5,6 @@ using HarmonyLib;
 using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
-using ONI_Together.Networking.Components.StructureStateSyncers;
 using ONI_Together.Networking.OxySync.Components;
 using Shared.Profiling;
 
@@ -45,7 +44,7 @@ namespace ONI_Together.Patches.World
         public static void Postfix(object __instance)
         {
             using var _ = Profiler.Scope();
-            StorageStateSyncer syncer = ((KMonoBehaviour) __instance).gameObject.AddOrGet<StorageStateSyncer>();
+            ((KMonoBehaviour) __instance).gameObject.AddOrGet<StorageSyncComponent>();
         }
 
         [HarmonyTargetMethods]
@@ -101,6 +100,16 @@ namespace ONI_Together.Patches.World
         {
             using var _ = Profiler.Scope();
             __instance.gameObject.AddOrGet<NuclearReactorSyncer>();
+        }
+    }
+
+    [HarmonyPatch(typeof(Growing), nameof(Growing.OnSpawn))]
+    public static class Growing_OnSpawn_OxySync_Patch
+    {
+        public static void Postfix(Growing __instance)
+        {
+            using var _ = Profiler.Scope();
+            __instance.gameObject.AddOrGet<PlantSyncComponent>();
         }
     }
 }

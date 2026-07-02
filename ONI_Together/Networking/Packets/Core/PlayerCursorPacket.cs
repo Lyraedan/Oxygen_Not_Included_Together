@@ -6,6 +6,7 @@ using Steamworks;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using ONI_Together.Networking.OxySync;
 using Shared.Profiling;
 using UnityEngine;
 using YamlDotNet.Core;
@@ -159,6 +160,19 @@ namespace ONI_Together.Networking.Packets.Core
 					WorldStateSyncer.Instance.UpdateClientView(PlayerID, ViewMinX, ViewMinY, ViewMaxX, ViewMaxY);
 				}
 
+				// Subscribe player to viewport chunk groups
+				if (MultiplayerSession.TryGetCursorObject(PlayerID, out var chunkCursor))
+				{
+					chunkCursor.ViewMinX = ViewMinX;
+					chunkCursor.ViewMinY = ViewMinY;
+					chunkCursor.ViewMaxX = ViewMaxX;
+					chunkCursor.ViewMaxY = ViewMaxY;
+
+					int worldId = chunkCursor.GetMyWorldId();
+					if (worldId >= 0)
+						UpdateChunkSubscriptions(PlayerID, chunkCursor, worldId);
+				}
+
 				PacketSender.SendToAllOtherPeers(this);
 			}
 		}
@@ -189,6 +203,35 @@ namespace ONI_Together.Networking.Packets.Core
 			cursor.buildingVisualiser.UpdateVisualizer(BuildingPrefabId, position, BuildingOrientation, Color, BuildingAllowed);
 			cursor.areaVisualizer.UpdateArea(Color, AreaDownPos, Position, Dragging, DragMode, LengthLimit);
 			cursor.utilityVisualizer.UpdatePath(BuildingPrefabId, UtilityPathData, Color);
+
+			// Dynamically adjust the player's chunk subscriptions based off their cursor position
+			if (MultiplayerSession.IsHost)
+			{
+				int currentWorld = cursor.GetMyWorldId();
+				if (currentWorld >= 0 && currentWorld != cursor.InterestGroup)
+				{
+					cursor.InterestGroup = currentWorld;
+					UpdateChunkSubscriptions(PlayerID, cursor, currentWorld);
+				}
+			}
+		}
+
+		private void UpdateChunkSubscriptions(ulong playerId, PlayerCursor cursor, int worldId)
+		{
+			var newChunks = new HashSet<int>(
+				WorldChunkHelper.GetChunkGroupIdsInRect(
+					worldId, cursor.ViewMinX, cursor.ViewMinY,
+					cursor.ViewMaxX, cursor.ViewMaxY));
+
+			foreach (var g in newChunks)
+				if (!cursor.SubscribedChunks.Contains(g))
+					InterestGroupManager.AddPlayerToGroup(playerId, g);
+
+			foreach (var g in cursor.SubscribedChunks)
+				if (!newChunks.Contains(g))
+					InterestGroupManager.RemovePlayerFromGroup(playerId, g);
+
+			cursor.SubscribedChunks = newChunks;
 		}
 
 	}

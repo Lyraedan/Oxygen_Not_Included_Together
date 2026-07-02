@@ -7,6 +7,7 @@ using UnityEngine;
 namespace ONI_Together.Networking.OxySync.Components
 {
     [SkipSaveFileSerialization]
+    [FixedInterestGroup]
     public class GameSpeedSyncComponent : NetworkBehaviour
     {
         public enum SpeedState
@@ -28,6 +29,7 @@ namespace ONI_Together.Networking.OxySync.Components
             base.OnSpawn();
             Instance = this;
             NetId = nameof(SpeedControlScreen).GetHashCode();
+            InterestGroup = -1;
 
             if (SpeedControlScreen.Instance != null)
             {

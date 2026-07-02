@@ -6,7 +6,7 @@ namespace ONI_Together.Networking.OxySync
 {
     public class OxySyncTestComponent : NetworkBehaviour
     {
-        [SyncVar(Hook = nameof(OnCounterChanged))]
+        [SyncVar(Hook = nameof(OnCounterChanged), SendMode = 8)] // Reliable
         private int _counter;
 
         [SyncVar]
@@ -17,6 +17,9 @@ namespace ONI_Together.Networking.OxySync
 
         [SyncVar]
         private bool _isActive = true;
+
+        [SyncVar(SendMode = 0)] // Unreliable
+        private float _unreliablePosition;
 
         public int Counter => _counter;
         public float Temperature => _temperature;
@@ -46,7 +49,7 @@ namespace ONI_Together.Networking.OxySync
             _isActive = true;
         }
 
-        [Command]
+        [Command(SendMode = 0)] // Unreliable
         public void SetTemperature(float value)
         {
             _temperature = value;
@@ -70,13 +73,13 @@ namespace ONI_Together.Networking.OxySync
             DebugConsole.Log($"[OxySyncTest] Counter updated to {newValue}");
         }
 
-        [ClientRpc]
+        [ClientRpc(SendMode = 9)] // ReliableImmediate
         private void RpcPlayEffect(string effectName)
         {
             DebugConsole.Log($"[OxySyncTest] Playing effect: {effectName}");
         }
 
-        [TargetRpc]
+        [TargetRpc(SendMode = 0)] // Unreliable
         private void SendDirectMessage(string message)
         {
             DebugConsole.Log($"[OxySyncTest] Direct message: {message}");

@@ -68,13 +68,13 @@ namespace ONI_Together.Networking.OxySync.Components
         [SyncVar]
         private float _temperaturePercent;
 
-        [SyncVar]
+        [SyncVar(SendMode = (int) PacketSendMode.ReliableImmediate)]
         private byte[] _supplyStorageBlob;
 
-        [SyncVar]
+        [SyncVar(SendMode = (int) PacketSendMode.ReliableImmediate)]
         private byte[] _reactionStorageBlob;
 
-        [SyncVar]
+        [SyncVar(SendMode = (int) PacketSendMode.ReliableImmediate)]
         private byte[] _wasteStorageBlob;
 
         public override void OnSpawn()

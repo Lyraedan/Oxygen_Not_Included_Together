@@ -6,6 +6,7 @@ using Shared.OxySync.Attributes;
 namespace ONI_Together.Networking.OxySync.Components
 {
     [SkipSaveFileSerialization]
+    [FixedInterestGroup]
     public class GameTimeSyncComponent : NetworkBehaviour
     {
         public static GameTimeSyncComponent? Instance { get; private set; }
@@ -24,6 +25,7 @@ namespace ONI_Together.Networking.OxySync.Components
             Instance = this;
             SyncInterval = 1f; // Every 1 second
             NetId = nameof(GameClock).GetHashCode();
+            InterestGroup = -1;
         }
 
         public override void OnCleanUp()
