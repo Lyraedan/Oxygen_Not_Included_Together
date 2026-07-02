@@ -799,6 +799,11 @@ namespace ONI_Together
 					public static LocString DESCRIPTION = "Shows real-time network sync activity per object";
 					public static LocString BUTTON = "Network";
 					public static LocString TOOLTIP = "Displays network activity per object";
+					public static LocString HOVER_TOOLTIP = "Usage: {0}\nNet ID: {1}";
+					public static LocString HOVER_HIGH = "High ({0}/s)";
+					public static LocString HOVER_MEDIUM = "Medium ({0}/s)";
+					public static LocString HOVER_LOW = "Low ({0}/s)";
+					public static LocString HOVER_IDLE = "Idle (No activity)";
 				}
 			}
 		}

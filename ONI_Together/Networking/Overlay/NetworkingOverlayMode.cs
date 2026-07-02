@@ -58,8 +58,8 @@ namespace ONI_Together.Networking.Overlay
 		public const string FILTER_VIEWPORTS = "VIEWPORTS";
 		public const string FILTER_GROUPS = "GROUPS";
 
-		private const float HIGH_ACTIVITY_THRESHOLD = 500f;
-		private const float MEDIUM_ACTIVITY_THRESHOLD = 250f;
+		public const float HIGH_ACTIVITY_THRESHOLD = 500f;
+		public const float MEDIUM_ACTIVITY_THRESHOLD = 250f;
 		private const float LEGEND_REFRESH_INTERVAL = 1f;
 
 		private UniformGrid<NetworkIdentity> partition;

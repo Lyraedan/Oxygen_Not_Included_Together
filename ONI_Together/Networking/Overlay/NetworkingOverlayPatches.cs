@@ -1,9 +1,12 @@
 using HarmonyLib;
 using ONI_Together.DebugTools;
+using ONI_Together.Misc;
+using ONI_Together.Networking.Components;
 using PeterHan.PLib.Core;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using System.Reflection.Emit;
 using UnityEngine;
 
 namespace ONI_Together.Networking.Overlay
@@ -262,6 +265,103 @@ namespace ONI_Together.Networking.Overlay
 			{
 				PUtil.LogWarning("Unable to add NetworkingOverlay legend: " + e.Message);
 				return null;
+			}
+		}
+
+		[HarmonyPatch(typeof(SelectToolHoverTextCard), nameof(SelectToolHoverTextCard.OnSpawn))]
+		public static class SelectToolHoverTextCard_OnSpawn_Patch
+		{
+			internal static void Postfix(SelectToolHoverTextCard __instance)
+			{
+				__instance.modeFilters[NetworkingOverlayMode.ID] =
+					(KSelectable sel) => sel.GetComponent<NetworkIdentity>() != null;
+				__instance.overlayFilterMap[NetworkingOverlayMode.ID] = () => false;
+			}
+		}
+
+		[HarmonyPatch(typeof(SelectToolHoverTextCard), nameof(SelectToolHoverTextCard.UpdateHoverElements))]
+		public static class SelectToolHoverTextCard_UpdateHoverElements_Patch
+		{
+			// Use a transpiler to insert this just before "EndDrawing" is called
+			internal static IEnumerable<CodeInstruction> Transpiler(
+				IEnumerable<CodeInstruction> instructions)
+			{
+				var codes = new List<CodeInstruction>(instructions);
+
+				int endDrawingIdx = -1;
+				for (int i = 0; i < codes.Count; i++)
+				{
+					if (codes[i].opcode == OpCodes.Callvirt &&
+						codes[i].operand is MethodInfo mi &&
+						mi.DeclaringType == typeof(HoverTextDrawer) &&
+						mi.Name == nameof(HoverTextDrawer.EndDrawing))
+					{
+						endDrawingIdx = i;
+						break;
+					}
+				}
+
+				if (endDrawingIdx < 0)
+				{
+					PUtil.LogWarning("NetworkOverlay: Could not find HoverTextDrawer.EndDrawing(), skipping transpiler");
+					return codes;
+				}
+
+				var inject = new List<CodeInstruction>
+				{
+					new CodeInstruction(OpCodes.Ldarg_0),
+					new CodeInstruction(OpCodes.Call, AccessTools.Method(
+						typeof(SelectToolHoverTextCard_UpdateHoverElements_Patch),
+						nameof(DrawNetworkHoverText),
+						new[] { typeof(SelectToolHoverTextCard) })),
+				};
+
+				codes.InsertRange(endDrawingIdx, inject);
+				return codes;
+			}
+
+			private static void DrawNetworkHoverText(SelectToolHoverTextCard card)
+			{
+				if (SimDebugView.Instance?.GetMode() != NetworkingOverlayMode.ID)
+					return;
+
+				var hover = SelectTool.Instance?.hover;
+				if (hover == null) return;
+				var identity = hover.GetComponent<NetworkIdentity>();
+				if (identity == null || identity.NetId == 0) return;
+
+				var tracker = NetIdActivityTracker.Instance;
+				if (tracker == null) return;
+
+				float bps = tracker.GetBytesPerSecond(identity.NetId);
+				var drawer = HoverTextScreen.Instance.drawer;
+
+				drawer.BeginShadowBar(false);
+				drawer.DrawText(STRINGS.UI.OVERLAYS.NETWORKACTIVITY.NAME,
+					card.Styles_Title.Standard);
+				drawer.NewLine();
+
+				string usageStr;
+				if (bps > 0f)
+				{
+					string formatted = Utils.FormatBytes((long)bps);
+					if (bps >= NetworkingOverlayMode.HIGH_ACTIVITY_THRESHOLD)
+						usageStr = string.Format(STRINGS.UI.OVERLAYS.NETWORKACTIVITY.HOVER_HIGH, formatted);
+					else if (bps >= NetworkingOverlayMode.MEDIUM_ACTIVITY_THRESHOLD)
+						usageStr = string.Format(STRINGS.UI.OVERLAYS.NETWORKACTIVITY.HOVER_MEDIUM, formatted);
+					else
+						usageStr = string.Format(STRINGS.UI.OVERLAYS.NETWORKACTIVITY.HOVER_LOW, formatted);
+				}
+				else
+				{
+					usageStr = STRINGS.UI.OVERLAYS.NETWORKACTIVITY.HOVER_IDLE;
+				}
+
+				drawer.DrawIcon(card.iconDash, Color.white);
+				drawer.DrawText(
+					string.Format(STRINGS.UI.OVERLAYS.NETWORKACTIVITY.HOVER_TOOLTIP, usageStr, identity.NetId),
+					card.Styles_BodyText.Standard);
+				drawer.EndShadowBar();
 			}
 		}
 	}
