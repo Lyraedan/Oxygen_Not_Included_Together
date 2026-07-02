@@ -561,7 +561,7 @@ namespace ONI_Together.Networking.Overlay
 					var tmp = _groupLabels[idx++];
 					tmp.gameObject.SetActive(true);
 					tmp.transform.position = _groupLabelCamera.ScreenToWorldPoint(screenPos);
-					tmp.text = $"Group: {groupId}";
+					tmp.text = $"Interest Group:\n{groupId}";
 				}
 			}
 			for (int i = idx; i < _groupLabels.Count; i++)
