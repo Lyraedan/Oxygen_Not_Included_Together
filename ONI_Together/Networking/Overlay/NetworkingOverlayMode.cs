@@ -2,6 +2,7 @@ using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.OxySync;
+using ONI_Together.Networking.OxySync.Components;
 using Shared.OxySync;
 using System;
 using System.Collections.Generic;
@@ -583,7 +584,7 @@ namespace ONI_Together.Networking.Overlay
 					var tmp = _groupLabels[idx++];
 					tmp.gameObject.SetActive(true);
 					tmp.transform.position = _groupLabelCamera.ScreenToWorldPoint(screenPos);
-					tmp.text = $"Interest Group:\n{groupId}";
+					tmp.text = $"Interest Group:\n{groupId}"; // : {OxySyncManager.GetBehaviourCountInGroup(groupId)}
 				}
 			}
 			for (int i = idx; i < _groupLabels.Count; i++)

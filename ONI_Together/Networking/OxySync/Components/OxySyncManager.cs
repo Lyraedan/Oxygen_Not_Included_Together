@@ -20,11 +20,14 @@ namespace ONI_Together.Networking.OxySync.Components
         private readonly List<NetworkBehaviour> _behaviours = new();
         private readonly Dictionary<(int Group, PacketSendMode Mode), List<(int Hash, Variant Value)>> _changedByGroup = new();
         private readonly HashSet<Type> _explicitGroupTypes = new();
+        private readonly Dictionary<int, HashSet<NetworkBehaviour>> _behavioursByGroup = new();
 
         private float _tickAccumulator;
 
         public int RegisteredCount => _behaviours.Count;
         public IReadOnlyList<NetworkBehaviour> AllBehaviours => _behaviours;
+        public static int GetBehaviourCountInGroup(int groupId) =>
+            Instance != null && Instance._behavioursByGroup.TryGetValue(groupId, out var set) ? set.Count : 0;
 
         private void Awake()
         {
@@ -134,11 +137,22 @@ namespace ONI_Together.Networking.OxySync.Components
 					behaviour.InterestGroup = WorldChunkHelper.GetGroupId(worldId,
 						Grid.PosToCell(behaviour.transform.position));
 			}
+
+			IndexBehaviour(behaviour);
 		}
 
         private void Unregister(NetworkBehaviour behaviour)
         {
             _behaviours.Remove(behaviour);
+
+            RemoveBehaviourFromGroupIndex(behaviour, behaviour.InterestGroup);
+            var fields = behaviour.SyncVarFields;
+            for (int i = 0; i < fields.Count; i++)
+            {
+                int g = fields[i].InterestGroup;
+                if (g != -1)
+                    RemoveBehaviourFromGroupIndex(behaviour, g);
+            }
         }
 
         private void Update()
@@ -264,7 +278,12 @@ namespace ONI_Together.Networking.OxySync.Components
 						int newGroup = WorldChunkHelper.GetGroupId(currentWorld,
 							Grid.PosToCell(behaviour.transform.position));
 						if (newGroup != behaviour.InterestGroup)
-							behaviour.InterestGroup = newGroup;
+							{
+								RemoveBehaviourFromGroupIndex(behaviour, behaviour.InterestGroup);
+								behaviour.InterestGroup = newGroup;
+								AddBehaviourToGroupIndex(behaviour, newGroup);
+								behaviour.MarkAllDirty();
+							}
 					}
 				}
             }
@@ -316,6 +335,98 @@ namespace ONI_Together.Networking.OxySync.Components
             for (int i = 0; i < a.Length; i++)
                 if (a[i] != b[i]) return false;
             return true;
+        }
+
+        private void IndexBehaviour(NetworkBehaviour behaviour)
+        {
+            var fields = behaviour.SyncVarFields;
+            var grouped = new HashSet<int>();
+
+            int primaryGroup = behaviour.InterestGroup;
+            if (primaryGroup != -1 && grouped.Add(primaryGroup))
+                AddBehaviourToGroupIndex(behaviour, primaryGroup);
+
+            for (int i = 0; i < fields.Count; i++)
+            {
+                int g = fields[i].InterestGroup;
+                if (g == -1) continue;
+                if (grouped.Add(g))
+                    AddBehaviourToGroupIndex(behaviour, g);
+            }
+        }
+
+        private void AddBehaviourToGroupIndex(NetworkBehaviour behaviour, int groupId)
+        {
+            if (!_behavioursByGroup.TryGetValue(groupId, out var set))
+            {
+                set = new HashSet<NetworkBehaviour>();
+                _behavioursByGroup[groupId] = set;
+            }
+            set.Add(behaviour);
+        }
+
+        private void RemoveBehaviourFromGroupIndex(NetworkBehaviour behaviour, int groupId)
+        {
+            if (_behavioursByGroup.TryGetValue(groupId, out var set))
+            {
+                set.Remove(behaviour);
+                if (set.Count == 0)
+                    _behavioursByGroup.Remove(groupId);
+            }
+        }
+
+        public static void SendFullStateToPlayerForGroup(ulong playerId, int groupId)
+        {
+            if (Instance == null) return;
+            if (!MultiplayerSession.IsHost) return;
+
+            if (!Instance._behavioursByGroup.TryGetValue(groupId, out var behavioursInGroup))
+                return;
+
+            foreach (var behaviour in behavioursInGroup)
+            {
+                if (behaviour.IsNullOrDestroyed()) continue;
+
+                int netId = behaviour.NetId;
+                if (netId == 0) continue;
+
+                var fields = behaviour.SyncVarFields;
+                if (fields.Count == 0) continue;
+
+                var updates = new List<(int Hash, Variant Value)>();
+                for (int i = 0; i < fields.Count; i++)
+                {
+                    var field = fields[i];
+                    int fieldGroup = field.InterestGroup;
+                    if (fieldGroup == -1) fieldGroup = behaviour.InterestGroup;
+                    if (fieldGroup != groupId) continue;
+
+                    updates.Add((field.Hash, ObjectToVariant(field.Info.GetValue(behaviour))));
+                }
+
+                if (updates.Count == 0) continue;
+
+                long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+                if (updates.Count == 1)
+                {
+                    var update = updates[0];
+                    PacketSender.SendToPlayer(playerId, new SyncVarPacket
+                    {
+                        NetId = netId,
+                        FieldHash = update.Hash,
+                        Value = update.Value,
+                        Timestamp = timestamp,
+                    }, PacketSendMode.ReliableImmediate);
+                }
+                else
+                {
+                    PacketSender.SendToPlayer(playerId, new SyncVarBatchPacket(netId, updates)
+                    {
+                        Timestamp = timestamp,
+                    }, PacketSendMode.ReliableImmediate);
+                }
+            }
         }
     }
 }

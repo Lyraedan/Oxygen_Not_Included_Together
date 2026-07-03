@@ -7,6 +7,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using ONI_Together.Networking.OxySync;
+using ONI_Together.Networking.OxySync.Components;
 using Shared.Profiling;
 using UnityEngine;
 using YamlDotNet.Core;
@@ -225,7 +226,10 @@ namespace ONI_Together.Networking.Packets.Core
 
 			foreach (var g in newChunks)
 				if (!cursor.SubscribedChunks.Contains(g))
+				{
 					InterestGroupManager.AddPlayerToGroup(playerId, g);
+					OxySyncManager.SendFullStateToPlayerForGroup(playerId, g);
+				}
 
 			foreach (var g in cursor.SubscribedChunks)
 				if (!newChunks.Contains(g))

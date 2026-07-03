@@ -1,4 +1,5 @@
 using System.IO;
+using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Networking.Packets.Architecture;
 using Shared.Profiling;
 
@@ -31,7 +32,10 @@ namespace ONI_Together.Networking.OxySync.Packets
             if (!MultiplayerSession.IsHost) return;
 
             if (Subscribe)
+            {
                 InterestGroupManager.AddPlayerToGroup(SenderId, GroupId);
+                OxySyncManager.SendFullStateToPlayerForGroup(SenderId, GroupId);
+            }
             else
                 InterestGroupManager.RemovePlayerFromGroup(SenderId, GroupId);
         }
