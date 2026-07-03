@@ -24,7 +24,10 @@ namespace ONI_Together.Networking.OxySync.Components
 
         private const int VIEWPORT_MARGIN = 2;
         private const float STALE_THRESHOLD = 2f;
+        private const float HEARTBEAT_INTERVAL = 1f;
         private float _lastSyncReceivedTime;
+        private float _lastHeartbeatTime;
+        private Vector3 _lastPosition;
 
         public override void OnSpawn()
         {
@@ -32,6 +35,8 @@ namespace ONI_Together.Networking.OxySync.Components
             syncRotation = false;
             syncScale = false;
             useSnapshotInterpolation = true;
+            _lastHeartbeatTime = Time.unscaledTime;
+            _lastPosition = transform.position;
         }
 
         [Server]
@@ -47,6 +52,18 @@ namespace ONI_Together.Networking.OxySync.Components
 
             if (navigator != null && navigator.CurrentNavType != NavType.NumNavTypes)
                 _netNavType = navigator.CurrentNavType;
+
+            Vector3 currentPos = transform.position;
+            if (Vector3.Distance(currentPos, _lastPosition) >= 0.01f)
+            {
+                _lastHeartbeatTime = Time.unscaledTime;
+                _lastPosition = currentPos;
+            }
+            else if (Time.unscaledTime - _lastHeartbeatTime >= HEARTBEAT_INTERVAL)
+            {
+                MarkAllDirty();
+                _lastHeartbeatTime = Time.unscaledTime;
+            }
         }
 
         public override void ApplySyncVar(int fieldHash, object value, long timestamp)
