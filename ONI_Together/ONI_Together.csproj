@@ -66,6 +66,7 @@
 
 	<ItemGroup>
 	  <PackageReference Include="RiptideNetworking.Riptide" Version="2.2.1" />
+	  <PackageReference Include="Sentry" Version="4.14.0" />
 	</ItemGroup>
 
 	<ItemGroup>

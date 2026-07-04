@@ -21,6 +21,7 @@ using PeterHan.PLib.Core;
 using PeterHan.PLib.Options;
 using ONI_Together.Integrations;
 using ONI_Together.Networking.OxySync.Components;
+using Sentry;
 using System.Linq;
 using System.Threading;
 
@@ -49,6 +50,7 @@ namespace ONI_Together
 			Harmony = harmony;
             PUtil.InitLibrary(false);
             new POptions().RegisterOptions(this, typeof(Configuration));
+            Telemetry.Init();
             base.OnLoad(harmony);
 
             ModAssets.LoadAssetBundles();
@@ -120,11 +122,12 @@ namespace ONI_Together
 			// Diagnostic hooks for unhandled exceptions
 			Application.logMessageReceived += (condition, stackTrace, type) =>
 			{
-				if (_inLogHandler) return;
+                if (_inLogHandler) return;
 				if (type == LogType.Exception || type == LogType.Error)
 				{
 					_inLogHandler = true;
 					DebugConsole.LogError($"[Unity] {type}: {condition}\n{stackTrace}");
+					Telemetry.CaptureMessage(condition, SentryLevel.Error);
 					_inLogHandler = false;
 				}
 			};
@@ -132,6 +135,8 @@ namespace ONI_Together
 			AppDomain.CurrentDomain.UnhandledException += (sender, args) =>
 			{
 				DebugConsole.LogError($"[AppDomain] Unhandled exception: {args.ExceptionObject}");
+				if (args.ExceptionObject is Exception ex)
+					Telemetry.CaptureException(ex);
 			};
         }
 

@@ -61,6 +61,8 @@ namespace ONI_Together.Networking.Components
 		{
 			using var _ = Profiler.Scope();
 
+			Telemetry.Shutdown();
+
 			if (!MultiplayerSession.InSession)
 				return;
 

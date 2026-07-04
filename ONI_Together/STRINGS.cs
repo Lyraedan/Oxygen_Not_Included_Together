@@ -15,7 +15,8 @@ namespace ONI_Together
 					public static LocString B_CLIENT_SETTINGS = "Client Settings";
 					public static LocString C_NETWORK_SETTINGS = "General Network Settings";
                     public static LocString D_CURSOR_SETTINGS = "Cursor Settings";
-					public static LocString E_MISC_SETTINGS = "Misc Settings";
+                    public static LocString E_MISC_SETTINGS = "Misc Settings";
+                    public static LocString F_TELEMETRY_SETTINGS = "Telemetry";
 
 					// Additional lobby options header
                     public static LocString SERVER_SETTINGS = "Server Settings";
@@ -61,6 +62,11 @@ namespace ONI_Together
                         public static LocString PUFT_LOADINGSCREEN = "Use Puft Loading Icon";
                         public static LocString LOADINGSCREEN_COLOR = "Use Custom Loading Screen Color";
                     }
+
+                    public class TELEMETRY_SETTINGS
+                    {
+                        public static LocString ENABLE_TELEMETRY = "Enable Error Telemetry";
+                    }
                 }
 
                 public class TOOLTIPS
@@ -103,6 +109,11 @@ namespace ONI_Together
                     {
 						public static LocString PUFT_LOADINGSCREEN = "Override the loading icon with a Puft.";
 						public static LocString LOADINGSCREEN_COLOR = "Override the purple background of the loading screen with turquoise.";
+                    }
+
+                    public class TELEMETRY_SETTINGS
+                    {
+                        public static LocString ENABLE_TELEMETRY = "Send crash and error reports to Sentry to help improve the mod.\nNo personal data is collected.\n\nDisable this if you are concerned about privacy.\n\nRequires restart to take effect.";
                     }
                 }
             }

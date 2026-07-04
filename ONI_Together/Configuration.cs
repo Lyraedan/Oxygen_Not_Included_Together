@@ -20,7 +20,20 @@ namespace ONI_Together
         public ClientSettings Client { get; set; } = new ClientSettings();
 
         [JsonProperty]
+        public TelemetrySettings Telemetry { get; set; } = new TelemetrySettings();
+
+        [JsonProperty]
         public NetworkSettings Network { get; set; } = new NetworkSettings();
+
+        [Option("STRINGS.UI.CONFIGURATION.TITLES.TELEMETRY_SETTINGS.ENABLE_TELEMETRY",
+                "STRINGS.UI.CONFIGURATION.TOOLTIPS.TELEMETRY_SETTINGS.ENABLE_TELEMETRY",
+                "STRINGS.UI.CONFIGURATION.HEADERS.F_TELEMETRY_SETTINGS")]
+        [JsonIgnore]
+        public bool EnableTelemetry
+        {
+            get => Telemetry.EnableTelemetry;
+            set => Telemetry.EnableTelemetry = value;
+        }
 
         [Option("STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.MAX_MESSAGES_PER_POLL", "STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.MAX_MESSAGES_PER_POLL", "STRINGS.UI.CONFIGURATION.HEADERS.A_HOST_SETTINGS")]
         [JsonIgnore]
@@ -263,6 +276,12 @@ namespace ONI_Together
         [JsonProperty] public bool EnablePacketQueue { get; set; } = false;
         [JsonProperty] public int MaxPacketsPerSecond { get; set; } = 500;
         [JsonProperty] public bool BypassProtocolCompatibilityChecks { get; set; } = false;
+    }
+
+    [Serializable]
+    public class TelemetrySettings
+    {
+        [JsonProperty] public bool EnableTelemetry { get; set; } = false;
     }
 
     [Serializable]
