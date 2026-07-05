@@ -66,6 +66,7 @@ namespace ONI_Together.Networking.Transport.Lan
             string ip = Configuration.Instance.Host.LanSettings.Ip;
             int port = Configuration.Instance.Host.LanSettings.Port;
             int maxClients = Configuration.Instance.Host.MaxLobbySize;
+            RiptideClient.MaxServerCapacity = maxClients;
 
             _server = new Server("Lan/Riptide");
             _server.TimeoutTime = Configuration.Instance.Host.TimeoutSeconds * 1000;

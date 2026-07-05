@@ -222,6 +222,24 @@ namespace ONI_Together.Networking
             return transport.Equals(NetworkTransport.RIPTIDE);
         }
 
+        public static int GetMaxServerCapacity()
+        {
+            switch (transport)
+            {
+                case NetworkTransport.STEAMWORKS:
+                    if (SteamLobby.InLobby)
+                        return SteamMatchmaking.GetLobbyMemberLimit(SteamLobby.CurrentLobby);
+                    break;
+                case NetworkTransport.RIPTIDE:
+                    if (RiptideServer.ServerInstance != null)
+                        return RiptideServer.ServerInstance.MaxClientCount;
+                    if (RiptideClient.MaxServerCapacity > 0)
+                        return RiptideClient.MaxServerCapacity;
+                    break;
+            }
+            return Configuration.Instance.Host.MaxLobbySize;
+        }
+
         public static List<ulong> GetConnectedClients()
         {
             using var _ = Profiler.Scope();

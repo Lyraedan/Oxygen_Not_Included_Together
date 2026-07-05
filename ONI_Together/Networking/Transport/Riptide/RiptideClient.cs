@@ -45,6 +45,7 @@ namespace ONI_Together.Networking.Transport.Lan
 
         public List<ulong> ClientList { get; private set; } = new();
         public static ulong CLIENT_ID { get; private set; }
+        public static int MaxServerCapacity { get; set; }
 
         public override void Prepare()
         {
