@@ -1,5 +1,6 @@
 using KSerialization;
 using ONI_Together.Misc;
+using ONI_Together.Networking.OxySync.StateMachines;
 using Shared.OxySync;
 using Shared.OxySync.Attributes;
 using UnityEngine;
@@ -7,7 +8,7 @@ using UnityEngine;
 namespace ONI_Together.Networking.OxySync.Components
 {
     [SkipSaveFileSerialization]
-    public class NuclearReactorSyncer : NetworkBehaviour
+    public class NuclearReactorSyncer : StateMachineSyncer
     {
         private Reactor _reactor;
         private Reactor.StatesInstance _smi;
@@ -19,15 +20,11 @@ namespace ONI_Together.Networking.OxySync.Components
         private bool _reactionDirty;
         private bool _wasteDirty;
         private float _storageSyncTimer;
-        private int _lastAppliedMajorState = -1;
 
         private const float STORAGE_SYNC_DELAY = 0.2f;
 
         [SyncVar]
         private float _fuelTemp;
-
-        [SyncVar]
-        private int _majorState;
 
         [SyncVar]
         private bool _reactionUnderway;
@@ -119,23 +116,68 @@ namespace ONI_Together.Networking.OxySync.Components
         private void OnReactionStorageChanged(GameObject _) { _reactionDirty = true; }
         private void OnWasteStorageChanged(GameObject _) { _wasteDirty = true; }
 
-        private void Update()
+        protected override int SampleCurrentStateId()
         {
-            if (isClient)
-            {
-                ApplyClientState();
-                return;
-            }
+            if (_smi == null || _smi.sm == null)
+                return -1;
 
-            if (!isServer || !inSession) return;
+            var sm = _smi.sm;
+            if (_smi.IsInsideState(sm.dead)) return 3;
+            if (_smi.IsInsideState(sm.meltdown)) return 2;
+            if (_smi.IsInsideState(sm.on)) return 1;
+            return 0;
+        }
+
+        protected override void ApplyState(int stateId)
+        {
+            if (_smi == null || _smi.sm == null)
+                return;
+
+            var sm = _smi.sm;
+
+            switch (stateId)
+            {
+                case 0:
+                    if (_smi.IsInsideState(sm.on))
+                        _smi.TryGoTo(sm.off);
+                    break;
+
+                case 1:
+                    if (_smi.IsInsideState(sm.off))
+                        sm.reactionUnderway.Set(true, _smi);
+                    break;
+
+                case 2:
+                    if (!_smi.IsInsideState(sm.meltdown) && !_smi.IsInsideState(sm.dead))
+                    {
+                        _supplyStorage?.ConsumeAllIgnoringDisease();
+                        _reactionStorage?.ConsumeAllIgnoringDisease();
+                        _wasteStorage?.ConsumeAllIgnoringDisease();
+                        float totalMass = (_supplyStorage?.MassStored() ?? 0f)
+                            + (_reactionStorage?.MassStored() ?? 0f)
+                            + (_wasteStorage?.MassStored() ?? 0f);
+                        sm.meltdownMassRemaining.Set(10f + totalMass + _reactor.spentFuel, _smi);
+                        _smi.TryGoTo(sm.meltdown.pre);
+                    }
+                    break;
+
+                case 3:
+                    if (_smi.IsInsideState(sm.meltdown))
+                        sm.meltdownMassRemaining.Set(0f, _smi);
+                    else if (!_smi.IsInsideState(sm.dead))
+                        _smi.TryGoTo(sm.dead);
+                    break;
+            }
+        }
+
+        protected override void OnServerSampleExtra()
+        {
+            if (_smi == null || _smi.sm == null || _reactor == null)
+                return;
 
             var sm = _smi.sm;
 
             _fuelTemp = Mathf.Max(0f, _reactor.FuelTemperature);
-
-            _majorState = _smi.IsInsideState(sm.dead) ? 3
-                : _smi.IsInsideState(sm.meltdown) ? 2
-                : _smi.IsInsideState(sm.on) ? 1 : 0;
 
             _reactionUnderway = sm.reactionUnderway.Get(_smi);
             _meltingDown = sm.meltingDown.Get(_smi);
@@ -171,7 +213,7 @@ namespace ONI_Together.Networking.OxySync.Components
             }
         }
 
-        private void ApplyClientState()
+        protected override void OnClientApplyExtra()
         {
             if (_reactor == null || _smi == null) return;
 
@@ -208,51 +250,6 @@ namespace ONI_Together.Networking.OxySync.Components
             _reactor.radEmitter.emitRads = _emitRads;
             _reactor.waterMeter.SetPositionPercent(_waterMeterPercent);
             _reactor.temperatureMeter.SetPositionPercent(_temperaturePercent);
-
-            if (_lastAppliedMajorState != _majorState)
-            {
-                _lastAppliedMajorState = _majorState;
-                ForceStateTransition(_majorState);
-            }
-        }
-
-        private void ForceStateTransition(int targetState)
-        {
-            var sm = _smi.sm;
-
-            switch (targetState)
-            {
-                case 0:
-                    if (_smi.IsInsideState(sm.on))
-                        _smi.GoTo(sm.off);
-                    break;
-
-                case 1:
-                    if (_smi.IsInsideState(sm.off))
-                        sm.reactionUnderway.Set(true, _smi);
-                    break;
-
-                case 2:
-                    if (!_smi.IsInsideState(sm.meltdown) && !_smi.IsInsideState(sm.dead))
-                    {
-                        _supplyStorage?.ConsumeAllIgnoringDisease();
-                        _reactionStorage?.ConsumeAllIgnoringDisease();
-                        _wasteStorage?.ConsumeAllIgnoringDisease();
-                        float totalMass = (_supplyStorage?.MassStored() ?? 0f)
-                            + (_reactionStorage?.MassStored() ?? 0f)
-                            + (_wasteStorage?.MassStored() ?? 0f);
-                        sm.meltdownMassRemaining.Set(10f + totalMass + _reactor.spentFuel, _smi);
-                        _smi.GoTo(sm.meltdown.pre);
-                    }
-                    break;
-
-                case 3:
-                    if (_smi.IsInsideState(sm.meltdown))
-                        sm.meltdownMassRemaining.Set(0f, _smi);
-                    else if (!_smi.IsInsideState(sm.dead))
-                        _smi.GoTo(sm.dead);
-                    break;
-            }
         }
     }
 }
