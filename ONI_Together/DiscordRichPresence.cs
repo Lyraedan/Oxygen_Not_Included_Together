@@ -166,8 +166,8 @@ namespace ONI_Together
                 AstroidData astroid_data = GetAstroidData();
                 presence.Assets.SmallImageKey = astroid_data.imgUrl;
                 presence.Assets.SmallImageText = astroid_data.worldNameFriendly;
-                DebugConsole.Log("[DiscordRichPresence] Astroid url: " + astroid_data.imgUrl);
-                DebugConsole.Log("[DiscordRichPresence] Astroid friendly name: " + astroid_data.worldNameFriendly);
+                //DebugConsole.Log("[DiscordRichPresence] Astroid url: " + astroid_data.imgUrl);
+                //DebugConsole.Log("[DiscordRichPresence] Astroid friendly name: " + astroid_data.worldNameFriendly);
             }
 
             if (MultiplayerSession.InSession)
