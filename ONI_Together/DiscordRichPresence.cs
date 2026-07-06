@@ -83,6 +83,16 @@ namespace ONI_Together
                 _client.OnReady += OnDiscordReady;
                 _client.OnError += OnDiscordError;
                 _client.OnJoin += OnDiscordJoin;
+
+                try
+                {
+                    _client.RegisterUriScheme("457140");
+                }
+                catch (Exception ex)
+                {
+                    DebugConsole.LogWarning($"[DiscordRichPresence] URI scheme registration failed: {ex.Message}");
+                }
+
                 _client.Initialize();
 
                 DebugConsole.Log("[DiscordRichPresence] Initialized");
@@ -186,24 +196,30 @@ namespace ONI_Together
                 string transport = NetworkConfig.IsSteamConfig() ? "Steam" : "LAN";
                 presence.State = $"{role} over {transport}";
 
-                presence.Party = new DiscordRPC.Party
-                {
-                    ID = "oni_together_session",
-                    Size = NetworkConfig.GetConnectedClients().Count,
-                    Max = NetworkConfig.GetMaxServerCapacity()
-                };
-
+                string party_id = "oni_together_session";
+                bool isPublic = false;
+                
                 if (NetworkConfig.IsSteamConfig() && SteamLobby.InLobby)
                 {
+                    party_id = $"{SteamLobby.CurrentLobby.m_SteamID}";
                     string visibility = SteamMatchmaking.GetLobbyData(SteamLobby.CurrentLobby, "visibility");
-                    if (visibility != "private")
+                    isPublic = visibility != "private";
+                    if (isPublic)
                     {
                         presence.Secrets = new DiscordRPC.Secrets
                         {
-                            JoinSecret = $"{SteamLobby.CurrentLobby.m_SteamID}"
+                            JoinSecret = $"{SteamLobby.CurrentLobbyCode}"
                         };
                     }
                 }
+
+                presence.Party = new DiscordRPC.Party
+                {
+                    ID = party_id,
+                    Size = NetworkConfig.GetConnectedClients().Count,
+                    Max = NetworkConfig.GetMaxServerCapacity(),
+                    Privacy = isPublic ? Party.PrivacySetting.Public : Party.PrivacySetting.Private,
+                };
             }
             else
             {
@@ -243,7 +259,7 @@ namespace ONI_Together
 
             if (msg.Secret != null)
             {
-                if (ulong.TryParse(msg.Secret, out ulong lobbyId))
+                if (LobbyCodeHelper.TryParseCode(msg.Secret, out ulong lobbyId))
                 {
                     DebugConsole.Log($"[DiscordRichPresence] Joining Steam lobby: {lobbyId}");
                     NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.STEAMWORKS);
@@ -272,7 +288,8 @@ namespace ONI_Together
         {
             if (_client != null)
             {
-                _client.ClearPresence();
+                if (_client.IsInitialized)
+                    _client.ClearPresence();
                 _client.Dispose();
                 _client = null;
             }
