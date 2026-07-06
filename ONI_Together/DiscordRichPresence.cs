@@ -172,7 +172,7 @@ namespace ONI_Together
 
             if (MultiplayerSession.InSession)
             {
-                int cycle = GameClock.Instance != null ? GameClock.Instance.GetCycle() : 0;
+                int cycle = GameClock.Instance != null ? (GameClock.Instance.GetCycle() + 1) : 1;
                 int dupeCount = global::Components.LiveMinionIdentities?.Count ?? 0;
                 string baseName = SaveGame.Instance?.BaseName ?? "";
                 presence.Details = string.IsNullOrEmpty(baseName)
@@ -210,7 +210,7 @@ namespace ONI_Together
                 }
                 else if(Utils.IsInGame())
                 {
-                    int cycle = GameClock.Instance != null ? GameClock.Instance.GetCycle() : 0;
+                    int cycle = GameClock.Instance != null ? (GameClock.Instance.GetCycle() + 1) : 1;
                     int dupeCount = global::Components.LiveMinionIdentities?.Count ?? 0;
                     string baseName = SaveGame.Instance?.BaseName ?? "";
                     presence.Details = string.IsNullOrEmpty(baseName)
