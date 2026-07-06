@@ -11,6 +11,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using ProcGen;
+using Shared.Profiling;
 using UnityEngine;
 
 namespace ONI_Together
@@ -139,6 +140,8 @@ namespace ONI_Together
 
         private void UpdatePresence()
         {
+            using var _ = Profiler.Scope();
+            
             if (_client == null || !_client.IsInitialized)
                 return;
 
@@ -285,6 +288,8 @@ namespace ONI_Together
 
         private static string GetSpacedOutLink(string worldName = "Astroid.png")
         {
+            using var _ = Profiler.Scope();
+
             DebugConsole.Log($"Detected world name: {worldName} (SpacedOut)");
 
             foreach (var (prefix, fileName) in SpacedOutWorldLinks.OrderByDescending(x => x.Key.Length))
@@ -304,6 +309,8 @@ namespace ONI_Together
 
         public AstroidData GetAstroidData()
         {
+            using var _ = Profiler.Scope();
+
             if (_hasCachedAstroidData)
                 return _cachedAstroidData;
 
