@@ -268,7 +268,7 @@ namespace ONI_Together
             App.OnPostLoadScene -= OnSceneLoaded;
         }
 
-        private static string GetSpacedOutLink(string worldName = "Astroid")
+        private static string GetSpacedOutLink(string worldName = "Astroid.png")
         {
             DebugConsole.Log($"Detected world name: {worldName} (SpacedOut)");
 
@@ -306,7 +306,7 @@ namespace ONI_Together
             }
             else
             {
-                worldNameLink = "Asteroid";
+                worldNameLink = "Asteroid.png";
             }
 
             worldNameLink = worldNameLink.Replace("<sup>", "").Replace("</sup>", "").Replace(" ", "_");
