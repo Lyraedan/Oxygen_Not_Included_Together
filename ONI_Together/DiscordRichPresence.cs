@@ -142,6 +142,12 @@ namespace ONI_Together
             if (_client == null || !_client.IsInitialized)
                 return;
 
+            if (!Configuration.Instance.UseDiscordRichPresence)
+            {
+                _client.ClearPresence();
+                return;
+            }
+
             var presence = new RichPresence
             {
                 Assets = new DiscordRPC.Assets

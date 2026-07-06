@@ -142,6 +142,14 @@ namespace ONI_Together
             set => Client.UseCustomLoadingScreenColor = value;
         }
 
+        [Option("STRINGS.UI.CONFIGURATION.TITLES.MISC_SETTINGS.USE_DISCORD_RICH_PRESENCE", "STRINGS.UI.CONFIGURATION.TOOLTIPS.MISC_SETTINGS.USE_DISCORD_RICH_PRESENCE", "STRINGS.UI.CONFIGURATION.HEADERS.E_MISC_SETTINGS")]
+        [JsonIgnore]
+        public bool UseDiscordRichPresence
+        {
+            get => Client.Discord.UseDiscordRichPresence;
+            set => Client.Discord.UseDiscordRichPresence = value;
+        }
+
         public static T GetHostProperty<T>(string propertyName)
         {
             return Instance.GetProperty<T>(Instance.Host, propertyName);
@@ -237,6 +245,14 @@ namespace ONI_Together
         [JsonProperty] public float ChatWidth { get; set; } = 400;
         [JsonProperty] public float ChatHeight { get; set; } = 230;
         [JsonProperty] public bool ChatWindowExpanded { get; set; } = true;
+
+        [JsonProperty] public DiscordSettings Discord { get; set; } = new DiscordSettings();
+    }
+
+    [Serializable]
+    public class DiscordSettings
+    {
+        [JsonProperty] public bool UseDiscordRichPresence { get; set; } = true;
     }
 
     [Serializable]
