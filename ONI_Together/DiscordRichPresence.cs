@@ -168,7 +168,10 @@ namespace ONI_Together
             {
                 int cycle = GameClock.Instance != null ? GameClock.Instance.GetCycle() : 0;
                 int dupeCount = global::Components.LiveMinionIdentities?.Count ?? 0;
-                presence.Details = $"Cycle {cycle} with {dupeCount} dupes";
+                string baseName = SaveGame.Instance?.BaseName ?? "";
+                presence.Details = string.IsNullOrEmpty(baseName)
+                    ? $"Cycle {cycle} with {dupeCount} dupes"
+                    : $"{baseName} — Cycle {cycle} with {dupeCount} dupes";
 
                 string role = MultiplayerSession.IsHost ? "Hosting" : "Playing";
                 string transport = NetworkConfig.IsSteamConfig() ? "Steam" : "LAN";
@@ -201,7 +204,13 @@ namespace ONI_Together
                 }
                 else if(Utils.IsInGame())
                 {
-                    presence.Details = "Playing singleplayer";
+                    int cycle = GameClock.Instance != null ? GameClock.Instance.GetCycle() : 0;
+                    int dupeCount = global::Components.LiveMinionIdentities?.Count ?? 0;
+                    string baseName = SaveGame.Instance?.BaseName ?? "";
+                    presence.Details = string.IsNullOrEmpty(baseName)
+                        ? $"Cycle {cycle} with {dupeCount} dupes"
+                        : $"{baseName} — Cycle {cycle} with {dupeCount} dupes";
+                    presence.State = "Playing singleplayer";
                 }
             }
 
