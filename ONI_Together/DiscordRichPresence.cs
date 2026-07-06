@@ -8,6 +8,9 @@ using ONI_Together.UI;
 using Steamworks;
 using System;
 using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
+using ProcGen;
 using UnityEngine;
 
 namespace ONI_Together
@@ -17,13 +20,59 @@ namespace ONI_Together
         private const string APP_ID = "1511834433542688870";
         private const string LARGE_IMAGE_KEY = "oni_together_logo";
         private const string LARGE_IMAGE_TEXT = "ONI Together";
-        private const string SMALL_IMAGE_KEY = "network_icon";
         private const float PRESENCE_UPDATE_INTERVAL = 5f;
 
         private DiscordRpcClient _client;
         private System.DateTime _sessionStartTime = System.DateTime.UtcNow;
         private bool _hasRecordedStartTime;
         private float _presenceUpdateTimer;
+        
+        private AstroidData _cachedAstroidData;
+        private bool _hasCachedAstroidData;
+
+        public static Dictionary<string, string> clusterWorldNames = new Dictionary<string, string>();
+        private static readonly Dictionary<string, string> SpacedOutWorldLinks = new Dictionary<string, string>()
+        {
+            ["Terrania"] = "Terrania_Asteroid.png",
+            ["Folia"] = "Folia_Asteroid.png",
+            ["Quagmiris"] = "Quagmiris_Asteroid.png",
+            ["Terra"] = "Terra_Asteroid_(Spaced_Out).png",
+            ["Verdante"] = "Verdante_Asteroid_(Spaced_Out).png",
+            ["Squelchy"] = "Squelchy_Asteroid.png",
+            ["Rime"] = "Rime_Asteroid_(Spaced_Out).png",
+            ["Oceania"] = "Oceania_Asteroid_(Spaced_Out).png",
+            ["Oasisse"] = "Oasisse_Asteroid_(Spaced_Out).png",
+            ["The Badlands"] = "The_Badlands_Asteroid_(Spaced_Out).png",
+            ["Arboria"] = "Arboria_Asteroid_(Spaced_Out).png",
+            ["Aridio"] = "Aridio_Asteroid_(Spaced_Out).png",
+            ["Volcanea"] = "Volcanea_Asteroid_(Spaced_Out).png",
+            ["Ceres"] = "Ceres_Asteroid_(Spaced_Out).png",
+            ["Blasted Ceres"] = "Blasted_Ceres_Asteroid_(Spaced_Out).png",
+            ["Ceres Mantle"] = "Ceres_Mantle_Asteroid.png",
+            ["Ceres Minor Cluster"] = "Ceres_Minor_Asteroid.png",
+            ["Relica"] = "Relica_Asteroid_(Spaced_Out).png",
+            ["Relica Minor"] = "Relica_Minor_Asteroid.png",
+            ["Marinea"] = "Marinea_Asteroid_(Spaced_Out).png",
+            ["Marinea Minor"] = "Marinea_Minor_Asteroid.png",
+            ["RelicAAAA"] = "RelicAAAAAAAGHH_Asteroid.png",
+        };
+
+        private static readonly Dictionary<string, string> SpacedOutContainsLinks = new Dictionary<string, string>()
+        {
+            ["Metallic Swampy"] = "Metallic_Swampy_Asteroid.png",
+            ["Frozen Forest"] = "Frozen_Forest_Asteroid.png",
+            ["The Desolands"] = "The_Desolands_Asteroid.png",
+            ["Moonlet"] = "The_Desolands_Asteroid.png",
+            ["Flipped"] = "Flipped_Asteroid.png",
+            ["Radioactive Ocean"] = "Radioactive_Ocean_Asteroid.png",
+        };
+
+        public struct AstroidData
+        {
+            public string worldNameFriendly;
+            public string worldNameLink;
+            public string imgUrl;
+        }
 
         private void Start()
         {
@@ -35,12 +84,6 @@ namespace ONI_Together
                 _client.OnJoin += OnDiscordJoin;
                 _client.Initialize();
 
-                try
-                {
-                    _client.RegisterUriScheme("457140", null);
-                }
-                catch { }
-
                 DebugConsole.Log("[DiscordRichPresence] Initialized");
             }
             catch (Exception ex)
@@ -51,7 +94,11 @@ namespace ONI_Together
             }
 
             if (Game.Instance != null)
+            {
                 _hasRecordedStartTime = true;
+                Game.Instance.OnSpawnComplete += RefreshAstroid;
+                Game.Instance.Subscribe(1983128072, OnActiveWorldChanged);
+            }
 
             App.OnPostLoadScene += OnSceneLoaded;
         }
@@ -63,6 +110,18 @@ namespace ONI_Together
                 _sessionStartTime = System.DateTime.UtcNow;
                 _hasRecordedStartTime = true;
             }
+
+            _hasCachedAstroidData = false;
+        }
+
+        private void RefreshAstroid()
+        {
+            _hasCachedAstroidData = false;
+        }
+
+        private void OnActiveWorldChanged(object data)
+        {
+            RefreshAstroid();
         }
 
         private void Update()
@@ -96,10 +155,17 @@ namespace ONI_Together
                 }
             };
 
+            if (Utils.IsInGame())
+            {
+                AstroidData astroid_data = GetAstroidData();
+                presence.Assets.SmallImageKey = astroid_data.imgUrl;
+                presence.Assets.SmallImageText = astroid_data.worldNameFriendly;
+                DebugConsole.Log("[DiscordRichPresence] Astroid url: " + astroid_data.imgUrl);
+                DebugConsole.Log("[DiscordRichPresence] Astroid friendly name: " + astroid_data.worldNameFriendly);
+            }
+
             if (MultiplayerSession.InSession)
             {
-                presence.Assets.SmallImageKey = SMALL_IMAGE_KEY;
-
                 int cycle = GameClock.Instance != null ? GameClock.Instance.GetCycle() : 0;
                 int dupeCount = global::Components.LiveMinionIdentities?.Count ?? 0;
                 presence.Details = $"Cycle {cycle} with {dupeCount} dupes";
@@ -115,14 +181,14 @@ namespace ONI_Together
                     Max = NetworkConfig.GetMaxServerCapacity()
                 };
 
-                if (_client.HasRegisteredUriScheme && MultiplayerSession.IsHost && NetworkConfig.IsSteamConfig() && SteamLobby.InLobby)
+                if (MultiplayerSession.IsHost && NetworkConfig.IsSteamConfig() && SteamLobby.InLobby)
                 {
                     string visibility = SteamMatchmaking.GetLobbyData(SteamLobby.CurrentLobby, "visibility");
                     if (visibility != "private")
                     {
                         presence.Secrets = new DiscordRPC.Secrets
                         {
-                            JoinSecret = $"steam_lobby:{SteamLobby.CurrentLobby.m_SteamID}"
+                            JoinSecret = $"{SteamLobby.CurrentLobby.m_SteamID}"
                         };
                     }
                 }
@@ -157,9 +223,9 @@ namespace ONI_Together
         {
             DebugConsole.Log($"[DiscordRichPresence] Join with secret: {msg.Secret}");
 
-            if (msg.Secret != null && msg.Secret.StartsWith("steam_lobby:"))
+            if (msg.Secret != null)
             {
-                if (ulong.TryParse(msg.Secret.Substring("steam_lobby:".Length), out ulong lobbyId))
+                if (ulong.TryParse(msg.Secret, out ulong lobbyId))
                 {
                     DebugConsole.Log($"[DiscordRichPresence] Joining Steam lobby: {lobbyId}");
                     NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.STEAMWORKS);
@@ -193,7 +259,77 @@ namespace ONI_Together
                 _client = null;
             }
 
+            if (Game.Instance != null)
+            {
+                Game.Instance.OnSpawnComplete -= RefreshAstroid;
+                Game.Instance.Unsubscribe(1983128072, OnActiveWorldChanged);
+            }
+
             App.OnPostLoadScene -= OnSceneLoaded;
+        }
+
+        private static string GetSpacedOutLink(string worldName = "Astroid")
+        {
+            DebugConsole.Log($"Detected world name: {worldName} (SpacedOut)");
+
+            foreach (var (prefix, fileName) in SpacedOutWorldLinks.OrderByDescending(x => x.Key.Length))
+            {
+                if (worldName.StartsWith(prefix, StringComparison.Ordinal))
+                    return $"https://oxygennotincluded.wiki.gg/images/{fileName}";
+            }
+
+            foreach (var (text, fileName) in SpacedOutContainsLinks)
+            {
+                if (worldName.Contains(text, StringComparison.Ordinal))
+                    return $"https://oxygennotincluded.wiki.gg/images/{fileName}";
+            }
+
+            return $"https://oxygennotincluded.wiki.gg/images/{worldName}";
+        }
+
+        public AstroidData GetAstroidData()
+        {
+            if (_hasCachedAstroidData)
+                return _cachedAstroidData;
+
+            Klei.CustomSettings.SettingLevel currentQualitySetting = CustomGameSettings.Instance.GetCurrentQualitySetting(Klei.CustomSettings.CustomGameSettingConfigs.ClusterLayout);
+            ClusterLayout clusterLayout;
+            SettingsCache.clusterLayouts.clusterCache.TryGetValue(currentQualitySetting.id, out clusterLayout);
+
+            var world = ClusterManager.Instance?.activeWorld;
+            string worldNameFriendly = Strings.Get(clusterLayout.name);
+            string worldNameLink = clusterLayout.name;
+
+            if (clusterWorldNames.TryGetValue(worldNameLink, out string resolvedName))
+            {
+                worldNameLink = resolvedName;
+            }
+            else
+            {
+                worldNameLink = "Asteroid";
+            }
+
+            worldNameLink = worldNameLink.Replace("<sup>", "").Replace("</sup>", "").Replace(" ", "_");
+            string url = "https://oxygennotincluded.wiki.gg/images/Asteroid.png";
+
+            if (!DlcManager.FeatureClusterSpaceEnabled())
+            {
+                url = $"https://oxygennotincluded.wiki.gg/images/{worldNameLink}_Asteroid.png";
+            }
+            else
+            {
+                url = GetSpacedOutLink(worldNameLink);
+            }
+
+            _cachedAstroidData = new AstroidData
+            {
+                worldNameFriendly = worldNameFriendly,
+                worldNameLink = worldNameLink,
+                imgUrl = url
+            };
+            _hasCachedAstroidData = true;
+
+            return _cachedAstroidData;
         }
     }
 }
