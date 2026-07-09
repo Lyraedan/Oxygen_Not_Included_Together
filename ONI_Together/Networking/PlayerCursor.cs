@@ -28,6 +28,7 @@ namespace ONI_Together.Networking
 
 		System.Action OnCursorStateChanged;
 
+		public Color PlayerColor => playerColor;
 		private Color playerColor = Color.white;
 		private Shader playerCursorShader = null;
 		private Material playerCursorMaterial = null;

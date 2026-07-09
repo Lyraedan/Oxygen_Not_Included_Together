@@ -262,7 +262,9 @@ namespace ONI_Together.Networking.Transport.Steamworks
 				DebugConsole.Log($"[SteamLobby] {name} joined the lobby.");
 				ChatScreen.PendingMessage pending = ChatScreen.GeneratePendingMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, name));
 				ChatScreen.QueueMessage(pending);
-                Game.Instance?.Trigger(MP_HASHES.OnPlayerJoined);
+				var boxedId = Boxed<ulong>.Get(userId);
+				Game.Instance?.Trigger(MP_HASHES.OnPlayerJoined, boxedId);
+				boxedId.Release();
             }
 
 			if ((stateChange & EChatMemberStateChange.k_EChatMemberStateChangeLeft) != 0 ||
@@ -279,7 +281,9 @@ namespace ONI_Together.Networking.Transport.Steamworks
                 ChatScreen.PendingMessage pending = ChatScreen.GeneratePendingMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_LEFT, name));
                 ChatScreen.QueueMessage(pending);
                 Utils.PauseSimOnPlayerLeft();
-                Game.Instance?.Trigger(MP_HASHES.OnPlayerLeft);
+				var boxedId = Boxed<ulong>.Get(userId);
+				Game.Instance?.Trigger(MP_HASHES.OnPlayerLeft, boxedId);
+				boxedId.Release();
             }
 		}
 

@@ -308,8 +308,10 @@ namespace ONI_Together.Networking.Transport.Lan
                 enumerator.MoveNext();
                 _loadingClients.Remove(enumerator.Current.Key);
                 _reconnectedFromLoad.Add(id);
-            }
-            Game.Instance?.Trigger(MP_HASHES.OnPlayerJoined);
+			}
+			var boxedId = Boxed<ulong>.Get(id);
+			Game.Instance?.Trigger(MP_HASHES.OnPlayerJoined,boxedId);
+            boxedId.Release();
         }
 
         public void RemoveClientFromList(ulong id)
@@ -327,8 +329,10 @@ namespace ONI_Together.Networking.Transport.Lan
                 ChatScreen.PendingMessage pending = ChatScreen.GeneratePendingMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_LEFT, name));
                 ChatScreen.QueueMessage(pending);
                 Utils.PauseSimOnPlayerLeft();
-            }
-            Game.Instance?.Trigger(MP_HASHES.OnPlayerLeft);
+			}
+			var boxedId = Boxed<ulong>.Get(id);
+			Game.Instance?.Trigger(MP_HASHES.OnPlayerLeft, boxedId);
+            boxedId.Release();
         }
         public ulong GetClientID()
         {
