@@ -460,6 +460,20 @@ namespace ONI_Together.DebugTools
                 ImGui.EndCombo();
             }
 
+            ImGui.SameLine();
+            var tests = UnitTestRegistry.Tests;
+            int passed = tests.Count(t => t.IsPassed);
+            int failed = tests.Count(t => t.IsFailed);
+            int notRun = tests.Count(t => !t.HasRun);
+            double totalTime = tests.Where(t => t.HasRun).Sum(t => t.DurationMs);
+            ImGui.TextColored(new Vector4(0f, 1f, 0f, 1f), $"{passed} passed");
+            ImGui.SameLine();
+            ImGui.TextColored(new Vector4(1f, 0f, 0f, 1f), $"{failed} failed");
+            ImGui.SameLine();
+            ImGui.TextColored(new Vector4(1f, 1f, 0f, 1f), $"{notRun} not run");
+            ImGui.SameLine();
+            ImGui.Text($"total {totalTime:F2} ms");
+
             ImGui.Separator();
 
             if (unitTestAutoRun)
@@ -473,15 +487,16 @@ namespace ONI_Together.DebugTools
                 }
             }
 
-            if (ImGui.BeginTable("UnitTestsTable", 4,
+            if (ImGui.BeginTable("UnitTestsTable", 5,
                 ImGuiTableFlags.Borders |
                 ImGuiTableFlags.RowBg |
                 ImGuiTableFlags.Resizable |
                 ImGuiTableFlags.ScrollY))
             {
-                // Setup columns: Category | Test (name + button) | Status | Message
+                // Setup columns: Category | Test | Run | Status | Message
                 ImGui.TableSetupColumn("Category", ImGuiTableColumnFlags.WidthFixed, 120);
                 ImGui.TableSetupColumn("Test", ImGuiTableColumnFlags.WidthStretch);
+                ImGui.TableSetupColumn("Run", ImGuiTableColumnFlags.WidthFixed, 40);
                 ImGui.TableSetupColumn("Status", ImGuiTableColumnFlags.WidthFixed, 140);
                 ImGui.TableSetupColumn("Message", ImGuiTableColumnFlags.WidthStretch);
 
@@ -501,11 +516,12 @@ namespace ONI_Together.DebugTools
 
                     ImGui.TableSetColumnIndex(1);
                     ImGui.Text(test.Name);
-                    ImGui.SameLine();
+
+                    ImGui.TableSetColumnIndex(2);
                     if (ImGui.SmallButton("Run"))
                         test.Run();
 
-                    ImGui.TableSetColumnIndex(2);
+                    ImGui.TableSetColumnIndex(3);
                     Vector4 color;
                     string label;
 
@@ -539,7 +555,7 @@ namespace ONI_Together.DebugTools
 
                     ImGui.TextColored(color, label);
 
-                    ImGui.TableSetColumnIndex(3);
+                    ImGui.TableSetColumnIndex(4);
                     if (!string.IsNullOrEmpty(test.Message))
                         ImGui.TextWrapped(test.Message);
 
