@@ -8,9 +8,6 @@ using ONI_Together.UI;
 using Steamworks;
 using System;
 using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using ProcGen;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -28,52 +25,8 @@ namespace ONI_Together
         private bool _hasRecordedStartTime;
         private float _presenceUpdateTimer;
         
-        private AstroidData _cachedAstroidData;
+        private ClusterIcons.Entry? _cachedAstroidData;
         private bool _hasCachedAstroidData;
-
-        public static Dictionary<string, string> clusterWorldNames = new Dictionary<string, string>();
-        private static readonly Dictionary<string, string> SpacedOutWorldLinks = new Dictionary<string, string>()
-        {
-            ["Terrania"] = "Terrania_Asteroid.png",
-            ["Folia"] = "Folia_Asteroid.png",
-            ["Quagmiris"] = "Quagmiris_Asteroid.png",
-            ["Terra"] = "Terra_Asteroid_(Spaced_Out).png",
-            ["Verdante"] = "Verdante_Asteroid_(Spaced_Out).png",
-            ["Squelchy"] = "Squelchy_Asteroid.png",
-            ["Rime"] = "Rime_Asteroid_(Spaced_Out).png",
-            ["Oceania"] = "Oceania_Asteroid_(Spaced_Out).png",
-            ["Oasisse"] = "Oasisse_Asteroid_(Spaced_Out).png",
-            ["The Badlands"] = "The_Badlands_Asteroid_(Spaced_Out).png",
-            ["Arboria"] = "Arboria_Asteroid_(Spaced_Out).png",
-            ["Aridio"] = "Aridio_Asteroid_(Spaced_Out).png",
-            ["Volcanea"] = "Volcanea_Asteroid_(Spaced_Out).png",
-            ["Ceres"] = "Ceres_Asteroid_(Spaced_Out).png",
-            ["Blasted Ceres"] = "Blasted_Ceres_Asteroid_(Spaced_Out).png",
-            ["Ceres Mantle"] = "Ceres_Mantle_Asteroid.png",
-            ["Ceres Minor Cluster"] = "Ceres_Minor_Asteroid.png",
-            ["Relica"] = "Relica_Asteroid_(Spaced_Out).png",
-            ["Relica Minor"] = "Relica_Minor_Asteroid.png",
-            ["Marinea"] = "Marinea_Asteroid_(Spaced_Out).png",
-            ["Marinea Minor"] = "Marinea_Minor_Asteroid.png",
-            ["RelicAAAA"] = "RelicAAAAAAAGHH_Asteroid.png",
-        };
-
-        private static readonly Dictionary<string, string> SpacedOutContainsLinks = new Dictionary<string, string>()
-        {
-            ["Metallic Swampy"] = "Metallic_Swampy_Asteroid.png",
-            ["Frozen Forest"] = "Frozen_Forest_Asteroid.png",
-            ["The Desolands"] = "The_Desolands_Asteroid.png",
-            ["Moonlet"] = "The_Desolands_Asteroid.png",
-            ["Flipped"] = "Flipped_Asteroid.png",
-            ["Radioactive Ocean"] = "Radioactive_Ocean_Asteroid.png",
-        };
-
-        public struct AstroidData
-        {
-            public string worldNameFriendly;
-            public string worldNameLink;
-            public string imgUrl;
-        }
 
         private void Start()
         {
@@ -176,11 +129,12 @@ namespace ONI_Together
 
             if (Utils.IsInGame())
             {
-                AstroidData astroid_data = GetAstroidData();
-                presence.Assets.SmallImageKey = astroid_data.imgUrl;
-                presence.Assets.SmallImageText = astroid_data.worldNameFriendly;
-                //DebugConsole.Log("[DiscordRichPresence] Astroid url: " + astroid_data.imgUrl);
-                //DebugConsole.Log("[DiscordRichPresence] Astroid friendly name: " + astroid_data.worldNameFriendly);
+                var entry = GetAstroidData();
+                if (entry.HasValue)
+                {
+                    presence.Assets.SmallImageKey = entry.Value.IconUrl;
+                    presence.Assets.SmallImageText = entry.Value.Name;
+                }
             }
 
             if (MultiplayerSession.InSession)
@@ -303,70 +257,15 @@ namespace ONI_Together
             App.OnPostLoadScene -= OnSceneLoaded;
         }
 
-        private static string GetSpacedOutLink(string worldName = "Astroid.png")
+        public ClusterIcons.Entry? GetAstroidData()
         {
             using var _ = Profiler.Scope();
 
-            DebugConsole.Log($"Detected world name: {worldName} (SpacedOut)");
-
-            foreach (var (prefix, fileName) in SpacedOutWorldLinks.OrderByDescending(x => x.Key.Length))
+            if (!_hasCachedAstroidData)
             {
-                if (worldName.StartsWith(prefix, StringComparison.Ordinal))
-                    return $"https://oxygennotincluded.wiki.gg/images/{fileName}";
+                _cachedAstroidData = ClusterIcons.ResolveCurrent();
+                _hasCachedAstroidData = true;
             }
-
-            foreach (var (text, fileName) in SpacedOutContainsLinks)
-            {
-                if (worldName.Contains(text, StringComparison.Ordinal))
-                    return $"https://oxygennotincluded.wiki.gg/images/{fileName}";
-            }
-
-            return $"https://oxygennotincluded.wiki.gg/images/{worldName}";
-        }
-
-        public AstroidData GetAstroidData()
-        {
-            using var _ = Profiler.Scope();
-
-            if (_hasCachedAstroidData)
-                return _cachedAstroidData;
-
-            Klei.CustomSettings.SettingLevel currentQualitySetting = CustomGameSettings.Instance.GetCurrentQualitySetting(Klei.CustomSettings.CustomGameSettingConfigs.ClusterLayout);
-            ClusterLayout clusterLayout;
-            SettingsCache.clusterLayouts.clusterCache.TryGetValue(currentQualitySetting.id, out clusterLayout);
-
-            var world = ClusterManager.Instance?.activeWorld;
-            string worldNameFriendly = Strings.Get(clusterLayout.name);
-            string worldNameLink = clusterLayout.name;
-
-            if (clusterWorldNames.TryGetValue(worldNameLink, out string resolvedName))
-            {
-                worldNameLink = resolvedName;
-            }
-            else
-            {
-                worldNameLink = "Asteroid.png";
-            }
-
-            worldNameLink = worldNameLink.Replace("<sup>", "").Replace("</sup>", "").Replace(" ", "_");
-            string url = "https://oxygennotincluded.wiki.gg/images/Asteroid.png";
-
-            if (!DlcManager.FeatureClusterSpaceEnabled())
-            {
-                url = $"https://oxygennotincluded.wiki.gg/images/{worldNameLink}_Asteroid.png";
-            }
-            else
-            {
-                url = GetSpacedOutLink(worldNameLink);
-            }
-
-            _cachedAstroidData = new AstroidData
-            {
-                worldNameFriendly = worldNameFriendly,
-                worldNameLink = worldNameLink,
-                imgUrl = url
-            };
-            _hasCachedAstroidData = true;
 
             return _cachedAstroidData;
         }
