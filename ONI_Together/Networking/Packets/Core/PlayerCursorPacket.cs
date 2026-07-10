@@ -145,7 +145,7 @@ namespace ONI_Together.Networking.Packets.Core
 			{
 				if (Utils.IsInGame())
 				{
-					MultiplayerSession.CreateNewPlayerCursor(PlayerID); // Create a cursor if one doesn't exist.
+					MultiplayerSession.CreateNewPlayerCursor(PlayerID, CursorState, Color); // Create a cursor if one doesn't exist.
 				}
 			}
 
