@@ -18,23 +18,10 @@ namespace ONI_Together.Patches
         [HarmonyPatch(typeof(Localization), nameof(Localization.Initialize))]
         public class Localization_Initialize_Patch
         {
-	        public static void Prefix()
-	        {
-		        using var _ = Profiler.Scope();
-
-		        // Add to the DiscordRichPresence.clusterWorldNames list
-		        InspectLocString(typeof(CLUSTER_NAMES), ref DiscordRichPresence.clusterWorldNames, addString: true);
-		        InspectLocString(typeof(WORLDS), ref DiscordRichPresence.clusterWorldNames, addString: true);
-	        }
-	        
 			public static void Postfix()
             {
 	            using var _ = Profiler.Scope();
-	            
 				Translate(typeof(STRINGS), true);
-				// Update DiscordRichPresence.clusterWorldNames
-				InspectLocString(typeof(CLUSTER_NAMES), ref DiscordRichPresence.clusterWorldNames, addString: false);
-				InspectLocString(typeof(WORLDS), ref DiscordRichPresence.clusterWorldNames, addString: false);
             }
 
 			static string ModPath => Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
@@ -70,44 +57,6 @@ namespace ONI_Together.Patches
 				{
 					Localization.OverloadStrings(Localization.LoadStringsFile(path, false));
 					DebugConsole.Log($"Found translation file for {code}.");
-				}
-			}
-			
-			private static void InspectLocString(Type type, ref Dictionary<string, string> clusterWorldNames, string parent_path = "STRINGS.", bool addString = true)
-			{
-				string text = parent_path + type.Name + ".";
-
-				FieldInfo[] fields = type.GetFields(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy);
-				foreach (FieldInfo fieldInfo in fields)
-				{
-					if (fieldInfo.FieldType == typeof(LocString) && fieldInfo.IsStatic)
-					{
-						string fullFieldPath = text + fieldInfo.Name;
-
-						if (fullFieldPath.StartsWith("STRINGS.") && fullFieldPath.EndsWith(".NAME"))
-						{
-							var locString = (LocString)fieldInfo.GetValue(null);
-
-							if (addString)
-							{
-								clusterWorldNames.Add(fullFieldPath, locString.text);
-							}
-							else
-							{
-								var foundPair = clusterWorldNames.FirstOrDefault(pair => pair.Key == fullFieldPath);
-								if (!string.IsNullOrEmpty(foundPair.Key))
-								{
-									clusterWorldNames[foundPair.Key] = locString.text;
-								}
-							}
-						}
-					}
-				}
-
-				Type[] nestedTypes = type.GetNestedTypes(BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.FlattenHierarchy);
-				foreach (Type nestedType in nestedTypes)
-				{
-					InspectLocString(nestedType, ref clusterWorldNames, text, addString);
 				}
 			}
 		}
