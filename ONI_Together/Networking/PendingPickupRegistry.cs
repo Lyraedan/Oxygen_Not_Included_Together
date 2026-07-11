@@ -3,7 +3,8 @@ using System.Collections.Generic;
 using Shared.Profiling;
 
 namespace ONI_Together.Networking
-{	public static class PendingPickupRegistry
+{
+	public static class PendingPickupRegistry
 	{
 		private static readonly HashSet<int> PendingNetIds = [];
 
