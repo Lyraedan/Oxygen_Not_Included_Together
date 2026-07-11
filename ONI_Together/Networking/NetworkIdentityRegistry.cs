@@ -126,9 +126,7 @@ namespace ONI_Together.Networking
 
 			identities.Clear();
 			_lookupFailCount = 0;
-			// TODO Rope into 1
-			GroundItemPickedUpPacket.ClearPending();
-			StorageItemPacket.ClearPending();
+			PendingPickupRegistry.Clear();
 
 			PlayAnimPacket.ClearState();
 		}

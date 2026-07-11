@@ -90,7 +90,7 @@ public class SpawnPrefabPacket : IPacket
         go.AddOrGet<NetworkIdentity>().OverrideNetId(NetId);
         
         // Race condition guard: Was this prefab already picked up / stored before the packet arrived?
-        if (GroundItemPickedUpPacket.TryConsumePending(NetId) || StorageItemPacket.TryConsumePending(NetId))
+        if (PendingPickupRegistry.TryConsume(NetId))
         {
             Util.KDestroyGameObject(go);
         }
