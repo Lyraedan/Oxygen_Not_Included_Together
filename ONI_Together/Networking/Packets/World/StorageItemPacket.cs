@@ -1,6 +1,5 @@
 ﻿using ONI_Together.DebugTools;
 using ONI_Together.Networking.Packets.Architecture;
-using System.Collections.Generic;
 using System.IO;
 using Shared.Profiling;
 using UnityEngine;
@@ -16,8 +15,6 @@ namespace ONI_Together.Networking.Packets.World
     /// </summary>
     public class StorageItemPacket : IPacket, IBulkablePacket
     {
-        private static readonly HashSet<int> PendingPickupNetIds = [];
-
         public int NetId;
         public int StorageNetId;
         public FXPrefix FxPrefix;
@@ -29,20 +26,6 @@ namespace ONI_Together.Networking.Packets.World
         public int MaxPackSize => 500;
 
         public uint IntervalMs => 250;
-
-        public static bool TryConsumePending(int netId)
-        {
-            using var _ = Profiler.Scope();
-            return PendingPickupNetIds.Remove(netId);
-        }
-
-        public static void ClearPending()
-        {
-            using var _ = Profiler.Scope();
-            int n = PendingPickupNetIds.Count;
-            PendingPickupNetIds.Clear();
-            DebugConsole.Log($"[PendingPickup] cleared count={n}");
-        }
 
         public void Serialize(BinaryWriter writer)
         {
@@ -87,7 +70,7 @@ namespace ONI_Together.Networking.Packets.World
 
             if (!NetworkIdentityRegistry.TryGetComponent<Pickupable>(NetId, out var pickupable))
             {
-                PendingPickupNetIds.Add(NetId);
+                PendingPickupRegistry.Add(NetId);
                 DebugConsole.LogWarning($"[StoreItemPacket] Pickupable NetId {NetId} not yet registered; queued pending removal");
                 return;
             }
