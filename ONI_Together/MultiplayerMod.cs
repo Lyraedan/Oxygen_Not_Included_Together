@@ -230,7 +230,7 @@ namespace ONI_Together
 		{
 			using var _ = Profiler.Scope();
 
-#if DEBUG // DevTool is not accessible on mac.
+#if DEBUG && !OS_MAC // DevTool is not accessible on mac.
 			var baseMethod = AccessTools.Method(typeof(DevToolManager), "RegisterDevTool");
 			var twitchDevToolRegister = baseMethod.MakeGenericMethod(typeof(DevToolMultiplayer));
 			twitchDevToolRegister.Invoke(DevToolManager.Instance, new object[] { "Mods/MultiplayerMod" });

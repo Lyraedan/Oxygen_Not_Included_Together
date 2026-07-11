@@ -1,5 +1,5 @@
 // Keep this to only windows, Mac is not built with the Devtool framework so it doesn't have access to the DevTool class and just crashes
-#if DEBUG //OS_WINDOWS || DEBUG
+#if DEBUG && !OS_MAC
 
 using System;
 using System.Collections.Generic;
