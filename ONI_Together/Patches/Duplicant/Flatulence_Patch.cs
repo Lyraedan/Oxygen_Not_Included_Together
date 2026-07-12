@@ -25,7 +25,7 @@ namespace ONI_Together.Patches.Duplicant
 			{
 				using var _ = Profiler.Scope();
 
-				if(__instance.IsNullOrDestroyed() || __instance.gameObject.IsNullOrDestroyed())
+				if (__instance.IsNullOrDestroyed() || __instance.gameObject.IsNullOrDestroyed())
 					return false;
 
 				if (__instance.smi.IsNullOrDestroyed() || __instance.smi.IsNullOrStopped())
