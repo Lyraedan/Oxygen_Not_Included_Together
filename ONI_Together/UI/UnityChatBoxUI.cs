@@ -91,6 +91,7 @@ namespace ONI_Together.UI
 			//transform.localPosition = new(cfg.ChatPositionX, cfg.ChatPositionY);
 
 			MsgPrefab = transform.Find("ScrollArea/Content/MessagePrefab").gameObject.AddOrGet<ChatMessageContainer>();
+			MsgPrefab.gameObject.SetActive(false);
 		}
 		public void SendNewNewMessage(string sender, string timestamp, string message)
 		{
