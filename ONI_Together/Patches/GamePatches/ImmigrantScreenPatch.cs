@@ -87,9 +87,9 @@ namespace ONI_Together.Patches.GamePatches
 		{
 			using var _ = Profiler.Scope();
 
-            if (instance.Telepad == null) return;
+			if (instance.Telepad == null) return;
 
-            if (AvailableOptions == null || AvailableOptions.Count == 0 || instance == null)
+			if (AvailableOptions == null || AvailableOptions.Count == 0 || instance == null)
 			{
 				DebugConsole.LogWarning($"[ImmigrantScreen] ApplyOptionsToScreen: Cannot apply - Options:{AvailableOptions?.Count ?? 0}, Screen:{(instance != null ? "valid" : "null")}");
 				return;
@@ -98,12 +98,16 @@ namespace ONI_Together.Patches.GamePatches
 			bool canRerollCarePackages = false, canRerollMinions = false;
 			foreach (var cont in instance.containers)
 			{
-				if(cont is CharacterContainer cc)
-					if(cc.reshuffleButton.gameObject.activeSelf)
+				if (cont is CharacterContainer cc)
+				{
+					if (cc.reshuffleButton.gameObject.activeSelf)
 						canRerollMinions = true;
-				else if(cont is CarePackageContainer cpc)
-					if(cpc.reshuffleButton.gameObject.activeSelf)
+				}
+				else if (cont is CarePackageContainer cpc)
+				{
+					if (cpc.reshuffleButton.gameObject.activeSelf)
 						canRerollCarePackages = true;
+				}
 			}
 			///Clearing existing containers
 			instance.containers.ForEach(delegate (ITelepadDeliverableContainer cc)
@@ -120,7 +124,7 @@ namespace ONI_Together.Patches.GamePatches
 			{
 				DebugConsole.Log($"[ImmigrantScreen]   Type={option.EntryType}, Id={(option.GetId())}");
 				var deliverable = option.ToGameDeliverable();
-				if(deliverable is MinionStartingStats stats)
+				if (deliverable is MinionStartingStats stats)
 				{
 					CharacterContainer characterContainer = Util.KInstantiateUI<CharacterContainer>(instance.containerPrefab.gameObject, instance.containerParent);
 					characterContainer.SetController(instance);
@@ -129,7 +133,7 @@ namespace ONI_Together.Patches.GamePatches
 					Game.Instance.StartCoroutine(SetMinionDelayed(characterContainer, stats));
 					instance.containers.Add(characterContainer);
 				}
-				else if(deliverable is CarePackageInfo pkg)
+				else if (deliverable is CarePackageInfo pkg)
 				{
 					CarePackageContainer carePackageContainer = Util.KInstantiateUI<CarePackageContainer>(instance.carePackageContainerPrefab.gameObject, instance.containerParent);
 					carePackageContainer.SetController(instance);
@@ -192,9 +196,9 @@ namespace ONI_Together.Patches.GamePatches
 		{
 			using var _ = Profiler.Scope();
 
-            if (__instance.Telepad == null) return;
+			if (__instance.Telepad == null) return;
 
-            string role = MultiplayerSession.IsHost ? "Host" : "Client";
+			string role = MultiplayerSession.IsHost ? "Host" : "Client";
 			DebugConsole.Log($"[ImmigrantScreen] {role}: Capturing options from containers...");
 
 			// Get containers from ImmigrantScreen (inherited from CharacterSelectionController)
@@ -211,10 +215,10 @@ namespace ONI_Together.Patches.GamePatches
 				ImmigrantOptionEntry fromContainer = ImmigrantOptionEntry.INVALID;
 				if (container is CharacterContainer cc)
 					fromContainer = ImmigrantOptionEntry.FromGameDeliverable(cc.Stats);
-				else if( container is CarePackageContainer cpc)
+				else if (container is CarePackageContainer cpc)
 					fromContainer = ImmigrantOptionEntry.FromGameDeliverable(cpc.Info);
 
-				if(fromContainer.IsValid)
+				if (fromContainer.IsValid)
 					packet.Options.Add(fromContainer);
 				else
 					DebugConsole.Log($"[ImmigrantScreen]   Container {container.GetType().Name} has no stats or carePackageInfo");
@@ -261,11 +265,11 @@ namespace ONI_Together.Patches.GamePatches
 				return true;
 			}
 
-            if (__instance.Telepad == null) return true;
+			if (__instance.Telepad == null) return true;
 
 			if (__instance.selectedDeliverables.Count == 0) return false; // Even though selectedDeliverables should always have something at index 0 for whatever reason its empty, so return false to stop crashing
 
-            ITelepadDeliverable selectedDeliverable = __instance.selectedDeliverables[0];
+			ITelepadDeliverable selectedDeliverable = __instance.selectedDeliverables[0];
 
 			var packet = new ImmigrantSelectionPacket { selectedOption = ImmigrantOptionEntry.FromGameDeliverable(selectedDeliverable), PrintingPodWorldIndex = __instance.Telepad?.GetMyWorldId() ?? 0 };
 			PacketSender.SendToHost(packet);
@@ -308,9 +312,9 @@ namespace ONI_Together.Patches.GamePatches
 		{
 			using var _ = Profiler.Scope();
 
-            if (__instance.Telepad == null) return true;
+			if (__instance.Telepad == null) return true;
 
-            if (!MultiplayerSession.InSession) return true;
+			if (!MultiplayerSession.InSession) return true;
 
 			DebugConsole.Log("[ImmigrantScreen] Reject All clicked");
 
