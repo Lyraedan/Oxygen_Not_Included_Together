@@ -41,7 +41,9 @@ namespace ONI_Together.Networking.Packets.World
                 return; // skip
 
             DisplayFX(pickupable.gameObject);
-            Util.KDestroyGameObject(pickupable.gameObject);
+
+            if (!pickupable.storage.items.Contains(pickupable.gameObject))
+                Util.KDestroyGameObject(pickupable.gameObject);
         }
 
         public void DisplayFX(GameObject go)
