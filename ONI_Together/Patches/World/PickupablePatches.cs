@@ -37,8 +37,8 @@ namespace ONI_Together.Patches.World
                     {
                         NetId = identity.NetId,
                         UnitsTaken = __result.TotalAmount,
+                        UnitsRemaining = sourceRemains ? __instance.TotalAmount : 0f,
                         SourceRemains = sourceRemains,
-                        RemainingUnits = sourceRemains ? __instance.TotalAmount : 0f
                     });
                 }
                 catch (System.Exception ex)

@@ -17,8 +17,8 @@ namespace ONI_Together.Networking.Packets.World
     {
         public int NetId;
         public float UnitsTaken;
+        public float UnitsRemaining;
         public bool SourceRemains;
-        public float RemainingUnits;
 
         public int MaxPackSize => 500;
 
@@ -29,8 +29,8 @@ namespace ONI_Together.Networking.Packets.World
             using var _ = Profiler.Scope();
             writer.Write(NetId);
             writer.Write(UnitsTaken);
+            writer.Write(UnitsRemaining);
             writer.Write(SourceRemains);
-            writer.Write(RemainingUnits);
         }
 
         public void Deserialize(BinaryReader reader)
@@ -38,8 +38,8 @@ namespace ONI_Together.Networking.Packets.World
             using var _ = Profiler.Scope();
             NetId = reader.ReadInt32();
             UnitsTaken = reader.ReadSingle();
+            UnitsRemaining = reader.ReadSingle();
             SourceRemains = reader.ReadBoolean();
-            RemainingUnits = reader.ReadSingle();
         }
 
         public void OnDispatched()
@@ -55,7 +55,7 @@ namespace ONI_Together.Networking.Packets.World
             {
                 var primaryElement = pickupable.GetComponent<PrimaryElement>();
                 if (primaryElement != null)
-                    primaryElement.Units = RemainingUnits;
+                    primaryElement.Units = UnitsRemaining;
             }
             else
             {
