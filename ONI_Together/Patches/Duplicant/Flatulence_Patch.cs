@@ -31,7 +31,7 @@ namespace ONI_Together.Patches.Duplicant
 				if (__instance.smi.IsNullOrDestroyed() || __instance.smi.IsNullOrStopped())
 					return false;
 
-				bool preview = (__instance.PrefabID() != GameTags.MinionSelectPreview);
+				bool preview = (__instance.PrefabID() == GameTags.MinionSelectPreview);
 				bool client = MultiplayerSession.IsClient;
 
 				if (client || preview)
