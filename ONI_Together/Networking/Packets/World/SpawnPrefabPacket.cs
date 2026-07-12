@@ -18,6 +18,8 @@ public class SpawnPrefabPacket : IPacket
     public byte DiseaseIndex;
     public int DiseaseCount;
 
+    public SpawnPrefabPacket() { }
+
     public SpawnPrefabPacket(int netId, int hash, Vector3 position)
     {
         NetId = netId;
