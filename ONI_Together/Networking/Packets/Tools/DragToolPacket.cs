@@ -46,15 +46,20 @@ namespace ONI_Together.Networking.Packets.Tools
 		public int cell, distFromOrigin;
 		private PrioritySetting Priority;
 
-		public virtual void Serialize(BinaryWriter writer)
+		public DragToolPacket()
 		{
 			using var _ = Profiler.Scope();
 
 			if (ToolMenu.Instance?.PriorityScreen != null)
 				Priority = ToolMenu.Instance.PriorityScreen.GetLastSelectedPriority();
 
-			if(ToolInstance is FilteredDragTool filteredToolInstance)
+			if (ToolInstance is FilteredDragTool filteredToolInstance)
 				StoreFilterData(filteredToolInstance);
+		}
+
+		public virtual void Serialize(BinaryWriter writer)
+		{
+			using var _ = Profiler.Scope();
 
 			if (ToolInstance is FilteredDragTool)
 			{
@@ -121,8 +126,8 @@ namespace ONI_Together.Networking.Packets.Tools
 			}
 
 			FilteredDragTool filteredToolInstance = ToolInstance as FilteredDragTool;
-			bool             isFilteredTool       = filteredToolInstance != null;
-			HashSet<string>  cachedFilters        = [];
+			bool isFilteredTool = filteredToolInstance != null;
+			HashSet<string> cachedFilters = [];
 			if (isFilteredTool)
 			{
 				cachedFilters = cachedFilters = filteredToolInstance.currentFilters
@@ -194,20 +199,20 @@ namespace ONI_Together.Networking.Packets.Tools
 
 			var currentFilters = tool.currentFilters;
 
-			foreach(var toggle in currentFilters)
+			foreach (var toggle in currentFilters)
 			{
 				toggle.state = ToolParameterMenu.ToggleState.Off;
 			}
 
-			foreach(var target in targets)
+			foreach (var target in targets)
 			{
-				foreach(var toggle in currentFilters)
+				foreach (var toggle in currentFilters)
 				{
-					if(toggle.name == target)
+					if (toggle.name == target)
 					{
 						toggle.state = ToolParameterMenu.ToggleState.On;
 						break;
-                    }
+					}
 				}
 			}
 		}

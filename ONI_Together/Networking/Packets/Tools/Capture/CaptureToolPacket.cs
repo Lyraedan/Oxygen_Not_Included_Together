@@ -17,11 +17,18 @@ public class CaptureToolPacket : IPacket
 
     public CaptureToolPacket()
     {
+        using var _ = Profiler.Scope();
+
+        if (ToolMenu.Instance?.PriorityScreen != null)
+            Priority = ToolMenu.Instance.PriorityScreen.GetLastSelectedPriority();
     }
 
     public CaptureToolPacket(Vector2 min, Vector2 max)
     {
         using var _ = Profiler.Scope();
+
+        if (ToolMenu.Instance?.PriorityScreen != null)
+            Priority = ToolMenu.Instance.PriorityScreen.GetLastSelectedPriority();
 
         Min = min;
         Max = max;
@@ -30,9 +37,6 @@ public class CaptureToolPacket : IPacket
     public void Serialize(BinaryWriter writer)
     {
         using var _ = Profiler.Scope();
-
-        if (ToolMenu.Instance?.PriorityScreen != null)
-            Priority = ToolMenu.Instance.PriorityScreen.GetLastSelectedPriority();
 
         writer.Write(SenderId);
         writer.Write(Min);

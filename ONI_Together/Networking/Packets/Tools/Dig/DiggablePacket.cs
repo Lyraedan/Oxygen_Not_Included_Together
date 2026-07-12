@@ -13,28 +13,30 @@ namespace ONI_Together.Networking.Packets.Tools.Dig
         /// </summary>
         public static bool ProcessingIncoming { get; private set; }
 
-        private int             Cell;
-        private int             AnimationDelay;
+        private int Cell;
+        private int AnimationDelay;
         private PrioritySetting Priority;
 
         public DiggablePacket()
         {
+            if (ToolMenu.Instance?.PriorityScreen != null)
+                Priority = ToolMenu.Instance.PriorityScreen.GetLastSelectedPriority();
         }
 
         public DiggablePacket(int cell, int animationDelay)
         {
             using var _ = Profiler.Scope();
 
-            Cell           = cell;
+            if (ToolMenu.Instance?.PriorityScreen != null)
+                Priority = ToolMenu.Instance.PriorityScreen.GetLastSelectedPriority();
+
+            Cell = cell;
             AnimationDelay = animationDelay;
         }
 
         public void Serialize(BinaryWriter writer)
         {
             using var _ = Profiler.Scope();
-
-            if (ToolMenu.Instance?.PriorityScreen != null)
-                Priority = ToolMenu.Instance.PriorityScreen.GetLastSelectedPriority();
 
             writer.Write(Cell);
             writer.Write(AnimationDelay);
@@ -46,9 +48,9 @@ namespace ONI_Together.Networking.Packets.Tools.Dig
         {
             using var _ = Profiler.Scope();
 
-            Cell           = reader.ReadInt32();
+            Cell = reader.ReadInt32();
             AnimationDelay = reader.ReadInt32();
-            Priority       = new PrioritySetting((PriorityScreen.PriorityClass)reader.ReadInt32(), reader.ReadInt32());
+            Priority = new PrioritySetting((PriorityScreen.PriorityClass)reader.ReadInt32(), reader.ReadInt32());
         }
 
         public void OnDispatched()
