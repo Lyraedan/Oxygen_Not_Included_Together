@@ -54,7 +54,8 @@ namespace ONI_Together.Networking.Packets.World
             if (SourceRemains)
             {
                 var primaryElement = pickupable.GetComponent<PrimaryElement>();
-                primaryElement?.Units = RemainingUnits;
+                if (primaryElement != null)
+                    primaryElement.Units = RemainingUnits;
             }
             else
             {
