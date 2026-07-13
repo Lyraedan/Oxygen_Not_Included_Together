@@ -78,7 +78,11 @@ namespace ONI_Together.Networking.OxySync.Components
                     break;
                 default:
                     if (!_smi.IsInsideState(sm.waitingfordelivery))
+                    {
                         _smi.TryGoTo(sm.waitingfordelivery);
+                        if (!isServer)
+                            _smi.CancelChore();
+                    }
                     break;
             }
         }
