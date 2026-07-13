@@ -105,16 +105,12 @@ public class OxySyncChat : NetworkBehaviour
         string colorHex = ColorUtility.ToHtmlStringRGB(playerColor);
         AddMessageToChatbox($"<color=#{colorHex}>{playerName}</color>", text, timestamp);
 
-        string compressed = CompressString(text);
-        CallCommand(nameof(ClientSendMessage), playerId, playerName, playerColor, compressed, timestamp);
+        CallCommand(nameof(ClientSendMessage), playerId, playerName, playerColor, text, timestamp);
     }
 
     [Command]
-    public void ClientSendMessage(ulong playerId, string playerName, Color playerColor, string compressed, long timestamp)
+    public void ClientSendMessage(ulong playerId, string playerName, Color playerColor, string message, long timestamp)
     {
-        if (string.IsNullOrEmpty(compressed)) return;
-
-        string? message = DecompressString(compressed);
         if (string.IsNullOrEmpty(message)) return;
 
         string colorHex = ColorUtility.ToHtmlStringRGB(playerColor);
@@ -142,17 +138,14 @@ public class OxySyncChat : NetworkBehaviour
             AddMessageToChatbox($"<color=#{colorHex}>{senderName}</color>", message, timestamp);
         }
 
-        CallClientRpc(nameof(BroadcastMessage), playerId, playerName, playerColor, compressed, timestamp);
+        CallClientRpc(nameof(BroadcastMessage), playerId, playerName, playerColor, message, timestamp);
     }
 
     [ClientRpc]
-    public void BroadcastMessage(ulong playerId, string playerName, Color playerColor, string compressed, long timestamp)
+    public void BroadcastMessage(ulong playerId, string playerName, Color playerColor, string message, long timestamp)
     {
         if (playerId == MultiplayerSession.LocalUserID)
             return;
-
-        string? message = DecompressString(compressed);
-        if (string.IsNullOrEmpty(message)) return;
 
         string senderName = playerName;
         if (NetworkConfig.IsSteamConfig())
@@ -194,54 +187,6 @@ public class OxySyncChat : NetworkBehaviour
         }
     }*/
     
-    public static string CompressString(string text)
-    {
-        byte[] buffer = Encoding.UTF8.GetBytes(text);
-        var memoryStream = new MemoryStream();
-        using (var gZipStream = new GZipStream(memoryStream, CompressionMode.Compress, true))
-        {
-            gZipStream.Write(buffer, 0, buffer.Length);
-        }
-
-        memoryStream.Position = 0;
-
-        var compressedData = new byte[memoryStream.Length];
-        memoryStream.Read(compressedData, 0, compressedData.Length);
-
-        var gZipBuffer = new byte[compressedData.Length + 4];
-        Buffer.BlockCopy(compressedData, 0, gZipBuffer, 4, compressedData.Length);
-        Buffer.BlockCopy(BitConverter.GetBytes(buffer.Length), 0, gZipBuffer, 0, 4);
-        return Convert.ToBase64String(gZipBuffer);
-    }
-    
-    public static string DecompressString(string compressedText)
-    {
-        try
-        {
-            //return compressedText.Trim('`');
-            byte[] gZipBuffer = Convert.FromBase64String(compressedText);
-            using (var memoryStream = new MemoryStream())
-            {
-                int dataLength = BitConverter.ToInt32(gZipBuffer, 0);
-                memoryStream.Write(gZipBuffer, 4, gZipBuffer.Length - 4);
-
-                var buffer = new byte[dataLength];
-
-                memoryStream.Position = 0;
-                using (var gZipStream = new GZipStream(memoryStream, CompressionMode.Decompress))
-                {
-                    gZipStream.Read(buffer, 0, buffer.Length);
-                }
-
-                return Encoding.UTF8.GetString(buffer);
-            }
-        }
-        catch (Exception ex) 
-        {
-            return string.Empty;
-        }
-    }
-
     public void AddMessageToChatbox(string sender, string message, long timestamp)
     {
         string timestampString = DateTimeOffset.FromUnixTimeMilliseconds(timestamp).DateTime.ToString("HH:mm", CultureInfo.InvariantCulture);

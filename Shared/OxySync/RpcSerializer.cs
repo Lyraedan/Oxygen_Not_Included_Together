@@ -2,7 +2,9 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
+using System.Text;
 using UnityEngine;
 
 namespace Shared.OxySync
@@ -198,7 +200,7 @@ namespace Shared.OxySync
                 case ArgType.SByte:     writer.Write((sbyte)value); break;
                 case ArgType.Char:      writer.Write((char)value); break;
                 case ArgType.Decimal:   writer.Write((decimal)value); break;
-                case ArgType.String: writer.Write((string)value ?? string.Empty); break;
+                case ArgType.String: writer.Write(CompressString((string)value) ?? string.Empty); break;
                 case ArgType.Vector2: writer.Write((Vector2)value); break;
                 case ArgType.Vector3: writer.Write((Vector3)value); break;
                 case ArgType.Color:
@@ -245,7 +247,7 @@ namespace Shared.OxySync
                 case ArgType.SByte: return reader.ReadSByte();
                 case ArgType.Char: return reader.ReadChar();
                 case ArgType.Decimal: return reader.ReadDecimal();
-                case ArgType.String: return reader.ReadString();
+                case ArgType.String: return DecompressString(reader.ReadString());
                 case ArgType.Vector2: return reader.ReadVector2();
                 case ArgType.Vector3: return reader.ReadVector3();
                 case ArgType.Color:
@@ -365,6 +367,54 @@ namespace Shared.OxySync
             }
 
             return ReadArg(reader, elementType);
+        }
+        
+        public static string CompressString(string text)
+        {
+            byte[] buffer = Encoding.UTF8.GetBytes(text);
+            var memoryStream = new MemoryStream();
+            using (var gZipStream = new GZipStream(memoryStream, CompressionMode.Compress, true))
+            {
+                gZipStream.Write(buffer, 0, buffer.Length);
+            }
+
+            memoryStream.Position = 0;
+
+            var compressedData = new byte[memoryStream.Length];
+            memoryStream.Read(compressedData, 0, compressedData.Length);
+
+            var gZipBuffer = new byte[compressedData.Length + 4];
+            Buffer.BlockCopy(compressedData, 0, gZipBuffer, 4, compressedData.Length);
+            Buffer.BlockCopy(BitConverter.GetBytes(buffer.Length), 0, gZipBuffer, 0, 4);
+            return Convert.ToBase64String(gZipBuffer);
+        }
+    
+        public static string DecompressString(string compressedText)
+        {
+            try
+            {
+                //return compressedText.Trim('`');
+                byte[] gZipBuffer = Convert.FromBase64String(compressedText);
+                using (var memoryStream = new MemoryStream())
+                {
+                    int dataLength = BitConverter.ToInt32(gZipBuffer, 0);
+                    memoryStream.Write(gZipBuffer, 4, gZipBuffer.Length - 4);
+
+                    var buffer = new byte[dataLength];
+
+                    memoryStream.Position = 0;
+                    using (var gZipStream = new GZipStream(memoryStream, CompressionMode.Decompress))
+                    {
+                        gZipStream.Read(buffer, 0, buffer.Length);
+                    }
+
+                    return Encoding.UTF8.GetString(buffer);
+                }
+            }
+            catch (Exception ex) 
+            {
+                return string.Empty;
+            }
         }
     }
 }
