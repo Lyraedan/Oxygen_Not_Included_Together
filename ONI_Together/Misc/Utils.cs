@@ -460,6 +460,8 @@ namespace ONI_Together.Misc
 
         public static string CompressString(string text)
         {
+	        if (string.IsNullOrEmpty(text)) return string.Empty;
+	        
 	        byte[] buffer = Encoding.UTF8.GetBytes(text);
 	        var memoryStream = new MemoryStream();
 	        using (var gZipStream = new GZipStream(memoryStream, CompressionMode.Compress, true))
@@ -480,6 +482,8 @@ namespace ONI_Together.Misc
     
         public static string DecompressString(string compressedText)
         {
+	        if(string.IsNullOrEmpty(compressedText)) return string.Empty;
+	        
 	        try
 	        {
 		        //return compressedText.Trim('`');
