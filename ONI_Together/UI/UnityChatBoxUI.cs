@@ -163,9 +163,12 @@ namespace ONI_Together.UI
 
 		void ProcessPendingSystemMessages()
 		{
-			foreach (var msg in _pendingSystemMessages)
-				AddSystemMessage(msg);
+			if (_pendingSystemMessages.Count == 0)
+				return;
+			var messages = new List<string>(_pendingSystemMessages);
 			_pendingSystemMessages.Clear();
+			foreach (var msg in messages)
+				AddSystemMessage(msg);
 		}
 
 		private IEnumerator ScrollToBottom()
