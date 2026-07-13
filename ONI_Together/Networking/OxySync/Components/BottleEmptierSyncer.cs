@@ -53,9 +53,9 @@ namespace ONI_Together.Networking.OxySync.Components
                 return -1;
 
             var sm = _smi.sm;
-            if (_smi.IsInsideState(sm.waitingfordelivery)) return 2;
-            if (_smi.IsInsideState(sm.emptying)) return 1;
-            if (_smi.IsInsideState(sm.unoperational)) return 0;
+            if (_smi.IsInsideState(sm.emptying)) return 2;
+            if (_smi.IsInsideState(sm.unoperational)) return 1;
+            if (_smi.IsInsideState(sm.waitingfordelivery)) return 0;
             return 0;
         }
 
@@ -69,16 +69,16 @@ namespace ONI_Together.Networking.OxySync.Components
             switch (stateId)
             {
                 case 2:
-                    if (!_smi.IsInsideState(sm.waitingfordelivery))
-                        _smi.TryGoTo(sm.waitingfordelivery);
-                    break;
-                case 1:
                     if (!_smi.IsInsideState(sm.emptying))
                         _smi.TryGoTo(sm.emptying);
                     break;
-                default:
+                case 1:
                     if (!_smi.IsInsideState(sm.unoperational))
                         _smi.TryGoTo(sm.unoperational);
+                    break;
+                default:
+                    if (!_smi.IsInsideState(sm.waitingfordelivery))
+                        _smi.TryGoTo(sm.waitingfordelivery);
                     break;
             }
         }
