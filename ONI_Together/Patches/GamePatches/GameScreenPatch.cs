@@ -1,6 +1,7 @@
 ﻿using HarmonyLib;
 using ONI_Together.Menus;
 using ONI_Together.Misc;
+using ONI_Together.Networking;
 using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.UI;
 using Shared.Profiling;
@@ -19,8 +20,9 @@ namespace ONI_Together.Patches.GamePatches
 			NetworkIndicatorsScreen.Show();
 
 			// Setup chat window
-            ChatScreen.Show();
-			ChatScreen.Instance.gameObject.AddComponent<OxySyncChat>();
+            //ChatScreen.Show();
+            UnityChatBoxUI.InitScreen();
+            UnityChatBoxUI.Instance.gameObject.AddComponent<OxySyncChat>();
 		}
 	}
 

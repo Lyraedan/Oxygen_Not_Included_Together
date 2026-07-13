@@ -9,6 +9,7 @@ using Shared.OxySync.Attributes;
 using Steamworks;
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.IO.Compression;
 using System.Text;
@@ -23,12 +24,18 @@ public class OxySyncChat : NetworkBehaviour
 {
     public const int MAX_MESSAGE_LENGTH = 256;
 
+    public struct PendingMessage
+    {
+        public long timestamp;
+        public string message;
+    }
+    
     public static OxySyncChat? Instance { get; private set; }
 
-    private static List<ChatScreen.PendingMessage> _chatHistory = new();
+    private static List<PendingMessage> _chatHistory = new();
     private HashSet<ulong> _knownPlayers = new();
 
-    public static IReadOnlyList<ChatScreen.PendingMessage> ChatHistory => _chatHistory;
+    public static IReadOnlyList<PendingMessage> ChatHistory => _chatHistory;
 
     public override void OnSpawn()
     {
@@ -40,13 +47,24 @@ public class OxySyncChat : NetworkBehaviour
         _knownPlayers = new HashSet<ulong>(MultiplayerSession.ConnectedPlayers.Keys);
 
         if (Game.Instance != null)
+        {
             Game.Instance.Subscribe(MP_HASHES.OnPlayerJoined, OnPlayerJoined);
+        }
+        DebugConsole.Log("Spawned OxySync Chat!");
+    }
+    
+    public void Update()
+    {
+        DebugConsole.Log("Showing chatbox: " + MultiplayerSession.InSession);
+        UnityChatBoxUI.Instance?.Show(MultiplayerSession.InSession);
     }
 
     public override void OnCleanUp()
     {
         if (Game.Instance != null)
+        {
             Game.Instance.Unsubscribe(MP_HASHES.OnPlayerJoined, OnPlayerJoined);
+        }
 
         if (Instance == this)
             Instance = null;
@@ -81,7 +99,7 @@ public class OxySyncChat : NetworkBehaviour
         long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         string colorHex = ColorUtility.ToHtmlStringRGB(playerColor);
-        ChatScreen.QueueMessage(ChatScreen.GeneratePendingMessage($"<color=#{colorHex}>{playerName}:</color> {text}"));
+        AddMessageToChatbox(playerName, text, timestamp);
 
         string compressed = CompressString(text);
         CallCommand(nameof(ClientSendMessage), playerId, playerName, playerColor, compressed, timestamp);
@@ -99,7 +117,7 @@ public class OxySyncChat : NetworkBehaviour
         string formatted = $"<color=#{colorHex}>{playerName}:</color> {message}";
 
         // Add it to the server chat history
-        _chatHistory.Add(new ChatScreen.PendingMessage
+        _chatHistory.Add(new PendingMessage
         {
             timestamp = timestamp,
             message = formatted
@@ -114,12 +132,7 @@ public class OxySyncChat : NetworkBehaviour
                 senderName = SteamFriends.GetFriendPersonaName(cSteamId);
         }
 
-        ChatScreen.QueueMessage(new ChatScreen.PendingMessage
-        {
-            timestamp = timestamp,
-            message = $"<color=#{colorHex}>{senderName}:</color> {message}"
-        });
-
+        AddMessageToChatbox($"<color=#{colorHex}>{senderName}</color>", message, timestamp);
         CallClientRpc(nameof(BroadcastMessage), playerId, playerName, playerColor, compressed, timestamp);
     }
 
@@ -141,13 +154,10 @@ public class OxySyncChat : NetworkBehaviour
         }
 
         string colorHex = ColorUtility.ToHtmlStringRGB(playerColor);
-        ChatScreen.QueueMessage(new ChatScreen.PendingMessage
-        {
-            timestamp = timestamp,
-            message = $"<color=#{colorHex}>{senderName}:</color> {message}"
-        });
+        AddMessageToChatbox($"<color=#{colorHex}>{senderName}</color>", message, timestamp);
     }
 
+    /* WIP
     private void SendHistoryToPlayer(ulong playerId)
     {
         if (_chatHistory.Count == 0) return;
@@ -177,7 +187,7 @@ public class OxySyncChat : NetworkBehaviour
                 message = DecompressString(messages[i])
             });
         }
-    }
+    }*/
     
     public static string CompressString(string text)
     {
@@ -225,5 +235,11 @@ public class OxySyncChat : NetworkBehaviour
         {
             return string.Empty;
         }
+    }
+
+    public void AddMessageToChatbox(string sender, string message, long timestamp)
+    {
+        string timestampString = DateTimeOffset.FromUnixTimeMilliseconds(timestamp).DateTime.ToString("HH:mm", CultureInfo.InvariantCulture);
+        UnityChatBoxUI.Instance.SendNewNewMessage(sender, timestampString, message);
     }
 }

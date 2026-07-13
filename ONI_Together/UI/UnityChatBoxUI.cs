@@ -49,6 +49,7 @@ namespace ONI_Together.UI
 				//under build menu, above notifications
 				Instance.transform.SetSiblingIndex(4);
 				Instance.Init();
+				Instance.Show(true);
 			}
 		}
 		public override void OnShow(bool show)
