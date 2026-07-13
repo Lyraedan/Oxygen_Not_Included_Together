@@ -8,6 +8,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using Shared.Profiling;
+using STRINGS;
 
 namespace ONI_Together.Patches
 {
@@ -20,7 +21,6 @@ namespace ONI_Together.Patches
 			public static void Postfix()
             {
 	            using var _ = Profiler.Scope();
-
 				Translate(typeof(STRINGS), true);
             }
 

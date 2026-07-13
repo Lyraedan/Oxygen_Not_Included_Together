@@ -349,6 +349,35 @@ namespace ONI_Together.Networking.Transport.Steam
             return (long)connectionHealth.Value.m_usecQueueTime;
         }
 
+        public static float GetSendRate()
+        {
+            if (!connectionHealth.HasValue) return 0f;
+            return connectionHealth.Value.m_flOutBytesPerSec;
+        }
+
+        public static float GetRecvRate()
+        {
+            if (!connectionHealth.HasValue) return 0f;
+            return connectionHealth.Value.m_flInBytesPerSec;
+        }
+
+        public static float GetInPacketsPerSec()
+        {
+            if (!connectionHealth.HasValue) return 0f;
+            return connectionHealth.Value.m_flInPacketsPerSec;
+        }
+
+        public static float GetOutPacketsPerSec()
+        {
+            if (!connectionHealth.HasValue) return 0f;
+            return connectionHealth.Value.m_flOutPacketsPerSec;
+        }
+
+        public override float IncomingBandwidth => GetRecvRate();
+        public override float OutgoingBandwidth => GetSendRate();
+        public override int IncomingPps => (int)GetInPacketsPerSec();
+        public override int OutgoingPps => (int)GetOutPacketsPerSec();
+
         public override NetworkState GetJitterState()
         {
             using var _ = Profiler.Scope();

@@ -138,4 +138,4 @@ Some contributors use AI in their contributions. These models vary from ChatGPT,
 ## License
 
 This project is licensed under the MIT License.  
-Copyright (c) 2023 Zuev Vladimir, Denis Pakhorukov
+Copyright (c) 2025 - 2026 Luke Rapkin

@@ -13,7 +13,7 @@ namespace ONI_Together.Misc
     /// </summary>
     public struct Variant
     {
-        public enum TypeCode : byte { Float, Int, Byte, String, Boolean, Vector3, Vector2, ByteArray }
+        public enum TypeCode : byte { Float, Int, Byte, String, Boolean, Vector3, Vector2, ByteArray, Quaternion }
 
         public TypeCode Type;
         public float Float;
@@ -24,6 +24,7 @@ namespace ONI_Together.Misc
         public Vector3 Vector3;
         public Vector2 Vector2;
         public byte[] ByteArray;
+        public Quaternion Quaternion;
 
         public void Write(BinaryWriter writer)
         {
@@ -38,6 +39,7 @@ namespace ONI_Together.Misc
                 case TypeCode.Vector3: writer.Write(Vector3); break;
                 case TypeCode.Vector2: writer.Write(Vector2); break;
                 case TypeCode.ByteArray: writer.Write(ByteArray.Length); writer.Write(ByteArray); break;
+                case TypeCode.Quaternion: writer.Write(Quaternion.x); writer.Write(Quaternion.y); writer.Write(Quaternion.z); writer.Write(Quaternion.w); break;
             }
         }
 
@@ -54,6 +56,7 @@ namespace ONI_Together.Misc
                 case TypeCode.Vector3: v.Vector3 = reader.ReadVector3(); break;
                 case TypeCode.Vector2: v.Vector2 = reader.ReadVector2(); break;
                 case TypeCode.ByteArray: v.ByteArray = reader.ReadBytes(reader.ReadInt32()); break;
+                case TypeCode.Quaternion: v.Quaternion = new Quaternion(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()); break;
             }
             return v;
         }
@@ -66,6 +69,7 @@ namespace ONI_Together.Misc
         public static implicit operator Variant(Vector3 v) => new Variant { Type = TypeCode.Vector3, Vector3 = v };
         public static implicit operator Variant(Vector2 v) => new Variant { Type = TypeCode.Vector2, Vector2 = v };
         public static implicit operator Variant(byte[] b) => new Variant { Type = TypeCode.ByteArray, ByteArray = b };
+        public static implicit operator Variant(Quaternion q) => new Variant { Type = TypeCode.Quaternion, Quaternion = q };
 
         public readonly override string ToString()
         {
@@ -79,6 +83,7 @@ namespace ONI_Together.Misc
                 TypeCode.Vector3 => Vector3.ToString(),
                 TypeCode.Vector2 => Vector2.ToString(),
                 TypeCode.ByteArray => $"byte[{ByteArray?.Length ?? 0}]",
+                TypeCode.Quaternion => Quaternion.ToString(),
                 _ => "Unknown"
             };
         }

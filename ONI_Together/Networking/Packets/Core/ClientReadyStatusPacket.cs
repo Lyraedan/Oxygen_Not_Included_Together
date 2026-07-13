@@ -73,9 +73,8 @@ namespace ONI_Together.Networking.Packets.Core
 					}
 					else
 					{
-						var pending = ChatScreen.GeneratePendingMessage(
-							string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, PlayerName));
-						ChatScreen.QueueMessage(pending);
+					ChatScreen.AddSystemMessage(
+						string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, PlayerName));
 					}
 				}
 				return;
@@ -113,9 +112,8 @@ namespace ONI_Together.Networking.Packets.Core
 
 				if (!isLoadingReconnect)
 				{
-					var pending = ChatScreen.GeneratePendingMessage(
+					ChatScreen.AddSystemMessage(
 						string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, player.PlayerName));
-					ChatScreen.QueueMessage(pending);
 				}
 
 				PacketSender.SendToAllClients(new ClientReadyStatusPacket

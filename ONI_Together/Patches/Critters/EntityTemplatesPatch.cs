@@ -8,6 +8,7 @@ using ONI_Together.DebugTools;
 using ONI_Together.Menus;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
+using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Scripts.Creatures;
 using Shared.Profiling;
 using UnityEngine;
@@ -16,7 +17,7 @@ namespace ONI_Together.Patches.Critters
 {
 	internal class EntityTemplatesPatch
 	{
-		[HarmonyPatch(typeof(EntityTemplates), nameof(EntityTemplates.ExtendEntityToBasicCreature), new Type[] { typeof(bool), typeof(GameObject), typeof(string), typeof(string), typeof(string), typeof(FactionManager.FactionID), typeof(string), typeof(string), typeof(NavType), typeof(int), typeof(float), typeof(string), typeof(float), typeof(bool), typeof(bool), typeof(float), typeof(float), typeof(float), typeof(float) })]
+		[HarmonyPatch(typeof(EntityTemplates), nameof(EntityTemplates.ExtendEntityToBasicCreature), new Type[] { typeof(EntityTemplates.ExtendEntityToBasicCreatureData) })]
 		public static class ExtendEntityToBasicCreature_Patch
 		{
 			public static void Postfix(GameObject __result)
@@ -30,7 +31,7 @@ namespace ONI_Together.Patches.Critters
 					if (!AnimSyncEligibility.IsAnimatedCritter(__result))
 						return;
 
-					__result.AddOrGet<EntityPositionHandler>();
+					__result.AddOrGet<OxySyncEntityPositionHandler>();
 					__result.AddOrGet<NetworkIdentity>();
 					__result.AddOrGet<AnimStateSyncer>();
 					__result.AddOrGet<CreatureMultiplayerInitializer>();

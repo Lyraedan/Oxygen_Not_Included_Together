@@ -655,7 +655,20 @@ namespace ONI_Together.UI
 				STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.SERVER_SETTINGS.PAUSE_SIM_ON_PLAYER_DISCONNECT)
 				.SetOnFromCode(Configuration.Instance.Host.Server.PauseSimOnPlayerDisconnect);
 
-			//AddOrGetLobbySettingsEntry_NumInput("TestNumInput", (i) => Debug.Log("writtenNumber: " + i), "Test Number input", "Test", "e",42);
+			var tickRateOptions = new List<FCycle.Option>
+			{
+				new("TPS_20", "20 TPS", ""),
+				new("TPS_30", "30 TPS", ""),
+				new("TPS_60", "60 TPS", ""),
+				new("TPS_90", "90 TPS", ""),
+				new("TPS_120", "120 TPS", ""),
+				new("TPS_128", "128 TPS", ""),
+			};
+
+			AddOrGetLobbySettingsEntry_Cycle("ServerTickRate", tickRateOptions, OnTickRateChanged,
+				STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.SERVER_TICK_RATE,
+				STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.SERVER_SETTINGS.SERVER_TICK_RATE)
+				.SetValueById(Configuration.Instance.Host.Server.TickRate.ToString());
 		}
 
 		void ToggleHardSyncSetting(bool hardSyncEnabled)
@@ -670,6 +683,19 @@ namespace ONI_Together.UI
 			var config = Configuration.Instance;
 			config.Host.Server.PauseSimOnPlayerDisconnect = enabled;
 			config.Save();
+		}
+
+		void OnTickRateChanged(FCycle.Option option)
+		{
+			if (Enum.TryParse<ServerTickRate>(option.id, out var rate))
+			{
+				var config = Configuration.Instance;
+				config.Host.Server.TickRate = rate;
+				config.Save();
+
+				if (MultiplayerSession.IsHost)
+					ONI_Together.Networking.GameServer.RefreshTickRate();
+			}
 		}
 
 		public FToggle AddOrGetLobbySettingsEntry_Toggle(string id, System.Action<bool> onToggleChange, string label, string tooltip = "")

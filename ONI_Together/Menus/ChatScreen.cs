@@ -1,7 +1,7 @@
 ﻿using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
-using ONI_Together.Networking.Packets.Social;
+using ONI_Together.Networking.OxySync.Components;
 using System;
 using System.Collections.Generic;
 using Shared.Profiling;
@@ -34,7 +34,6 @@ namespace ONI_Together.UI
 		}
 
 		private static List<PendingMessage> pendingMessages = new List<PendingMessage>();
-		private static List<PendingMessage> chatHistory = new List<PendingMessage>();
 
 		public static void Show()
 		{
@@ -56,19 +55,6 @@ namespace ONI_Together.UI
 			rt.anchoredPosition = new Vector2(0, 0);
 
 			Instance.SetupUI();
-
-			Game.Instance?.Subscribe(MP_HASHES.OnPlayerJoined, _ => SendChatHistoryToClients());
-		}
-
-		private static void SendChatHistoryToClients()
-		{
-			using var _ = Profiler.Scope();
-
-			if (!MultiplayerSession.IsHost || chatHistory.Count == 0)
-				return;
-
-			var packet = new ChatHistorySyncPacket(chatHistory);
-			PacketSender.SendToAllClients(packet);
 		}
         private void SetupUI()
         {
@@ -197,8 +183,7 @@ namespace ONI_Together.UI
             resizeRT.offsetMax = Vector2.zero;
             CreateResizeHandles(resizeHandles.transform, rootRT);
 
-            PendingMessage init_message = GeneratePendingMessage(STRINGS.UI.MP_CHATWINDOW.CHAT_INITIALIZED);
-            QueueMessage(init_message);
+            AddSystemMessage(STRINGS.UI.MP_CHATWINDOW.CHAT_INITIALIZED);
             ProcessMessageQueue();
 
             StartCoroutine(FixInputFieldDisplay());
@@ -353,8 +338,6 @@ namespace ONI_Together.UI
 			fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
 
             messages.Add(timestamp, tmp);
-			if (text != STRINGS.UI.MP_CHATWINDOW.CHAT_INITIALIZED)
-				chatHistory.Add(new PendingMessage { timestamp = timestamp, message = text });
 
 			// Manually rebuild layout and force scroll to bottom
 			LayoutRebuilder.ForceRebuildLayoutImmediate(messageContainer);
@@ -439,6 +422,7 @@ namespace ONI_Together.UI
 			var input = go.GetComponent<TMP_InputField>();
 			input.lineType = TMP_InputField.LineType.SingleLine;
 			input.scrollSensitivity = 0f;
+			input.characterLimit = OxySyncChat.MAX_MESSAGE_LENGTH;
 
 			// Viewport
 			var viewportGO = new GameObject("TextViewport", typeof(RectMask2D), typeof(Image));
@@ -579,25 +563,16 @@ namespace ONI_Together.UI
 
 			if (!string.IsNullOrWhiteSpace(text))
 			{
-				string senderName = Utils.GetLocalPlayerName();
-
-				string colorHex = ColorUtility.ToHtmlStringRGB(CursorManager.Instance.color);
-				PendingMessage message = GeneratePendingMessage($"<color=#{colorHex}>{senderName}:</color> {text}");
-                QueueMessage(message);
+				OxySyncChat.Instance?.SendMessage(text);
 				inputField.text = "";
-
-				var packet = new ChatMessagePacket(text);
-				if (!MultiplayerSession.IsHost)
-				{
-					PacketSender.SendToHost(packet);
-				}
-				else
-				{
-					PacketSender.SendToAllClients(packet);
-				}
 			}
 
 			inputField.DeactivateInputField();
+		}
+
+		public static void AddSystemMessage(string message)
+		{
+			QueueMessage(GeneratePendingMessage(message));
 		}
 
 		public static PendingMessage GeneratePendingMessage(string message)

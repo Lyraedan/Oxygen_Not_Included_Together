@@ -5,7 +5,7 @@ using HarmonyLib;
 using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
-using ONI_Together.Networking.Components.StructureStateSyncers;
+using ONI_Together.Networking.OxySync.Components;
 using Shared.Profiling;
 
 namespace ONI_Together.Patches.World
@@ -15,9 +15,8 @@ namespace ONI_Together.Patches.World
     {
         public static void Postfix(Battery __instance)
         {
-            using var _ = Profiler.Scope();
-
-            BatteryStateSyncer syncer = __instance.gameObject.AddOrGet<BatteryStateSyncer>();
+            //BatteryStateSyncer syncer = __instance.gameObject.AddOrGet<BatteryStateSyncer>();
+            __instance.gameObject.AddOrGet<BatterySyncComponent>();
         }
     }
 
@@ -26,18 +25,17 @@ namespace ONI_Together.Patches.World
     {
         public static void Postfix(Generator __instance)
         {
-            using var _ = Profiler.Scope();
-
-            if (__instance.gameObject.TryGetComponent<EnergyGenerator>(out var egen))
+            if (__instance.gameObject.TryGetComponent<EnergyGenerator>(out _))
             {
-                EnergyGeneratorSyncer egenSyncer = __instance.gameObject.AddOrGet<EnergyGeneratorSyncer>();
+                //EnergyGeneratorSyncer egenSyncer = __instance.gameObject.AddOrGet<EnergyGeneratorSyncer>();
+                __instance.gameObject.AddOrGet<EnergyGeneratorSyncComponent>();
                 return;
             }
 
-            GenericGeneratorSyncer syncer = __instance.gameObject.AddOrGet<GenericGeneratorSyncer>();
+            //GenericGeneratorSyncer syncer = __instance.gameObject.AddOrGet<GenericGeneratorSyncer>();
+            __instance.gameObject.AddOrGet<GenericGeneratorSyncComponent>();
         }
     }
-
 
     [HarmonyPatch]
     public static class StorageBuildingPatches
@@ -46,7 +44,7 @@ namespace ONI_Together.Patches.World
         public static void Postfix(object __instance)
         {
             using var _ = Profiler.Scope();
-            StorageStateSyncer syncer = ((KMonoBehaviour) __instance).gameObject.AddOrGet<StorageStateSyncer>();
+            ((KMonoBehaviour) __instance).gameObject.AddOrGet<StorageSyncComponent>();
         }
 
         [HarmonyTargetMethods]
@@ -81,7 +79,7 @@ namespace ONI_Together.Patches.World
         public static void Postfix(FlushToilet __instance)
         {
             using var _ = Profiler.Scope();
-            __instance.gameObject.AddOrGet<ToiletSyncer>();
+            __instance.gameObject.AddOrGet<ToiletStructureSyncer>();
         }
     }
 
@@ -91,7 +89,7 @@ namespace ONI_Together.Patches.World
         public static void Postfix(Toilet __instance)
         {
             using var _ = Profiler.Scope();
-            __instance.gameObject.AddOrGet<ToiletSyncer>();
+            __instance.gameObject.AddOrGet<ToiletStructureSyncer>();
         }
     }
     
@@ -101,7 +99,27 @@ namespace ONI_Together.Patches.World
         public static void Postfix(Reactor __instance)
         {
             using var _ = Profiler.Scope();
-            __instance.gameObject.AddOrGet<ReactorStateSyncer>();
+            __instance.gameObject.AddOrGet<NuclearReactorSyncer>();
+        }
+    }
+
+    [HarmonyPatch(typeof(Growing), nameof(Growing.OnSpawn))]
+    public static class Growing_OnSpawn_OxySync_Patch
+    {
+        public static void Postfix(Growing __instance)
+        {
+            using var _ = Profiler.Scope();
+            __instance.gameObject.AddOrGet<PlantSyncComponent>();
+        }
+    }
+
+    [HarmonyPatch(typeof(Telepad), nameof(Telepad.OnSpawn))]
+    public static class TelepadSyncPatch
+    {
+        public static void Postfix(Telepad __instance)
+        {
+            using var _ = Profiler.Scope();
+            __instance.gameObject.AddOrGet<PrintingPodSyncComponent>();
         }
     }
 }

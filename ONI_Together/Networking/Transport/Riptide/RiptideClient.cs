@@ -36,8 +36,16 @@ namespace ONI_Together.Networking.Transport.Lan
 
         private ConnectionMetrics Metrics => _client?.Connection?.Metrics;
 
+        // Bandwidth tracking via Connection.Metrics
+        private long _lastBytesIn, _lastBytesOut;
+        private int _lastMsgIn, _lastMsgOut;
+        private float _riptideInBw, _riptideOutBw;
+        private int _riptideInPps, _riptideOutPps;
+        private float _lastBwPollTime;
+
         public List<ulong> ClientList { get; private set; } = new();
         public static ulong CLIENT_ID { get; private set; }
+        public static int MaxServerCapacity { get; set; }
 
         public override void Prepare()
         {
@@ -108,6 +116,8 @@ namespace ONI_Together.Networking.Transport.Lan
             conn.MaxSendAttempts = 30;         // 15 is default so we'll double it
             conn.MaxAvgSendAttempts = 12;      // Was 5, we'll double it and add a buffer
             conn.AvgSendAttemptsResilience = 128; // was 64, doubled
+
+            ResetBandwidth();
 
             OnClientConnected.Invoke();
             MultiplayerSession.SetHost(1); // Host's client is always 1
@@ -191,6 +201,64 @@ namespace ONI_Together.Networking.Transport.Lan
             }
         }
 
+        private void UpdateBandwidth()
+        {
+            var metrics = Metrics;
+            if (metrics == null || _client == null || !_client.IsConnected)
+            {
+                _riptideInBw = 0f;
+                _riptideOutBw = 0f;
+                _riptideInPps = 0;
+                _riptideOutPps = 0;
+                return;
+            }
+
+            float now = Time.realtimeSinceStartup;
+            float dt = now - _lastBwPollTime;
+            if (dt >= 1f)
+            {
+                _riptideInBw = (metrics.BytesIn - _lastBytesIn) / dt;
+                _riptideOutBw = (metrics.BytesOut - _lastBytesOut) / dt;
+                _riptideInPps = (int)((metrics.MessagesIn - _lastMsgIn) / dt);
+                _riptideOutPps = (int)((metrics.MessagesOut - _lastMsgOut) / dt);
+
+                _lastBytesIn = metrics.BytesIn;
+                _lastBytesOut = metrics.BytesOut;
+                _lastMsgIn = (int)metrics.MessagesIn;
+                _lastMsgOut = (int)metrics.MessagesOut;
+                _lastBwPollTime = now;
+            }
+        }
+
+        private void ResetBandwidth()
+        {
+            var metrics = Metrics;
+            if (metrics != null)
+            {
+                _lastBytesIn = metrics.BytesIn;
+                _lastBytesOut = metrics.BytesOut;
+                _lastMsgIn = (int)metrics.MessagesIn;
+                _lastMsgOut = (int)metrics.MessagesOut;
+            }
+            else
+            {
+                _lastBytesIn = 0;
+                _lastBytesOut = 0;
+                _lastMsgIn = 0;
+                _lastMsgOut = 0;
+            }
+            _lastBwPollTime = Time.realtimeSinceStartup;
+            _riptideInBw = 0f;
+            _riptideOutBw = 0f;
+            _riptideInPps = 0;
+            _riptideOutPps = 0;
+        }
+
+        public override float IncomingBandwidth => _riptideInBw;
+        public override float OutgoingBandwidth => _riptideOutBw;
+        public override int IncomingPps => _riptideInPps;
+        public override int OutgoingPps => _riptideOutPps;
+
         public override void ReconnectToSession()
         {
             using var _ = Profiler.Scope();
@@ -206,6 +274,7 @@ namespace ONI_Together.Networking.Transport.Lan
             using var _ = Profiler.Scope();
 
             _client?.Update();
+            UpdateBandwidth();
         }
 
         private ulong GetClientID()
@@ -249,8 +318,7 @@ namespace ONI_Together.Networking.Transport.Lan
             else
             {
                 string name = MultiplayerSession.KnownPlayerNames.TryGetValue(id, out var cached) ? cached : $"Player {id}";
-                ChatScreen.PendingMessage pending = ChatScreen.GeneratePendingMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_LEFT, name));
-                ChatScreen.QueueMessage(pending);
+                ChatScreen.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_LEFT, name));
                 Utils.PauseSimOnPlayerLeft();
 			}
 			var boxedId = Boxed<ulong>.Get(id);

@@ -62,6 +62,7 @@ namespace ONI_Together.DebugTools
 		{
             using var _ = Profiler.Scope();
 
+            return; // Disabled, no longer in use (for now)
             if (Input.GetKeyDown(KeyCode.F2) && (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)))
 			{
 				showMenu = !showMenu;

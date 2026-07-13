@@ -8,6 +8,7 @@ using Steamworks;
 using System;
 using System.Runtime.InteropServices;
 using ONI_Together.Networking.Components;
+using UnityEngine;
 
 namespace ONI_Together.Networking
 {
@@ -15,6 +16,12 @@ namespace ONI_Together.Networking
 	{
 		private static ServerState _state = ServerState.Stopped;
 		public static ServerState State => _state;
+
+		public const float MaxMissedTicks = 3f;
+
+		private static float _tickAccumulator;
+		private static float _tickInterval = 1f / 60f;
+		public static float TickInterval => _tickInterval;
 
 		private static void SetState(ServerState newState)
 		{
@@ -28,6 +35,23 @@ namespace ONI_Together.Networking
 			}
 		}
 
+		public static void RefreshTickRate()
+		{
+			if (Configuration.Instance?.Host?.Server != null)
+				_tickInterval = 1f / TickRateToTps(Configuration.Instance.Host.Server.TickRate);
+		}
+
+		private static int TickRateToTps(ServerTickRate rate) => rate switch
+		{
+			ServerTickRate.TPS_20 => 20,
+			ServerTickRate.TPS_30 => 30,
+			ServerTickRate.TPS_60 => 60,
+			ServerTickRate.TPS_90 => 90,
+			ServerTickRate.TPS_120 => 120,
+			ServerTickRate.TPS_128 => 128,
+			_ => 60,
+		};
+
 		public static void Start()
 		{
 			using var _ = Profiler.Scope();
@@ -37,6 +61,9 @@ namespace ONI_Together.Networking
 			NetworkConfig.TransportServer.OnError = () => SetState(ServerState.Error);
 			NetworkConfig.TransportServer.Prepare();
 			CursorManager.Instance.AssignColor();
+
+			RefreshTickRate();
+			_tickAccumulator = 0f;
 
 			SetState(ServerState.Starting);
 
@@ -70,6 +97,12 @@ namespace ONI_Together.Networking
 		public static void Update()
 		{
 			using var _ = Profiler.Scope();
+
+			_tickAccumulator += Time.unscaledDeltaTime;
+			_tickAccumulator = Mathf.Min(_tickAccumulator, _tickInterval * MaxMissedTicks);
+			if (_tickAccumulator < _tickInterval)
+				return;
+			_tickAccumulator -= _tickInterval;
 
 			switch (State)
 			{

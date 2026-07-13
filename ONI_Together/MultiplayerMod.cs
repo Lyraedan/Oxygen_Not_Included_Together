@@ -5,6 +5,7 @@ using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
+using ONI_Together.Networking.Overlay;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.Transport.Steamworks;
 using PeterHan.PLib.AVC;
@@ -19,6 +20,7 @@ using Epic.OnlineServices;
 using PeterHan.PLib.Core;
 using PeterHan.PLib.Options;
 using ONI_Together.Integrations;
+using ONI_Together.Networking.OxySync.Components;
 using System.Linq;
 using System.Threading;
 
@@ -81,12 +83,15 @@ namespace ONI_Together
 				go.AddComponent<PingManager>();
 				//go.AddComponent<BuildingSyncer>(); // Does thing with bridges (Wire Bridge, WireBridge)
 				go.AddComponent<WorldStateSyncer>();
-				go.AddComponent<PlantGrowthSyncer>();
+				go.AddComponent<PlantLifecycleSyncComponent>();
 				go.AddComponent<ConduitFlowSyncer>();
 				go.AddComponent<AnimSyncCoordinator>();
 				go.AddComponent<AnimResyncRequester>();
 				go.AddComponent<BulkPacketMonitor>();
 				go.AddComponent<LogicStateSyncer>();
+				go.AddComponent<OxySyncManager>();
+				go.AddComponent<NetIdActivityTracker>();
+				go.AddComponent<DiscordRichPresence>();
 
 				// CHECKPOINT 5
 				System.IO.File.AppendAllText(logPath, "[Trace] Checkpoint 5: Pre-Listeners\n");
@@ -225,7 +230,7 @@ namespace ONI_Together
 					return windows_bundle;
 			}
 		}
-
+		
 		private static void RegisterDevTools()
 		{
 			using var _ = Profiler.Scope();

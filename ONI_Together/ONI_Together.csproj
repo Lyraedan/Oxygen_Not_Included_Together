@@ -50,6 +50,8 @@
 		<EmbeddedResource Include="Assets\bundles\networkindicators_lin.bundle" />
 		<EmbeddedResource Include="Assets\bundles\networkindicators_mac.bundle" />
 		<EmbeddedResource Include="Assets\bundles\networkindicators_win.bundle" />
+		<EmbeddedResource Include="Assets\network_overlay_icon.png" />
+		<EmbeddedResource Include="Assets\sync_icon.png" />
 	</ItemGroup>
 
 	<ItemGroup>
@@ -63,6 +65,7 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <PackageReference Include="DiscordRichPresence" Version="1.6.1.70" />
 	  <PackageReference Include="RiptideNetworking.Riptide" Version="2.2.1" />
 	</ItemGroup>
 
