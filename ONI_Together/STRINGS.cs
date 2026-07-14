@@ -478,6 +478,11 @@ namespace ONI_Together
 
 			public class MP_CHATBOX
 			{
+				public class LINK_IN_CHAT
+				{
+					public static LocString TEXT = "Link in Chat";
+					public static LocString TOOLTIP = "Links this object in the multiplayer chat window.";
+				}
 				public class TEXTINPUT
 				{
 					public class INPUT
@@ -491,6 +496,7 @@ namespace ONI_Together
 				public class TOPBAR
 				{
 					public static LocString LABEL = "Chat";
+					public static LocString TOOLTIP = "Toggle the ONI-Together chat window.";
 					public class FILTERBUTTON
 					{
 						public static LocString TEXT = "Settings";

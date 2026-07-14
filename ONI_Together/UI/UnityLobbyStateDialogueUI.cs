@@ -152,18 +152,18 @@ namespace ONI_Together.UI
 		{
 			using var _ = Profiler.Scope();
 
-			if (SteamLobby.InLobby)
+			bool inSteamLobby = SteamLobby.InLobby;
+
+			LobbyCodeTitle.SetActive(inSteamLobby);
+			LobbyCodeContainer.SetActive(inSteamLobby);
+			InviteFriends.gameObject.SetActive(inSteamLobby);
+
+			if (inSteamLobby)
 			{
-				LobbyCodeTitle.SetActive(true);
-				LobbyCodeContainer.SetActive(true);
 				LobbyCode.SetTextFromData((SteamLobby.CurrentLobbyCode));
 				SetLobbyCodeConfirmationIcon(false);
 			}
-			else
-			{
-				LobbyCodeTitle.SetActive(false);
-				LobbyCodeContainer.SetActive(false);
-			}
+
 			RefreshHardSyncLabel();
 			PlayerCountInfo.SetText(string.Format(SERVERBROWSER.CONNECTED_PLAYERS, MultiplayerSession.ConnectedPlayers.Count + 1));
 		}
