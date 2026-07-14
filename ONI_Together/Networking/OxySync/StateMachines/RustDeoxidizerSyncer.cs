@@ -1,5 +1,8 @@
 using KSerialization;
+using ONI_Together.Misc;
+using Shared.OxySync;
 using Shared.OxySync.Attributes;
+using UnityEngine;
 
 namespace ONI_Together.Networking.OxySync.StateMachines
 {
@@ -7,12 +10,38 @@ namespace ONI_Together.Networking.OxySync.StateMachines
     public class RustDeoxidizerSyncer : StateMachineSyncer
     {
         private RustDeoxidizer.StatesInstance _smi;
+        private Storage _storage;
+
+        private bool _storageDirty;
+        private float _storageSyncTimer;
+
+        private const float STORAGE_SYNC_DELAY = 0.2f;
+
+        [SyncVar(SendMode = (int) PacketSendMode.ReliableImmediate)]
+        private byte[] _storageBlob;
 
         public override void OnSpawn()
         {
             base.OnSpawn();
 
             _smi = this.GetSMI<RustDeoxidizer.StatesInstance>();
+            _storage = GetComponent<Storage>();
+
+            if (_storage != null)
+                _storage.OnStorageChange += OnStorageChanged;
+        }
+
+        public override void OnCleanUp()
+        {
+            if (_storage != null)
+                _storage.OnStorageChange -= OnStorageChanged;
+
+            base.OnCleanUp();
+        }
+
+        private void OnStorageChanged(GameObject _)
+        {
+            _storageDirty = true;
         }
 
         protected override int SampleCurrentStateId()
@@ -53,6 +82,28 @@ namespace ONI_Together.Networking.OxySync.StateMachines
                         _smi.TryGoTo(sm.disabled);
                     break;
             }
+        }
+
+        protected override void OnServerSampleExtra()
+        {
+            if (!_storageDirty || _storage == null)
+                return;
+
+            _storageSyncTimer += Time.unscaledDeltaTime;
+            if (_storageSyncTimer >= STORAGE_SYNC_DELAY)
+            {
+                _storageSyncTimer = 0f;
+                _storageDirty = false;
+                _storageBlob = BuildingUtils.EncodeStorageToBytes(_storage);
+            }
+        }
+
+        protected override void OnClientApplyExtra()
+        {
+            if (_storage == null || _storageBlob == null)
+                return;
+
+            BuildingUtils.RebuildStorageFromBytes(_storage, _storageBlob);
         }
     }
 }
