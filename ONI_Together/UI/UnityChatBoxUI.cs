@@ -23,6 +23,11 @@ namespace ONI_Together.UI
 {
 	internal class UnityChatBoxUI : KScreen//, IRender1000ms
 	{
+		public static void DestroyInstance()
+		{
+			Instance = null;
+		}
+
 
 		public static MultiToggle ChatToggle = null;
 		public UnityChatBoxUI() : base()
@@ -43,8 +48,6 @@ namespace ONI_Together.UI
 
 		List<ChatMessageContainer> ChatMessages = [];
 		static List<string> _pendingSystemMessages = [];
-
-		public static void DestroyInstance() { Instance = null; }
 
 		public static void InitToggle()
 		{
