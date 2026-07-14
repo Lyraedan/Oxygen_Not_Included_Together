@@ -4,6 +4,9 @@ using Shared.Profiling;
 
 namespace ONI_Together.Networking
 {
+	/// <summary>
+	/// Keeps track of packets waiting to be picked up and processed.
+	/// </summary>
 	public static class PendingPickupRegistry
 	{
 		private static readonly HashSet<int> PendingNetIds = [];
@@ -11,18 +14,21 @@ namespace ONI_Together.Networking
 		public static void Add(int netId)
 		{
 			using var _ = Profiler.Scope();
+
 			PendingNetIds.Add(netId);
 		}
 
 		public static bool TryConsume(int netId)
 		{
 			using var _ = Profiler.Scope();
+
 			return PendingNetIds.Remove(netId);
 		}
 
 		public static void Clear()
 		{
 			using var _ = Profiler.Scope();
+
 			int n = PendingNetIds.Count;
 			PendingNetIds.Clear();
 			DebugConsole.Log($"[PendingPickup] cleared count={n}");
