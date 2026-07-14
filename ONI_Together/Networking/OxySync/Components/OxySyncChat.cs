@@ -189,7 +189,7 @@ public class OxySyncChat : NetworkBehaviour
         }
     }*/
     
-    public void AddMessageToChatbox(string sender, string message, long timestamp)
+    public void AddMessageToChatbox(string sender, string message, long timestamp, Color color)
     {
         // Only add messages to the chatbox if they don't already exist. Protects against retransmissions duplicating messages
         if (!_timestampCache.Contains(timestamp))
