@@ -59,13 +59,13 @@ namespace ONI_Together.Networking.Packets.Social
 			if (UnityChatBoxUI.Instance != null)
 			{
 				var ts = DateTimeOffset.FromUnixTimeMilliseconds(0).DateTime.ToString("HH:mm", CultureInfo.InvariantCulture);
-				UnityChatBoxUI.Instance.SendNewNewMessage("System", ts, STRINGS.UI.MP_CHATWINDOW.CHAT_INITIALIZED);
+				UnityChatBoxUI.Instance.SendNewChatMessage("System", ts, STRINGS.UI.MP_CHATWINDOW.CHAT_INITIALIZED);
 			}
 
 			foreach (var msg in Messages)
 			{
 				string ts = DateTimeOffset.FromUnixTimeMilliseconds(msg.timestamp).DateTime.ToString("HH:mm", CultureInfo.InvariantCulture);
-				UnityChatBoxUI.Instance?.SendNewNewMessage("System", ts, msg.message);
+				UnityChatBoxUI.Instance?.SendNewChatMessage("System", ts, msg.message);
 			}
 		}
 	}

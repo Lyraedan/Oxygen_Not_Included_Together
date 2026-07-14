@@ -15,6 +15,9 @@ namespace ONI_Together.UI.Components
 		string _sender, _stamp, _text;
 		bool spawned = false;
 		bool frozen = false;
+		Image ColorableBorder;
+
+		static Color defaultBG = Util.ColorFromHex("b0b0b0");
 
 		void Init()
 		{
@@ -26,16 +29,22 @@ namespace ONI_Together.UI.Components
 			TimeStamp = transform.Find("TimeStamp").gameObject.GetComponent<LocText>();
 			TimeStamp.key = string.Empty;
 			Text = transform.Find("Message").gameObject.GetComponent<LocText>();
+			ColorableBorder = GetComponent<Image>();
 			Text.key = string.Empty;
 			Text.AllowLinks = true;
 		}
-		public void SetValues(string sender, string stamp, string text)
+		public void SetValues(string sender, string stamp, string text, Color bgColor = default)
 		{
+			if(bgColor == default)
+				bgColor = Color.white;
+
+			Init();
 			_sender = sender;
 			_stamp = stamp;
 			_text = text;
 			if (spawned)
 				ApplyText();
+			ColorableBorder.color = defaultBG * bgColor;
 		}
 		void ApplyText()
 		{
