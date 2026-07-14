@@ -6,6 +6,7 @@ using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.OxySync.Components;
+using ONI_Together.Networking.OxySync.StateMachines;
 using Shared.Profiling;
 
 namespace ONI_Together.Patches.World
@@ -120,6 +121,19 @@ namespace ONI_Together.Patches.World
         {
             using var _ = Profiler.Scope();
             __instance.gameObject.AddOrGet<PrintingPodSyncComponent>();
+        }
+    }
+    
+    [HarmonyPatch(typeof(RustDeoxidizer), nameof(RustDeoxidizer.OnSpawn))]
+    public static class RustDeoxidizer_OxySync_Patch
+    {
+        public static void Postfix(RustDeoxidizer __instance)
+        {
+            if (!MultiplayerSession.InActiveSession)
+                return;
+            if (__instance.IsNullOrDestroyed())
+                return;
+            __instance.gameObject.AddOrGet<RustDeoxidizerSyncer>();
         }
     }
 }
