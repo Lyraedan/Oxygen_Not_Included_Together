@@ -20,6 +20,8 @@ namespace ONI_Together.Networking.OxySync.StateMachines
         [SyncVar(SendMode = (int) PacketSendMode.ReliableImmediate)]
         private byte[] _storageBlob;
 
+        private byte[] _lastAppliedStorageBlob;
+
         public override void OnSpawn()
         {
             base.OnSpawn();
@@ -100,10 +102,14 @@ namespace ONI_Together.Networking.OxySync.StateMachines
 
         protected override void OnClientApplyExtra()
         {
-            if (_storage == null || _storageBlob == null)
+            if (_storage == null)
                 return;
 
-            BuildingUtils.RebuildStorageFromBytes(_storage, _storageBlob);
+            if (_storageBlob != null && _storageBlob != _lastAppliedStorageBlob)
+            {
+                BuildingUtils.RebuildStorageFromBytes(_storage, _storageBlob);
+                _lastAppliedStorageBlob = _storageBlob;
+            }
         }
     }
 }
