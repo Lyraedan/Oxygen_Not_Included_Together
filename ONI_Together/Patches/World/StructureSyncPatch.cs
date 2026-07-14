@@ -6,6 +6,7 @@ using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.OxySync.Components;
+using ONI_Together.Networking.OxySync.StateMachines;
 using Shared.Profiling;
 
 namespace ONI_Together.Patches.World
@@ -100,6 +101,16 @@ namespace ONI_Together.Patches.World
         {
             using var _ = Profiler.Scope();
             __instance.gameObject.AddOrGet<NuclearReactorSyncer>();
+        }
+    }
+
+    [HarmonyPatch(typeof(Grave), nameof(Grave.OnSpawn))]
+    public static class GraveSpawnPatch
+    {
+        public static void Postfix(Grave __instance)
+        {
+            using var _ = Profiler.Scope();
+            __instance.gameObject.AddOrGet<GraveSyncer>();
         }
     }
 
