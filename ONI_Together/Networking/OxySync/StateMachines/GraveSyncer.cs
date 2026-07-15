@@ -1,15 +1,53 @@
+using Shared.OxySync.Attributes;
+
 namespace ONI_Together.Networking.OxySync.StateMachines
 {
     [SkipSaveFileSerialization]
     public class GraveSyncer : StateMachineSyncer
     {
+        private Grave _grave;
         private Grave.StatesInstance _smi;
+
+        [SyncVar(SendMode = (int) PacketSendMode.ReliableImmediate)]
+        private string _graveName;
+
+        [SyncVar(SendMode = (int) PacketSendMode.ReliableImmediate)]
+        private string _graveAnim;
+
+        [SyncVar]
+        private int _epitaphIdx;
+
+        [SyncVar]
+        private float _burialTime;
 
         public override void OnSpawn()
         {
             base.OnSpawn();
 
+            _grave = GetComponent<Grave>();
             _smi = this.GetSMI<Grave.StatesInstance>();
+        }
+
+        protected override void OnServerSampleExtra()
+        {
+            if (_grave == null)
+                return;
+
+            _graveName = _grave.graveName;
+            _graveAnim = _grave.graveAnim;
+            _epitaphIdx = _grave.epitaphIdx;
+            _burialTime = _grave.burialTime;
+        }
+
+        protected override void OnClientApplyExtra()
+        {
+            if (_grave == null)
+                return;
+
+            _grave.graveName = _graveName;
+            _grave.graveAnim = _graveAnim;
+            _grave.epitaphIdx = _epitaphIdx;
+            _grave.burialTime = _burialTime;
         }
 
         protected override int SampleCurrentStateId()
