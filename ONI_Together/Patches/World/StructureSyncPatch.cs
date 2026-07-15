@@ -110,6 +110,8 @@ namespace ONI_Together.Patches.World
         public static void Postfix(Grave __instance)
         {
             using var _ = Profiler.Scope();
+
+            __instance.gameObject.AddOrGet<NetworkIdentity>().RegisterIdentity();
             __instance.gameObject.AddOrGet<GraveSyncer>();
         }
     }
