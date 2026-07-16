@@ -9,7 +9,7 @@ public class ToggleMinionKanimEffectPacket : IPacket
 {
 	public int NetId;
 	public bool Enable;
-	public string Context; // e.g. "dig", "sleep", "build"
+	public int ContextHash; // A hash of the context string, e.g. "dig", "sleep", "build"
 	public string Event;   // e.g. "LaserOn", "LaserOff", "DreamsOn"
 
 	public void Serialize(BinaryWriter writer)
@@ -18,7 +18,7 @@ public class ToggleMinionKanimEffectPacket : IPacket
 
 		writer.Write(NetId);
 		writer.Write(Enable);
-		writer.Write(Context);
+		writer.Write(ContextHash);
 		writer.Write(Event);
 	}
 
@@ -28,7 +28,7 @@ public class ToggleMinionKanimEffectPacket : IPacket
 
 		NetId = reader.ReadInt32();
 		Enable = reader.ReadBoolean();
-		Context = reader.ReadString();
+		ContextHash = reader.ReadInt32();
 		Event = reader.ReadString();
 	}
 
@@ -47,7 +47,7 @@ public class ToggleMinionKanimEffectPacket : IPacket
 			return;
 		}
 
-		toggler.GetComponentInParent<AnimEventHandler>()?.SetContext(Context);
+		toggler.GetComponentInParent<AnimEventHandler>()?.SetContext(new HashedString(ContextHash));
 
 		var hash = Hash.SDBMLower(Event);
 		//data gets ignored by subscriptions
