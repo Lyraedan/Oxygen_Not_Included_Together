@@ -9,6 +9,7 @@ namespace ONI_Together.Networking.OxySync.StateMachines
     [SkipSaveFileSerialization]
     public class RustDeoxidizerSyncer : StateMachineSyncer
     {
+        private RustDeoxidizer _rustDeoxidizer;
         private RustDeoxidizer.StatesInstance _smi;
         private Storage _storage;
 
@@ -17,15 +18,19 @@ namespace ONI_Together.Networking.OxySync.StateMachines
 
         private const float STORAGE_SYNC_DELAY = 0.2f;
 
-        [SyncVar(SendMode = (int) PacketSendMode.ReliableImmediate)]
+        [SyncVar(SendMode = (int)PacketSendMode.ReliableImmediate)]
         private byte[] _storageBlob;
 
         private byte[] _lastAppliedStorageBlob;
+
+        [SyncVar(SendMode = (int)PacketSendMode.ReliableImmediate)]
+        private float _maxMass;
 
         public override void OnSpawn()
         {
             base.OnSpawn();
 
+            _rustDeoxidizer = GetComponent<RustDeoxidizer>();
             _smi = this.GetSMI<RustDeoxidizer.StatesInstance>();
             _storage = GetComponent<Storage>();
 
@@ -98,6 +103,8 @@ namespace ONI_Together.Networking.OxySync.StateMachines
                 _storageDirty = false;
                 _storageBlob = BuildingUtils.EncodeStorageToBytes(_storage);
             }
+
+            _maxMass = _rustDeoxidizer.maxMass;
         }
 
         protected override void OnClientApplyExtra()
@@ -110,6 +117,8 @@ namespace ONI_Together.Networking.OxySync.StateMachines
                 BuildingUtils.RebuildStorageFromBytes(_storage, _storageBlob);
                 _lastAppliedStorageBlob = _storageBlob;
             }
+
+            _rustDeoxidizer.maxMass = _maxMass;
         }
     }
 }

@@ -131,8 +131,10 @@ namespace ONI_Together.Patches.World
         {
             if (!MultiplayerSession.InActiveSession)
                 return;
+
             if (__instance.IsNullOrDestroyed())
                 return;
+
             __instance.gameObject.AddOrGet<RustDeoxidizerSyncer>();
         }
     }
