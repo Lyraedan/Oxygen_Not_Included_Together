@@ -40,7 +40,6 @@ public class ToggleMinionKanimEffectPacket : IPacket
 
 		var toggler = go.GetComponentsInChildren<KBatchedAnimEventToggler>()
 				.FirstOrDefault(t => t.enableEvent == Event || t.disableEvent == Event);
-
 		if (toggler == null)
 		{
 			DebugConsole.LogWarning($"[ToggleMinionEffectPacket] Toggler with event '{Event}' not found");
@@ -49,8 +48,9 @@ public class ToggleMinionKanimEffectPacket : IPacket
 
 		toggler.GetComponentInParent<AnimEventHandler>()?.SetContext(new HashedString(ContextHash));
 
-		var hash = Hash.SDBMLower(Event);
-		//data gets ignored by subscriptions
-		toggler.Trigger(hash, null);
+		if (Enable)
+			toggler.Enable(null);
+		else
+			toggler.Disable(null);
 	}
 }
