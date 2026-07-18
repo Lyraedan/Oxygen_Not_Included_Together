@@ -2,7 +2,6 @@ using HarmonyLib;
 using ONI_Together.Networking;
 using ONI_Together.Networking.OxySync.StateMachines;
 using Shared.Profiling;
-using UnityEngine;
 
 namespace ONI_Together.Patches.OxySync
 {
