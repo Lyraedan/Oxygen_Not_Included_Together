@@ -189,6 +189,9 @@ namespace ONI_Together.Networking
 			if (!MultiplayerSession.InActiveSession)
 				return;
 
+			if (MultiplayerSession.IsQuitting)
+				return;
+
 			DebugConsole.Log("Refreshing ready state...");
 			if (MultiplayerSession.ConnectedPlayers.Count <= 1)
 			{

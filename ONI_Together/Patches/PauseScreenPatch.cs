@@ -24,11 +24,13 @@ namespace ONI_Together.Patches
 		{
 			using var _ = Profiler.Scope();
 
-			if (MultiplayerSession.InActiveSession)
-			{
-				NetworkConfig.Stop();
-				MultiplayerSession.Clear();
-			}
+			if (!MultiplayerSession.InActiveSession)
+				return;
+
+			MultiplayerSession.IsQuitting = true;
+
+			NetworkConfig.Stop();
+			MultiplayerSession.Clear();
 		}
 
 		// This prevents the game from pausing when the PauseScreen opens in multiplayer

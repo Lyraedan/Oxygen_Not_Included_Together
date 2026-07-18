@@ -36,6 +36,8 @@ namespace ONI_Together.Networking
 		public static string ServerIp { get; set; } = "127.0.0.1";
 		public static int ServerPort { get; set; } = 7777;
 
+		public static bool IsQuitting { get; set; } = false;
+
 		private static bool _inActiveSession = false;
 		public static bool InActiveSession
 		{
@@ -94,6 +96,9 @@ namespace ONI_Together.Networking
 			HostUserID = Utils.NilUlong();
 			WorkProgressPatch.ClearTracking();
 			RemoteProgressRegistry.ClearAll();
+
+			IsQuitting = false;
+
 			DebugConsole.Log("[MultiplayerSession] Session cleared.");
 		}
 
