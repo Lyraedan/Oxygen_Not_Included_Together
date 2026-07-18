@@ -45,7 +45,7 @@ namespace ONI_Together.Patches.World
         public static void Postfix(object __instance)
         {
             using var _ = Profiler.Scope();
-            ((KMonoBehaviour) __instance).gameObject.AddOrGet<StorageSyncComponent>();
+            ((KMonoBehaviour)__instance).gameObject.AddOrGet<StorageSyncComponent>();
         }
 
         [HarmonyTargetMethods]
@@ -93,7 +93,7 @@ namespace ONI_Together.Patches.World
             __instance.gameObject.AddOrGet<ToiletStructureSyncer>();
         }
     }
-    
+
     [HarmonyPatch(typeof(Reactor), nameof(Reactor.OnSpawn))]
     public static class ReactorSpawnPatch
     {
@@ -101,26 +101,6 @@ namespace ONI_Together.Patches.World
         {
             using var _ = Profiler.Scope();
             __instance.gameObject.AddOrGet<NuclearReactorSyncer>();
-        }
-    }
-
-    [HarmonyPatch(typeof(ComplexFabricator), nameof(ComplexFabricator.OnSpawn))]
-    public static class FoodSmokerSpawnPatch
-    {
-        public static void Postfix(ComplexFabricator __instance)
-        {
-            using var _ = Profiler.Scope();
-
-            if (!MultiplayerSession.InActiveSession)
-                return;
-
-            if (__instance.IsNullOrDestroyed())
-                return;
-
-            if (__instance.GetSMI<FoodSmoker.StatesInstance>() == null)
-                return;
-
-            __instance.gameObject.AddOrGet<FoodSmokerSyncer>();
         }
     }
 
