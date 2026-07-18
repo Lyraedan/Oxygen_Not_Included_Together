@@ -87,8 +87,14 @@ namespace ONI_Together.Misc
             DebugConsole.LogError($"[Storage/RebuildStorageFromData] Failed to rebuild storage from data! Key: {keyPrefix + "stor"} not found!");
         }
 
+        // capacityKg + count
+        private const int BLOB_HEADER_SIZE = sizeof(float) + sizeof(int);
+
         private static void RebuildFromBlob(Storage storage, byte[] blob, string diseaseReason)
         {
+            if (blob == null || blob.Length < BLOB_HEADER_SIZE)
+                return;
+
             using var ms = new MemoryStream(blob);
             using var reader = new BinaryReader(ms);
 
