@@ -1,6 +1,4 @@
-using KSerialization;
 using ONI_Together.Misc;
-using Shared.OxySync;
 using Shared.OxySync.Attributes;
 using UnityEngine;
 
@@ -35,17 +33,20 @@ namespace ONI_Together.Networking.OxySync.StateMachines
             _storage = GetComponent<Storage>();
 
             if (_storage != null)
+            {
                 _storage.OnStorageChange += OnStorageChanged;
 
-            Subscribe((int)GameHashes.OnStorageChange, OnStorageChangedGameHash);
+                _storage.Subscribe((int)GameHashes.OnStorageChange, OnStorageChangedGameHash);
+            }
         }
 
         public override void OnCleanUp()
         {
             if (_storage != null)
+            {
                 _storage.OnStorageChange -= OnStorageChanged;
-
-            Unsubscribe((int)GameHashes.OnStorageChange, OnStorageChangedGameHash);
+                _storage.Unsubscribe((int)GameHashes.OnStorageChange, OnStorageChangedGameHash);
+            }
 
             base.OnCleanUp();
         }
