@@ -123,19 +123,4 @@ namespace ONI_Together.Patches.World
             __instance.gameObject.AddOrGet<PrintingPodSyncComponent>();
         }
     }
-    
-    [HarmonyPatch(typeof(RustDeoxidizer), nameof(RustDeoxidizer.OnSpawn))]
-    public static class RustDeoxidizer_OxySync_Patch
-    {
-        public static void Postfix(RustDeoxidizer __instance)
-        {
-            if (!MultiplayerSession.InActiveSession)
-                return;
-
-            if (__instance.IsNullOrDestroyed())
-                return;
-
-            __instance.gameObject.AddOrGet<RustDeoxidizerSyncer>();
-        }
-    }
 }
