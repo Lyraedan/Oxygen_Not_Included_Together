@@ -1,5 +1,4 @@
 using HarmonyLib;
-using ONI_Together.Networking;
 using ONI_Together.Networking.OxySync.StateMachines;
 using Shared.Profiling;
 
@@ -12,9 +11,6 @@ namespace ONI_Together.Patches.OxySync
         public static void Postfix(RustDeoxidizer __instance)
         {
             using var _ = Profiler.Scope();
-
-            if (!MultiplayerSession.InActiveSession)
-                return;
 
             if (__instance.IsNullOrDestroyed())
                 return;
