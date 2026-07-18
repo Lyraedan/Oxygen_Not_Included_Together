@@ -36,6 +36,8 @@ namespace ONI_Together.Networking.OxySync.StateMachines
 
             if (_storage != null)
                 _storage.OnStorageChange += OnStorageChanged;
+
+            Subscribe((int)GameHashes.OnStorageChange, OnStorageChangedGameHash);
         }
 
         public override void OnCleanUp()
@@ -43,10 +45,17 @@ namespace ONI_Together.Networking.OxySync.StateMachines
             if (_storage != null)
                 _storage.OnStorageChange -= OnStorageChanged;
 
+            Unsubscribe((int)GameHashes.OnStorageChange, OnStorageChangedGameHash);
+
             base.OnCleanUp();
         }
 
         private void OnStorageChanged(GameObject _)
+        {
+            _storageDirty = true;
+        }
+
+        private void OnStorageChangedGameHash(object _)
         {
             _storageDirty = true;
         }
