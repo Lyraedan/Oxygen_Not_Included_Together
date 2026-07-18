@@ -14,9 +14,6 @@ namespace ONI_Together.Patches.OxySync
         {
             using var _ = Profiler.Scope();
 
-            if (!MultiplayerSession.InActiveSession)
-                return;
-
             if (__instance.IsNullOrDestroyed())
                 return;
 
