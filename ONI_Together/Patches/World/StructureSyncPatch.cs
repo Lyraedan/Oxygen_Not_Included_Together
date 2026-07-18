@@ -113,8 +113,11 @@ namespace ONI_Together.Patches.World
 
             if (!MultiplayerSession.InActiveSession)
                 return;
-    
+
             if (__instance.IsNullOrDestroyed())
+                return;
+
+            if (__instance.GetSMI<FoodSmoker.StatesInstance>() == null)
                 return;
 
             __instance.gameObject.AddOrGet<FoodSmokerSyncer>();
