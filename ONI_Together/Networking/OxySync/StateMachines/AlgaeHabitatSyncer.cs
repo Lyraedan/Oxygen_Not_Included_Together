@@ -4,6 +4,9 @@ using UnityEngine;
 
 namespace ONI_Together.Networking.OxySync.StateMachines
 {
+    /// <summary>
+    /// Handles syncing for the bulk of Algae Terrarium's functionality. (some of it is handled by the syncer for ElementConverters)
+    /// </summary>
     [SkipSaveFileSerialization]
     public class AlgaeHabitatSyncer : StateMachineSyncer
     {
