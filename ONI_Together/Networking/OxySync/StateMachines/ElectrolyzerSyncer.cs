@@ -4,6 +4,9 @@ using UnityEngine;
 
 namespace ONI_Together.Networking.OxySync.StateMachines
 {
+    /// <summary>
+    /// Handles syncing for the bulk of Oxygen Diffuser's and Sublimator's function.
+    /// </summary>
     [SkipSaveFileSerialization]
     public class ElectrolyzerSyncer : StateMachineSyncer
     {
