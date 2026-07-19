@@ -1,98 +1,117 @@
 using HarmonyLib;
-using KSerialization;
-using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Social;
-using System.Collections.Generic;
 using Shared.Profiling;
 
 namespace ONI_Together.Patches.Social
 {
-	// Sync assignments (Minion -> Schedule)
-	[HarmonyPatch(typeof(Schedule), "Assign")]
+	[HarmonyPatch(typeof(Schedule), nameof(Schedule.Assign))]
 	public static class ScheduleAssignPatch
 	{
-		public static void Postfix(Schedule __instance, Schedulable schedulable)
+		public static void Postfix()
 		{
 			using var _ = Profiler.Scope();
-
-			if (!MultiplayerSession.InSession) return;
-			if (ScheduleAssignmentPacket.IsApplying) return;
-
-			int netId = schedulable.GetNetId();
-			if (netId != 0)
-			{
-				int index = __instance.GetScheduleIndex();
-				if (index != -1)
-				{
-					var packet = new ScheduleAssignmentPacket
-					{
-						NetId = netId,
-						ScheduleIndex = index
-					};
-
-					PacketSender.SendToAllOtherPeers(packet);
-				}
-			}
+			ScheduleSyncCoordinator.PublishHostMutation();
 		}
 	}
 
-	[HarmonyPatch(typeof(Schedule), "ShiftTimetable")]
-	public static class Schedule_ShiftTimetable_Patch
+	[HarmonyPatch(typeof(ScheduleMinionWidget), nameof(ScheduleMinionWidget.ChangeAssignment))]
+	public static class ScheduleChangeAssignmentPatch
 	{
-		static void Postfix(Schedule __instance, bool up, int timetableToShiftIdx, bool __result)
+		public static bool Prefix(Schedule targetSchedule, Schedulable schedulable)
 		{
 			using var _ = Profiler.Scope();
+			if (!MultiplayerSession.InSession || MultiplayerSession.IsHost ||
+			    ScheduleSyncCoordinator.IsApplyingAuthoritativeMutation)
+				return true;
+			if (targetSchedule == null || schedulable == null || targetSchedule.IsAssigned(schedulable))
+				return false;
 
-			if (!__result)
-				return;
+			int scheduleIndex = targetSchedule.GetScheduleIndex();
+			int netId = schedulable.GetNetId();
+			if (scheduleIndex < 0 || netId == 0)
+				return false;
+			ScheduleSyncCoordinator.SendClientRequest(new ScheduleAssignmentPacket
+			{
+				NetId = netId,
+				ScheduleIndex = scheduleIndex
+			});
+			return false;
+		}
+	}
 
-			if (!MultiplayerSession.InSession)
-				return;
+	[HarmonyPatch(typeof(Schedule), nameof(Schedule.ShiftTimetable))]
+	public static class ScheduleShiftTimetablePatch
+	{
+		public static bool Prefix(
+			Schedule __instance,
+			bool up,
+			int timetableToShiftIdx,
+			ref bool __result)
+		{
+			using var _ = Profiler.Scope();
+			if (!MultiplayerSession.InSession || MultiplayerSession.IsHost ||
+			    ScheduleSyncCoordinator.IsApplyingAuthoritativeMutation)
+				return true;
 
-			if (ScheduleRowPacket.IsApplying)
-				return;
+			int rowCount = __instance?.blocks?.Count / ScheduleSyncProtocol.BlocksPerTimetable ?? 0;
+			int scheduleIndex = __instance?.GetScheduleIndex() ?? -1;
+			bool valid = scheduleIndex >= 0 && timetableToShiftIdx >= 0 &&
+			             timetableToShiftIdx < rowCount &&
+			             !(up && timetableToShiftIdx == 0) &&
+			             !(!up && timetableToShiftIdx == rowCount - 1);
+			if (valid)
+			{
+				ScheduleSyncCoordinator.SendClientRequest(new ScheduleRowPacket
+				{
+					ScheduleIndex = scheduleIndex,
+					Action = up
+						? ScheduleRowPacket.RowAction.SHIFT_UP
+						: ScheduleRowPacket.RowAction.SHIFT_DOWN,
+					TimetableToIndex = timetableToShiftIdx
+				});
+			}
+			__result = valid;
+			return false;
+		}
 
-			int scheduleIndex = __instance.GetScheduleIndex();
-			if (scheduleIndex == -1)
-				return;
+		public static void Postfix(bool __result)
+		{
+			if (__result)
+				ScheduleSyncCoordinator.PublishHostMutation();
+		}
+	}
 
-			ScheduleRowPacket packet = new ScheduleRowPacket()
+	[HarmonyPatch(typeof(Schedule), nameof(Schedule.RotateBlocks))]
+	public static class ScheduleRotateBlocksPatch
+	{
+		public static bool Prefix(Schedule __instance, bool directionLeft, int timetableToRotateIdx)
+		{
+			using var _ = Profiler.Scope();
+			if (!MultiplayerSession.InSession || MultiplayerSession.IsHost ||
+			    ScheduleSyncCoordinator.IsApplyingAuthoritativeMutation)
+				return true;
+
+			int rowCount = __instance?.blocks?.Count / ScheduleSyncProtocol.BlocksPerTimetable ?? 0;
+			int scheduleIndex = __instance?.GetScheduleIndex() ?? -1;
+			if (scheduleIndex < 0 || timetableToRotateIdx < 0 || timetableToRotateIdx >= rowCount)
+				return false;
+			ScheduleSyncCoordinator.SendClientRequest(new ScheduleRowPacket
 			{
 				ScheduleIndex = scheduleIndex,
-				Action = up ? ScheduleRowPacket.RowAction.SHIFT_UP : ScheduleRowPacket.RowAction.SHIFT_DOWN,
-				TimetableToIndex = timetableToShiftIdx
-			};
-			PacketSender.SendToAllOtherPeers(packet);
+				Action = directionLeft
+					? ScheduleRowPacket.RowAction.ROTATE_LEFT
+					: ScheduleRowPacket.RowAction.ROTATE_RIGHT,
+				TimetableToIndex = timetableToRotateIdx
+			});
+			return false;
+		}
+
+		public static void Postfix()
+		{
+			ScheduleSyncCoordinator.PublishHostMutation();
 		}
 	}
-
-    [HarmonyPatch(typeof(Schedule), "RotateBlocks")]
-    public static class Schedule_RotateBlocks_Patch
-    {
-        static void Postfix(Schedule __instance, bool directionLeft, int timetableToRotateIdx)
-        {
-	        using var _ = Profiler.Scope();
-
-            if (!MultiplayerSession.InSession)
-                return;
-
-            if (ScheduleRowPacket.IsApplying)
-                return;
-
-            int scheduleIndex = __instance.GetScheduleIndex();
-            if (scheduleIndex == -1)
-                return;
-
-            ScheduleRowPacket packet = new ScheduleRowPacket()
-            {
-                ScheduleIndex = scheduleIndex,
-                Action = directionLeft ? ScheduleRowPacket.RowAction.ROTATE_LEFT : ScheduleRowPacket.RowAction.ROTATE_RIGHT,
-                TimetableToIndex = timetableToRotateIdx
-            };
-            PacketSender.SendToAllOtherPeers(packet);
-        }
-    }
 }

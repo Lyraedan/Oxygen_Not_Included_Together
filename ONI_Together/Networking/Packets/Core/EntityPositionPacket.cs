@@ -7,7 +7,7 @@ using Shared.Profiling;
 using UnityEngine;
 using Shared.Interfaces.Networking;
 
-public class EntityPositionPacket : IPacket, IViewportCullable
+public class EntityPositionPacket : IPacket, IViewportCullable, Shared.Interfaces.Networking.IHostOnlyPacket
 {
 	public int NetId;
 	public Vector3 Position;
@@ -58,14 +58,15 @@ public class EntityPositionPacket : IPacket, IViewportCullable
 			if (!handler)
 				return;
 
-			if (handler.serverTimestamp > Timestamp)
-				return;
+				if (handler.serverTimestamp >= Timestamp)
+					return;
 
             handler.serverPosition = Position;
             handler.serverTimestamp = Timestamp;
             handler.serverFlipX = FlipX;
 			handler.serverFlipY = FlipY;
 			handler.serverNavType = NavType;
+			handler.MarkServerUpdateReceived();
         }
 		else
 		{

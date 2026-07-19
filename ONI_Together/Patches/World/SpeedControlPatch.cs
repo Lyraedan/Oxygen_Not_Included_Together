@@ -12,6 +12,16 @@ namespace ONI_Together.Patches
 	{
 		public static bool IsSyncing = false;
 
+		private static bool AllowLocalSpeedMutation()
+			=> !SpeedChangePacket.ShouldBlockLocalSpeedControl(
+				MultiplayerSession.InSession,
+				IsSyncing,
+				SpeedChangePacket.IsBarrierPauseLocked);
+
+		[HarmonyPatch("SetSpeed")]
+		[HarmonyPrefix]
+		public static bool SetSpeed_Prefix() => AllowLocalSpeedMutation();
+
 		[HarmonyPatch("SetSpeed")]
 		[HarmonyPostfix]
 		public static void SetSpeed_Postfix(int Speed)
@@ -20,18 +30,22 @@ namespace ONI_Together.Patches
 
 			try
 			{
-				if (IsSyncing) return;
+				if (IsSyncing || !AllowLocalSpeedMutation()) return;
+				ReadyManager.ClearAutomaticPauseOwnership();
 
-				var packet = new SpeedChangePacket((SpeedChangePacket.SpeedState)Speed);
-
-				PacketSender.SendToAllOtherPeers(packet);
-				DebugConsole.Log($"[SpeedControl] Sent SpeedChangePacket: {packet.Speed}");
+				var speed = (SpeedChangePacket.SpeedState)Speed;
+				SpeedChangePacket.SubmitLocalChange(speed);
+				DebugConsole.Log($"[SpeedControl] Submitted speed change: {speed}");
 			}
 			catch (Exception ex)
 			{
 				DebugConsole.LogError($"[SpeedControlPatch.SetSpeed_Postfix] {ex}");
 			}
 		}
+
+		[HarmonyPatch(nameof(SpeedControlScreen.TogglePause))]
+		[HarmonyPrefix]
+		public static bool TogglePause_Prefix() => AllowLocalSpeedMutation();
 
 		[HarmonyPatch(nameof(SpeedControlScreen.TogglePause))]
 		[HarmonyPostfix]
@@ -41,20 +55,24 @@ namespace ONI_Together.Patches
 
 			try
 			{
-				if (IsSyncing) return;
+				if (IsSyncing || !AllowLocalSpeedMutation()) return;
+				ReadyManager.ClearAutomaticPauseOwnership();
 
 				var speedState = __instance.IsPaused
 						? SpeedChangePacket.SpeedState.Paused
 						: (SpeedChangePacket.SpeedState)__instance.GetSpeed();
 
-				var packet = new SpeedChangePacket(speedState);
-				PacketSender.SendToAllOtherPeers(packet);
-				DebugConsole.Log($"[SpeedControl] Sent SpeedChangePacket (pause toggle): {packet.Speed}");
+				SpeedChangePacket.SubmitLocalChange(speedState);
+				DebugConsole.Log($"[SpeedControl] Submitted pause change: {speedState}");
 			}
 			catch (Exception ex)
 			{
 				DebugConsole.LogError($"[SpeedControlPatch.TogglePause_Postfix] {ex}");
 			}
 		}
+
+		[HarmonyPatch(nameof(SpeedControlScreen.Unpause))]
+		[HarmonyPrefix]
+		public static bool Unpause_Prefix() => AllowLocalSpeedMutation();
 	}
 }

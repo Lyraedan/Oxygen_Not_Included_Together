@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace ONI_Together.Networking.Packets.DuplicantActions
 {
-	public class ToolEquipPacket : IPacket
+	public class ToolEquipPacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
 		public int TargetNetId;
 		public string PrefabName;

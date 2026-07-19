@@ -4,8 +4,9 @@ using ONI_Together.Networking.Packets.Architecture;
 using System.IO;
 using System.Linq;
 using Shared.Profiling;
+using Shared.Interfaces.Networking;
 
-public class ToggleMinionKanimEffectPacket : IPacket
+public class ToggleMinionKanimEffectPacket : IPacket, IHostOnlyPacket
 {
 	public int NetId;
 	public bool Enable;

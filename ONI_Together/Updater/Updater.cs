@@ -108,6 +108,15 @@ namespace ONI_Together.ModUpdater
         {
             using var _ = Profiler.Scope();
 
+			string rawVersion = GetFullVersion();
+			var match = Regex.Match(rawVersion, @"(?<ver>\d+(\.\d+){1,2})");
+			return match.Success ? match.Groups["ver"].Value : rawVersion;
+		}
+
+		public static string GetFullVersion()
+		{
+			using var _ = Profiler.Scope();
+
             try
             {
                 string path = Path.Combine(Path.GetDirectoryName(typeof(Updater).Assembly.Location), "mod_info.yaml");
@@ -124,16 +133,9 @@ namespace ONI_Together.ModUpdater
                     var root = (YamlMappingNode)yaml.Documents[0].RootNode;
                     var versionNode = root.Children[new YamlScalarNode("version")];
 
-                    string rawVersion = versionNode.ToString();
-
-                    var match = Regex.Match(
-                        rawVersion,
-                        @"(?<ver>\d+(\.\d+){1,2})"
-                    );
-
-                    string version = match.Success ? match.Groups["ver"].Value : rawVersion;
-                    DebugConsole.Log($"[Updater] Current Version: {version}");
-                    return version;
+					string version = versionNode.ToString().Trim();
+					DebugConsole.Log($"[Updater] Current Version: {version}");
+					return version;
                 }
             }
             catch (System.Exception e)

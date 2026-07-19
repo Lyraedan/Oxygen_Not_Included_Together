@@ -15,6 +15,9 @@ namespace ONI_Together.Networking.Packets.World
     /// </summary>
     public class SyncProgressPacket : IPacket
     {
+        internal const int MaxClientNameChars = 128;
+        internal const int MaxFileNameChars = 512;
+        private static int _rejectedPackets;
         // Tracks progress of all clients for host UI
         private static readonly Dictionary<ulong, ClientSyncInfo> ClientProgress = new Dictionary<ulong, ClientSyncInfo>();
 
@@ -33,10 +36,15 @@ namespace ONI_Together.Networking.Packets.World
         public int ReceivedChunks;          // How many chunks have been received
         public int TotalChunks;             // Total chunks in the file
         public int ProgressPercent;         // Calculated percentage (0-100)
+        internal static bool ShouldAccept(ulong clientId, DispatchContext context) =>
+            clientId != 0 && !context.SenderIsHost && SyncBarrier.SenderMatches(clientId, context.SenderId);
 
         public void Serialize(BinaryWriter writer)
         {
             using var _ = Profiler.Scope();
+
+            if (!IsWireValid())
+                throw new InvalidDataException("Invalid sync progress payload");
 
             writer.Write(ClientSteamID);
             writer.Write(ClientName);
@@ -56,6 +64,18 @@ namespace ONI_Together.Networking.Packets.World
             ReceivedChunks = reader.ReadInt32();
             TotalChunks = reader.ReadInt32();
             ProgressPercent = reader.ReadInt32();
+            if (!IsWireValid())
+                throw new InvalidDataException("Invalid sync progress payload");
+        }
+
+        private bool IsWireValid()
+        {
+            return ClientSteamID != 0
+                && !string.IsNullOrEmpty(ClientName) && ClientName.Length <= MaxClientNameChars
+                && !string.IsNullOrEmpty(FileName) && FileName.Length <= MaxFileNameChars
+                && TotalChunks > 0 && TotalChunks <= SaveFileChunkPacket.MaxSaveBytes
+                && ReceivedChunks >= 0 && ReceivedChunks <= TotalChunks
+                && ProgressPercent >= 0 && ProgressPercent <= 100;
         }
 
         public void OnDispatched()
@@ -65,6 +85,13 @@ namespace ONI_Together.Networking.Packets.World
             // Only host processes client progress
             if (!MultiplayerSession.IsHost)
                 return;
+            if (!ShouldAccept(ClientSteamID, PacketHandler.CurrentContext))
+            {
+                int rejected = ++_rejectedPackets;
+                if (rejected <= 5 || rejected % 100 == 0)
+                    DebugConsole.LogWarning($"[SyncProgress] Rejected client {ClientSteamID} from {PacketHandler.CurrentContext.SenderId}, host={PacketHandler.CurrentContext.SenderIsHost} (#{rejected})");
+                return;
+            }
 
             // Update client information
             ClientProgress[ClientSteamID] = new ClientSyncInfo
@@ -182,6 +209,12 @@ namespace ONI_Together.Networking.Packets.World
             {
                 MultiplayerOverlay.Close();
             }
+        }
+
+        internal static void ResetSessionState()
+        {
+            ClientProgress.Clear();
+            _rejectedPackets = 0;
         }
     }
 }

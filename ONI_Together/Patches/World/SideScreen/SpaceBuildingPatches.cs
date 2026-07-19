@@ -3,6 +3,7 @@ using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.World;
+using Shared;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -31,7 +32,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "GeoTunerGeyser".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("GeoTunerGeyser"),
 				Value = geyserCell,
 				ConfigType = BuildingConfigType.Float
 			};
@@ -72,7 +73,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "MissileLauncherAmmo".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("MissileLauncherAmmo"),
 				Value = allowed ? 1f : 0f,
 				ConfigType = BuildingConfigType.String,
 				StringValue = tag.Name
@@ -114,7 +115,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "GantryToggle".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("GantryToggle"),
 				Value = __instance.IsSwitchedOn ? 1f : 0f,
 				ConfigType = BuildingConfigType.Boolean
 			};

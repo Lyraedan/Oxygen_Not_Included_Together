@@ -35,7 +35,11 @@ namespace ONI_Together.Patches.World.Buildings
 					return;
 
 				_nextSendTime[netId] = now + SEND_INTERVAL;
-				PacketSender.SendToAllClients(WorkableProgressPacket.CreateComplexFabricator(fabricator, showProgressBar: true), PacketSendMode.Unreliable);
+				if (!WorkableProgressPacket.TryCreateComplexFabricator(
+					    fabricator, showProgressBar: true, out var packet))
+					return;
+
+				PacketSender.SendToAllClients(packet, PacketSendMode.Unreliable);
 			}
 		}
 
@@ -49,13 +53,22 @@ namespace ONI_Together.Patches.World.Buildings
 				if (!MultiplayerSession.IsHost || !MultiplayerSession.InSession || __instance.IsNullOrDestroyed())
 					return;
 
-				PacketSender.SendToAllClients(WorkableProgressPacket.CreateComplexFabricator(__instance, showProgressBar: false), PacketSendMode.ReliableImmediate);
+				if (WorkableProgressPacket.TryCreateComplexFabricator(
+					    __instance, showProgressBar: false, out var packet))
+				{
+					PacketSender.SendToAllClients(packet, PacketSendMode.ReliableImmediate);
+				}
 			}
 		}
 
 		[HarmonyPatch(typeof(ComplexFabricator), nameof(ComplexFabricator.SpawnOrderProduct))]
 		public class ComplexFabricator_SpawnOrderProduct_Patch
 		{
+			public static bool Prefix()
+			{
+				return !MultiplayerSession.InSession || !MultiplayerSession.IsClient;
+			}
+
 			public static void Postfix(ComplexFabricator __instance)
 			{
 				using var _ = Profiler.Scope();
@@ -63,8 +76,11 @@ namespace ONI_Together.Patches.World.Buildings
 				if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost)
 					return;
 
-				PacketSender.SendToAllClients(WorkableProgressPacket.CreateComplexFabricator(__instance, showProgressBar: false), PacketSendMode.ReliableImmediate);
-				PacketSender.SendToAllClients(new ComplexFabricatorSpawnProductPacket(__instance));
+				if (WorkableProgressPacket.TryCreateComplexFabricator(
+					    __instance, showProgressBar: false, out var packet))
+				{
+					PacketSender.SendToAllClients(packet, PacketSendMode.ReliableImmediate);
+				}
 			}
 		}
 	}

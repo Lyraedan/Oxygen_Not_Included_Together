@@ -13,7 +13,7 @@ namespace ONI_Together.Networking.Packets.World
     /// <summary>
     /// Modified version of GroundItemPickedUpPacket
     /// </summary>
-    public class PickupItemPacket : IPacket, IBulkablePacket
+    public class PickupItemPacket : IPacket, IBulkablePacket, IHostOnlyPacket
     {
         public int NetId;
 

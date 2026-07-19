@@ -3,6 +3,7 @@ using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.World;
+using Shared;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -33,7 +34,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.targetLogicCounter.gameObject),
-				ConfigHash = "CounterMaxCount".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("CounterMaxCount"),
 				Value = newValue,
 				ConfigType = BuildingConfigType.Float
 			};
@@ -64,7 +65,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.targetLogicCounter.gameObject),
-				ConfigHash = "CounterAdvanced".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("CounterAdvancedMode"),
 				Value = __instance.targetLogicCounter.advancedMode ? 1f : 0f,
 				ConfigType = BuildingConfigType.Boolean
 			};
@@ -95,7 +96,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.targetLogicCounter.gameObject),
-				ConfigHash = "CounterReset".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("CounterReset"),
 				Value = 1f,
 				ConfigType = BuildingConfigType.Float
 			};
@@ -125,7 +126,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "StorageSweepOnly".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("StorageSweepOnly"),
 				Value = is_set ? 1f : 0f,
 				ConfigType = BuildingConfigType.Boolean
 			};
@@ -168,7 +169,7 @@ namespace ONI_Together.Patches.World.SideScreen
 				{
 					NetId = identity.NetId,
 					Cell = Grid.PosToCell(__instance.gameObject),
-					ConfigHash = recipe.id.GetHashCode(),
+					ConfigHash = NetworkingHash.ForConfigKey(recipe.id),
 					Value = count,
 					ConfigType = BuildingConfigType.RecipeQueue
 				};
@@ -182,36 +183,6 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				DebugConsole.Log($"[ComplexFabricator] ERROR in Postfix: {ex.Message}");
 			}
-		}
-	}
-
-	/// <summary>
-	/// Sync FoodStorage SpicedFoodOnly toggle (seasoned food only option on Refrigerator)
-	/// </summary>
-	[HarmonyPatch(typeof(FoodStorage), nameof(FoodStorage.OnCopySettings))]
-	public static class FoodStorage_OnCopySettings_Patch
-	{
-		public static void Postfix(FoodStorage __instance)
-		{
-			using var _ = Profiler.Scope();
-
-			if (BuildingConfigPacket.IsApplyingPacket) return;
-			if (!MultiplayerSession.InSession) return;
-
-			var identity = __instance.gameObject.AddOrGet<NetworkIdentity>();
-			identity.RegisterIdentity();
-
-			var packet = new BuildingConfigPacket
-			{
-				NetId = identity.NetId,
-				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "FoodStorageSpicedFoodOnly".GetHashCode(),
-				Value = __instance.SpicedFoodOnly ? 1f : 0f,
-				ConfigType = BuildingConfigType.Boolean
-			};
-
-			if (MultiplayerSession.IsHost) PacketSender.SendToAllClients(packet);
-			else PacketSender.SendToHost(packet);
 		}
 	}
 
@@ -235,7 +206,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "FoodStorageSpicedFoodOnly".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("FoodStorageSpicedFoodOnly"),
 				Value = value ? 1f : 0f,
 				ConfigType = BuildingConfigType.Boolean
 			};

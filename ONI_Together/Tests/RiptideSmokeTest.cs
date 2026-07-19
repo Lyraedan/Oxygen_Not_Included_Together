@@ -4,11 +4,8 @@ using ONI_Together.DebugTools;
 using Riptide;
 using Riptide.Utils;
 using ONI_Together.Networking;
-using ONI_Together.Networking.Packets.Social;
 using ONI_Together.Networking.Packets.Architecture;
 using Shared.Profiling;
-using static ONI_Together.STRINGS.UI.MP_OVERLAY;
-using System.Net.Sockets;
 
 namespace ONI_Together.Tests
 {
@@ -17,12 +14,19 @@ namespace ONI_Together.Tests
         private static Server _server;
         private static Client _client;
         private static bool _packetReceived;
+        private static ulong _riptideSenderId;
 
         public static void Run(string ip = "127.0.0.1", ushort port = 7777)
         {
             using var _ = Profiler.Scope();
 
             DebugConsole.Log("[RiptideSmokeTest] Starting");
+
+            _packetReceived = false;
+            _riptideSenderId = 0;
+            _client = null;
+            _server = null;
+            TestPacket.Reset();
 
             try
             {
@@ -50,17 +54,30 @@ namespace ONI_Together.Tests
                 }
 
                 if (!_packetReceived)
-                    DebugConsole.LogError("Packet was never received by server", false);
+                    throw new TimeoutException("Packet was never received by server");
 
-                _client.Disconnect();
-                _server.Stop();
+                if (!TestPacket.WasDispatched)
+                    throw new InvalidOperationException("Test packet was received but not dispatched");
+                if (TestPacket.PayloadClientId != 512)
+                    throw new InvalidOperationException($"Expected payload ClientID 512, got {TestPacket.PayloadClientId}");
+                if (TestPacket.SenderId != _riptideSenderId)
+                    throw new InvalidOperationException($"Dispatch sender {TestPacket.SenderId} did not match Riptide connection {_riptideSenderId}");
+                if (TestPacket.SenderIsHost)
+                    throw new InvalidOperationException("Client-to-server test packet was incorrectly marked as sent by the host");
 
-                DebugConsole.Log("[RiptideSmokeTest] PASSED");
             }
             catch (Exception ex)
             {
                 DebugConsole.LogError($"[RiptideSmokeTest] FAILED: {ex}", false);
+                throw;
             }
+            finally
+            {
+                _client?.Disconnect();
+                _server?.Stop();
+            }
+
+            DebugConsole.Log("[RiptideSmokeTest] PASSED");
         }
 
         private static void OnClientDisconnected(object sender, DisconnectedEventArgs e)
@@ -102,6 +119,7 @@ namespace ONI_Together.Tests
             using var _ = Profiler.Scope();
 
             ulong clientId = e.FromConnection.Id;
+            _riptideSenderId = clientId;
             byte[] rawData = e.Message.GetBytes();
             int size = rawData.Length;
 
@@ -119,15 +137,8 @@ namespace ONI_Together.Tests
 
             var scope = Profiler.Scope();
 
-            try
-            {
-                // Pass the full payload (including packetType) to your handler
-                PacketHandler.HandleIncoming(rawData);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogWarning($"[LanServer] Failed to handle packet {packetType}: {ex}");
-            }
+            // Pass the full payload (including packetType) to your handler
+            PacketHandler.HandleIncoming(rawData, new DispatchContext(clientId, senderIsHost: false));
 
             scope.End(1, size);
 

@@ -4,6 +4,7 @@ using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.World;
 using System.Collections.Generic;
+using Shared;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -48,7 +49,7 @@ namespace ONI_Together.Patches.World.SideScreen
 				{
 					NetId = identity.NetId,
 					Cell = Grid.PosToCell(go),
-					ConfigHash = "LogicSwitchState".GetHashCode(),
+					ConfigHash = NetworkingHash.ForConfigKey("LogicSwitchState"),
 					Value = targetState ? 1f : 0f,
 					ConfigType = BuildingConfigType.Boolean
 				};
@@ -131,7 +132,7 @@ namespace ONI_Together.Patches.World.SideScreen
 				{
 					NetId = identity.NetId,
 					Cell = Grid.PosToCell(go),
-					ConfigHash = "LogicSwitchState".GetHashCode(),
+					ConfigHash = NetworkingHash.ForConfigKey("LogicSwitchState"),
 					Value = currentState ? 1f : 0f,
 					ConfigType = BuildingConfigType.Boolean
 				};

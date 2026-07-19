@@ -20,6 +20,7 @@ namespace ONI_Together.Patches.GamePatches
 
 		// Flag to prevent re-syncing once options are locked for this cycle
 		public static bool OptionsLocked = false;
+		public static bool OptionsCaptureInProgress = false;
 
 		// Flag to skip ApplyOptionsToScreen when InitializeContainers has already created containers
 		public static bool ContainersCreatedByPatch = false;
@@ -30,6 +31,7 @@ namespace ONI_Together.Patches.GamePatches
 			using var _ = Profiler.Scope();
 
 			OptionsLocked = false;
+			OptionsCaptureInProgress = false;
 			ContainersCreatedByPatch = false;
 			AvailableOptions = null;
 
@@ -44,6 +46,20 @@ namespace ONI_Together.Patches.GamePatches
 			catch { }
 
 			DebugConsole.Log("[ImmigrantScreen] Options lock cleared");
+		}
+
+		public static int FindAvailableOptionIndex(ITelepadDeliverable selectedDeliverable)
+		{
+			if (!OptionsLocked || AvailableOptions == null || selectedDeliverable == null)
+				return -1;
+
+			ImmigrantOptionEntry selected = ImmigrantOptionEntry.FromGameDeliverable(selectedDeliverable);
+			for (int i = 0; i < AvailableOptions.Count; i++)
+			{
+				if (AvailableOptions[i].ContentEquals(selected))
+					return i;
+			}
+			return -1;
 		}
 		static IEnumerator SetMinionDelayed(CharacterContainer container, MinionStartingStats stats)
 		{
@@ -87,9 +103,9 @@ namespace ONI_Together.Patches.GamePatches
 		{
 			using var _ = Profiler.Scope();
 
-            if (instance.Telepad == null) return;
+			if (instance == null || instance.Telepad == null) return;
 
-            if (AvailableOptions == null || AvailableOptions.Count == 0 || instance == null)
+			if (AvailableOptions == null || AvailableOptions.Count == 0)
 			{
 				DebugConsole.LogWarning($"[ImmigrantScreen] ApplyOptionsToScreen: Cannot apply - Options:{AvailableOptions?.Count ?? 0}, Screen:{(instance != null ? "valid" : "null")}");
 				return;
@@ -161,9 +177,19 @@ namespace ONI_Together.Patches.GamePatches
 				return;
 			}
 
-			// First-opener-wins: Whoever opens first captures and broadcasts
-			// Use a delayed capture because container data isn't ready yet at Initialize time
-			// Use Game.Instance because ImmigrantScreen is inactive at this point
+			if (MultiplayerSession.IsClient)
+			{
+				if (__instance.Telepad != null)
+				{
+					PacketSender.SendToHost(new ImmigrantOptionsRequestPacket
+					{
+						PrintingPodWorldIndex = __instance.Telepad.GetMyWorldId()
+					});
+				}
+				return;
+			}
+
+			ImmigrantScreenPatch.OptionsCaptureInProgress = true;
 			Game.Instance.StartCoroutine(DelayedCaptureAndBroadcast(__instance));
 		}
 
@@ -177,6 +203,7 @@ namespace ONI_Together.Patches.GamePatches
 			// Check again if locked (in case another player's packet arrived)
 			if (ImmigrantScreenPatch.OptionsLocked)
 			{
+				ImmigrantScreenPatch.OptionsCaptureInProgress = false;
 				DebugConsole.Log("[ImmigrantScreen] Options locked during delay, applying cached options");
 				if (ImmigrantScreenPatch.AvailableOptions != null && ImmigrantScreenPatch.AvailableOptions.Count > 0)
 				{
@@ -192,10 +219,13 @@ namespace ONI_Together.Patches.GamePatches
 		{
 			using var _ = Profiler.Scope();
 
-            if (__instance.Telepad == null) return;
+			if (!MultiplayerSession.IsHost || __instance.Telepad == null)
+			{
+				ImmigrantScreenPatch.OptionsCaptureInProgress = false;
+				return;
+			}
 
-            string role = MultiplayerSession.IsHost ? "Host" : "Client";
-			DebugConsole.Log($"[ImmigrantScreen] {role}: Capturing options from containers...");
+			DebugConsole.Log("[ImmigrantScreen] Host: Capturing authoritative options from containers...");
 
 			// Get containers from ImmigrantScreen (inherited from CharacterSelectionController)
 
@@ -225,23 +255,15 @@ namespace ONI_Together.Patches.GamePatches
 				// Lock options for this cycle
 				ImmigrantScreenPatch.AvailableOptions = packet.Options;
 				ImmigrantScreenPatch.OptionsLocked = true;
+				ImmigrantScreenPatch.OptionsCaptureInProgress = false;
 
-				DebugConsole.Log($"[ImmigrantScreen] {role}: Broadcasting {packet.Options.Count} options (first-opener-wins)");
-
-				if (MultiplayerSession.IsHost)
-				{
-					// Host sends to all clients
-					PacketSender.SendToAllClients(packet);
-				}
-				else
-				{
-					// Client sends to host (host will rebroadcast)
-					PacketSender.SendToHost(packet);
-				}
+				DebugConsole.Log($"[ImmigrantScreen] Host: Broadcasting {packet.Options.Count} authoritative options");
+				PacketSender.SendToAllClients(packet);
 			}
 			else
 			{
-				DebugConsole.LogWarning($"[ImmigrantScreen] {role}: No options to broadcast!");
+				ImmigrantScreenPatch.OptionsCaptureInProgress = false;
+				DebugConsole.LogWarning("[ImmigrantScreen] Host: No options to broadcast!");
 			}
 		}
 	}
@@ -263,20 +285,27 @@ namespace ONI_Together.Patches.GamePatches
 
             if (__instance.Telepad == null) return true;
 
-			if (__instance.selectedDeliverables.Count == 0) return false; // Even though selectedDeliverables should always have something at index 0 for whatever reason its empty, so return false to stop crashing
+			if (__instance.selectedDeliverables.Count == 0 || !ImmigrantScreenPatch.OptionsLocked)
+				return false;
 
-            ITelepadDeliverable selectedDeliverable = __instance.selectedDeliverables[0];
+			ITelepadDeliverable selectedDeliverable = __instance.selectedDeliverables[0];
+			int optionIndex = ImmigrantScreenPatch.FindAvailableOptionIndex(selectedDeliverable);
+			if (optionIndex < 0)
+			{
+				DebugConsole.LogWarning("[ImmigrantScreen] Client selection is not in the host option set");
+				return false;
+			}
 
-			var packet = new ImmigrantSelectionPacket { selectedOption = ImmigrantOptionEntry.FromGameDeliverable(selectedDeliverable), PrintingPodWorldIndex = __instance.Telepad?.GetMyWorldId() ?? 0 };
+			var packet = new ImmigrantSelectionPacket
+			{
+				SelectedOptionIndex = optionIndex,
+				PrintingPodWorldIndex = __instance.Telepad.GetMyWorldId()
+			};
 			PacketSender.SendToHost(packet);
 
-			DebugConsole.Log($"[ImmigrantScreen] Client: Selected packet {packet.selectedOption.GetId()}, sending to host");
+			DebugConsole.Log($"[ImmigrantScreen] Client: Sending host option index {optionIndex}");
 
-			// Clear the options lock for the next cycle
-			ImmigrantScreenPatch.ClearOptionsLock();
-
-			// Suppress local printing - host handles it
-			__instance.Deactivate();
+			// Keep the screen open until the host confirms and broadcasts the close.
 			return false;
 		}
 
@@ -292,7 +321,11 @@ namespace ONI_Together.Patches.GamePatches
 				// Send -2 to close client screens
 				// NOTE: For host's own selections via OnProceed, the game spawns the entity normally
 				// Entity sync will be handled separately (e.g. via EntitySpawnPacket from a different hook)
-				var packet = new ImmigrantSelectionPacket { PrintingPodWorldIndex = -2 };
+				var packet = new ImmigrantSelectionPacket
+				{
+					PrintingPodWorldIndex = -2,
+					SelectedOptionIndex = -1
+				};
 				PacketSender.SendToAllClients(packet);
 
 				ImmigrantScreenPatch.ClearOptionsLock();
@@ -318,17 +351,14 @@ namespace ONI_Together.Patches.GamePatches
 			{
 				// Client: Send reject to host
 				DebugConsole.Log("[ImmigrantScreen] Client: Sending Reject All to host");
-				var packet = new ImmigrantSelectionPacket { PrintingPodWorldIndex = -1 };
+				var packet = new ImmigrantSelectionPacket
+				{
+					PrintingPodWorldIndex = -1,
+					SelectedOptionIndex = -1
+				};
 				PacketSender.SendToHost(packet);
 
-				// Clear local options and close screen
-				ImmigrantScreenPatch.ClearOptionsLock();
-				if (ImmigrantScreen.instance != null)
-				{
-					ImmigrantScreen.instance.Deactivate();
-				}
-
-				return false; // Don't execute original
+				return false; // Wait for the host acknowledgement before closing.
 			}
 
 			// Host: Let original execute, Postfix will notify clients
@@ -346,7 +376,11 @@ namespace ONI_Together.Patches.GamePatches
 				DebugConsole.Log("[ImmigrantScreen] Host: Reject All, notifying clients");
 
 				// Notify clients to close their screens
-				var packet = new ImmigrantSelectionPacket { PrintingPodWorldIndex = -1 };
+				var packet = new ImmigrantSelectionPacket
+				{
+					PrintingPodWorldIndex = -1,
+					SelectedOptionIndex = -1
+				};
 				PacketSender.SendToAllClients(packet);
 
 				ImmigrantScreenPatch.ClearOptionsLock();
@@ -354,5 +388,3 @@ namespace ONI_Together.Patches.GamePatches
 		}
 	}
 }
-
-

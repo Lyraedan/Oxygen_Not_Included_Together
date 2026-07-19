@@ -15,7 +15,7 @@ using UnityEngine;
 
 namespace ONI_Together.Networking.Packets.Core
 {
-	internal class ToggleAnimOverridePacket : IPacket
+	internal class ToggleAnimOverridePacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
 		public int EntityNetId;
 		public string Kanim;
@@ -69,10 +69,12 @@ namespace ONI_Together.Networking.Packets.Core
 			if (!NetworkIdentityRegistry.TryGet(EntityNetId, out var networkEntity))
 			{
 				DebugConsole.LogWarning("Could not find entity with net id " + EntityNetId + " to toggle AnimationOverride " + Kanim + " to " + (AddingOverride ? "on" : "off"));
+				return;
 			}
 			if (!networkEntity.TryGetComponent<KAnimControllerBase>(out var kbac))
 			{
-				DebugConsole.LogWarning("Could not find KAnimControllerBaseon entity " + networkEntity.gameObject.GetProperName());
+				DebugConsole.LogWarning("Could not find KAnimControllerBase on entity " + networkEntity.gameObject.GetProperName());
+				return;
 			}
 			if (AddingOverride)
 			{

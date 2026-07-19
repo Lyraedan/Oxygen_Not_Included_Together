@@ -1,12 +1,15 @@
 using ONI_Together.Networking.Packets.Architecture;
 using System.Collections.Generic;
 using System.IO;
+using Shared.Interfaces.Networking;
 using Shared.Profiling;
+using ONI_Together.Networking.Packets.Tools.Prioritize;
 
 namespace ONI_Together.Networking.Packets.World
 {
-	public class PrioritizeStatePacket : IPacket
+	public class PrioritizeStatePacket : IPacket, IBulkablePacket, IHostOnlyPacket
 	{
+		internal const int MaxPriorityCount = 256;
 		public struct PriorityData
 		{
 			public int NetId;
@@ -16,14 +19,19 @@ namespace ONI_Together.Networking.Packets.World
 
 		public List<PriorityData> Priorities = new List<PriorityData>();
 		public static bool IsApplying = false;
+		public int MaxPackSize => 256;
+		public uint IntervalMs => 50;
 
 		public void Serialize(BinaryWriter writer)
 		{
 			using var _ = Profiler.Scope();
 
+			if (Priorities == null || Priorities.Count > MaxPriorityCount)
+				throw new InvalidDataException("Invalid priority state count");
 			writer.Write(Priorities.Count);
 			foreach (var p in Priorities)
 			{
+				Validate(p);
 				writer.Write(p.NetId);
 				writer.Write(p.PriorityClass);
 				writer.Write(p.PriorityValue);
@@ -35,15 +43,19 @@ namespace ONI_Together.Networking.Packets.World
 			using var _ = Profiler.Scope();
 
 			int count = reader.ReadInt32();
+			if (count < 0 || count > MaxPriorityCount)
+				throw new InvalidDataException($"Invalid priority state count: {count}");
 			Priorities = new List<PriorityData>(count);
 			for (int i = 0; i < count; i++)
 			{
-				Priorities.Add(new PriorityData
+				var priority = new PriorityData
 				{
 					NetId = reader.ReadInt32(),
 					PriorityClass = reader.ReadInt32(),
 					PriorityValue = reader.ReadInt32()
-				});
+				};
+				Validate(priority);
+				Priorities.Add(priority);
 			}
 		}
 
@@ -51,7 +63,9 @@ namespace ONI_Together.Networking.Packets.World
 		{
 			using var _ = Profiler.Scope();
 
-			// Both host and client need to apply priority changes
+			if (!ShouldApply(MultiplayerSession.IsHost, PacketHandler.CurrentContext.SenderIsHost))
+				return;
+
 			try
 			{
 				IsApplying = true;
@@ -76,12 +90,16 @@ namespace ONI_Together.Networking.Packets.World
 			{
 				IsApplying = false;
 			}
+		}
 
-			// If host received from client, rebroadcast to all other clients
-			if (MultiplayerSession.IsHost && Priorities.Count > 0)
-			{
-				PacketSender.SendToAllClients(this);
-			}
+		internal static bool ShouldApply(bool localIsHost, bool senderIsHost)
+			=> !localIsHost && senderIsHost;
+
+		private static void Validate(PriorityData priority)
+		{
+			if (priority.NetId == 0 ||
+			    !PriorityAuthority.IsValidStatePriority(priority.PriorityClass, priority.PriorityValue))
+				throw new InvalidDataException("Invalid priority state entry");
 		}
 	}
 }

@@ -5,7 +5,7 @@ using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.Core
 {
-	public class HardSyncCompletePacket : IPacket
+	public class HardSyncCompletePacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
 		public void Serialize(BinaryWriter writer)
 		{

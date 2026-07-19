@@ -9,9 +9,12 @@ namespace ONI_Together.Networking.Packets.Animation
 	internal class AnimResyncRequestPacket : IPacket
 	{
 		private const int MaxNetIds = 4096;
+		private static int _rejectedPackets;
 
 		public ulong RequesterId;
 		public int[] NetIds = [];
+		internal static bool ShouldAccept(ulong requesterId, DispatchContext context) =>
+			requesterId != 0 && !context.SenderIsHost && SyncBarrier.SenderMatches(requesterId, context.SenderId);
 
 		public void Serialize(BinaryWriter writer)
 		{
@@ -44,7 +47,16 @@ namespace ONI_Together.Networking.Packets.Animation
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.IsHost || RequesterId == 0 || NetIds.Length == 0)
+			if (!MultiplayerSession.IsHost)
+				return;
+			if (!ShouldAccept(RequesterId, PacketHandler.CurrentContext))
+			{
+				int rejected = ++_rejectedPackets;
+				if (rejected <= 5 || rejected % 100 == 0)
+					DebugConsole.LogWarning($"[AnimResyncRequestPacket] Rejected requester {RequesterId} from {PacketHandler.CurrentContext.SenderId}, host={PacketHandler.CurrentContext.SenderIsHost} (#{rejected})");
+				return;
+			}
+			if (NetIds.Length == 0)
 				return;
 
 			AnimSyncCoordinator.Instance?.QueueResyncRequest(RequesterId, NetIds);

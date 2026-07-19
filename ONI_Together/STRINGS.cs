@@ -113,6 +113,8 @@ namespace ONI_Together
                 public static LocString PROTOCOL_MISMATCH = "Protocol mismatch. Host={0}, Peer={1}.";
                 public static LocString PACKET_REGISTRY_MISMATCH = "Packet registry mismatch. Host={0}, Peer={1}.";
                 public static LocString MOD_VERSION_MISMATCH = "Mod version mismatch. Host={0}, Peer={1}.";
+                public static LocString GAME_BUILD_MISMATCH = "Game build mismatch. Host={0}, Peer={1}.";
+                public static LocString MOD_BUILD_MISMATCH = "Mod DLL fingerprint mismatch. Install the exact same build on every peer.";
                 public static LocString INCOMPATIBLE = "Peer is running an incompatible build.";
 
 				public class VALIDATION
@@ -122,6 +124,8 @@ namespace ONI_Together
 					public static LocString REJECTED = "The host rejected this client due to an incompatible network protocol.";
 					public static LocString PROTOCOL_MISMATCH = "Host protocol={0}, client protocol={1}.";
                     public static LocString FINGERPRINT_MISMATCH = "Host packet fingerprint={0}, client fingerprint={1}.";
+                    public static LocString GAME_BUILD_MISMATCH = "Host game build={0}, client game build={1}.";
+                    public static LocString MOD_BUILD_MISMATCH = "The host and client mod DLLs are not byte-identical.";
                 }
             }
 
@@ -457,9 +461,11 @@ namespace ONI_Together
 						public static LocString TODISABLE = "• {0} mods will be disabled";
 						public static LocString TOENABLE = "• {0} mods will be enabled";
 						public static LocString MISSING = "• {0} mods are missing and will be subscribed to.";
+						public static LocString VERSION_TEXT = "The enabled mod versions or local mod set do not exactly match the host. Connecting would desynchronize the simulation.";
+						public static LocString HOST_ONLY = "• {0} host mod revisions are missing locally";
+						public static LocString CLIENT_ONLY = "• {0} local mod revisions are not active on the host";
 
 						public static LocString CONFIRM_SYNC = "Yes, synchronize my mods and restart";
-						public static LocString DENY_SYNC = "No, connect anyway";
 						public static LocString CANCEL = "No, go back to the main menu";
 					}
 				}

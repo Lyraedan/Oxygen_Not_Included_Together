@@ -1,5 +1,5 @@
 // Keep this to only windows, Mac is not built with the Devtool framework so it doesn't have access to the DevTool class and just crashes
-#if DEBUG //OS_WINDOWS || DEBUG
+#if ONI_DEVTOOL
 
 using System;
 using System.Collections.Generic;
@@ -482,7 +482,7 @@ namespace ONI_Together.DebugTools
                     ImGui.Text(test.Name);
                     ImGui.SameLine();
                     if (ImGui.SmallButton("Run"))
-                        test.Run();
+                        test.Run(MultiplayerSession.InSession);
 
                     ImGui.TableSetColumnIndex(2);
                     Vector4 color;

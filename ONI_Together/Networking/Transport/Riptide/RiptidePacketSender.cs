@@ -9,7 +9,7 @@ namespace ONI_Together.Networking.Transport.Lan
 {
     public class RiptidePacketSender : TransportPacketSender
     {
-        private const int MAX_PAYLOAD_BYTES = 1000;
+		private const int MAX_PAYLOAD_BYTES = PacketSender.MAX_PACKET_SIZE_UNRELIABLE;
 
         public override bool SendPacket(object conn, IPacket packet, PacketSendMode sendType = PacketSendMode.ReliableImmediate)
         {
@@ -23,10 +23,12 @@ namespace ONI_Together.Networking.Transport.Lan
 
             byte[] bytes = PacketSender.SerializePacketForSending(packet);
 
-            if (bytes.Length > MAX_PAYLOAD_BYTES && packet is not ChunkedPacket)
-            {
-                return SendChunked(connection, bytes, sendType);
-            }
+			if (bytes.Length > MAX_PAYLOAD_BYTES && packet is not ChunkedPacket)
+			{
+				if ((sendType & PacketSendMode.Reliable) == 0)
+					return false;
+				return SendChunked(connection, bytes, sendType);
+			}
 
             return SendRaw(connection, bytes, packet, sendType);
         }
@@ -69,9 +71,9 @@ namespace ONI_Together.Networking.Transport.Lan
             int totalChunks = (fullData.Length + chunkDataSize - 1) / chunkDataSize;
             int sequenceId = ChunkedPacket.GetNextSequenceId();
 
-            for (int i = 0; i < totalChunks; i++)
-            {
-                int offset = i * chunkDataSize;
+			return SendAllChunks(totalChunks, i =>
+			{
+				int offset = i * chunkDataSize;
                 int length = Math.Min(chunkDataSize, fullData.Length - offset);
                 byte[] chunkData = new byte[length];
                 Array.Copy(fullData, offset, chunkData, 0, length);
@@ -85,11 +87,21 @@ namespace ONI_Together.Networking.Transport.Lan
                 };
 
                 byte[] chunkBytes = PacketSender.SerializePacketForSending(chunk);
-                SendRaw(connection, chunkBytes, chunk, sendType);
-            }
+				return SendRaw(connection, chunkBytes, chunk, sendType);
+			});
+		}
 
-            return true;
-        }
+		internal static bool SendAllChunks(int totalChunks, Func<int, bool> sendChunk)
+		{
+			if (totalChunks <= 0 || sendChunk == null)
+				return false;
+			for (int i = 0; i < totalChunks; i++)
+			{
+				if (!sendChunk(i))
+					return false;
+			}
+			return true;
+		}
 
         private static MessageSendMode ConvertSendType(PacketSendMode sendType)
         {

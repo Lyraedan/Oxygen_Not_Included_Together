@@ -21,7 +21,7 @@ namespace ONI_Together.Patches.World.Buildings
                 using var _ = Profiler.Scope();
                 try
                 {
-                    __instance.gameObject.AddOrGet<NetworkIdentity>();
+					NetworkIdentity.EnsurePersistentPrefabIdentity(__instance.gameObject);
 
                     if (AnimSyncEligibility.IsAnimatedBuilding(__instance.gameObject))
                         __instance.gameObject.AddOrGet<AnimStateSyncer>();

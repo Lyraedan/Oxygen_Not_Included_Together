@@ -1,7 +1,4 @@
 ﻿using ONI_Together.Networking.Packets.Architecture;
-using ONI_Together.Scripts.Buildings;
-using System;
-using System.Collections.Generic;
 using System.IO;
 using Shared.Profiling;
 using UnityEngine;
@@ -18,17 +15,20 @@ namespace ONI_Together.Networking.Packets.World.Buildings
 		}
 
 		public int NetId;
-		public bool IsActive, IsOperational, IsFunctional;
 		public void Deserialize(BinaryReader reader)
 		{
 			using var _ = Profiler.Scope();
 
 			NetId = reader.ReadInt32();
+			if (NetId == 0)
+				throw new InvalidDataException("Invalid operational state request NetId");
 		}
 
 		public void Serialize(BinaryWriter writer)
 		{
 			using var _ = Profiler.Scope();
+			if (NetId == 0)
+				throw new InvalidDataException("Invalid operational state request NetId");
 
 			writer.Write(NetId);
 		}
@@ -45,7 +45,10 @@ namespace ONI_Together.Networking.Packets.World.Buildings
 			if (!entity.TryGetComponent<Operational>(out var server))
 				return;
 
-			server.IsOperational = server.IsOperational;
+			if (OperationalStatePacket.TryCreate(server, out OperationalStatePacket packet))
+				PacketSender.SendToPlayer(
+					PacketHandler.CurrentContext.SenderId, packet,
+					PacketSendMode.ReliableImmediate);
 		}
 	}
 }

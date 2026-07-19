@@ -2,13 +2,15 @@ using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Architecture;
 using Shared.Profiling;
 using System.IO;
+using Shared.Interfaces.Networking;
 using UnityEngine;
 
 namespace ONI_Together.Networking.Packets.Social
 {
-	public class PingPacket : IPacket
+	public class PingPacket : IPacket, IClientRelayable, ISenderBoundRelay
 	{
 		public ulong PlayerID;
+		ulong ISenderBoundRelay.RelaySenderId => PlayerID;
 		public float WorldX;
 		public float WorldY;
 		public Color PlayerColor;
@@ -60,9 +62,6 @@ namespace ONI_Together.Networking.Packets.Social
 				return;
 
 			PingManager.Instance?.ShowPing(PlayerID, new Vector3(WorldX, WorldY, 0f), PlayerColor);
-
-			if (MultiplayerSession.IsHost)
-				PacketSender.SendToAllOtherPeers(this);
 		}
 	}
 }

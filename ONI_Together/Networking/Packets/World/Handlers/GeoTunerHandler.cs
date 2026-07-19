@@ -1,5 +1,6 @@
 using UnityEngine;
 using ONI_Together.DebugTools;
+using Shared;
 using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.World.Handlers
@@ -11,7 +12,7 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 	{
 		private static readonly int[] _hashes = new int[]
 		{
-			"GeoTunerGeyser".GetHashCode(),
+			NetworkingHash.ForConfigKey("GeoTunerGeyser"),
 		};
 
 		public int[] SupportedConfigHashes => _hashes;
@@ -20,10 +21,13 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 		{
 			using var _ = Profiler.Scope();
 
-			if (packet.ConfigHash != "GeoTunerGeyser".GetHashCode()) return false;
+			if (packet.ConfigHash != NetworkingHash.ForConfigKey("GeoTunerGeyser")) return false;
 
 			var geoTuner = go.GetSMI<GeoTuner.Instance>();
 			if (geoTuner == null) return false;
+			if (packet.ConfigType != BuildingConfigType.Float
+			    || !BuildingConfigPacket.IsIntegralValue(packet.Value))
+				return false;
 
 			int geyserCell = (int)packet.Value;
 			Geyser targetGeyser = null;
@@ -40,6 +44,8 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 					}
 				}
 			}
+			if (geyserCell >= 0 && targetGeyser == null)
+				return false;
 
 			geoTuner.AssignFutureGeyser(targetGeyser);
 			//DebugConsole.Log($"[GeoTunerHandler] Set geyser to {targetGeyser?.name ?? "null"} on {go.name}");

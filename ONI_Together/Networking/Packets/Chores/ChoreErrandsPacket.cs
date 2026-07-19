@@ -7,7 +7,7 @@ using System.IO;
 
 namespace ONI_Together.Networking.Packets.Chores
 {
-	public class ChoreErrandsPacket : IPacket
+	public class ChoreErrandsPacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
 		public const int MaxEntries = 32;
 

@@ -6,8 +6,9 @@ using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.World
 {
-	public class DiggingStatePacket : IPacket
+	public class DiggingStatePacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
+		internal const int MaxCellCount = 262144;
 		public List<int> DigCells = new List<int>();
 
 		public void Serialize(BinaryWriter writer)
@@ -26,6 +27,8 @@ namespace ONI_Together.Networking.Packets.World
 			using var _ = Profiler.Scope();
 
 			int count = reader.ReadInt32();
+			if (count < 0 || count > MaxCellCount)
+				throw new InvalidDataException($"Invalid digging cell count: {count}");
 			DigCells = new List<int>(count);
 			for (int i = 0; i < count; i++)
 			{

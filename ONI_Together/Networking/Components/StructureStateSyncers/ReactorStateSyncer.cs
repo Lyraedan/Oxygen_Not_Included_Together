@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Packets.World;
 using UnityEngine;
@@ -12,6 +13,7 @@ public class ReactorStateSyncer : StructureSyncerBase
     private Storage supplyStorage;
     private Storage reactionStorage;
     private Storage wasteStorage;
+	private StorageSnapshotSync.SnapshotBatch _preparedStorageBatch;
 
     private float lastFuelTemp;
     private int lastMajorState = -1;
@@ -24,7 +26,7 @@ public class ReactorStateSyncer : StructureSyncerBase
         supplyStorage = reactor.supplyStorage;
         reactionStorage = reactor.reactionStorage;
         wasteStorage = reactor.wasteStorage;
-        checkOptionalsValuesForChanges = false;
+		checkOptionalsValuesForChanges = true;
         cullByViewport = false;
     }
 
@@ -69,13 +71,13 @@ public class ReactorStateSyncer : StructureSyncerBase
         optionalValues["temperature_meter_percent"] = temperaturePercent;
         
         if (supplyStorage)
-            BuildingUtils.EncodeStorageContents(supplyStorage, optionalValues, "supply_");
+            StorageSnapshotSync.Encode(supplyStorage, optionalValues, "supply_");
         
         if (reactionStorage)
-            BuildingUtils.EncodeStorageContents(reactionStorage, optionalValues, "reaction_");
+            StorageSnapshotSync.Encode(reactionStorage, optionalValues, "reaction_");
         
         if (wasteStorage != null)
-            BuildingUtils.EncodeStorageContents(wasteStorage, optionalValues, "waste_");
+            StorageSnapshotSync.Encode(wasteStorage, optionalValues, "waste_");
         
         lastFuelTemp = fuelTemp;
         lastMajorState = majorState;
@@ -117,8 +119,15 @@ public class ReactorStateSyncer : StructureSyncerBase
             float waterMeterPos = waterMeterVal.Float;
             float tempMeterPos = tempMeterVal.Float;
 
-            BuildingUtils.RebuildStorageFromData(supplyStorage, opt, "supply_");
-            BuildingUtils.RebuildStorageFromData(reactionStorage, opt, "reaction_");
+			StorageSnapshotSync.SnapshotBatch batch = _preparedStorageBatch;
+			_preparedStorageBatch = null;
+			bool storageApplied = batch?.Apply() == true;
+			if (!storageApplied)
+			{
+				DebugConsole.LogError("[ReactorSync] Storage snapshot batch did not converge");
+				RequestFreshState();
+				return;
+			}
             if (opt.ContainsKey("reaction_capacityKg"))
             {
                 var fuel = reactionStorage.FindFirst(SimHashes.EnrichedUranium.CreateTag());
@@ -128,8 +137,6 @@ public class ReactorStateSyncer : StructureSyncerBase
                     if (pe != null) pe.Temperature = packet.Value.Float;
                 }
             }
-            BuildingUtils.RebuildStorageFromData(wasteStorage, opt, "waste_");
-
             var sm = smi.sm;
             sm.reactionUnderway.Set(reactionUnderway, smi);
             sm.meltingDown.Set(meltingDown, smi);
@@ -154,7 +161,40 @@ public class ReactorStateSyncer : StructureSyncerBase
             if (currentMajorState != targetState)
                 ForceStateTransition(targetState, meltdownMassRemaining, spentFuel, rads);
     }
-    
+
+	private List<StorageSnapshotSync.SnapshotRequest> CreateStorageRequests(
+		StructureStatePacket packet)
+	{
+		var requests = new List<StorageSnapshotSync.SnapshotRequest>();
+		Storage[] storages = { supplyStorage, reactionStorage, wasteStorage };
+		string[] prefixes = { "supply_", "reaction_", "waste_" };
+		for (int index = 0; index < storages.Length; index++)
+		{
+			if (storages[index] == null)
+				continue;
+			requests.Add(new StorageSnapshotSync.SnapshotRequest
+			{
+				Storage = storages[index],
+				Data = packet.OptionalValues,
+				KeyPrefix = prefixes[index],
+				SnapshotRevision = packet.Revision,
+			});
+		}
+		return requests;
+	}
+
+	protected override bool TryAcceptPacketRevision(StructureStatePacket packet)
+	{
+		_preparedStorageBatch = null;
+		if (!StorageSnapshotSync.TryPrepareBatch(
+			    CreateStorageRequests(packet), out StorageSnapshotSync.SnapshotBatch batch)
+		    || !NetworkIdentityRegistry.TryAcceptStateAndStorageSnapshotRevision(
+			    packet.NetId, packet.SyncerTypeName, packet.Revision))
+			return false;
+		_preparedStorageBatch = batch;
+		return true;
+	}
+
     private void ForceStateTransition(int targetState, float meltdownMass, float spentFuel, float rads)
     {
         var sm = smi.sm;

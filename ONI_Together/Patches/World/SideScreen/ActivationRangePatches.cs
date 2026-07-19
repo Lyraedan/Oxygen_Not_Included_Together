@@ -3,6 +3,7 @@ using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.World;
+using Shared;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -11,52 +12,6 @@ namespace ONI_Together.Patches.World.SideScreen
 	/// <summary>
 	/// Patches for IActivationRangeTarget buildings (SmartReservoir, MassageTable, ActiveRangeSideScreen)
 	/// </summary>
-
-	/// <summary>
-	/// Sync SmartReservoir activation thresholds via OnCopySettings
-	/// </summary>
-	[HarmonyPatch(typeof(SmartReservoir), nameof(SmartReservoir.OnCopySettings))]
-	public static class SmartReservoir_OnCopySettings_Patch
-	{
-		public static void Postfix(SmartReservoir __instance)
-		{
-			using var _ = Profiler.Scope();
-
-			if (BuildingConfigPacket.IsApplyingPacket) return;
-			if (!MultiplayerSession.InSession) return;
-
-			var identity = __instance.gameObject.AddOrGet<NetworkIdentity>();
-			identity.RegisterIdentity();
-
-			var packetActivate = new BuildingConfigPacket
-			{
-				NetId = identity.NetId,
-				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "SmartReservoirActivate".GetHashCode(),
-				Value = __instance.activateValue,
-				ConfigType = BuildingConfigType.Float
-			};
-			var packetDeactivate = new BuildingConfigPacket
-			{
-				NetId = identity.NetId,
-				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "SmartReservoirDeactivate".GetHashCode(),
-				Value = __instance.deactivateValue,
-				ConfigType = BuildingConfigType.Float
-			};
-
-			if (MultiplayerSession.IsHost)
-			{
-				PacketSender.SendToAllClients(packetActivate);
-				PacketSender.SendToAllClients(packetDeactivate);
-			}
-			else
-			{
-				PacketSender.SendToHost(packetActivate);
-				PacketSender.SendToHost(packetDeactivate);
-			}
-		}
-	}
 
 	/// <summary>
 	/// Force ActiveRangeSideScreen to always refresh from component values when SetTarget is called.
@@ -94,50 +49,6 @@ namespace ONI_Together.Patches.World.SideScreen
 	}
 
 	/// <summary>
-	/// Sync MassageTable threshold via OnCopySettings (implements IActivationRangeTarget)
-	/// </summary>
-	[HarmonyPatch(typeof(MassageTable), nameof(MassageTable.OnCopySettings))]
-	public static class MassageTable_OnCopySettings_Patch
-	{
-		public static void Postfix(MassageTable __instance)
-		{
-			using var _ = Profiler.Scope();
-
-			if (BuildingConfigPacket.IsApplyingPacket) return;
-			if (!MultiplayerSession.InSession) return;
-
-			var identity = __instance.gameObject.AddOrGet<NetworkIdentity>();
-			identity.RegisterIdentity();
-
-			// Send activate value
-			var packet = new BuildingConfigPacket
-			{
-				NetId = identity.NetId,
-				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "MassageTableActivate".GetHashCode(),
-				Value = __instance.ActivateValue,
-				ConfigType = BuildingConfigType.Float
-			};
-
-			if (MultiplayerSession.IsHost) PacketSender.SendToAllClients(packet);
-			else PacketSender.SendToHost(packet);
-
-			// Send deactivate value
-			var packet2 = new BuildingConfigPacket
-			{
-				NetId = identity.NetId,
-				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "MassageTableDeactivate".GetHashCode(),
-				Value = __instance.DeactivateValue,
-				ConfigType = BuildingConfigType.Float
-			};
-
-			if (MultiplayerSession.IsHost) PacketSender.SendToAllClients(packet2);
-			else PacketSender.SendToHost(packet2);
-		}
-	}
-
-	/// <summary>
 	/// Sync MassageTable ActivateValue property changes (threshold slider)
 	/// </summary>
 	[HarmonyPatch(typeof(MassageTable), "ActivateValue", MethodType.Setter)]
@@ -157,7 +68,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "MassageTableActivate".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("MassageTableActivate"),
 				Value = value,
 				ConfigType = BuildingConfigType.Float
 			};
@@ -187,7 +98,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "MassageTableDeactivate".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("MassageTableDeactivate"),
 				Value = value,
 				ConfigType = BuildingConfigType.Float
 			};
@@ -219,7 +130,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "Activate".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("Activate"),
 				Value = value,
 				ConfigType = BuildingConfigType.Float
 			};
@@ -249,7 +160,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "Deactivate".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("Deactivate"),
 				Value = value,
 				ConfigType = BuildingConfigType.Float
 			};
@@ -283,7 +194,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "SmartReservoirActivate".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("SmartReservoirActivate"),
 				Value = value,
 				ConfigType = BuildingConfigType.Float
 			};
@@ -313,7 +224,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "SmartReservoirDeactivate".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("SmartReservoirDeactivate"),
 				Value = value,
 				ConfigType = BuildingConfigType.Float
 			};

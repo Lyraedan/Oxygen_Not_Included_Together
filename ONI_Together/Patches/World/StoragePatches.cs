@@ -9,8 +9,25 @@ using UnityEngine;
 
 namespace ONI_Together.Patches.World
 {
+	[System.Flags]
+	internal enum StorageReplicationKind
+	{
+		None = 0,
+		Membership = 1,
+		CarryVisual = 2,
+	}
+
 	public static class StoragePatches
 	{
+		internal static StorageReplicationKind RequiredReplication(bool isMinionStorage)
+			=> StorageReplicationKind.Membership
+			   | (isMinionStorage
+				   ? StorageReplicationKind.CarryVisual
+				   : StorageReplicationKind.None);
+
+		internal static bool ShouldReplicateRemoval(bool itemUnavailableForBinding)
+			=> !itemUnavailableForBinding;
+
         [HarmonyPatch(typeof(Storage), nameof(Storage.Remove))]
         public static class StorageRemovePatch
         {
@@ -20,35 +37,39 @@ namespace ONI_Together.Patches.World
 
                 if (!MultiplayerSession.IsHost || !MultiplayerSession.InSession) return;
                 if (__instance == null || go == null) return;
+				var existingItemIdentity = go.GetComponent<NetworkIdentity>();
+					if (!ShouldReplicateRemoval(existingItemIdentity?.IsUnavailableForBinding == true)) return;
 
                 var storageIdentity = __instance.GetNetIdentity();
                 if (storageIdentity == null || storageIdentity.NetId == 0) return;
                 
-                // If this is a duplicant's storage, notify clients to remove the carried item visual
-                if (__instance.GetComponent<MinionBrain>() != null)
-                {
-                    var goIdentity = go.GetNetIdentity();
-                    int removedItemNetId = (goIdentity != null) ? goIdentity.NetId : 0;
-                    PacketSender.SendToAllClients(new DuplicantCarryItemPacket
-                    {
-                        NetId = storageIdentity.NetId,
-                        PickupableNetId = removedItemNetId,
-                        IsCarrying = false
-                    });
-                }
-                else
-                {
-                    var pe = go.GetComponent<PrimaryElement>();
-                    PacketSender.SendToAllClients(new StorageItemPacket
-                    {
-                        NetId = 0, // FX Only
-                        StorageNetId = storageIdentity.NetId,
-                        DoDiseaseTransfer = false,
-                        FxPrefix = Storage.FXPrefix.PickedUp,
-                        ConsumedPrefabHash = go.PrefabID().GetHashCode(),
-                        ConsumedAmount = pe?.Mass ?? 0f
-                    });
-                }
+				bool isMinionStorage = __instance.GetComponent<MinionBrain>() != null;
+				StorageReplicationKind replication = RequiredReplication(isMinionStorage);
+				var goIdentity = go.GetNetIdentity();
+				var primary = go.GetComponent<PrimaryElement>();
+				if ((replication & StorageReplicationKind.Membership) != 0)
+				{
+					PacketSender.SendToAllClients(new StorageItemPacket
+					{
+						NetId = goIdentity?.NetId ?? 0,
+						StorageNetId = storageIdentity.NetId,
+						Revision = NetworkIdentityRegistry.NextAuthorityRevision(),
+						DoDiseaseTransfer = false,
+						FxPrefix = Storage.FXPrefix.PickedUp,
+						ConsumedPrefabHash = go.PrefabID().GetHashCode(),
+						ConsumedAmount = primary?.Mass ?? 0f
+					});
+				}
+
+				if ((replication & StorageReplicationKind.CarryVisual) != 0)
+				{
+					PacketSender.SendToAllClients(new DuplicantCarryItemPacket
+					{
+						NetId = storageIdentity.NetId,
+						PickupableNetId = goIdentity?.NetId ?? 0,
+						IsCarrying = false
+					});
+				}
             }
         }
 
@@ -90,29 +111,51 @@ namespace ONI_Together.Patches.World
         [HarmonyPatch(typeof(Storage), nameof(Storage.Store), new System.Type[] { typeof(GameObject), typeof(bool), typeof(bool), typeof(bool), typeof(bool) })]
         public static class StorageStorePatch
         {
-            public static void Postfix(Storage __instance, GameObject go, bool hide_popups, bool block_events, bool do_disease_transfer, bool is_deserializing)
+            public static void Postfix(Storage __instance, GameObject go, GameObject __result,
+                bool hide_popups, bool block_events, bool do_disease_transfer, bool is_deserializing)
             {
                 using var _ = Profiler.Scope();
                 try
                 {
                     if (!MultiplayerSession.IsHost || !MultiplayerSession.InSession)
                         return;
-                    if (go == null)
+					GameObject authoritativeItem = __result ?? go;
+					if (__instance == null || authoritativeItem == null)
                         return;
 
                     var storageIdentity = __instance.GetNetIdentity();
                     if (storageIdentity == null || storageIdentity.NetId == 0)
                         return;
 
-                    var identity = go.GetNetIdentity();
-                    var pe = go.GetComponent<PrimaryElement>();
+					var identity = authoritativeItem.GetNetIdentity();
+					var pe = authoritativeItem.GetComponent<PrimaryElement>();
                     int itemNetId = (identity != null) ? identity.NetId : 0;
                     
-                    // If this is a duplicant's storage, notify clients to show the item on their back
-                    // Works even for container-origin items that may lack a NetworkIdentity
-                    if (__instance.GetComponent<MinionBrain>() != null)
-                    {
-                        var itemAnimCtrl = go.GetComponentInChildren<KBatchedAnimController>();
+					bool isMinionStorage = __instance.GetComponent<MinionBrain>() != null;
+					StorageReplicationKind replication = RequiredReplication(isMinionStorage);
+					if ((replication & StorageReplicationKind.Membership) != 0)
+					{
+						PacketSender.SendToAllClients(new StorageItemPacket
+						{
+							NetId = itemNetId,
+							StorageNetId = storageIdentity.NetId,
+							Revision = NetworkIdentityRegistry.NextAuthorityRevision(),
+							DoDiseaseTransfer = do_disease_transfer,
+							FxPrefix = Storage.FXPrefix.Delivered,
+							ConsumedPrefabHash = authoritativeItem.PrefabID().GetHashCode(),
+							ConsumedAmount = pe?.Mass ?? 0,
+							HasElementState = pe != null,
+							ElementMass = pe?.Mass ?? 0,
+							ElementTemperature = pe?.Temperature ?? 0,
+							ElementDiseaseIdx = pe?.DiseaseIdx ?? byte.MaxValue,
+							ElementDiseaseCount = pe?.DiseaseCount ?? 0
+						});
+					}
+
+					// Carry visuals are additive to authoritative Storage.items membership.
+					if ((replication & StorageReplicationKind.CarryVisual) != 0)
+					{
+						var itemAnimCtrl = authoritativeItem.GetComponentInChildren<KBatchedAnimController>();
                         var animFile = itemAnimCtrl?.AnimFiles?[0]?.name;
                         if (animFile != null)
                         {
@@ -121,24 +164,12 @@ namespace ONI_Together.Patches.World
                                 NetId = storageIdentity.NetId,
                                 PickupableNetId = itemNetId,
                                 AnimFileName = animFile,
-                                ItemPrefabHash = go.PrefabID().GetHashCode(),
+                                ItemPrefabHash = authoritativeItem.PrefabID().GetHashCode(),
                                 IsCarrying = true
                             });
                         }
                     }
-                    else
-                    {
-                        PacketSender.SendToAllClients(new StorageItemPacket
-                        {
-                            NetId = itemNetId,
-                            StorageNetId = storageIdentity.NetId,
-                            DoDiseaseTransfer = do_disease_transfer,
-                            FxPrefix = Storage.FXPrefix.Delivered,
-                            ConsumedPrefabHash = go.PrefabID().GetHashCode(),
-                            ConsumedAmount = pe?.Mass ?? 0
-                        });
-                    }
-                }
+				}
                 catch (System.Exception ex)
                 {
                     DebugConsole.LogError($"[StorageStorePatch] Exception: {ex}");

@@ -10,8 +10,11 @@ using CompressionLevel = System.IO.Compression.CompressionLevel;
 
 namespace ONI_Together.Networking.Packets.Core
 {
-	public class NavigatorPathPacket : IPacket
+	public class NavigatorPathPacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
+		internal const int MaxCompressedBytes = 1024 * 1024;
+		internal const int MaxDecompressedBytes = 64 * 1024;
+		internal const int MaxStepCount = 8192;
 		public int NetId;
 
 		public struct PathStep
@@ -47,6 +50,8 @@ namespace ONI_Together.Networking.Packets.Core
 		public void Serialize(BinaryWriter writer)
 		{
 			using var _ = Profiler.Scope();
+			if (Steps.Count == 0 || Steps.Count > MaxStepCount)
+				throw new InvalidDataException($"Invalid navigator path step count: {Steps.Count}");
 
 			using (var memStream = new MemoryStream())
 			{
@@ -79,24 +84,47 @@ namespace ONI_Together.Networking.Packets.Core
 			using var _ = Profiler.Scope();
 
 			int compressedLength = reader.ReadInt32();
+			if (compressedLength <= 0 || compressedLength > MaxCompressedBytes)
+				throw new InvalidDataException($"Invalid navigator path payload length: {compressedLength}");
 			byte[] compressedBytes = reader.ReadBytes(compressedLength);
+			if (compressedBytes.Length != compressedLength)
+				throw new EndOfStreamException("Navigator path payload is truncated");
 
-			using (var compressed = new MemoryStream(compressedBytes))
-			using (var gzip = new GZipStream(compressed, CompressionMode.Decompress))
-			using (var decompressed = new MemoryStream())
+			using (var decompressed = new MemoryStream(Decompress(compressedBytes)))
 			{
-				gzip.CopyTo(decompressed);
-				decompressed.Position = 0;
-
 				using (var tempReader = new BinaryReader(decompressed))
 				{
 					NetId = tempReader.ReadInt32();
 					int count = tempReader.ReadInt32();
+					if (count <= 0 || count > MaxStepCount)
+						throw new InvalidDataException($"Invalid navigator path step count: {count}");
 
 					Steps.Clear();
 					for (int i = 0; i < count; i++)
 						Steps.Add(PathStep.Deserialize(tempReader));
+					if (tempReader.BaseStream.Position != tempReader.BaseStream.Length)
+						throw new InvalidDataException("Navigator path payload contains trailing bytes");
 				}
+			}
+		}
+
+		private static byte[] Decompress(byte[] compressedBytes)
+		{
+			using var input = new MemoryStream(compressedBytes);
+			using var gzip = new GZipStream(input, CompressionMode.Decompress);
+			using var output = new MemoryStream();
+			var buffer = new byte[8192];
+			int total = 0;
+			while (true)
+			{
+				int remaining = MaxDecompressedBytes - total;
+				int read = gzip.Read(buffer, 0, remaining < buffer.Length ? remaining + 1 : buffer.Length);
+				if (read == 0)
+					return output.ToArray();
+				total += read;
+				if (total > MaxDecompressedBytes)
+					throw new InvalidDataException($"Navigator path expands beyond {MaxDecompressedBytes} bytes");
+				output.Write(buffer, 0, read);
 			}
 		}
 

@@ -13,9 +13,12 @@ namespace ONI_Together.Networking.Packets.World
     /// </summary>
     public class ChunkAckPacket : IPacket
     {
+        private static int _rejectedPackets;
         public int SequenceNumber;       // ID of chunk that was received (0, 1, 2, 3...)
         public string TransferId;        // Transfer ID (same as SecureTransferPacket)
         public ulong ClientSteamID;   // Who is sending the ACK
+        internal static bool ShouldAccept(ulong clientId, DispatchContext context) =>
+            clientId != 0 && !context.SenderIsHost && SyncBarrier.SenderMatches(clientId, context.SenderId);
 
         public void Serialize(BinaryWriter writer)
         {
@@ -42,6 +45,13 @@ namespace ONI_Together.Networking.Packets.World
             // Only server processes ACKs
             if (!MultiplayerSession.IsHost)
                 return;
+            if (!ShouldAccept(ClientSteamID, PacketHandler.CurrentContext))
+            {
+                int rejected = ++_rejectedPackets;
+                if (rejected <= 5 || rejected % 100 == 0)
+                    DebugConsole.LogWarning($"[ChunkAck] Rejected client {ClientSteamID} from {PacketHandler.CurrentContext.SenderId}, host={PacketHandler.CurrentContext.SenderIsHost} (#{rejected})");
+                return;
+            }
 
             DebugConsole.Log($"[ChunkAck] Received ACK {SequenceNumber} from {ClientSteamID} for transfer {TransferId}");
 

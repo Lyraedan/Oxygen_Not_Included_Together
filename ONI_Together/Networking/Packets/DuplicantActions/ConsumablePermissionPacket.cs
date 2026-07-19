@@ -1,11 +1,12 @@
 using ONI_Together.Networking.Packets.Architecture;
 using System.IO;
 using ONI_Together.Networking.Components;
+using Shared.Interfaces.Networking;
 using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.DuplicantActions
 {
-    public class ConsumablePermissionPacket : IPacket
+    public class ConsumablePermissionPacket : IPacket, IClientRelayable
     {
         private TableRow.RowType         RowType;
         private string                   ConsumableID;

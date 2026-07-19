@@ -14,21 +14,41 @@ using static RancherChore;
 
 namespace ONI_Together.Networking.Packets.Animation
 {
-	internal class StandardWorker_WorkingState_Packet : IPacket
+	internal class StandardWorker_WorkingState_Packet : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
+		private const int MaxWorkableTypeNameLength = 4096;
+
 		public StandardWorker_WorkingState_Packet() { }
 
-		public StandardWorker_WorkingState_Packet(StandardWorker worker, Workable workable, bool startedWorking)
+		public static bool TryCreate(
+			StandardWorker worker,
+			Workable workable,
+			bool startedWorking,
+			out StandardWorker_WorkingState_Packet packet)
 		{
 			using var _ = Profiler.Scope();
 
-			WorkerNetId = worker.GetNetId();
-			StartingToWork = startedWorking;
+			packet = null;
+			if (worker == null || worker.IsNullOrDestroyed())
+				return false;
+
+			var candidate = new StandardWorker_WorkingState_Packet
+			{
+				WorkerNetId = worker.GetNetId(),
+				StartingToWork = startedWorking
+			};
 			if (startedWorking)
 			{
-				WorkableNetId = workable.GetNetId();
-				WorkableType = workable.GetType().AssemblyQualifiedName;
+				if (workable == null || workable.IsNullOrDestroyed())
+					return false;
+				candidate.WorkableNetId = workable.GetNetId();
+				candidate.WorkableType = workable.GetType().AssemblyQualifiedName;
 			}
+			if (!candidate.HasValidWireState())
+				return false;
+
+			packet = candidate;
+			return true;
 		}
 
 		int WorkerNetId, WorkableNetId;
@@ -39,6 +59,8 @@ namespace ONI_Together.Networking.Packets.Animation
 		{
 			using var _ = Profiler.Scope();
 
+			if (!HasValidWireState())
+				throw new InvalidDataException("Invalid standard worker state");
 			writer.Write(WorkerNetId);
 			writer.Write(StartingToWork);
 			if (StartingToWork)
@@ -58,6 +80,19 @@ namespace ONI_Together.Networking.Packets.Animation
 				WorkableNetId = reader.ReadInt32();
 				WorkableType = reader.ReadString();
 			}
+			if (!HasValidWireState())
+				throw new InvalidDataException("Invalid standard worker state");
+		}
+
+		private bool HasValidWireState()
+		{
+			if (WorkerNetId == 0)
+				return false;
+			if (!StartingToWork)
+				return true;
+			return WorkableNetId != 0
+			       && !string.IsNullOrEmpty(WorkableType)
+			       && WorkableType.Length <= MaxWorkableTypeNameLength;
 		}
 
 		public void OnDispatched()

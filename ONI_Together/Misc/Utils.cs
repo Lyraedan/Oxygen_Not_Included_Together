@@ -452,9 +452,13 @@ namespace ONI_Together.Misc
         {
 	        if (!MultiplayerSession.IsHost) return;
 	        if (!Configuration.Instance.PauseSimOnPlayerDisconnect) return;
-	        
-	        if(!SpeedControlScreen.Instance.IsPaused)
-				SpeedControlScreen.Instance.TogglePause(false);
+
+	        var speedControl = SpeedControlScreen.Instance;
+	        if (speedControl != null && !speedControl.IsPaused)
+	        {
+				speedControl.TogglePause(false);
+				ReadyManager.MarkAutomaticPauseOwnership();
+	        }
         }
 
         #region SaveLoadRoot Extensions

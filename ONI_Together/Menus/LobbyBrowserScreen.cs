@@ -653,17 +653,17 @@ namespace ONI_Together.Menus
             btnLayout.childControlWidth = false;
 
             // Join button
-            CreateButton(btnContainer.transform, STRINGS.UI.SERVERBROWSER.JOIN_BUTTON, () =>
-            {
-                string password = inputField.text;
-                if (SteamLobby.ValidateLobbyPassword(lobbyID, password))
-                {
-                    Destroy(dialogGO);
-                    SteamLobby.JoinLobby(lobbyID.AsCSteamID(), (lobbyId) =>
-                    {
-                        DebugConsole.Log($"[LobbyBrowser] Successfully joined lobby: {lobbyId}");
-                        Close();
-                    });
+			CreateButton(btnContainer.transform, STRINGS.UI.SERVERBROWSER.JOIN_BUTTON, () =>
+			{
+				string password = inputField.text;
+				if (!string.IsNullOrEmpty(password))
+				{
+					Destroy(dialogGO);
+					SteamLobby.JoinLobby(lobbyID.AsCSteamID(), (lobbyId) =>
+					{
+						DebugConsole.Log($"[LobbyBrowser] Successfully joined lobby: {lobbyId}");
+						Close();
+					}, password);
                 }
                 else
                 {

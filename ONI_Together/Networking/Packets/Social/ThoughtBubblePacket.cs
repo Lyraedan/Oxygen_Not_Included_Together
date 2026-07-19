@@ -7,7 +7,7 @@ using UnityEngine;
 
 namespace ONI_Together.Networking.Packets.Social
 {
-	public class ThoughtBubblePacket : IPacket
+	public class ThoughtBubblePacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
 		public int NetId;
 		public bool IsVisible;

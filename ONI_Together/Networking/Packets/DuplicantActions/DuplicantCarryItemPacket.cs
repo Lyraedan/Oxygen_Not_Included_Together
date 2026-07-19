@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace ONI_Together.Networking.Packets.DuplicantActions
 {
-	public class DuplicantCarryItemPacket : IPacket, IBulkablePacket
+	public class DuplicantCarryItemPacket : IPacket, IBulkablePacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
 		public int NetId;
 		public int PickupableNetId;

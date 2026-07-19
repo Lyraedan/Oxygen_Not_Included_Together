@@ -3,6 +3,7 @@ using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.World;
+using Shared;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -29,7 +30,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "SuitLockerRequestSuit".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("SuitLockerRequestSuit"),
 				Value = 1f,
 				ConfigType = BuildingConfigType.Boolean
 			};
@@ -58,7 +59,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "SuitLockerNoSuit".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("SuitLockerNoSuit"),
 				Value = 0f,
 				ConfigType = BuildingConfigType.Boolean
 			};
@@ -87,7 +88,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "SuitLockerDropSuit".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("SuitLockerDropSuit"),
 				Value = 1f,
 				ConfigType = BuildingConfigType.Boolean
 			};

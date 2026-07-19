@@ -148,6 +148,7 @@ namespace ONI_Together.UI
             messageContainer.pivot = new Vector2(0.5f, 1f);
 
             inputField = CreateInputField("ChatInput", panel.transform, new Vector2(10, 15), new Vector2(380, 30));
+			inputField.characterLimit = 256;
             var inputRT = inputField.GetComponent<RectTransform>();
             inputRT.anchorMax = new Vector2(1, 0);
             inputRT.offsetMin = new Vector2(10, 15);
@@ -354,7 +355,8 @@ namespace ONI_Together.UI
 
             messages.Add(timestamp, tmp);
 			if (text != STRINGS.UI.MP_CHATWINDOW.CHAT_INITIALIZED)
-				chatHistory.Add(new PendingMessage { timestamp = timestamp, message = text });
+				ChatHistorySyncPacket.AppendBounded(chatHistory,
+					new PendingMessage { timestamp = timestamp, message = text });
 
 			// Manually rebuild layout and force scroll to bottom
 			LayoutRebuilder.ForceRebuildLayoutImmediate(messageContainer);
@@ -581,20 +583,14 @@ namespace ONI_Together.UI
 			{
 				string senderName = Utils.GetLocalPlayerName();
 
-				string colorHex = ColorUtility.ToHtmlStringRGB(CursorManager.Instance.color);
-				PendingMessage message = GeneratePendingMessage($"<color=#{colorHex}>{senderName}:</color> {text}");
+					PendingMessage message = GeneratePendingMessage(
+						ChatMessagePacket.FormatDisplayMessage(senderName, CursorManager.Instance.color, text));
                 QueueMessage(message);
 				inputField.text = "";
 
 				var packet = new ChatMessagePacket(text);
-				if (!MultiplayerSession.IsHost)
-				{
-					PacketSender.SendToHost(packet);
-				}
-				else
-				{
-					PacketSender.SendToAllClients(packet);
-				}
+				// Host fans out directly; clients use the validated HostBroadcast relay.
+				PacketSender.SendToAllOtherPeers(packet);
 			}
 
 			inputField.DeactivateInputField();

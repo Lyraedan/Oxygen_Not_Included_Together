@@ -1,3 +1,5 @@
-1) Update the .dll inside oni_mp
-2) Copy paste (and override) oni_mp in your "documents/klei/OxygenNotIncluded/mods/local" folder
-3) Boot up the game and enable the mod
+Install Oxygen Not Included Together from Steam Workshop item 3630759126.
+
+Enable the mod for the active DLC, accept the restart, and make sure every peer uses game build 740622, the same DLC selection, the same enabled mods, and the same Workshop version.
+
+Local builds are for development only. Do not mix a local copy with the Workshop release.

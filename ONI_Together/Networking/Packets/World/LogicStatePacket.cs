@@ -9,8 +9,12 @@ using UnityEngine;
 
 namespace ONI_Together.Networking.Packets.World
 {
-    public class LogicStatePacket : IPacket
+    public class LogicStatePacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
     {
+        internal const int MaxOptionalValueCount = 256;
+        internal const int MaxOptionalBlobBytes = 1024 * 1024;
+        private const int MaxStringLength = 4096;
+        private const int MaxByteArrayBytes = 1024 * 1024;
         public int NetId;
         public int Cell;
         public Variant Value;
@@ -44,19 +48,59 @@ namespace ONI_Together.Networking.Packets.World
 
             NetId = reader.ReadInt32();
             Cell = reader.ReadInt32();
-            Value = Variant.Read(reader);
+            Value = ReadVariant(reader);
             IsActive = reader.ReadBoolean();
 
             int optLen = reader.ReadInt32();
+            if (optLen < sizeof(int) || optLen > MaxOptionalBlobBytes)
+                throw new InvalidDataException($"Invalid logic optional value blob length: {optLen}");
             byte[] optBlob = reader.ReadBytes(optLen);
+            if (optBlob.Length != optLen)
+                throw new EndOfStreamException("Logic optional value blob is truncated");
             using var optBr = new BinaryReader(new MemoryStream(optBlob));
             int length = optBr.ReadInt32();
+            if (length < 0 || length > MaxOptionalValueCount)
+                throw new InvalidDataException($"Invalid logic optional value count: {length}");
             OptionalValues = new Dictionary<string, Variant>(length);
             for (int i = 0; i < length; i++)
             {
                 string key = optBr.ReadString();
-                OptionalValues[key] = Variant.Read(optBr);
+                if (key.Length > MaxStringLength)
+                    throw new InvalidDataException("Logic optional value key is too long");
+                OptionalValues[key] = ReadVariant(optBr);
             }
+            if (optBr.BaseStream.Position != optBr.BaseStream.Length)
+                throw new InvalidDataException("Logic optional value blob contains trailing bytes");
+        }
+
+        private static Variant ReadVariant(BinaryReader reader)
+        {
+            var value = new Variant { Type = (Variant.TypeCode)reader.ReadByte() };
+            switch (value.Type)
+            {
+                case Variant.TypeCode.Float: value.Float = reader.ReadSingle(); break;
+                case Variant.TypeCode.Int: value.Int = reader.ReadInt32(); break;
+                case Variant.TypeCode.Byte: value.Byte = reader.ReadByte(); break;
+                case Variant.TypeCode.String:
+                    value.String = reader.ReadString();
+                    if (value.String.Length > MaxStringLength)
+                        throw new InvalidDataException("Logic variant string is too long");
+                    break;
+                case Variant.TypeCode.Boolean: value.Boolean = reader.ReadBoolean(); break;
+                case Variant.TypeCode.Vector3: value.Vector3 = reader.ReadVector3(); break;
+                case Variant.TypeCode.Vector2: value.Vector2 = reader.ReadVector2(); break;
+                case Variant.TypeCode.ByteArray:
+                    int length = reader.ReadInt32();
+                    if (length < 0 || length > MaxByteArrayBytes)
+                        throw new InvalidDataException($"Invalid logic variant byte array length: {length}");
+                    value.ByteArray = reader.ReadBytes(length);
+                    if (value.ByteArray.Length != length)
+                        throw new EndOfStreamException("Logic variant byte array is truncated");
+                    break;
+                default:
+                    throw new InvalidDataException($"Invalid logic variant type: {(byte)value.Type}");
+            }
+            return value;
         }
 
         public void OnDispatched()

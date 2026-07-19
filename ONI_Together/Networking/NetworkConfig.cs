@@ -43,11 +43,21 @@ namespace ONI_Together.Networking
         public static readonly int LOBBY_SIZE_DEFAULT = 4;
         public static readonly int LOBBY_SIZE_MAX = 16;
 
+		internal static bool IsValidLanPort(int port) => port >= 1 && port <= 65534;
+
         /// <summary>
         /// Starts a GameServer on the current transport
         /// </summary>
         public static void StartServer()
         {
+			if (transport == NetworkTransport.RIPTIDE
+			    && !IsValidLanPort(Configuration.Instance.Host.LanSettings.Port))
+			{
+				DebugConsole.LogError("LAN port must be between 1 and 65534.");
+				return;
+			}
+
+            SessionStateReset.Reset();
             switch(transport)
             {
                 case NetworkTransport.STEAMWORKS:
@@ -65,9 +75,7 @@ namespace ONI_Together.Networking
         {
             SteamLobby.CreateLobby(onSuccess: () =>
             {
-                //SpeedControlScreen.Instance?.Unpause(false);
-                SpeedControlScreen.Instance.Pause(true);
-                Game.Instance.Trigger(MP_HASHES.OnMultiplayerGameSessionInitialized);
+                Game.Instance?.Trigger(MP_HASHES.OnMultiplayerGameSessionInitialized);
             });
         }
 
@@ -90,7 +98,6 @@ namespace ONI_Together.Networking
             }
             SelectToolPatch.UpdateColor();
             Game.Instance.Trigger(MP_HASHES.OnMultiplayerGameSessionInitialized);
-            SpeedControlScreen.Instance.Pause(true);
         }
 
         /// <summary>
@@ -107,6 +114,7 @@ namespace ONI_Together.Networking
                     StopRaw();
                     break;
             }
+            SessionStateReset.Reset();
             Game.Instance?.Trigger(MP_HASHES.OnDisconnected);
         }
 
@@ -252,4 +260,3 @@ namespace ONI_Together.Networking
         }
     }
 }
-

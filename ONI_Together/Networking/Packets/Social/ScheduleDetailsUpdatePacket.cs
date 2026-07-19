@@ -1,122 +1,62 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using ONI_Together.Networking.Packets.Architecture;
-using Shared.Profiling;
+using Shared.Interfaces.Networking;
+using System.IO;
 
 namespace ONI_Together.Networking.Packets.Social
 {
-    public class ScheduleDetailsUpdatePacket : IPacket
-    {
-        public enum DetailsUpdateType
-        {
-            NAME, ALARM_STATE
-        }
+	public sealed class ScheduleDetailsUpdatePacket : IPacket, IClientRelayable
+	{
+		public enum DetailsUpdateType : byte
+		{
+			NAME,
+			ALARM_STATE
+		}
 
-        public int ScheduleIndex;
-        public string Name;
-        public bool AlarmActivated;
-        public DetailsUpdateType UpdateType;
+		public ulong ClientRequestId;
+		public long BaseRevision;
+		public int ScheduleIndex;
+		public string Name = string.Empty;
+		public bool AlarmActivated;
+		public DetailsUpdateType UpdateType;
 
-        public void Serialize(BinaryWriter writer)
-        {
-            using var _ = Profiler.Scope();
+		public void Serialize(BinaryWriter writer)
+		{
+			if (!IsWireValid())
+				throw new InvalidDataException("Invalid schedule details request");
+			writer.Write(ClientRequestId);
+			writer.Write(BaseRevision);
+			writer.Write(ScheduleIndex);
+			writer.Write((byte)UpdateType);
+			if (UpdateType == DetailsUpdateType.NAME)
+				ScheduleSyncProtocol.WriteString(writer, Name, ScheduleSyncProtocol.MaxScheduleNameLength);
+			else
+				writer.Write(AlarmActivated);
+		}
 
-            writer.Write(ScheduleIndex);
-            writer.Write((int)UpdateType);
-            switch (UpdateType)
-            {
-                case DetailsUpdateType.NAME:
-                    writer.Write(Name);
-                    break;
-                case DetailsUpdateType.ALARM_STATE:
-                    writer.Write(AlarmActivated);
-                    break;
-            }
-        }
+		public void Deserialize(BinaryReader reader)
+		{
+			ClientRequestId = reader.ReadUInt64();
+			BaseRevision = reader.ReadInt64();
+			ScheduleIndex = reader.ReadInt32();
+			UpdateType = (DetailsUpdateType)reader.ReadByte();
+			if (UpdateType == DetailsUpdateType.NAME)
+				Name = ScheduleSyncProtocol.ReadString(reader, ScheduleSyncProtocol.MaxScheduleNameLength);
+			else if (UpdateType == DetailsUpdateType.ALARM_STATE)
+				AlarmActivated = reader.ReadBoolean();
+			if (!IsWireValid())
+				throw new InvalidDataException("Invalid schedule details request");
+		}
 
-        public void Deserialize(BinaryReader reader)
-        {
-            using var _ = Profiler.Scope();
+		public void OnDispatched()
+		{
+			ScheduleSyncCoordinator.Handle(this);
+		}
 
-            ScheduleIndex = reader.ReadInt32();
-            UpdateType = (DetailsUpdateType)reader.ReadInt32();
-            switch(UpdateType)
-            {
-                case DetailsUpdateType.NAME:
-                    Name = reader.ReadString();
-                    break;
-                case DetailsUpdateType.ALARM_STATE:
-                    AlarmActivated = reader.ReadBoolean();
-                    break;
-            }
-        }
-
-        public void OnDispatched()
-        {
-            using var _ = Profiler.Scope();
-
-            if (IsApplying)
-                return;
-            try
-            {
-                IsApplying = true;
-                Apply();
-            } finally
-            {
-                IsApplying = false;
-            }
-        }
-
-        private void Apply()
-        {
-            using var _ = Profiler.Scope();
-
-            var schedules = ScheduleManager.Instance.schedules;
-            if (schedules == null)
-                return;
-
-            Schedule schedule = schedules[ScheduleIndex];
-            if (schedule == null)
-                return;
-
-            // Screen has not been opened so update cache data
-            if(ScheduleScreen.Instance == null)
-            {
-                switch (UpdateType)
-                {
-                    case DetailsUpdateType.NAME:
-                        schedule.name = Name;
-                        break;
-                    case DetailsUpdateType.ALARM_STATE:
-                        schedule.alarmActivated = AlarmActivated;
-                        break;
-                }
-                return;
-            }
-
-            ScheduleScreenEntry entry = ScheduleScreen.Instance.scheduleEntries[ScheduleIndex];
-            switch (UpdateType)
-            {
-                case DetailsUpdateType.NAME:
-                    schedule.name = Name;
-                    if (entry)
-                    {
-                        entry.title.SetTitle(Name); // Update the ui display
-                        entry.gameObject.name = $"Schedule_{Name}";
-                    }
-                    break;
-                case DetailsUpdateType.ALARM_STATE:
-                    schedule.alarmActivated = AlarmActivated;
-                    if (entry)
-                        entry.RefreshAlarmButton();
-                    break;
-            }
-        }
-
-        public static bool IsApplying = false;
-    }
+		internal bool IsWireValid()
+			=> ClientRequestId != 0 && BaseRevision >= 0 &&
+			   ScheduleIndex >= 0 && ScheduleIndex < ScheduleSyncProtocol.MaxSchedules &&
+			   UpdateType >= DetailsUpdateType.NAME && UpdateType <= DetailsUpdateType.ALARM_STATE &&
+			   (UpdateType != DetailsUpdateType.NAME ||
+			    Name != null && Name.Length <= ScheduleSyncProtocol.MaxScheduleNameLength);
+	}
 }

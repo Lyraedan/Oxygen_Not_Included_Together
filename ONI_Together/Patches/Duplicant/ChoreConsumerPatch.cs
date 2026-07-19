@@ -11,6 +11,27 @@ namespace ONI_Together.Patches.Duplicant
 	[HarmonyPatch(typeof(ChoreConsumer), "SetPersonalPriority")]
 	public static class ChoreConsumerPatch
 	{
+		public static bool Prefix(ChoreConsumer __instance, ChoreGroup group, int value)
+		{
+			if (!MultiplayerSession.InSession || MultiplayerSession.IsHost
+			    || DuplicantPriorityPacket.IsApplying)
+				return true;
+			if (__instance == null || group == null)
+				return false;
+
+			var identity = __instance.GetComponent<NetworkIdentity>();
+			if (identity == null || !DuplicantPriorityPacket.IsValidRequest(identity.NetId, group.Id, value))
+				return false;
+
+			PacketSender.SendToHost(new DuplicantPriorityPacket
+			{
+				NetId = identity.NetId,
+				ChoreGroupId = group.Id,
+				Priority = value
+			});
+			return false;
+		}
+
 		public static void Postfix(ChoreConsumer __instance, ChoreGroup group, int value)
 		{
 			using var _ = Profiler.Scope();
@@ -31,13 +52,7 @@ namespace ONI_Together.Patches.Duplicant
 				};
 
 				if (MultiplayerSession.IsHost)
-				{
 					PacketSender.SendToAllClients(packet);
-				}
-				else
-				{
-					PacketSender.SendToHost(packet);
-				}
 
 				DebugConsole.Log($"[ChoreConsumerPatch] Sent priority update for {identity.name}: {group.Id} = {value}");
 			}

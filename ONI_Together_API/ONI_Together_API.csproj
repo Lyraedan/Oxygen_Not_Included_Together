@@ -10,8 +10,8 @@
     <MinVerTagPrefix>v</MinVerTagPrefix>
     <Description>API for third-party mods to add multiplayer features to Oxygen Not Included Together. Enables mods to detect multiplayer sessions, access network state, and integrate with the ONI Together ecosystem.</Description>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
-    <PackageProjectUrl>https://github.com/Lyraedan/Oxygen_Not_Included_Together</PackageProjectUrl>
-    <RepositoryUrl>https://github.com/Lyraedan/Oxygen_Not_Included_Together</RepositoryUrl>
+    <PackageProjectUrl>https://github.com/Ericbai06/Oxygen_Not_Included_Together</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/Ericbai06/Oxygen_Not_Included_Together</RepositoryUrl>
     <PackageTags>oni;oxygen-not-included;oxygen-not-included-together;oxygen-not-included-multiplayer;oni-together;onitogether;oni-multiplayer</PackageTags>
     <PackageReadmeFile>README_NUGET.md</PackageReadmeFile>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>

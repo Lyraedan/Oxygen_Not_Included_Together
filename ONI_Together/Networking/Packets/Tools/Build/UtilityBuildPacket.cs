@@ -1,206 +1,317 @@
-using Newtonsoft.Json;
-using ONI_Together.DebugTools;
-using ONI_Together.Misc;
-using ONI_Together.Networking.Packets.Architecture;
-using Steamworks;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using ONI_Together.Networking.Packets.Architecture;
+using Shared.Interfaces.Networking;
 using Shared.Profiling;
 using UnityEngine;
-using static TUNING.BUILDINGS.UPGRADES;
 
 namespace ONI_Together.Networking.Packets.Tools.Build
 {
-	public class UtilityBuildPacket : IPacket
+	public sealed class UtilityBuildPacket : IPacket, IClientRelayable
 	{
-		private const int MaxPathNodeCount = 8192;
-		private const int MaxMaterialTagCount = 64;
+		public static bool ProcessingIncoming { get; private set; }
 
-		/// <summary>
-		/// Gets a value indicating whether incoming messages are currently being processed.
-		/// Use in patches to prevent recursion when applying tool changes.
-		/// </summary>
-		public static bool ProcessingIncoming { get; private set; } = false;
-
-		public ulong[] PathChunks;
+		public string PrefabID = string.Empty;
+		public string FacadeID = BuildAuthority.DefaultFacade;
+		public List<int> Cells = [];
 		public List<string> MaterialTags = [];
-		public string PrefabID, FacadeID;
-		public PrioritySetting Priority;
-		public bool InstantBuild;
+		public int PriorityClass;
+		public int PriorityValue;
+		public int ObjectLayer;
 
-		public UtilityBuildPacket() { }
-
-		public UtilityBuildPacket(string prefabId, List<BaseUtilityBuildTool.PathNode> nodes, List<string> mats, string skin, bool instantBuild = false)
+		public UtilityBuildPacket()
 		{
-			using var _ = Profiler.Scope();
-
-			PrefabID = prefabId ?? string.Empty;
-			PathChunks = BuildingUtils.EncodeUtilityPathWithValidity(nodes ?? []);
-			MaterialTags = mats ?? [];
-			FacadeID = skin ?? string.Empty;
-			InstantBuild = instantBuild;
-
-			if (PlanScreen.Instance)
-				Priority = PlanScreen.Instance.GetBuildingPriority();
 		}
+
+		internal UtilityBuildPacket(
+			BuildingDef def,
+			IEnumerable<BaseUtilityBuildTool.PathNode> nodes,
+			IEnumerable<Tag> materials,
+			PrioritySetting priority,
+			string facadeId)
+		{
+			PrefabID = def?.PrefabID ?? string.Empty;
+			FacadeID = BuildAuthority.NormalizeFacade(facadeId);
+			Cells = nodes?.Select(node => node.cell).ToList() ?? [];
+			MaterialTags = materials?.Select(tag => tag.ToString()).ToList() ?? [];
+			PriorityClass = (int)priority.priority_class;
+			PriorityValue = priority.priority_value;
+			ObjectLayer = (int)(def?.ObjectLayer ?? global::ObjectLayer.NumLayers);
+		}
+
 		public void Serialize(BinaryWriter writer)
 		{
 			using var _ = Profiler.Scope();
-
-			writer.Write(PrefabID);
-			writer.Write(FacadeID);
-			writer.Write(PathChunks?.Length ?? 0);
-			if (PathChunks != null)
-			{
-				for (int i = 0; i < PathChunks.Length; i++)
-					writer.Write(PathChunks[i]);
-			}
-			writer.Write(MaterialTags.Count);
-			foreach (var tag in MaterialTags)
-				writer.Write(tag);
-			writer.Write((int)Priority.priority_class);
-			writer.Write(Priority.priority_value);
-			writer.Write(InstantBuild);
+			ValidateWire();
+			UtilityBuildWire.WriteRequest(writer, this);
 		}
-
 
 		public void Deserialize(BinaryReader reader)
 		{
 			using var _ = Profiler.Scope();
-
-			PrefabID = reader.ReadString();
-			FacadeID = reader.ReadString();
-
-			int chunkCount = reader.ReadInt32();
-			if (chunkCount < 0 || chunkCount > MaxPathNodeCount)
-			{
-				DebugConsole.LogWarning($"[UtilityBuildPacket] Invalid chunk count: {chunkCount}");
-				PathChunks = null;
-				MaterialTags = [];
-				return;
-			}
-			PathChunks = new ulong[chunkCount];
-			for (int i = 0; i < chunkCount; i++)
-				PathChunks[i] = reader.ReadUInt64();
-
-			int matCount = reader.ReadInt32();
-			if (matCount < 0 || matCount > MaxMaterialTagCount)
-			{
-				DebugConsole.LogWarning($"[UtilityBuildPacket] Invalid material tag count: {matCount}");
-				PathChunks = null;
-				MaterialTags = [];
-				return;
-			}
-			MaterialTags = new List<string>(matCount);
-			for (int i = 0; i < matCount; i++)
-				MaterialTags.Add(reader.ReadString());
-
-			Priority = new PrioritySetting(
-					(PriorityScreen.PriorityClass)reader.ReadInt32(),
-					reader.ReadInt32());
-			InstantBuild = reader.ReadBoolean();
+			UtilityBuildWire.ReadRequest(reader, this);
+			ValidateWire();
 		}
 
 		public void OnDispatched()
 		{
-			using var scope = Profiler.Scope();
-
-			DebugConsole.Log("[UtilityBuildPacket] OnDispatched");
-			if (PathChunks == null || PathChunks.Length == 0)
-			{
-				DebugConsole.LogWarning("[UtilityBuildPacket] Received empty path, ignoring.");
+			using var _ = Profiler.Scope();
+			DispatchContext context = PacketHandler.CurrentContext;
+			bool verified = MultiplayerSession.GetPlayer(context.SenderId)?.ProtocolVerified == true;
+			if (!ShouldAccept(MultiplayerSession.IsHost, context, verified))
 				return;
-			}
 
-			List<BaseUtilityBuildTool.PathNode> path = new List<BaseUtilityBuildTool.PathNode>();
-			for (int c = 0; c < PathChunks.Length; c++)
-			{
-				ulong chunk = PathChunks[c];
-				int[] chunkCells = BuildingUtils.DecodeUtilityPathChunk((uint)(chunk & 0xFFFFFFFF)); /// Lower 32 bits of the ulong chunk contain the packed path data (firstCell + direction-run segments).
-				if (chunkCells == null) continue;
+			bool instantBuild = BuildAuthority.GetHostInstantBuildPolicy();
+			if (!UtilityBuildAuthority.TryExecuteHost(this, instantBuild,
+				    state => PacketSender.SendToAllClients(state), out string error))
+				throw new InvalidDataException("Rejected utility build request: " + error);
+		}
 
-				uint validityMask = (uint)(chunk >> 32);
-				for (int j = 0; j < chunkCells.Length; j++)
-				{
-					path.Add(new BaseUtilityBuildTool.PathNode
-					{
-						cell = chunkCells[j],
-						valid = (validityMask & (1u << j)) != 0
-					});
-				}
-			}
+		internal static bool ShouldAccept(bool localIsHost, DispatchContext context, bool protocolVerified)
+			=> localIsHost && !context.SenderIsHost && context.IsVerifiedHostBroadcast && protocolVerified;
 
-			if (path.Count == 0)
-			{
-				DebugConsole.LogWarning("[UtilityBuildPacket] Decoded empty path, ignoring.");
-				return;
-			}
+		internal void ValidateWire()
+		{
+			if (!BuildAuthority.IsBoundedId(PrefabID) || !BuildAuthority.IsBoundedFacade(FacadeID) ||
+			    !BuildAuthority.AreMaterialTagsWireValid(MaterialTags) ||
+			    !BuildAuthority.IsPriorityAllowed(PriorityClass, PriorityValue) ||
+			    ObjectLayer < 0 || ObjectLayer >= (int)global::ObjectLayer.NumLayers ||
+			    !UtilityBuildAuthority.IsPathWireValid(Cells))
+				throw new InvalidDataException("Invalid utility build request payload");
+		}
 
-			var def = Assets.GetBuildingDef(PrefabID);
-			if (def == null)
-			{
-				DebugConsole.LogError($"[UtilityBuildPacket] Unknown PrefabID: {PrefabID}");
-				return;
-			}
-
-			var selected_elements = MaterialTags.Select(t => TagManager.Create(t)).ToList();
-			if (selected_elements.Count == 0)
-			{
-				selected_elements.AddRange(def.DefaultElements());
-			}
-			///mirrored from BuildMenu OnRecipeElementsFullySelected
-			BaseUtilityBuildTool tool = def.BuildingComplete.TryGetComponent<Wire>(out _) ? WireBuildTool.Instance : UtilityBuildTool.Instance;
-
-			if(PlanScreen.Instance?.ProductInfoScreen?.materialSelectionPanel?.PriorityScreen == null)
-			{
-				PlanScreen.Instance.CopyBuildingOrder(def,FacadeID);
-				PlanScreen.Instance.OnActiveToolChanged(SelectTool.Instance);
-			}
-
-			///caching existing stuff on the tool
-			var cachedDef = tool.def;
-			List<BaseUtilityBuildTool.PathNode> cachedPath = tool.path != null ? [.. tool.path] : [];
-			IList<Tag> cachedMaterials = tool.selectedElements != null ? [.. tool.selectedElements] : [];
-			var cachedMgr = tool.conduitMgr;
-
-			IHaveUtilityNetworkMgr conduitManagerHaver = def.BuildingComplete.GetComponent<IHaveUtilityNetworkMgr>();
-
-			tool.def = def;
-			tool.path = path;
-			tool.selectedElements = selected_elements;
-			tool.conduitMgr = conduitManagerHaver.GetNetworkManager();
-
+		internal static void RunProcessing(System.Action action)
+		{
+			bool previous = ProcessingIncoming;
 			ProcessingIncoming = true;
-			bool cachedInstantBuildMode = DebugHandler.InstantBuildMode;
-			DebugHandler.InstantBuildMode = InstantBuild;
 			try
 			{
-				tool.BuildPath();
-
-				foreach (BaseUtilityBuildTool.PathNode node in path)
-				{
-                    GameObject gameObject = Grid.Objects[node.cell, (int)def.TileLayer];
-                    if (gameObject == null)
-                        continue;
-                    if (gameObject.TryGetComponent<Prioritizable>(out var prioritizable))
-                        prioritizable?.SetMasterPriority(Priority);
-                    if (gameObject.TryGetComponent<KAnimGraphTileVisualizer>(out var vis))
-                    {
-                        vis.UpdateConnections(vis.Connections);
-                        vis.Refresh();
-                    }
-                }
+				action();
 			}
 			finally
 			{
-				DebugHandler.InstantBuildMode = cachedInstantBuildMode;
-				ProcessingIncoming = false;
-				tool.def = cachedDef;
-				tool.path = cachedPath;
-				tool.selectedElements = cachedMaterials;
-				tool.conduitMgr = cachedMgr;
+				ProcessingIncoming = previous;
 			}
+		}
+	}
+
+	internal static class UtilityBuildWire
+	{
+		internal static void WriteRequest(BinaryWriter writer, UtilityBuildPacket packet)
+		{
+			writer.Write(packet.PrefabID);
+			writer.Write(BuildAuthority.NormalizeFacade(packet.FacadeID));
+			writer.Write(packet.Cells.Count);
+			foreach (int cell in packet.Cells)
+				writer.Write(cell);
+			writer.Write(packet.MaterialTags.Count);
+			foreach (string tag in packet.MaterialTags)
+				writer.Write(tag);
+			writer.Write(packet.PriorityClass);
+			writer.Write(packet.PriorityValue);
+			writer.Write(packet.ObjectLayer);
+		}
+
+		internal static void ReadRequest(BinaryReader reader, UtilityBuildPacket packet)
+		{
+			packet.PrefabID = BuildAuthority.ReadBoundedString(reader, BuildAuthority.MaxIdLength);
+			packet.FacadeID = BuildAuthority.ReadBoundedString(reader, BuildAuthority.MaxIdLength);
+			int count = reader.ReadInt32();
+			if (count <= 0 || count > UtilityBuildAuthority.MaxPathNodeCount)
+				throw new InvalidDataException("Invalid utility path count");
+			packet.Cells = new List<int>(count);
+			for (int index = 0; index < count; index++)
+				packet.Cells.Add(reader.ReadInt32());
+			packet.MaterialTags = BuildAuthority.ReadMaterialTags(reader);
+			packet.PriorityClass = reader.ReadInt32();
+			packet.PriorityValue = reader.ReadInt32();
+			packet.ObjectLayer = reader.ReadInt32();
+		}
+	}
+
+	internal sealed class UtilityBuildCapture
+	{
+		internal UtilityBuildPacket Request;
+		internal Dictionary<int, GameObject> TilesBefore = [];
+		internal Dictionary<int, GameObject> ReplacementsBefore = [];
+	}
+
+	internal static partial class UtilityBuildAuthority
+	{
+		internal const int MaxPathNodeCount = 8192;
+
+		internal static bool IsPathWireValid(IReadOnlyList<int> cells)
+		{
+			if (cells == null || cells.Count == 0 || cells.Count > MaxPathNodeCount)
+				return false;
+			var seen = new HashSet<int>();
+			foreach (int cell in cells)
+			{
+				if (!BuildAuthority.IsWireCell(cell) || !seen.Add(cell))
+					return false;
+			}
+			return true;
+		}
+
+		internal static bool IsPathShapeValid(
+			IReadOnlyList<int> cells,
+			int width,
+			int cellCount)
+		{
+			if (!IsPathWireValid(cells) || width <= 0 || cellCount <= 0)
+				return false;
+			for (int index = 0; index < cells.Count; index++)
+			{
+				int cell = cells[index];
+				if (cell >= cellCount)
+					return false;
+				if (index == 0)
+					continue;
+				int previous = cells[index - 1];
+				int deltaX = Math.Abs(cell % width - previous % width);
+				int deltaY = Math.Abs(cell / width - previous / width);
+				if (deltaX + deltaY != 1)
+					return false;
+			}
+			return true;
+		}
+
+		internal static bool TryResolve(
+			UtilityBuildPacket packet,
+			out BuildingDef def,
+			out List<Tag> materials,
+			out PrioritySetting priority,
+			out string error)
+		{
+			def = null;
+			materials = null;
+			priority = default;
+			error = string.Empty;
+			try
+			{
+				packet.ValidateWire();
+			}
+			catch (InvalidDataException exception)
+			{
+				error = exception.Message;
+				return false;
+			}
+			if (!IsPathShapeValid(packet.Cells, Grid.WidthInCells, Grid.CellCount))
+				return Fail("path is outside the current world or is not cardinally adjacent", ref error);
+			def = Assets.GetBuildingDef(packet.PrefabID);
+			if (def == null || packet.ObjectLayer != (int)def.ObjectLayer ||
+			    def.TileLayer == global::ObjectLayer.NumLayers ||
+			    def.BuildingComplete?.GetComponent<IHaveUtilityNetworkMgr>() == null)
+				return Fail("unknown or non-utility prefab, or object-layer mismatch", ref error);
+			if (!BuildAuthority.TryResolveMaterials(def, packet.MaterialTags, out materials))
+				return Fail("material selection does not match recipe categories", ref error);
+			if (!BuildAuthority.TryValidateFacade(def, packet.FacadeID))
+				return Fail("facade is unavailable for prefab", ref error);
+			foreach (int cell in packet.Cells)
+			{
+				if (!IsCellAllowed(def, cell))
+					return Fail("path contains a hidden or invalid build cell", ref error);
+			}
+			priority = new PrioritySetting((PriorityScreen.PriorityClass)packet.PriorityClass, packet.PriorityValue);
+			return true;
+		}
+
+		private static bool IsCellAllowed(BuildingDef def, int cell)
+		{
+			if (!Grid.IsValidCell(cell) || !Grid.IsVisible(cell))
+				return false;
+			GameObject objectLayer = Grid.Objects[cell, (int)def.ObjectLayer];
+			if (objectLayer != null && objectLayer.GetComponent<KAnimGraphTileVisualizer>() == null)
+				return false;
+			GameObject tile = Grid.Objects[cell, (int)def.TileLayer];
+			if (tile != null)
+				return tile.GetComponent<KAnimGraphTileVisualizer>() != null;
+
+			Vector3 position = Grid.CellToPosCBC(cell, Grid.SceneLayer.Building);
+			if (def.IsValidBuildLocation(null, position, Orientation.Neutral) &&
+			    def.IsValidPlaceLocation(null, position, Orientation.Neutral, out _))
+				return true;
+			return def.ReplacementLayer != global::ObjectLayer.NumLayers &&
+			       def.GetReplacementCandidate(cell) != null &&
+			       !def.IsReplacementLayerOccupied(cell) &&
+			       def.IsValidBuildLocation(null, position, Orientation.Neutral, replace_tile: true) &&
+			       def.IsValidPlaceLocation(null, position, Orientation.Neutral, replace_tile: true, out _);
+		}
+
+		internal static bool TryExecuteHost(
+			UtilityBuildPacket request,
+			bool instantBuild,
+			Action<UtilityBuildStatePacket> publish,
+			out string error)
+		{
+			if (!TryResolve(request, out BuildingDef def, out List<Tag> materials,
+				    out PrioritySetting priority, out error))
+				return false;
+			UtilityBuildCapture capture = Capture(request, def);
+			if (!RunBuildPath(def, request.Cells, materials, instantBuild, request.FacadeID, out error))
+				return false;
+			List<UtilityBuildOutcome> outcomes = CaptureOutcomes(capture, def, priority);
+			publish(UtilityBuildStatePacket.FromRequest(request, instantBuild, outcomes));
+			return true;
+		}
+
+		private static bool RunBuildPath(
+			BuildingDef def,
+			IReadOnlyList<int> cells,
+			IList<Tag> materials,
+			bool instantBuild,
+			string facadeId,
+			out string error)
+		{
+			error = string.Empty;
+			BaseUtilityBuildTool tool = def.BuildingComplete.TryGetComponent<Wire>(out _)
+				? WireBuildTool.Instance
+				: UtilityBuildTool.Instance;
+			IHaveUtilityNetworkMgr managerOwner = def.BuildingComplete.GetComponent<IHaveUtilityNetworkMgr>();
+			if (tool == null || managerOwner == null)
+				return Fail("utility build tool or manager is unavailable", ref error);
+
+			BuildingDef previousDef = tool.def;
+			List<BaseUtilityBuildTool.PathNode> previousPath = tool.path == null ? [] : [.. tool.path];
+			IList<Tag> previousMaterials = tool.selectedElements == null ? [] : [.. tool.selectedElements];
+			IUtilityNetworkMgr previousManager = tool.conduitMgr;
+			string previousFacade = tool.facadeID;
+			bool previousDebug = DebugHandler.InstantBuildMode;
+			bool? previousSandbox = SandboxToolParameterMenu.instance?.settings == null
+				? null
+				: SandboxToolParameterMenu.instance.settings.InstantBuild;
+			try
+			{
+				tool.def = def;
+				tool.path = cells.Select(cell => new BaseUtilityBuildTool.PathNode { cell = cell, valid = true }).ToList();
+				tool.selectedElements = materials;
+				tool.conduitMgr = managerOwner.GetNetworkManager();
+				tool.facadeID = BuildAuthority.NormalizeFacade(facadeId);
+				DebugHandler.InstantBuildMode = instantBuild;
+				if (SandboxToolParameterMenu.instance?.settings != null)
+					SandboxToolParameterMenu.instance.settings.InstantBuild = instantBuild;
+				UtilityBuildPacket.RunProcessing(() => tool.BuildPath());
+				return true;
+			}
+			finally
+			{
+				DebugHandler.InstantBuildMode = previousDebug;
+				if (previousSandbox.HasValue && SandboxToolParameterMenu.instance?.settings != null)
+					SandboxToolParameterMenu.instance.settings.InstantBuild = previousSandbox.Value;
+				tool.def = previousDef;
+				tool.path = previousPath;
+				tool.selectedElements = previousMaterials;
+				tool.conduitMgr = previousManager;
+				tool.facadeID = previousFacade;
+			}
+		}
+
+		private static bool Fail(string message, ref string error)
+		{
+			error = message;
+			return false;
 		}
 	}
 }

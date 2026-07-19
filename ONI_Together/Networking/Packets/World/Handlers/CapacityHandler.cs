@@ -1,5 +1,6 @@
 using UnityEngine;
 using ONI_Together.DebugTools;
+using Shared;
 using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.World.Handlers
@@ -11,7 +12,7 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 	{
 		private static readonly int[] _hashes = new int[]
 		{
-			"Capacity".GetHashCode(),
+			NetworkingHash.ForConfigKey("Capacity"),
 		};
 
 		public int[] SupportedConfigHashes => _hashes;
@@ -20,10 +21,15 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 		{
 			using var _ = Profiler.Scope();
 
-			if (packet.ConfigHash != "Capacity".GetHashCode()) return false;
+			if (packet.ConfigHash != NetworkingHash.ForConfigKey("Capacity")) return false;
 
 			var capacityControl = go.GetComponent<IUserControlledCapacity>();
 			if (capacityControl == null) return false;
+			if (packet.ConfigType != BuildingConfigType.Float
+			    || !BuildingConfigPacket.IsInRange(
+				    packet.Value, capacityControl.MinCapacity, capacityControl.MaxCapacity)
+			    || capacityControl.WholeValues && !BuildingConfigPacket.IsIntegralValue(packet.Value))
+				return false;
 
 			capacityControl.UserMaxCapacity = packet.Value;
 			//DebugConsole.Log($"[CapacityHandler] Set UserMaxCapacity={packet.Value} on {go.name}");

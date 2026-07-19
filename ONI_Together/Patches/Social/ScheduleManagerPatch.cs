@@ -1,108 +1,144 @@
 using HarmonyLib;
-using KSerialization;
-using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Packets.Social;
-using System.Collections.Generic;
 using Shared.Profiling;
-using UnityEngine;
+using System;
 
 namespace ONI_Together.Patches.Social
 {
-	// Sync schedule definitions (name, blocks, alarm)
-
 	public static class SchedulePatch
 	{
-		[HarmonyPatch(typeof(Schedule), "SetBlockGroup")] // The colored squares (worktime, bath time, sleep time etc)
+		[HarmonyPatch(typeof(Schedule), nameof(Schedule.SetBlockGroup))]
 		public static class SetBlockGroupPatch
 		{
-			public static void Postfix(Schedule __instance, int idx, ScheduleGroup group)
+			public static void Postfix()
 			{
 				using var _ = Profiler.Scope();
-
-				if (!MultiplayerSession.InSession) return;
-				if (ScheduleBlockUpdatePacket.IsApplying) return;
-
-				int scheduleIndex = __instance.GetScheduleIndex();
-				// Invalid schedule index
-				if (scheduleIndex == -1)
-					return;
-
-				ScheduleBlockUpdatePacket packet = new ScheduleBlockUpdatePacket() {
-					ScheduleIndex = scheduleIndex,
-					BlockIndex = idx,
-					GroupId = group.Id
-				};
-
-                PacketSender.SendToAllOtherPeers(packet);
-            }
+				ScheduleSyncCoordinator.PublishHostMutation();
+			}
 		}
 
-		[HarmonyPatch(typeof(ScheduleManager), "AddSchedule")]
+		[HarmonyPatch(typeof(ScheduleManager), nameof(ScheduleManager.AddSchedule))]
 		public static class AddSchedulePatch
 		{
-			public static void Postfix(Schedule __result)
+			public static void Postfix()
 			{
 				using var _ = Profiler.Scope();
-
-				if (!MultiplayerSession.InSession) return;
-				if (ScheduleAddPacket.IsApplying) return;
-
-				ScheduleAddPacket packet = new ScheduleAddPacket()
-				{
-					Name = __result.name,
-					Blocks = __result.blocks,
-					AlarmActivated = __result.alarmActivated,
-					Duplicated = false
-				};
-
-                PacketSender.SendToAllOtherPeers(packet);
-            }
+				ScheduleSyncCoordinator.PublishHostMutation();
+			}
 		}
 
-		[HarmonyPatch(typeof(ScheduleManager), "DuplicateSchedule")]
-        public static class DuplicateSchedulePatch
-        {
-            public static void Postfix(Schedule __result)
-            {
-	            using var _ = Profiler.Scope();
-
-                if (!MultiplayerSession.InSession) return;
-				if (ScheduleAddPacket.IsApplying) return;
-
-                ScheduleAddPacket packet = new ScheduleAddPacket()
-                {
-                    Name = __result.name,
-                    Blocks = __result.blocks,
-                    AlarmActivated = __result.alarmActivated,
-                    Duplicated = true
-                };
-
-				PacketSender.SendToAllOtherPeers(packet);
-            }
-        }
-
-        [HarmonyPatch(typeof(ScheduleManager), "DeleteSchedule")]
-		public static class DeleteSchedulePatch
+		[HarmonyPatch(typeof(ScheduleManager), nameof(ScheduleManager.DuplicateSchedule))]
+		public static class DuplicateSchedulePatch
 		{
-			public static void Prefix(ScheduleManager __instance, Schedule schedule)
+			public static void Postfix()
 			{
 				using var _ = Profiler.Scope();
+				ScheduleSyncCoordinator.PublishHostMutation();
+			}
+		}
 
-				if (!MultiplayerSession.InSession) return;
-				if (ScheduleDeletePacket.IsApplying) return;
+		[HarmonyPatch(typeof(ScheduleManager), nameof(ScheduleManager.DeleteSchedule))]
+		public static class DeleteSchedulePatch
+		{
+			public static void Prefix(
+				ScheduleManager __instance,
+				Schedule schedule,
+				out bool __state)
+			{
+				using var _ = Profiler.Scope();
+				__state = __instance?.schedules != null && __instance.schedules.Count > 1 &&
+				          schedule != null && __instance.schedules.Contains(schedule);
+				ScheduleSyncCoordinator.BeginHostMutationBatch();
+			}
 
-				int index = schedule.GetScheduleIndex();
-				if (index != -1)
+			public static void Postfix(bool __state)
+			{
+				if (__state)
+					ScheduleSyncCoordinator.PublishHostMutation();
+			}
+
+			public static Exception Finalizer(Exception __exception)
+			{
+				ScheduleSyncCoordinator.EndHostMutationBatch();
+				return __exception;
+			}
+		}
+
+		[HarmonyPatch(typeof(ScheduleManager), nameof(ScheduleManager.OnAddDupe))]
+		public static class OnAddDupePatch
+		{
+			public static bool Prefix()
+			{
+				if (MultiplayerSession.InSession && MultiplayerSession.IsClient &&
+				    !ScheduleSyncCoordinator.IsApplyingAuthoritativeMutation)
+					return false;
+				ScheduleSyncCoordinator.BeginHostMutationBatch();
+				return true;
+			}
+
+			public static Exception Finalizer(Exception __exception)
+			{
+				ScheduleSyncCoordinator.EndHostMutationBatch();
+				return __exception;
+			}
+		}
+
+		[HarmonyPatch(typeof(ScheduleManager), nameof(ScheduleManager.AddDefaultSchedule))]
+		public static class AddDefaultSchedulePatch
+		{
+			public static void Prefix()
+			{
+				ScheduleSyncCoordinator.BeginHostMutationBatch();
+			}
+
+			public static Exception Finalizer(Exception __exception)
+			{
+				ScheduleSyncCoordinator.EndHostMutationBatch();
+				return __exception;
+			}
+		}
+
+		[HarmonyPatch(typeof(ScheduleManager), nameof(ScheduleManager.OnRemoveDupe))]
+		public static class OnRemoveDupePatch
+		{
+			public static void Postfix()
+			{
+				using var _ = Profiler.Scope();
+				ScheduleSyncCoordinator.PublishHostMutation();
+			}
+		}
+
+		[HarmonyPatch(typeof(ScheduleManager), nameof(ScheduleManager.OnStoredDupeDestroyed))]
+		public static class OnStoredDupeDestroyedPatch
+		{
+			public static void Postfix()
+			{
+				using var _ = Profiler.Scope();
+				ScheduleSyncCoordinator.PublishHostMutation();
+			}
+		}
+
+		[HarmonyPatch(typeof(ScheduleScreen), nameof(ScheduleScreen.OnAddScheduleClick))]
+		public static class OnAddScheduleClickPatch
+		{
+			public static bool Prefix()
+			{
+				using var _ = Profiler.Scope();
+				if (!MultiplayerSession.InSession)
+					return true;
+				if (!ScheduleSyncCoordinator.CanAddSchedule())
+					return false;
+				if (MultiplayerSession.IsHost)
+					return true;
+
+				ScheduleSyncCoordinator.SendClientRequest(new ScheduleAddPacket
 				{
-					var packet = new ScheduleDeletePacket()
-					{
-						ScheduleIndex = index
-					};
-
-                    PacketSender.SendToAllOtherPeers(packet);
-                }
+					Duplicated = false,
+					SourceScheduleIndex = -1
+				});
+				return false;
 			}
 		}
 	}

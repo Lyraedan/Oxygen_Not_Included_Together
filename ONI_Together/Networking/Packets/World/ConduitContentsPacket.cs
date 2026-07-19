@@ -21,8 +21,9 @@ namespace ONI_Together.Networking.Packets.World
 		public int DiseaseCount;
 	}
 
-	public class ConduitContentsPacket : IPacket
+	public class ConduitContentsPacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
+		internal const int MaxUpdateCount = 50;
 		public const byte CONDUIT_GAS = 0;
 		public const byte CONDUIT_LIQUID = 1;
 
@@ -50,6 +51,8 @@ namespace ONI_Together.Networking.Packets.World
 			using var _ = Profiler.Scope();
 
 			int count = reader.ReadInt32();
+			if (count < 0 || count > MaxUpdateCount)
+				throw new InvalidDataException($"Invalid conduit update count: {count}");
 			Updates = new List<ConduitCellUpdate>(count);
 			for (int i = 0; i < count; i++)
 			{

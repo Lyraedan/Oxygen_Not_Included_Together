@@ -38,7 +38,7 @@ namespace ONI_Together.Networking.Transport
 
         public abstract void Disconnect();
 
-        public abstract void ReconnectToSession();
+        public abstract bool TryReconnectToSession();
 
         public abstract void Update();
 

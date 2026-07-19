@@ -11,11 +11,12 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.Xml;
+using Shared.Interfaces.Networking;
 using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.World
 {
-	internal class MinionIdentitySetNamePacket : IPacket
+	internal class MinionIdentitySetNamePacket : IPacket, IClientRelayable
 	{
 		public int NetId;
 		public string NewName;

@@ -29,13 +29,28 @@ namespace ONI_Together.Networking
 		public static string ServerIp { get; set; } = "127.0.0.1";
 		public static int ServerPort { get; set; } = 7777;
 
-		public static bool InSession = false;
+		private static bool transportConnected;
+		private static bool retainClientWorldLoad;
+
+		public static bool InSession
+		{
+			get => ResolveLogicalSession(transportConnected, retainClientWorldLoad);
+			set
+			{
+				transportConnected = value;
+				if (!value)
+					RemoveAllPlayerCursors();
+			}
+		}
+
+		internal static bool IsClientWorldLoadRetained => retainClientWorldLoad;
+		internal static bool IsTransportConnected => transportConnected;
 		public static bool SessionHasPlayers => InSession && ConnectedPlayers.Count > 1;
 		public static bool NotInSession => !InSession;
 
 		public static bool IsHost { get; set; } //HostUserID == LocalUserID;
 
-		public static bool IsClient => InSession && !IsHost;
+		public static bool IsClient => ResolveClientRole(IsHost, InSession);
 
 		public static bool IsHostInSession => IsHost && InSession;
 
@@ -43,13 +58,36 @@ namespace ONI_Together.Networking
 
 		public static readonly Dictionary<ulong, string> KnownPlayerNames = new Dictionary<ulong, string>();
 
+		internal static bool ResolveLogicalSession(
+			bool transportConnected, bool retainClientWorldLoad)
+			=> transportConnected || retainClientWorldLoad;
+
+		internal static bool ResolveClientRole(bool isHost, bool logicalSession)
+			=> logicalSession && !isHost;
+
+		internal static bool TryRetainClientWorldLoad()
+		{
+			if (IsHost || !InSession)
+				return false;
+			retainClientWorldLoad = true;
+			return true;
+		}
+
+		internal static void ReleaseClientWorldLoad()
+		{
+			retainClientWorldLoad = false;
+		}
+
 		public static void Clear()
 		{
 			using var _ = Profiler.Scope();
 
+			RemoveAllPlayerCursors();
 			ConnectedPlayers.Clear();
 			KnownPlayerNames.Clear();
 			HostUserID = Utils.NilUlong();
+			transportConnected = false;
+			retainClientWorldLoad = false;
 			WorkProgressPatch.ClearTracking();
 			RemoteProgressRegistry.ClearAll();
 			DebugConsole.Log("[MultiplayerSession] Session cleared.");
@@ -78,6 +116,33 @@ namespace ONI_Together.Networking
 		public static MultiplayerPlayer LocalPlayer => GetPlayer(LocalUserID);
 
 		public static IEnumerable<MultiplayerPlayer> AllPlayers => ConnectedPlayers.Values;
+
+		internal static HashSet<ulong> ResolveConnectedRemotePlayerIds(
+			IEnumerable<ulong> transportPlayerIds,
+			IEnumerable<ulong> sessionPlayerIds,
+			ulong localUserId,
+			bool transportIsConnected)
+		{
+			var remotes = new HashSet<ulong>();
+			if (!transportIsConnected)
+				return remotes;
+
+			foreach (ulong playerId in transportPlayerIds)
+				if (playerId.IsValid() && playerId != localUserId)
+					remotes.Add(playerId);
+			foreach (ulong playerId in sessionPlayerIds)
+				if (playerId.IsValid() && playerId != localUserId)
+					remotes.Add(playerId);
+
+			return remotes;
+		}
+
+		internal static HashSet<ulong> GetConnectedRemotePlayerIds()
+			=> ResolveConnectedRemotePlayerIds(
+				NetworkConfig.GetConnectedClients(), ConnectedPlayers.Keys, LocalUserID, IsTransportConnected);
+
+		internal static bool IsConnectedRemotePlayer(ulong playerId)
+			=> GetConnectedRemotePlayerIds().Contains(playerId);
 
 		// New player cursors are created automatically if one doesn't exist
 		public static void CreateNewPlayerCursor(ulong steamID)
@@ -111,12 +176,9 @@ namespace ONI_Together.Networking
 		{
 			using var _ = Profiler.Scope();
 
-            var members = NetworkConfig.GetConnectedClients();
-            foreach (var playerId in members)
+			var members = GetConnectedRemotePlayerIds();
+			foreach (var playerId in members)
 			{
-				if (playerId == LocalUserID)
-					continue;
-
 				if (!PlayerCursors.ContainsKey(playerId))
 				{
 					CreateNewPlayerCursor(playerId);

@@ -8,7 +8,7 @@ using System.IO;
 
 namespace ONI_Together.Networking.Packets.World
 {
-    public class StatusItemsPacket : IPacket
+    public class StatusItemsPacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
     {
         public const int MaxEntries = 64;
 

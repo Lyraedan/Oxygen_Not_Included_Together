@@ -71,16 +71,19 @@ namespace ONI_Together.Networking.Transport.Steam
             if (Connection.HasValue)
             {
                 DebugConsole.Log("[GameClient] Disconnecting from host...");
+				HSteamNetConnection connection = Connection.Value;
 
                 bool result = SteamNetworkingSockets.CloseConnection(
-                        Connection.Value,
+						connection,
                         0,
                         "Client disconnecting",
                         false
                 );
 
                 DebugConsole.Log($"[GameClient] CloseConnection result: {result}");
+				TryEndHostConnection(connection);
                 Connection = null;
+				NetworkConfig.TransportClient.OnClientDisconnected?.Invoke();
 
                 MultiplayerSession.InSession = false;
                 //SaveHelper.CaptureWorldSnapshot();
@@ -91,9 +94,21 @@ namespace ONI_Together.Networking.Transport.Steam
             }
         }
 
-        public override void ReconnectToSession()
+        internal static bool CanReconnectToHost(ulong hostId)
+            => hostId != Utils.NilUlong();
+
+        internal static bool IsConnectionAttemptStarted(HSteamNetConnection? connection)
+            => connection.HasValue && connection.Value.m_HSteamNetConnection != 0;
+
+        public override bool TryReconnectToSession()
         {
             using var _ = Profiler.Scope();
+
+            if (!CanReconnectToHost(MultiplayerSession.HostUserID))
+            {
+                DebugConsole.LogWarning("[GameClient] Cannot reconnect: HostSteamID is not set.");
+                return false;
+            }
 
             if (Connection.HasValue || GameClient.State == ClientState.Connected || GameClient.State == ClientState.Connecting) // TODO FIX, f*ck me why didn't I put what was wrong with it
             {
@@ -102,16 +117,22 @@ namespace ONI_Together.Networking.Transport.Steam
                 System.Threading.Thread.Sleep(100);
             }
 
-            if (MultiplayerSession.HostUserID != Utils.NilUlong())
+            try
             {
                 DebugConsole.Log("[GameClient] Attempting to reconnect to host...");
-                //ConnectToHost(MultiplayerSession.HostSteamID);
                 ConnectToHost(string.Empty, 7777);
             }
-            else
+            catch (Exception ex)
             {
-                DebugConsole.LogWarning("[GameClient] Cannot reconnect: HostSteamID is not set.");
+                Connection = null;
+                DebugConsole.LogWarning($"[GameClient] Failed to start Steam reconnect: {ex}");
+                return false;
             }
+
+            bool started = IsConnectionAttemptStarted(Connection);
+            if (!started)
+                Connection = null;
+            return started;
         }
 
         public override void Update()
@@ -158,7 +179,15 @@ namespace ONI_Together.Networking.Transport.Steam
                 try
                 {
                     //DebugConsole.Log($"[GameClient] Processing packet {i+1}/{msgCount}, size: {msg.m_cbSize} bytes, readyToProcess: {PacketHandler.readyToProcess}");
-                    PacketHandler.HandleIncoming(data);
+                    ulong senderId = msg.m_identityPeer.GetSteamID64();
+					if (!TryCreateHostDispatchContext(msg.m_conn, senderId, out DispatchContext context))
+					{
+						DebugConsole.LogWarning("[GameClient] Rejected message from a stale host connection");
+					}
+					else
+					{
+						PacketHandler.HandleIncoming(data, context);
+					}
                 }
                 catch (Exception ex)
                 {
@@ -179,7 +208,8 @@ namespace ONI_Together.Networking.Transport.Steam
 
             DebugConsole.Log($"[GameClient] Connection status changed: {state} (remote={remote})");
 
-            if (Connection.HasValue && data.m_hConn.m_HSteamNetConnection != Connection.Value.m_HSteamNetConnection)
+			if (!Connection.HasValue
+			    || data.m_hConn.m_HSteamNetConnection != Connection.Value.m_HSteamNetConnection)
                 return;
 
             switch (state)
@@ -189,7 +219,7 @@ namespace ONI_Together.Networking.Transport.Steam
                     break;
                 case ESteamNetworkingConnectionState.k_ESteamNetworkingConnectionState_ClosedByPeer:
                 case ESteamNetworkingConnectionState.k_ESteamNetworkingConnectionState_ProblemDetectedLocally:
-                    OnDisconnected("Closed by peer or problem detected locally", remote, state);
+					OnDisconnected(data.m_hConn, "Closed by peer or problem detected locally", remote, state);
                     break;
                 default:
                     break;
@@ -215,7 +245,7 @@ namespace ONI_Together.Networking.Transport.Steam
             }
 
             // Store the connection handle for host
-            MultiplayerSession.ConnectedPlayers[hostId].Connection = Connection;
+			MultiplayerSession.ConnectedPlayers[hostId].BeginConnection(Connection.Value);
 
             DebugConsole.Log("[GameClient] Connection to host established!");
 
@@ -229,15 +259,24 @@ namespace ONI_Together.Networking.Transport.Steam
 			NetworkConfig.TransportClient.OnRequestStateOrReturn.Invoke();
 		}
 
-        private static void OnDisconnected(string reason, CSteamID remote, ESteamNetworkingConnectionState state)
+		private static void OnDisconnected(
+			HSteamNetConnection connection,
+			string reason,
+			CSteamID remote,
+			ESteamNetworkingConnectionState state)
         {
             using var _ = Profiler.Scope();
 
             DebugConsole.LogWarning($"[GameClient] Connection closed or failed ({state}) for {remote}. Reason: {reason}");
+			bool loadingWorld = GameClient.State == ClientState.LoadingWorld;
+			TryEndHostConnection(connection);
+			Connection = null;
+			MultiplayerSession.InSession = false;
+			NetworkConfig.TransportClient.OnClientDisconnected?.Invoke();
 
             // If we're intentionally disconnecting for world loading, don't show error or return to title
             // We will reconnect automatically after the world finishes loading via ReconnectFromCache()
-            if (GameClient.State == ClientState.LoadingWorld)
+			if (loadingWorld)
             {
                 DebugConsole.Log("[GameClient] Ignoring disconnect callback - world is loading, will reconnect after.");
                 return;
@@ -259,6 +298,29 @@ namespace ONI_Together.Networking.Transport.Steam
                     break;
             }
         }
+
+		internal static bool TryCreateHostDispatchContext(
+			HSteamNetConnection connection,
+			ulong senderId,
+			out DispatchContext context)
+		{
+			context = default;
+			if (senderId != MultiplayerSession.HostUserID
+			    || !MultiplayerSession.ConnectedPlayers.TryGetValue(senderId, out MultiplayerPlayer host)
+			    || !host.IsCurrentConnection(connection, host.ConnectionGeneration))
+				return false;
+
+			context = new DispatchContext(senderId, true, host.ConnectionGeneration);
+			return true;
+		}
+
+		private static bool TryEndHostConnection(HSteamNetConnection connection)
+		{
+			return MultiplayerSession.ConnectedPlayers.TryGetValue(
+				       MultiplayerSession.HostUserID,
+				       out MultiplayerPlayer host)
+			       && host.EndConnection(connection, host.ConnectionGeneration);
+		}
 
         #region Connection Health
         public static SteamNetConnectionRealTimeStatus_t? QueryConnectionHealth()

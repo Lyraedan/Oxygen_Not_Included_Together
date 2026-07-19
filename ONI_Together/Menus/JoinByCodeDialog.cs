@@ -223,20 +223,8 @@ namespace ONI_Together.Menus
                 return;
             }
 
-            // Check password against stored hash
-            string storedHash = SteamMatchmaking.GetLobbyData(_pendingLobbyId.AsCSteamID(), "password_hash");
-            if (!string.IsNullOrEmpty(storedHash))
-            {
-                if (!PasswordHelper.VerifyPassword(password, storedHash))
-                {
-                    _errorText.text = STRINGS.UI.JOINBYDIALOGMENU.VALIDATE_ERR_INCORRECT_PASSWORD;
-                    _passwordInput.text = "";
-                    return;
-                }
-            }
-
-            // Password correct, join
-            JoinLobbyDirectly(_pendingLobbyId, password);
+			// The host validates the proof during the protocol handshake.
+			JoinLobbyDirectly(_pendingLobbyId, password);
         }
 
         private void JoinLobbyDirectly(ulong lobbyId, string password)

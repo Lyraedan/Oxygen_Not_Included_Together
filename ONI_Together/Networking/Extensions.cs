@@ -33,9 +33,18 @@ namespace ONI_Together.Networking
 			}
 
 			if (go.TryGetComponent<NetworkIdentity>(out var identity))
+			{
+				if (identity.IsUnavailableForBinding)
+					return null;
+				identity.RegisterIdentity();
+				identity.EnsureAuthoritativeSpawnBroadcast();
 				return identity;
+			}
 
-			return go.AddComponent<NetworkIdentity>();
+			NetworkIdentity created = go.AddComponent<NetworkIdentity>();
+			created.RegisterIdentity();
+			created.EnsureAuthoritativeSpawnBroadcast();
+			return created;
 		}
 
 		public static bool TryGetNetIdentity(this GameObject go, out NetworkIdentity identity)
@@ -49,10 +58,17 @@ namespace ONI_Together.Networking
 		{
 			using var _ = Profiler.Scope();
 
-			if (!behaviour.IsNullOrDestroyed() && behaviour.gameObject.TryGetNetIdentity(out var identity))
-			{
+			if (behaviour.IsNullOrDestroyed() || behaviour.gameObject.IsNullOrDestroyed())
+				return 0;
+			GameObject gameObject = behaviour.gameObject;
+			bool hasIdentity = gameObject.GetComponent<NetworkIdentity>() != null;
+			if (!NetworkIdentity.ShouldResolveBehaviourIdentity(
+				    behaviour is Workable,
+				    gameObject.GetComponent<SaveLoadRoot>() != null,
+				    hasIdentity))
+				return 0;
+			if (gameObject.TryGetNetIdentity(out var identity))
 				return identity.NetId;
-			}
 
 			return 0;
 		}

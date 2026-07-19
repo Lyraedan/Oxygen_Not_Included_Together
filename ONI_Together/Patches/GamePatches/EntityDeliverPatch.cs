@@ -10,6 +10,38 @@ using UnityEngine;
 
 namespace ONI_Together.Patches.GamePatches
 {
+	internal static class ManagedDeliverScope
+	{
+		internal static void Begin(out bool active)
+		{
+			active = MultiplayerSession.IsHostInSession;
+			if (active)
+				NetworkIdentity.BeginManagedSpawn();
+		}
+
+		internal static System.Exception End(System.Exception exception, bool active)
+		{
+			if (active)
+				NetworkIdentity.EndManagedSpawn();
+			return exception;
+		}
+
+		internal static ulong EnsureLifecycle(NetworkIdentity identity)
+		{
+			if (identity.NetId == 0)
+				identity.RegisterIdentity();
+			if (identity.NetId == 0)
+				return 0;
+			ulong revision = identity.LifecycleRevision;
+			if (revision == 0)
+			{
+				revision = NetworkIdentityRegistry.BeginLifecycle(identity.NetId);
+				identity.LifecycleRevision = revision;
+			}
+			return revision;
+		}
+	}
+
 	/// <summary>
 	/// Patch MinionStartingStats.Deliver to send EntitySpawnPacket when duplicants are spawned.
 	/// This ensures newly printed duplicants are synced to clients with correct NetIds.
@@ -17,6 +49,8 @@ namespace ONI_Together.Patches.GamePatches
 	[HarmonyPatch(typeof(MinionStartingStats), nameof(MinionStartingStats.Deliver))]
 	public static class MinionDeliverPatch
 	{
+		public static void Prefix(out bool __state) => ManagedDeliverScope.Begin(out __state);
+
 		public static void Postfix(MinionStartingStats __instance, Vector3 location, ref GameObject __result)
 		{
 			using var _ = Profiler.Scope();
@@ -30,22 +64,19 @@ namespace ONI_Together.Patches.GamePatches
 				// Get or add NetworkIdentity
 				var identity = __result.AddOrGet<NetworkIdentity>();
 
-				// Make sure the NetId is valid (not 0)
-				if (identity.NetId == 0)
-				{
-					// Force registration to generate a new NetId
-					identity.RegisterIdentity();
-					DebugConsole.Log($"[MinionDeliverPatch] Registered with NetId {identity.NetId} for {__instance.Name}");
-				}
+				ulong revision = ManagedDeliverScope.EnsureLifecycle(identity);
+				if (identity.NetId == 0 || revision == 0)
+					return;
 				// Send EntitySpawnPacket to clients
 				var packet = new TelepadEntitySpawnPacket
 				{
 					NetId = identity.NetId,
+					Revision = revision,
 					Pos = location,
 					EntityData = ImmigrantOptionEntry.FromGameDeliverable(__instance)
 				};
 
-				PacketSender.SendToAllClients(packet);
+				PacketSender.SendToAllClients(packet, PacketSendMode.ReliableImmediate);
 				DebugConsole.Log($"[MinionDeliverPatch] Sent EntitySpawnPacket for {__instance.Name} (NetId: {identity.NetId})");
 			}
 			catch (System.Exception ex)
@@ -53,6 +84,9 @@ namespace ONI_Together.Patches.GamePatches
 				DebugConsole.LogError($"[MinionDeliverPatch] Error: {ex.Message}");
 			}
 		}
+
+		public static System.Exception Finalizer(System.Exception __exception, bool __state)
+			=> ManagedDeliverScope.End(__exception, __state);
 	}
 
 	/// <summary>
@@ -61,6 +95,8 @@ namespace ONI_Together.Patches.GamePatches
 	[HarmonyPatch(typeof(CarePackageInfo), nameof(CarePackageInfo.Deliver))]
 	public static class CarePackageDeliverPatch
 	{
+		public static void Prefix(out bool __state) => ManagedDeliverScope.Begin(out __state);
+
 		public static void Postfix(CarePackageInfo __instance, Vector3 location, ref GameObject __result)
 		{
 			using var _ = Profiler.Scope();
@@ -74,22 +110,20 @@ namespace ONI_Together.Patches.GamePatches
 				// Get or add NetworkIdentity
 				var identity = __result.AddOrGet<NetworkIdentity>();
 
-				// Make sure the NetId is valid (not 0)
-				if (identity.NetId == 0)
-				{
-					identity.RegisterIdentity();
-					DebugConsole.Log($"[CarePackageDeliverPatch] Registered with NetId {identity.NetId} for {__instance.id}");
-				}
+				ulong revision = ManagedDeliverScope.EnsureLifecycle(identity);
+				if (identity.NetId == 0 || revision == 0)
+					return;
 
 				// Send EntitySpawnPacket to clients
 				var packet = new TelepadEntitySpawnPacket
 				{
 					NetId = identity.NetId,
+					Revision = revision,
 					Pos = location,
 					EntityData = ImmigrantOptionEntry.FromGameDeliverable(__instance)
 				};
 
-				PacketSender.SendToAllClients(packet);
+				PacketSender.SendToAllClients(packet, PacketSendMode.ReliableImmediate);
 				DebugConsole.Log($"[CarePackageDeliverPatch] Sent EntitySpawnPacket for {__instance.id} x{__instance.quantity} (NetId: {identity.NetId})");
 			}
 			catch (System.Exception ex)
@@ -97,5 +131,8 @@ namespace ONI_Together.Patches.GamePatches
 				DebugConsole.LogError($"[CarePackageDeliverPatch] Error: {ex.Message}");
 			}
 		}
+
+		public static System.Exception Finalizer(System.Exception __exception, bool __state)
+			=> ManagedDeliverScope.End(__exception, __state);
 	}
 }

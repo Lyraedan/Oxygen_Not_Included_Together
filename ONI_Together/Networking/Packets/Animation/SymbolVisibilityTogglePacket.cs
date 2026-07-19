@@ -10,7 +10,7 @@ using UnityEngine;
 
 namespace ONI_Together.Networking.Packets.Animation
 {
-	internal class SymbolVisibilityTogglePacket : IPacket
+	internal class SymbolVisibilityTogglePacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
 		int NetId;
 		KAnimHashedString Symbol;

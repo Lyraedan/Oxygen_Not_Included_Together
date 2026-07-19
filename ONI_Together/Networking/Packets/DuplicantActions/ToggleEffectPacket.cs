@@ -1,92 +1,100 @@
-﻿using Klei.AI;
+using System;
+using System.IO;
+using Klei.AI;
 using ONI_Together.DebugTools;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Patches.Duplicant;
 using Shared.Interfaces.Networking;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.DuplicantActions
 {
-	internal class ToggleEffectPacket : IPacket, IBulkablePacket
+	internal class ToggleEffectPacket : IPacket, IBulkablePacket, IHostOnlyPacket
 	{
+		internal const int MaxEffectIdLength = 128;
+		internal const float MaxAbsTimeRemaining = 1_000_000_000f;
 		public int MinionNetId;
 		public string EffectId;
 		public bool IsAdding;
 		public bool ShouldSave;
+		public float TimeRemaining;
 
 		public int MaxPackSize => 500;
-
 		public uint IntervalMs => 50;
 
 		public ToggleEffectPacket() { }
-		public ToggleEffectPacket(Effects instance, HashedString toRemove)
-		{
-			using var _ = Profiler.Scope();
 
-			MinionNetId = instance.gameObject.AddOrGet<NetworkIdentity>().NetId;
-			IsAdding = false;
+		public ToggleEffectPacket(NetworkIdentity identity, HashedString toRemove)
+		{
+			MinionNetId = identity?.NetId ?? 0;
 			EffectId = toRemove.ToString();
 		}
-		public ToggleEffectPacket(Effects instance, Effect toAdd, bool shouldSave)
-		{
-			using var _ = Profiler.Scope();
 
-			MinionNetId = instance.gameObject.AddOrGet<NetworkIdentity>().NetId;
+		public ToggleEffectPacket(NetworkIdentity identity, EffectInstance toAdd)
+		{
+			MinionNetId = identity?.NetId ?? 0;
 			IsAdding = true;
-			EffectId = toAdd.Id;
-			ShouldSave = shouldSave;
+			EffectId = toAdd?.effect?.Id;
+			ShouldSave = toAdd?.shouldSave ?? false;
+			TimeRemaining = toAdd?.timeRemaining ?? 0f;
 		}
 
 		public void Deserialize(BinaryReader reader)
 		{
 			using var _ = Profiler.Scope();
-
 			MinionNetId = reader.ReadInt32();
 			EffectId = reader.ReadString();
 			IsAdding = reader.ReadBoolean();
 			ShouldSave = reader.ReadBoolean();
+			TimeRemaining = reader.ReadSingle();
+			if (!IsWireValid())
+				throw new InvalidDataException("Invalid entity effect packet");
 		}
+
 		public void Serialize(BinaryWriter writer)
 		{
 			using var _ = Profiler.Scope();
-
+			if (!IsWireValid())
+				throw new InvalidDataException("Invalid entity effect packet");
 			writer.Write(MinionNetId);
-			writer.Write(EffectId ?? string.Empty);
+			writer.Write(EffectId);
 			writer.Write(IsAdding);
 			writer.Write(ShouldSave);
+			writer.Write(TimeRemaining);
 		}
 
 		public void OnDispatched()
 		{
 			using var _ = Profiler.Scope();
-
-			if (MultiplayerSession.IsHost)
+			if (!ShouldApply(MultiplayerSession.IsHost, PacketHandler.CurrentContext.SenderIsHost))
 				return;
-
-			if(!NetworkIdentityRegistry.TryGet(MinionNetId, out var minionId))
+			if (!NetworkIdentityRegistry.TryGet(MinionNetId, out var identity))
 			{
-				DebugConsole.LogError("Could not find minion with net id " + MinionNetId + " to toggle effect " + EffectId + " to " + (IsAdding ? "on" : "off"), false);
+				DebugConsole.LogWarning($"Could not find entity {MinionNetId} for effect {EffectId}");
+				return;
 			}
-			if(!minionId.TryGetComponent<Effects>(out var minionEffects))
+			if (!identity.TryGetComponent(out Effects effects))
 			{
-				DebugConsole.LogError("Could not find effects instance on minion "+minionId.gameObject.GetProperName(), false);
+				DebugConsole.LogWarning($"Could not find Effects on entity {MinionNetId}");
+				return;
 			}
 			if (IsAdding)
-			{
-				EffectsPatch.AddEffect(minionEffects, EffectId, ShouldSave);
-			}
+				EffectsPatch.AddEffect(effects, EffectId, ShouldSave, TimeRemaining);
 			else
-			{
-				EffectsPatch.RemoveEffect(minionEffects, EffectId);
-			}
+				EffectsPatch.RemoveEffect(effects, EffectId);
 		}
 
+		internal bool IsWireValid()
+			=> MinionNetId != 0 && !string.IsNullOrEmpty(EffectId) &&
+			   EffectId.Length <= MaxEffectIdLength && IsValidTime(TimeRemaining) &&
+			   (IsAdding || (TimeRemaining == 0f && !ShouldSave));
+
+		private static bool IsValidTime(float value)
+			=> !float.IsNaN(value) && !float.IsInfinity(value) &&
+			   Math.Abs(value) <= MaxAbsTimeRemaining;
+
+		internal static bool ShouldApply(bool localIsHost, bool senderIsHost)
+			=> !localIsHost && senderIsHost;
 	}
 }

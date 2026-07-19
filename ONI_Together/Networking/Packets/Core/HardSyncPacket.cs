@@ -6,7 +6,7 @@ using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.Core
 {
-	public class HardSyncPacket : IPacket
+	public class HardSyncPacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
 		public void Serialize(BinaryWriter writer)
 		{
@@ -39,6 +39,7 @@ namespace ONI_Together.Networking.Packets.Core
 		{
 			using var _ = Profiler.Scope();
 
+			ProductionDesyncRecovery.ReleaseClientForHardSync();
 			GameClient.IsHardSyncInProgress = true;
 			MultiplayerOverlay.Show(STRINGS.UI.MP_OVERLAY.SYNC.HARDSYNC_INPROGRESS);
 			DebugConsole.Log("[HardSync] Client entering in-place sync, staying connected for save transfer");

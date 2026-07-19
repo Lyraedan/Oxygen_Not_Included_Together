@@ -5,15 +5,17 @@ using ONI_Together.Networking.Packets.Architecture;
 using Shared.Profiling;
 using Steamworks;
 using UnityEngine;
+using Shared.Interfaces.Networking;
 
 namespace ONI_Together.Networking.Packets.Tools.Capture;
 
-public class CaptureToolPacket : IPacket
+public class CaptureToolPacket : IPacket, IClientRelayable, ISenderBoundRelay
 {
     private ulong        SenderId = MultiplayerSession.LocalUserID;
     private Vector2         Min;
     private Vector2         Max;
     private PrioritySetting Priority;
+	public ulong RelaySenderId => SenderId;
 
     public CaptureToolPacket()
     {

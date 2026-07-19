@@ -28,16 +28,12 @@ namespace ONI_Together.Networking.Packets.World
         {
             using var _ = Profiler.Scope();
             if (!MultiplayerSession.IsHost) return;
-            if (Subscribe)
-            {
-                StatusBroadcaster.SubscribedNetIds.Add(NetId);
-                StatusBroadcaster.PendingImmediate.Add(NetId);
-            }
-            else
-            {
-                StatusBroadcaster.SubscribedNetIds.Remove(NetId);
-                StatusBroadcaster.PendingImmediate.Remove(NetId);
-            }
+			DispatchContext context = PacketHandler.CurrentContext;
+			var player = MultiplayerSession.GetPlayer(context.SenderId);
+			if (context.SenderIsHost || player == null || !player.ProtocolVerified
+			    || !NetworkIdentityRegistry.Exists(NetId))
+				return;
+			StatusBroadcaster.SetSubscription(context.SenderId, NetId, Subscribe);
         }
     }
 }

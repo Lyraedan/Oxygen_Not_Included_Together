@@ -9,6 +9,7 @@ namespace ONI_Together.Networking.States
 		Connecting,
 		Connected,
 		LoadingWorld,
+		AwaitingReadyAck,
 		InGame
 	}
 
@@ -17,6 +18,7 @@ namespace ONI_Together.Networking.States
 	{
 		Ready,
 		Unready,
-		Loading
+		Loading,
+		Aborted = 4
 	}
 }

@@ -37,7 +37,7 @@ namespace ONI_Together.Networking.Transport.Steamworks
 
 		private static event System.Action _onLobbyCreatedSuccess = null;
 		private static event Action<CSteamID> _onLobbyJoined = null;
-		private static string _pendingPassword = null;
+		private static string _pendingPasswordHash = string.Empty;
 
 		private static event Action<CSteamID> _OnLobbyMembersRefreshed;
 		public static event Action<CSteamID> OnLobbyMembersRefreshed
@@ -90,6 +90,9 @@ namespace ONI_Together.Networking.Transport.Steamworks
 			DebugConsole.Log("[SteamLobby] Creating new lobby...");
 			MaxLobbySize = Configuration.GetHostProperty<int>("MaxLobbySize");
 			_onLobbyCreatedSuccess = onSuccess;
+			lobbyType = Configuration.Instance.Host.Lobby.IsPrivate
+				? ELobbyType.k_ELobbyTypeFriendsOnly
+				: ELobbyType.k_ELobbyTypePublic;
 			SteamMatchmaking.CreateLobby(lobbyType, MaxLobbySize);
 		}
 
@@ -114,6 +117,7 @@ namespace ONI_Together.Networking.Transport.Steamworks
 				MultiplayerSession.Clear();
 				CurrentLobby = CSteamID.Nil;
 				MaxLobbySize = 0;
+				_pendingPasswordHash = string.Empty;
 				SteamRichPresence.Clear();
 
                 SelectToolPatch.UpdateColor();
@@ -152,8 +156,10 @@ namespace ONI_Together.Networking.Transport.Steamworks
 
 				// Store lobby settings from config
 				var lobbySettings = Configuration.Instance.Host.Lobby;
-				SteamMatchmaking.SetLobbyData(CurrentLobby, "password_hash", lobbySettings.PasswordHash);
-				SteamMatchmaking.SetLobbyData(CurrentLobby, "has_password", lobbySettings.RequirePassword ? "1" : "0");
+				bool hasPassword = lobbySettings.RequirePassword && PasswordHelper.HasPassword(lobbySettings.PasswordHash);
+				SteamMatchmaking.SetLobbyData(CurrentLobby, "password_hash", string.Empty);
+				SteamMatchmaking.SetLobbyData(CurrentLobby, "auth_challenge", PasswordHelper.CreateChallenge());
+				SteamMatchmaking.SetLobbyData(CurrentLobby, "has_password", hasPassword ? "1" : "0");
 				SteamMatchmaking.SetLobbyData(CurrentLobby, "region", GetLocalRegion());
 				SteamMatchmaking.SetLobbyData(CurrentLobby, "game_id", "oni_multiplayer");
 
@@ -269,10 +275,7 @@ namespace ONI_Together.Networking.Transport.Steamworks
 					(stateChange & EChatMemberStateChange.k_EChatMemberStateChangeDisconnected) != 0 ||
 					(stateChange & EChatMemberStateChange.k_EChatMemberStateChangeKicked) != 0)
 			{
-				if (MultiplayerSession.ConnectedPlayers.TryGetValue(userId, out var p))
-					p.Connection = null;
-
-				MultiplayerSession.ConnectedPlayers.Remove(userId);
+				RemoveLobbyMemberIfTransportClosed(userId);
 
 				RefreshLobbyMembers();
 				DebugConsole.Log($"[SteamLobby] {name} left the lobby.");
@@ -280,7 +283,16 @@ namespace ONI_Together.Networking.Transport.Steamworks
                 ChatScreen.QueueMessage(pending);
                 Utils.PauseSimOnPlayerLeft();
                 Game.Instance?.Trigger(MP_HASHES.OnPlayerLeft);
-            }
+			}
+		}
+
+		internal static bool RemoveLobbyMemberIfTransportClosed(ulong userId)
+		{
+			if (!MultiplayerSession.ConnectedPlayers.TryGetValue(userId, out MultiplayerPlayer player)
+			    || player.Connection != null)
+				return false;
+
+			return MultiplayerSession.ConnectedPlayers.Remove(userId);
 		}
 
 		public static void JoinLobby(CSteamID lobbyId, Action<CSteamID> onJoinedLobby = null, string password = null)
@@ -297,7 +309,9 @@ namespace ONI_Together.Networking.Transport.Steamworks
 			}
 
 			_onLobbyJoined = onJoinedLobby;
-			_pendingPassword = password;
+			_pendingPasswordHash = string.IsNullOrEmpty(password)
+				? string.Empty
+				: PasswordHelper.HashPassword(password);
 			DebugConsole.Log($"[SteamLobby] Attempting to join lobby: {lobbyId}");
 			SteamMatchmaking.JoinLobby(lobbyId);
 		}
@@ -394,21 +408,44 @@ namespace ONI_Together.Networking.Transport.Steamworks
 			return hasPassword == "1";
 		}
 
-		/// <summary>
-		/// Validate a password against the lobby's stored hash.
-		/// </summary>
-		public static bool ValidateLobbyPassword(ulong lobbyId, string password)
+		public static bool IsCurrentLobbyMember(ulong clientId)
 		{
 			using var _ = Profiler.Scope();
 
-			if (!NetworkConfig.IsSteamConfig())
-				return false; // Default to invalid as these don't have passwords yet
+			if (!NetworkConfig.IsSteamConfig() || !InLobby || clientId == 0)
+				return false;
+			int memberCount = SteamMatchmaking.GetNumLobbyMembers(CurrentLobby);
+			for (int i = 0; i < memberCount; i++)
+			{
+				if (SteamMatchmaking.GetLobbyMemberByIndex(CurrentLobby, i).m_SteamID == clientId)
+					return true;
+			}
+			return false;
+		}
 
-			string storedHash = SteamMatchmaking.GetLobbyData(lobbyId.AsCSteamID(), "password_hash");
-			if (string.IsNullOrEmpty(storedHash))
-				return true; // No password set
+		public static byte[] CreateCurrentLobbyAccessProof(ulong clientId)
+		{
+			if (!NetworkConfig.IsSteamConfig() || !InLobby || clientId == 0
+			    || !LobbyRequiresPassword(CurrentLobby))
+				return Array.Empty<byte>();
 
-			return PasswordHelper.VerifyPassword(password, storedHash);
+			string challenge = SteamMatchmaking.GetLobbyData(CurrentLobby, "auth_challenge");
+			return PasswordHelper.CreateAccessProof(
+				_pendingPasswordHash, challenge, CurrentLobby.m_SteamID, clientId);
+		}
+
+		public static bool ValidateCurrentLobbyAccess(ulong clientId, byte[] proof)
+		{
+			if (!IsCurrentLobbyMember(clientId))
+				return false;
+
+			LobbySettings settings = Configuration.Instance.Host.Lobby;
+			if (!settings.RequirePassword)
+				return proof == null || proof.Length == 0;
+
+			string challenge = SteamMatchmaking.GetLobbyData(CurrentLobby, "auth_challenge");
+			return PasswordHelper.VerifyAccessProof(
+				settings.PasswordHash, challenge, CurrentLobby.m_SteamID, clientId, proof);
 		}
 
 		/// <summary>
@@ -425,7 +462,8 @@ namespace ONI_Together.Networking.Transport.Steamworks
 			}
 
 			string hash = string.IsNullOrEmpty(password) ? "" : PasswordHelper.HashPassword(password);
-			SteamMatchmaking.SetLobbyData(CurrentLobby, "password_hash", hash);
+			SteamMatchmaking.SetLobbyData(CurrentLobby, "password_hash", string.Empty);
+			SteamMatchmaking.SetLobbyData(CurrentLobby, "auth_challenge", PasswordHelper.CreateChallenge());
 			SteamMatchmaking.SetLobbyData(CurrentLobby, "has_password", string.IsNullOrEmpty(hash) ? "0" : "1");
 
 			// Also update config

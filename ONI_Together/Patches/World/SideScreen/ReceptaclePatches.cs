@@ -3,6 +3,7 @@ using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.World;
+using Shared;
 using Shared.Profiling;
 
 namespace ONI_Together.Patches.World.SideScreen
@@ -27,9 +28,8 @@ namespace ONI_Together.Patches.World.SideScreen
 	{
 		public static bool Prefix()
 		{
-			if (!MultiplayerSession.InSession) return true;
-			if (MultiplayerSession.IsHost) return true;
-			return false; // Client: skip CreateOrder to prevent preview plant; Postfix still sends packet
+			return !MultiplayerSession.InSession || MultiplayerSession.IsHost
+			       || BuildingConfigPacket.IsApplyingPacket;
 		}
 
 		public static void Postfix(SingleEntityReceptacle __instance, Tag entityTag, Tag additionalFilterTag)
@@ -44,36 +44,19 @@ namespace ONI_Together.Patches.World.SideScreen
 			if (!identity)
 				return;
 
-            var packetEntity = new BuildingConfigPacket
+			var packet = new BuildingConfigPacket
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "ReceptacleEntityTag".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("ReceptacleOrder"),
 				Value = 0,
 				ConfigType = BuildingConfigType.String,
-				StringValue = entityTag.IsValid ? entityTag.Name : ""
+				StringValue = entityTag.IsValid ? entityTag.Name : "",
+				SecondaryStringValue = additionalFilterTag.IsValid ? additionalFilterTag.Name : ""
 			};
 
-            var packetFilter = new BuildingConfigPacket
-			{
-				NetId = identity.NetId,
-				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "ReceptacleFilterTag".GetHashCode(),
-				Value = 0,
-				ConfigType = BuildingConfigType.String,
-				StringValue = additionalFilterTag.IsValid ? additionalFilterTag.Name : ""
-			};
-
-            if (MultiplayerSession.IsHost)
-			{
-				PacketSender.SendToAllClients(packetEntity);
-				PacketSender.SendToAllClients(packetFilter);
-			}
-			else
-			{
-				PacketSender.SendToHost(packetEntity);
-				PacketSender.SendToHost(packetFilter);
-			}
+			if (MultiplayerSession.IsHost) PacketSender.SendToAllClients(packet);
+			else PacketSender.SendToHost(packet);
         }
     }
 
@@ -82,9 +65,8 @@ namespace ONI_Together.Patches.World.SideScreen
 	{
 		public static bool Prefix()
 		{
-			if (!MultiplayerSession.InSession) return true;
-			if (MultiplayerSession.IsHost) return true;
-			return false; // Client: skip, let host handle it
+			return !MultiplayerSession.InSession || MultiplayerSession.IsHost
+			       || BuildingConfigPacket.IsApplyingPacket;
 		}
 
 		public static void Postfix(SingleEntityReceptacle __instance)
@@ -103,9 +85,9 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "ReceptacleCancelRequest".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("ReceptacleCancelRequest"),
 				Value = 1f,
-				ConfigType = BuildingConfigType.Float
+				ConfigType = BuildingConfigType.Boolean
 			};
 
             if (MultiplayerSession.IsHost) PacketSender.SendToAllClients(packet);

@@ -1,164 +1,395 @@
-using ONI_Together.DebugTools;
+using System;
+using System.Collections.Generic;
+using System.IO;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Architecture;
-using System.IO;
-using Shared.Profiling;
+using Shared.Interfaces.Networking;
 using UnityEngine;
 
 namespace ONI_Together.Networking.Packets.World
 {
-	/// <summary>
-	/// Synchronizes building assignments (Outhouse, Lavatory, Triage Cot, Massage Table, etc.)
-	/// Uses NetIDs for duplicants to ensure consistent assignment across host and clients.
-	/// </summary>
-	public class AssignmentPacket : IPacket
+	public enum AssignmentAssigneeKind : byte
 	{
-		public int BuildingNetId;       // NetID of the building being assigned
-		public int Cell;                // Cell location for fallback lookup
-		public int AssigneeNetId;       // NetID of the duplicant being assigned (-1 for unassign)
-		public string GroupId = "";     // For assignment groups like "public"
+		None,
+		Entity,
+		Group,
+		Room
+	}
 
-		public static bool IsApplying = false;
+	public sealed class AssignmentData
+	{
+		internal const int MaxCell = 4 * 1024 * 1024;
+		internal const int MaxGroupIdLength = 256;
+		internal const int MaxSlotIdLength = 256;
 
-		public void Serialize(BinaryWriter writer)
+		public int TargetNetId;
+		public int Cell;
+		public AssignmentAssigneeKind AssigneeKind;
+		public int AssigneeNetId;
+		public string GroupId = "";
+		public string SlotId = "";
+
+		internal bool IsWireValid()
 		{
-			using var _ = Profiler.Scope();
+			if (TargetNetId == 0 || Cell < 0 || Cell >= MaxCell ||
+			    AssigneeKind > AssignmentAssigneeKind.Room || GroupId == null || SlotId == null ||
+			    SlotId.Length > MaxSlotIdLength)
+				return false;
+			return AssigneeKind switch
+			{
+				AssignmentAssigneeKind.None => AssigneeNetId == 0 && GroupId.Length == 0 && SlotId.Length == 0,
+				AssignmentAssigneeKind.Entity => AssigneeNetId != 0 && GroupId.Length == 0,
+				AssignmentAssigneeKind.Group => AssigneeNetId == 0 && GroupId.Length > 0 &&
+				                                GroupId.Length <= MaxGroupIdLength && SlotId.Length == 0,
+				AssignmentAssigneeKind.Room => AssigneeNetId == 0 && GroupId.Length == 0 && SlotId.Length == 0,
+				_ => false
+			};
+		}
 
-			writer.Write(BuildingNetId);
+		internal void Serialize(BinaryWriter writer)
+		{
+			if (!IsWireValid())
+				throw new InvalidDataException("Invalid assignment state");
+			writer.Write(TargetNetId);
 			writer.Write(Cell);
+			writer.Write((byte)AssigneeKind);
 			writer.Write(AssigneeNetId);
-			writer.Write(GroupId ?? "");
+			writer.Write(GroupId);
+			writer.Write(SlotId);
 		}
 
-		public void Deserialize(BinaryReader reader)
+		internal static AssignmentData Deserialize(BinaryReader reader)
 		{
-			using var _ = Profiler.Scope();
-
-			BuildingNetId = reader.ReadInt32();
-			Cell = reader.ReadInt32();
-			AssigneeNetId = reader.ReadInt32();
-			GroupId = reader.ReadString();
+			var data = new AssignmentData
+			{
+				TargetNetId = reader.ReadInt32(),
+				Cell = reader.ReadInt32(),
+				AssigneeKind = (AssignmentAssigneeKind)reader.ReadByte(),
+				AssigneeNetId = reader.ReadInt32(),
+				GroupId = reader.ReadString(),
+				SlotId = reader.ReadString()
+			};
+			if (!data.IsWireValid())
+				throw new InvalidDataException("Invalid assignment state");
+			return data;
 		}
+	}
+
+	public sealed class AssignmentRequestPacket : IPacket, IClientRelayable
+	{
+		public AssignmentData Data = new();
+
+		public AssignmentRequestPacket()
+		{
+		}
+
+		internal AssignmentRequestPacket(AssignmentData data) => Data = data;
+
+		public void Serialize(BinaryWriter writer) => Data.Serialize(writer);
+		public void Deserialize(BinaryReader reader) => Data = AssignmentData.Deserialize(reader);
 
 		public void OnDispatched()
 		{
-			using var _ = Profiler.Scope();
+			DispatchContext context = PacketHandler.CurrentContext;
+			bool verified = MultiplayerSession.GetPlayer(context.SenderId)?.ProtocolVerified == true;
+			if (!ShouldAccept(MultiplayerSession.IsHost, context, verified) ||
+			    !AssignmentSync.TryApply(Data, enforceCanAssign: true, out Assignable assignable) ||
+			    !AssignmentSync.TryCapture(assignable, out AssignmentData state))
+				return;
+			PacketSender.SendToAllClients(new AssignmentPacket(state));
+		}
 
-			DebugConsole.Log($"[AssignmentPacket] Received: BuildingNetId={BuildingNetId}, Cell={Cell}, AssigneeNetId={AssigneeNetId}, GroupId={GroupId}");
+		internal static bool ShouldAccept(bool localIsHost, DispatchContext context, bool protocolVerified)
+			=> localIsHost && !context.SenderIsHost && context.IsVerifiedHostBroadcast && protocolVerified;
+	}
 
-			NetworkIdentity buildingIdentity = null;
+	public sealed class AssignmentPacket : IPacket, IHostOnlyPacket
+	{
+		public AssignmentData Data = new();
+		public static bool IsApplying;
 
-			// Try to find by NetID first
-			if (!NetworkIdentityRegistry.TryGet(BuildingNetId, out buildingIdentity) || buildingIdentity == null)
+		public AssignmentPacket()
+		{
+		}
+
+		internal AssignmentPacket(AssignmentData data) => Data = data;
+
+		public void Serialize(BinaryWriter writer) => Data.Serialize(writer);
+		public void Deserialize(BinaryReader reader) => Data = AssignmentData.Deserialize(reader);
+
+		public void OnDispatched()
+		{
+			if (ShouldApply(MultiplayerSession.IsHost, PacketHandler.CurrentContext.SenderIsHost))
+				AssignmentSync.TryApply(Data, enforceCanAssign: false, out _);
+		}
+
+		internal static bool ShouldApply(bool localIsHost, bool senderIsHost)
+			=> !localIsHost && senderIsHost;
+	}
+
+	internal static class AssignmentSync
+	{
+		internal static bool IsApplyingHostOutcome { get; private set; }
+
+		internal static bool TryCapture(Assignable assignable, out AssignmentData data)
+		{
+			data = null;
+			NetworkIdentity target = assignable?.GetComponent<NetworkIdentity>();
+			if (target == null || target.NetId == 0)
+				return false;
+
+			data = new AssignmentData
 			{
-				// Fallback: find building by cell
-				if (Grid.IsValidCell(Cell))
+				TargetNetId = target.NetId,
+				Cell = Grid.PosToCell(assignable.gameObject)
+			};
+			if (!TryCaptureAssignee(assignable.assignee, data))
+				return false;
+			data.SlotId = FindAssignedSlotId(assignable, assignable.assignee);
+			return data.IsWireValid();
+		}
+
+		internal static bool TryApply(
+			AssignmentData data,
+			bool enforceCanAssign,
+			out Assignable assignable)
+		{
+			assignable = null;
+			if (data == null || !data.IsWireValid() || !TryResolveTarget(data, out assignable))
+				return false;
+			if (!TryResolveAssignee(assignable, data, out IAssignableIdentity assignee))
+				return false;
+			if (!TryResolveSpecificSlot(assignable, assignee, data, out AssignableSlotInstance specificSlot))
+				return false;
+			if (ShouldRequireCanAssign(enforceCanAssign) && assignee != null && !assignable.CanAssignTo(assignee))
+				return false;
+
+			Assignable target = assignable;
+			RunApplying(() =>
+			{
+				if (assignee == null)
 				{
-					GameObject buildingGO = Grid.Objects[Cell, (int)ObjectLayer.Building];
-					if (buildingGO != null)
-					{
-						buildingIdentity = buildingGO.AddOrGet<NetworkIdentity>();
-						buildingIdentity.NetId = BuildingNetId;
-						buildingIdentity.RegisterIdentity();
-						DebugConsole.Log($"[AssignmentPacket] Resolved building by cell {Cell}, assigned NetId {BuildingNetId}");
-					}
+					if (target.IsAssigned())
+						target.Unassign();
 				}
-			}
+				else if (!AssignmentMatches(target, assignee, specificSlot))
+				{
+					if (target.IsAssigned())
+						target.Unassign();
+					target.Assign(assignee, specificSlot);
+				}
+			}, applyingHostOutcome: !enforceCanAssign);
+			return true;
+		}
 
-			if (buildingIdentity == null || buildingIdentity.gameObject == null)
-			{
-				DebugConsole.LogWarning($"[AssignmentPacket] Building NetId {BuildingNetId} at Cell {Cell} not found.");
+		internal static bool ShouldRequireCanAssign(bool isHostRequest) => isHostRequest;
+
+		internal static void SendRequest(Assignable assignable, IAssignableIdentity assignee,
+			AssignableSlotInstance specificSlot = null)
+		{
+			if (!TryBuildRequest(assignable, assignee, specificSlot, out AssignmentData data))
 				return;
+			PacketSender.SendToAllOtherPeers(new AssignmentRequestPacket(data));
+		}
+
+		internal static void Broadcast(Assignable assignable)
+		{
+			if (AssignmentPacket.IsApplying || !MultiplayerSession.InSession || !MultiplayerSession.IsHost ||
+			    !TryCapture(assignable, out AssignmentData data))
+				return;
+			PacketSender.SendToAllClients(new AssignmentPacket(data));
+		}
+
+		internal static bool IdentityMatches(
+			int requestedNetId,
+			int claimedCell,
+			int registeredNetId,
+			int actualCell,
+			int deterministicNetId)
+			=> requestedNetId != 0 && requestedNetId == registeredNetId && claimedCell == actualCell &&
+			   (deterministicNetId == 0 || deterministicNetId == requestedNetId);
+
+		private static bool TryBuildRequest(
+			Assignable assignable,
+			IAssignableIdentity assignee,
+			AssignableSlotInstance specificSlot,
+			out AssignmentData data)
+		{
+			data = null;
+			NetworkIdentity target = assignable?.GetComponent<NetworkIdentity>();
+			if (target == null || target.NetId == 0)
+				return false;
+			data = new AssignmentData
+			{
+				TargetNetId = target.NetId,
+				Cell = Grid.PosToCell(assignable.gameObject),
+				SlotId = specificSlot?.ID ?? ""
+			};
+			return TryCaptureAssignee(assignee, data) && data.IsWireValid();
+		}
+
+		private static bool TryCaptureAssignee(IAssignableIdentity assignee, AssignmentData data)
+		{
+			if (assignee == null)
+			{
+				data.AssigneeKind = AssignmentAssigneeKind.None;
+				return true;
+			}
+			if (assignee is AssignmentGroup group)
+			{
+				data.AssigneeKind = AssignmentAssigneeKind.Group;
+				data.GroupId = group.id;
+				return true;
+			}
+			if (assignee is Room)
+			{
+				data.AssigneeKind = AssignmentAssigneeKind.Room;
+				return true;
 			}
 
-			var assignable = buildingIdentity.gameObject.GetComponent<Assignable>();
+			GameObject target = assignee is MinionAssignablesProxy proxy
+				? proxy.GetTargetGameObject()
+				: (assignee as KMonoBehaviour)?.gameObject;
+			NetworkIdentity identity = target?.GetComponent<NetworkIdentity>();
+			if (identity == null || identity.NetId == 0)
+				return false;
+			data.AssigneeKind = AssignmentAssigneeKind.Entity;
+			data.AssigneeNetId = identity.NetId;
+			return true;
+		}
+
+		private static bool TryResolveTarget(AssignmentData data, out Assignable assignable)
+		{
+			assignable = null;
+			if (!NetworkIdentityRegistry.TryGet(data.TargetNetId, out NetworkIdentity identity) || identity == null)
+				return false;
+			assignable = identity.GetComponent<Assignable>();
 			if (assignable == null)
-			{
-				DebugConsole.LogWarning($"[AssignmentPacket] Building {buildingIdentity.name} has no Assignable component.");
-				return;
-			}
+				return false;
+			int deterministicId = identity.TryGetComponent<Building>(out _)
+				? NetIdHelper.GetDeterministicBuildingId(identity.gameObject)
+				: 0;
+			return IdentityMatches(data.TargetNetId, data.Cell, identity.NetId,
+				Grid.PosToCell(identity.gameObject), deterministicId);
+		}
 
+		private static bool TryResolveAssignee(
+			Assignable assignable,
+			AssignmentData data,
+			out IAssignableIdentity assignee)
+		{
+			assignee = null;
+			if (data.AssigneeKind == AssignmentAssigneeKind.None)
+				return true;
+			if (data.AssigneeKind == AssignmentAssigneeKind.Group)
+				return Game.Instance.assignmentManager.assignment_groups.TryGetValue(data.GroupId, out AssignmentGroup group) &&
+				       (assignee = group) != null;
+			if (data.AssigneeKind == AssignmentAssigneeKind.Room)
+				return (assignee = Game.Instance.roomProber.GetRoomOfGameObject(assignable.gameObject)) != null;
+			if (!NetworkIdentityRegistry.TryGet(data.AssigneeNetId, out NetworkIdentity identity) || identity == null)
+				return false;
+
+			MinionIdentity minion = identity.GetComponent<MinionIdentity>();
+			if (minion != null)
+			{
+				assignee = minion.GetSoleOwner()?.GetComponent<MinionAssignablesProxy>() ??
+				           (IAssignableIdentity)minion;
+				return true;
+			}
+			assignee = identity.GetComponent<StoredMinionIdentity>() ??
+			           identity.GetComponent<IAssignableIdentity>();
+			return assignee != null;
+		}
+
+		private static bool TryResolveSpecificSlot(
+			Assignable assignable,
+			IAssignableIdentity assignee,
+			AssignmentData data,
+			out AssignableSlotInstance specificSlot)
+		{
+			specificSlot = null;
+			if (data.SlotId.Length == 0)
+				return true;
+			if (data.AssigneeKind != AssignmentAssigneeKind.Entity || assignee == null || assignable.slot == null)
+				return false;
+			Ownables owner = assignee.GetSoleOwner();
+			if (owner == null)
+				return false;
+			if (TryFindSlot(owner.Slots, assignable.slot, data.SlotId, out specificSlot))
+				return true;
+			Equipment equipment = owner.GetComponent<Equipment>();
+			return equipment != null && TryFindSlot(equipment.Slots, assignable.slot, data.SlotId,
+				out specificSlot);
+		}
+
+		private static bool TryFindSlot(IEnumerable<AssignableSlotInstance> slots, AssignableSlot expectedSlot,
+			string slotId, out AssignableSlotInstance match)
+		{
+			match = null;
+			if (slots == null)
+				return false;
+			foreach (AssignableSlotInstance candidate in slots)
+				if (candidate != null && ReferenceEquals(candidate.slot, expectedSlot) &&
+				    string.Equals(candidate.ID, slotId, StringComparison.Ordinal))
+				{
+					match = candidate;
+					return true;
+				}
+			return false;
+		}
+
+		private static string FindAssignedSlotId(Assignable assignable, IAssignableIdentity assignee)
+		{
+			if (assignable?.slot == null || assignee == null)
+				return "";
+			Ownables owner = assignee.GetSoleOwner();
+			if (owner == null)
+				return "";
+			if (TryFindAssignedSlot(owner.Slots, assignable, out string slotId))
+				return slotId;
+			Equipment equipment = owner.GetComponent<Equipment>();
+			return equipment != null && TryFindAssignedSlot(equipment.Slots, assignable, out slotId)
+				? slotId
+				: "";
+		}
+
+		private static bool TryFindAssignedSlot(IEnumerable<AssignableSlotInstance> slots,
+			Assignable assignable, out string slotId)
+		{
+			slotId = "";
+			if (slots == null)
+				return false;
+			foreach (AssignableSlotInstance candidate in slots)
+				if (candidate != null && ReferenceEquals(candidate.slot, assignable.slot) &&
+				    ReferenceEquals(candidate.assignable, assignable) &&
+				    !string.IsNullOrEmpty(candidate.ID))
+				{
+					slotId = candidate.ID;
+					return true;
+				}
+			return false;
+		}
+
+		private static bool AssignmentMatches(Assignable target, IAssignableIdentity assignee,
+			AssignableSlotInstance specificSlot)
+			=> ReferenceEquals(target.assignee, assignee) &&
+			   (specificSlot == null || ReferenceEquals(specificSlot.assignable, target));
+
+		private static void RunApplying(System.Action action, bool applyingHostOutcome)
+		{
+			bool previous = AssignmentPacket.IsApplying;
+			bool previousOutcome = IsApplyingHostOutcome;
+			AssignmentPacket.IsApplying = true;
+			IsApplyingHostOutcome = applyingHostOutcome;
 			try
 			{
-				IsApplying = true;
-				ApplyAssignment(assignable);
+				action();
 			}
 			finally
 			{
-				IsApplying = false;
+				AssignmentPacket.IsApplying = previous;
+				IsApplyingHostOutcome = previousOutcome;
 			}
-
-			// HOST RELAY
-			if (MultiplayerSession.IsHost)
-			{
-				PacketSender.SendToAllClients(this);
-				DebugConsole.Log($"[AssignmentPacket] Host relayed assignment to all clients.");
-			}
-		}
-
-		private void ApplyAssignment(Assignable assignable)
-		{
-			using var _ = Profiler.Scope();
-
-			// Unassign case
-			if (AssigneeNetId == -1 && string.IsNullOrEmpty(GroupId))
-			{
-				assignable.Unassign();
-				DebugConsole.Log($"[AssignmentPacket] Unassigned {assignable.name}");
-				return;
-			}
-
-			// Assignment group (e.g., "public")
-			if (!string.IsNullOrEmpty(GroupId))
-			{
-				if (Game.Instance.assignmentManager.assignment_groups.TryGetValue(GroupId, out var group))
-				{
-					assignable.Assign(group);
-					DebugConsole.Log($"[AssignmentPacket] Assigned {assignable.name} to group '{GroupId}'");
-				}
-				else
-				{
-					DebugConsole.LogWarning($"[AssignmentPacket] Assignment group '{GroupId}' not found.");
-				}
-				return;
-			}
-
-			// Duplicant assignment - find by NetID
-			if (!NetworkIdentityRegistry.TryGet(AssigneeNetId, out var dupeIdentity) || dupeIdentity == null)
-			{
-				DebugConsole.LogWarning($"[AssignmentPacket] Assignee NetId {AssigneeNetId} not found.");
-				return;
-			}
-
-			// Get the IAssignableIdentity from the duplicant
-			var minionIdentity = dupeIdentity.gameObject.GetComponent<MinionIdentity>();
-			if (minionIdentity != null)
-			{
-				// MinionIdentity needs to go through its proxy for assignments
-				var proxy = minionIdentity.GetSoleOwner()?.GetComponent<MinionAssignablesProxy>();
-				if (proxy != null)
-				{
-					assignable.Assign(proxy);
-					DebugConsole.Log($"[AssignmentPacket] Assigned {assignable.name} to {minionIdentity.name} via proxy");
-					return;
-				}
-
-				// Try direct assignment if proxy not found
-				assignable.Assign(minionIdentity);
-				DebugConsole.Log($"[AssignmentPacket] Assigned {assignable.name} to {minionIdentity.name}");
-				return;
-			}
-
-			// Try StoredMinionIdentity (for frozen duplicants, etc.)
-			var storedIdentity = dupeIdentity.gameObject.GetComponent<StoredMinionIdentity>();
-			if (storedIdentity != null)
-			{
-				assignable.Assign(storedIdentity);
-				DebugConsole.Log($"[AssignmentPacket] Assigned {assignable.name} to stored minion");
-				return;
-			}
-
-			DebugConsole.LogWarning($"[AssignmentPacket] Could not find assignable identity on NetId {AssigneeNetId}");
 		}
 	}
 }

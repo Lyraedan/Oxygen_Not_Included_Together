@@ -197,14 +197,8 @@ namespace ONI_Together.Networking.Components
 				UtilityPathData = utilityPathData
             };
 
-			if (MultiplayerSession.IsHost)
-			{
-				PacketSender.SendToAllClients(packet, PacketSendMode.Unreliable);
-			}
-			else
-			{
-				PacketSender.SendToHost(packet, PacketSendMode.Unreliable);
-			}
+			// Host fans out directly; clients use the validated HostBroadcast relay.
+			PacketSender.SendToAllOtherPeers(packet);
 		}
 
 		

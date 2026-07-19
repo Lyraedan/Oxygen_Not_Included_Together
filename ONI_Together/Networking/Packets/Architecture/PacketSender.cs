@@ -15,11 +15,15 @@ using System.Runtime.InteropServices;
 using Shared.Profiling;
 using UnityEngine;
 using ONI_Together.Networking.Components;
+using ONI_Together.Networking.States;
 
 namespace ONI_Together.Networking
 {
-	public static class PacketSender
+	public static partial class PacketSender
 	{
+		internal static bool CanSendPeerRuntime(bool isHost, ClientState clientState)
+			=> isHost || GameClient.CanSendRuntimeRequests(clientState);
+
 		private class PacketUpdateRunner
 		{
 			private readonly float _updateIntervalS;
@@ -46,12 +50,14 @@ namespace ONI_Together.Networking
 
 				_lastDispatchTime[connection] = Time.unscaledTime;
 			}
+
+			public void DropConnection(object connection) => _lastDispatchTime.Remove(connection);
 		}
 
 		// Kilobytes
         public static float MAX_PACKET_SIZE_LAN = 0.5f; // 512 bytes (is multipled by 1024)
         public static int MAX_PACKET_SIZE_RELIABLE = 512;
-		public static int MAX_PACKET_SIZE_UNRELIABLE = 1024;
+		public const int MAX_PACKET_SIZE_UNRELIABLE = 1000;
 
         public static byte[] SerializePacketForSending(IPacket packet)
 		{
@@ -69,14 +75,92 @@ namespace ONI_Together.Networking
 
 		static Dictionary<int, PacketUpdateRunner> UpdateRunners = [];
 		static Dictionary<object, Dictionary<int, List<byte[]>>> WaitingBulkPacketsPerReceiver = [];
+		private static readonly object SendGate = new();
+		private static readonly HashSet<(ulong Sender, long Generation, long Epoch)>
+			TerminatedIncomingStreams = new();
+		private static readonly ReliablePageChannel PageChannel = new(
+			SendReliablePageLocked,
+			SendReliablePageAck,
+			PacketHandler.TryHandleIncomingReliableFrame,
+			TerminateOutgoingPageStream,
+			TerminateIncomingReliableStream,
+			isContextCurrent: PacketHandler.IsCurrentDispatchContext);
+#if DEBUG
+		internal static Action<object> OutgoingPageTerminationForTests;
+		internal static Action<DispatchContext> IncomingPageTerminationForTests;
+#endif
 		// Running byte total per (receiver, packetId) so LAN capacity checks stay O(1) per append.
 		static Dictionary<object, Dictionary<int, int>> WaitingBulkPacketBytes = [];
 		// Packet ids that belong to DragToolPacket subclasses — tagged lazily on first append
 		// so the bulk flush site can record SyncStats.DragTool without needing the typed instance.
 		static HashSet<int> DragToolBulkPacketIds = new HashSet<int>();
+
+		public static void ResetSessionState()
+		{
+			lock (SendGate)
+			{
+				UpdateRunners.Clear();
+				WaitingBulkPacketsPerReceiver.Clear();
+				WaitingBulkPacketBytes.Clear();
+				DragToolBulkPacketIds.Clear();
+				_sendErrorCount = 0;
+				TerminatedIncomingStreams.Clear();
+				PageChannel.Reset();
+				OrderedReliableChannel.ResetSessionState();
+			}
+		}
+
+		public static void DropConnection(object connection)
+		{
+			if (connection == null)
+				return;
+			lock (SendGate)
+			{
+				WaitingBulkPacketsPerReceiver.Remove(connection);
+				WaitingBulkPacketBytes.Remove(connection);
+				foreach (PacketUpdateRunner runner in UpdateRunners.Values)
+					runner.DropConnection(connection);
+				PageChannel.DropConnection(connection);
+				OrderedReliableChannel.DropConnection(connection);
+			}
+		}
+
+		internal static void DropIncoming(ulong senderId)
+		{
+			lock (SendGate)
+			{
+				PageChannel.DropIncoming(senderId);
+				TerminatedIncomingStreams.RemoveWhere(key => key.Sender == senderId);
+			}
+		}
+
+		internal static int PendingBulkCountForTests(object connection)
+		{
+			lock (SendGate)
+			{
+				if (connection == null
+				    || !WaitingBulkPacketsPerReceiver.TryGetValue(connection, out var packetsByType))
+					return 0;
+				return packetsByType.Values.Sum(packets => packets.Count);
+			}
+		}
+
+		internal static bool HasPendingReliable(object connection)
+		{
+			lock (SendGate)
+				return PageChannel.HasPendingReliable(connection);
+		}
+
 		public static void DispatchPendingBulkPackets()
 		{
+			lock (SendGate)
+				DispatchPendingBulkPacketsLocked();
+		}
+
+		private static void DispatchPendingBulkPacketsLocked()
+		{
 			using var _ = Profiler.Scope();
+			PageChannel.ExpireStalledTransfers();
 
 			var emptyConnections = new List<object>();
 			foreach (var kvp in WaitingBulkPacketsPerReceiver)
@@ -98,7 +182,7 @@ namespace ONI_Together.Networking
 			}
 		}
 
-		static void DispatchPendingBulkPacketOfType(object conn, int packetId, bool intervalRun = false)
+		static bool DispatchPendingBulkPacketOfType(object conn, int packetId, bool intervalRun = false)
 		{
 			using var _ = Profiler.Scope();
 
@@ -106,10 +190,10 @@ namespace ONI_Together.Networking
 				|| !allPendingPackets.TryGetValue(packetId, out var pendingPackets)
 				|| !pendingPackets.Any())
 			{
-				return;
+				return true;
 			}
 			if (intervalRun && UpdateRunners.TryGetValue(packetId, out var intervalRunner) && !intervalRunner.CanDispatchNext(conn))
-				return;
+				return true;
 
 			int flushCount = pendingPackets.Count;
 			int flushBytes = 0;
@@ -117,8 +201,17 @@ namespace ONI_Together.Networking
 			if (byteTotals != null && byteTotals.TryGetValue(packetId, out var bt))
 				flushBytes = bt;
 			var swFlush = System.Diagnostics.Stopwatch.StartNew();
-			SendToConnection(conn, new BulkSenderPacket(packetId, pendingPackets), PacketSendMode.ReliableImmediate);
+			bool sent = SendToConnection(
+				conn,
+				new BulkSenderPacket(packetId, pendingPackets),
+				PacketSendMode.ReliableImmediate);
 			swFlush.Stop();
+			if (!sent)
+			{
+				DebugConsole.LogWarning(
+					$"[PacketSender] Retaining {flushCount} failed bulk packet(s) of type {packetId} for retry");
+				return false;
+			}
 			pendingPackets.Clear();
 			allPendingPackets.Remove(packetId);
 			if (byteTotals != null)
@@ -130,13 +223,36 @@ namespace ONI_Together.Networking
 				runner.RecordDispatch(conn);
 			if (DragToolBulkPacketIds.Contains(packetId))
 				SyncStats.RecordSync(SyncStats.DragTool, flushCount, flushBytes, (float)swFlush.Elapsed.TotalMilliseconds);
+			return true;
 		}
-		public static void AppendPendingBulkPacket(object conn, IPacket packet, IBulkablePacket bp)
+
+		private static bool FlushPendingBulkBeforeReliable(object conn)
+		{
+			if (conn == null
+			    || !WaitingBulkPacketsPerReceiver.TryGetValue(conn, out var pendingByType))
+				return true;
+
+			foreach (int packetId in pendingByType.Keys.ToList())
+			{
+				if (!DispatchPendingBulkPacketOfType(conn, packetId))
+					return false;
+			}
+			return true;
+		}
+		public static bool AppendPendingBulkPacket(object conn, IPacket packet, IBulkablePacket bp)
+		{
+			lock (SendGate)
+				return AppendPendingBulkPacketLocked(conn, packet, bp);
+		}
+
+		private static bool AppendPendingBulkPacketLocked(
+			object conn, IPacket packet, IBulkablePacket bp)
 		{
 			using var _ = Profiler.Scope();
 
 			int packetId = PacketRegistry.GetPacketId(packet);
 			int maxPacketNumberPerPacket = bp.MaxPackSize;
+			byte[] serialized = packet.SerializeToByteArray();
 
 			if (packet is ONI_Together.Networking.Packets.Tools.DragToolPacket)
 				DragToolBulkPacketIds.Add(packetId);
@@ -151,12 +267,17 @@ namespace ONI_Together.Networking
 				WaitingBulkPacketsPerReceiver[conn] = [];
 				bulkPacketWaitingData = WaitingBulkPacketsPerReceiver[conn];
 			}
+			foreach (int pendingPacketId in bulkPacketWaitingData.Keys.ToList())
+			{
+				if (pendingPacketId != packetId
+				    && !DispatchPendingBulkPacketOfType(conn, pendingPacketId))
+					return false;
+			}
 			if (!bulkPacketWaitingData.TryGetValue(packetId, out var pendingPackets))
 			{
 				bulkPacketWaitingData[packetId] = new List<byte[]>(maxPacketNumberPerPacket);
 				pendingPackets = bulkPacketWaitingData[packetId];
 			}
-			var serialized = packet.SerializeToByteArray();
 			pendingPackets.Add(serialized);
 
 			if (!WaitingBulkPacketBytes.TryGetValue(conn, out var byteTotals))
@@ -181,8 +302,9 @@ namespace ONI_Together.Networking
 
 			if (pendingPackets.Count >= maxPacketNumberPerPacket || atCapacity)
 			{
-				DispatchPendingBulkPacketOfType(conn, packetId);
+				return DispatchPendingBulkPacketOfType(conn, packetId);
 			}
+			return true;
 		}
 		public static byte[] SerializeToByteArray(this IPacket packet)
 		{
@@ -202,344 +324,129 @@ namespace ONI_Together.Networking
 		public static bool SendToConnection(object conn, IPacket packet, PacketSendMode sendType = PacketSendMode.ReliableImmediate)
 		{
 			using var _ = Profiler.Scope();
-
-			if (packet is IBulkablePacket bp)
-			{
-				AppendPendingBulkPacket(conn, packet, bp);
-				return true;
-			}
-
-			return NetworkConfig.TransportPacketSender.SendToConnection(conn, packet, sendType);
-		}
-
-		/// <summary>
-		/// Send a packet to a player by their SteamID.
-		/// </summary>
-		public static bool SendToPlayer(ulong steamID, IPacket packet, PacketSendMode sendType = PacketSendMode.ReliableImmediate)
-		{
-			using var _ = Profiler.Scope();
-
-			// Prevent host from sending packets to itself (can cause loops and errors)
-			if (MultiplayerSession.IsHost && steamID == MultiplayerSession.HostUserID)
-			{
-				DebugConsole.LogWarning($"[PacketSender] Host attempted to send packet {packet.GetType().Name} to itself - blocked");
+			if (conn == null || packet == null)
 				return false;
-			}
-
-			if (!MultiplayerSession.ConnectedPlayers.TryGetValue(steamID, out var player) || player.Connection == null)
-			{
-				DebugConsole.LogWarning($"[PacketSender] No connection found for SteamID {steamID}");
-				return false;
-			}
-
-			return SendToConnection(player.Connection, packet, sendType);
+			lock (SendGate)
+				return SendToConnectionLocked(conn, packet, sendType, null);
 		}
 
-		private static bool CanBroadcastTo(MultiplayerPlayer player)
+		internal static bool SendReliableWithCompletion(
+			object conn, IPacket packet, Action<bool> completion)
 		{
-			using var _ = Profiler.Scope();
-
-			if (player == null || player.Connection == null)
-			{
+			if (conn == null || packet == null || completion == null)
 				return false;
-			}
-
-			if (!MultiplayerSession.IsHost || player.PlayerId == MultiplayerSession.HostUserID)
-			{
-				return true;
-			}
-
-			return player.ProtocolVerified;
+			lock (SendGate)
+				return SendToConnectionLocked(
+					conn, packet, PacketSendMode.ReliableImmediate, completion);
 		}
 
-		public static void SendToHost(IPacket packet, PacketSendMode sendType = PacketSendMode.ReliableImmediate)
-		{
-			using var _ = Profiler.Scope();
-
-			if (!MultiplayerSession.HostUserID.IsValid())
-			{
-				DebugConsole.LogWarning($"[PacketSender] Failed to send to host. Host is invalid.");
-				return;
-			}
-			SendToPlayer(MultiplayerSession.HostUserID, packet, sendType);
-		}
-
-		// Throttle counter for per-connection send failures so a transport storm
-		// does not flood the log. First 5 errors are logged in full, then 1/100 after.
-		private static long _sendErrorCount;
-
-		private static void TrySendToConnection(MultiplayerPlayer player, IPacket packet, PacketSendMode sendType)
+		private static bool SendToConnectionLocked(
+			object conn, IPacket packet, PacketSendMode sendType, Action<bool> completion)
 		{
 			try
 			{
-				SendToConnection(player.Connection, packet, sendType);
+				if (packet is IBulkablePacket bp)
+					return AppendPendingBulkPacket(conn, packet, bp);
+				if ((sendType & PacketSendMode.Reliable) != 0
+				    && packet is not BulkSenderPacket
+				    && !FlushPendingBulkBeforeReliable(conn))
+					return false;
+
+				byte[] payload = SerializePacketForSending(packet);
+				if ((sendType & PacketSendMode.Reliable) == 0)
+					return payload.Length <= MAX_PACKET_SIZE_UNRELIABLE
+					       && NetworkConfig.TransportPacketSender != null
+					       && NetworkConfig.TransportPacketSender.SendToConnection(conn, packet, sendType);
+				if (packet is IReliablePageControl)
+					return SendOrderedControlLocked(conn, packet);
+				if (packet is OrderedReliablePacket)
+					return false;
+				return PageChannel.TryEnqueue(conn, payload, completion);
 			}
 			catch (Exception ex)
 			{
-				// A throw from the transport layer (e.g. Riptide pendingMessages key collision)
-				// must not skip remaining connections in the broadcast. Log-and-continue.
-				long n = ++_sendErrorCount;
-				if (n <= 5 || n % 100 == 0)
-				{
-					DebugConsole.LogError($"[PacketSender] Send to player {player.PlayerId} failed (packet={packet.GetType().Name}, #{n}): {ex}");
-				}
+				LogSendFailure(packet, ex);
+				return false;
 			}
 		}
 
-		/// Original single-exclude overload
-		public static void SendToAll(IPacket packet, ulong? exclude = null, PacketSendMode sendType = PacketSendMode.Reliable)
+		private static bool SendReliablePageLocked(object connection, ReliablePagePacket page)
+			=> SendOrderedControlLocked(connection, page);
+
+		private static bool SendReliablePageAck(
+			DispatchContext context, ReliablePageAckPacket ack)
+			=> SendToPlayer(context.SenderId, ack, PacketSendMode.ReliableImmediate);
+
+		private static bool SendOrderedControlLocked(object connection, IPacket control)
 		{
-			using var _ = Profiler.Scope();
-
-            // Only send this packet if its being observed by a someone
-            if (packet is IViewportCullable vp && WorldStateSyncer.Instance != null)
-            {
-                int cell = vp.GetViewportCell();
-                foreach (var player in MultiplayerSession.ConnectedPlayers.Values)
-                {
-                    if (exclude.HasValue && player.PlayerId == exclude.Value) continue;
-                    if (!CanBroadcastTo(player)) continue;
-                    if (WorldStateSyncer.Instance.IsCellInPlayerViewport(player.PlayerId, cell))
-                        TrySendToConnection(player, packet, sendType);
-                }
-                return;
-            }
-
-            foreach (var player in MultiplayerSession.ConnectedPlayers.Values)
-			{
-				if (exclude.HasValue && player.PlayerId == exclude.Value)
-					continue;
-
-				if (CanBroadcastTo(player))
-					TrySendToConnection(player, packet, sendType);
-			}
+			if (NetworkConfig.TransportPacketSender == null)
+				return false;
+			OrderedReliablePacket ordered = OrderedReliableChannel.PrepareOutgoing(connection, control);
+			return NetworkConfig.TransportPacketSender.SendToConnection(
+				       connection, ordered, PacketSendMode.ReliableImmediate)
+			       && OrderedReliableChannel.CommitOutgoing(connection, ordered.Sequence);
 		}
 
-		public static void SendToAllClients(IPacket packet, PacketSendMode sendType = PacketSendMode.Reliable)
-		{
-			using var _ = Profiler.Scope();
+		internal static bool AcceptReliablePage(
+			ReliablePagePacket page, DispatchContext context)
+			=> PageChannel.AcceptPage(page, context);
 
-			if (!MultiplayerSession.IsHost)
+		internal static bool AcceptReliablePageAck(
+			ReliablePageAckPacket ack, DispatchContext context)
+		{
+			MultiplayerPlayer player = MultiplayerSession.GetPlayer(context.SenderId);
+			if (player?.Connection == null)
 			{
-				DebugConsole.LogWarning("[PacketSender] Only the host can send to all clients. Tried sending: " + packet.GetType());
+				TerminateIncomingReliableStream(context);
+				return false;
+			}
+			lock (SendGate)
+				return PageChannel.AcceptAck(player.Connection, ack);
+		}
+
+		internal static bool AcceptReliablePageAckForTests(
+			object connection, ReliablePageAckPacket ack)
+		{
+			lock (SendGate)
+				return PageChannel.AcceptAck(connection, ack);
+		}
+
+		private static void TerminateOutgoingPageStream(object connection)
+		{
+#if DEBUG
+			if (OutgoingPageTerminationForTests != null)
+			{
+				OutgoingPageTerminationForTests(connection);
 				return;
 			}
-			SendToAll(packet, MultiplayerSession.HostUserID, sendType);
+#endif
+			MultiplayerPlayer player = MultiplayerSession.ConnectedPlayers.Values
+				.FirstOrDefault(candidate => Equals(candidate.Connection, connection));
+			if (MultiplayerSession.IsHost && player != null)
+				NetworkConfig.TransportServer?.KickClient(player.PlayerId);
+			else if (!MultiplayerSession.IsHost)
+				NetworkConfig.TransportClient?.Disconnect();
 		}
 
-		public static void SendToAllExcluding(IPacket packet, HashSet<ulong> excludedIds, PacketSendMode sendType = PacketSendMode.Reliable)
+		internal static void TerminateIncomingReliableStream(DispatchContext context)
 		{
-			using var _ = Profiler.Scope();
-
-            if (packet is IViewportCullable vp && WorldStateSyncer.Instance != null)
-            {
-                int cell = vp.GetViewportCell();
-                foreach (var player in MultiplayerSession.ConnectedPlayers.Values)
-                {
-                    if (excludedIds != null && excludedIds.Contains(player.PlayerId)) continue;
-                    if (!CanBroadcastTo(player)) continue;
-                    if (WorldStateSyncer.Instance.IsCellInPlayerViewport(player.PlayerId, cell))
-                        TrySendToConnection(player, packet, sendType);
-                }
-                return;
-            }
-
-            foreach (var player in MultiplayerSession.ConnectedPlayers.Values)
+			lock (SendGate)
 			{
-				if (excludedIds != null && excludedIds.Contains(player.PlayerId))
-					continue;
-
-				if (CanBroadcastTo(player))
-					TrySendToConnection(player, packet, sendType);
+				var key = (context.SenderId, context.ConnectionGeneration, context.SessionEpoch);
+				if (!TerminatedIncomingStreams.Add(key))
+					return;
 			}
-		}
-
-		/// <summary>
-		/// Sends a packet to all other players.
-		/// Forces the packet origin to be on the host itself
-		/// if sent from the host, it goes to all clients.
-		/// otherwise it is wrapped in a HostBroadcastPacket and sent to the host for rebroadcasting.
-		///
-		/// </summary>
-		/// <param name="packet"></param>
-		public static void SendToAllOtherPeersFromHost(IPacket packet)
-		{
-			using var _ = Profiler.Scope();
-
-			if (!MultiplayerSession.InSession)
+#if DEBUG
+			if (IncomingPageTerminationForTests != null)
 			{
-				DebugConsole.LogWarning("[PacketSender] Not in a multiplayer session, cannot send to other peers");
+				IncomingPageTerminationForTests(context);
 				return;
 			}
-			//DebugConsole.Log("[PacketSender] Sending packet to all other peers: " + packet.GetType().Name + " from host");
-
+#endif
 			if (MultiplayerSession.IsHost)
-				SendToAllClients(packet);
+				NetworkConfig.TransportServer?.KickClient(context.SenderId);
 			else
-				SendToHost(new HostBroadcastPacket(packet, Utils.NilUlong()));
+				NetworkConfig.TransportClient?.Disconnect();
 		}
-
-		public static void SendToAllOtherPeersFromHost_API(object api_packet)
-		{
-			using var _ = Profiler.Scope();
-
-			var type = api_packet.GetType();
-			if (!PacketRegistry.HasRegisteredPacket(type))
-			{
-				DebugConsole.LogError($"[PacketSender] Attempted to send unregistered packet type: {type.Name}");
-				return;
-			}
-			if (!API_Helper.WrapApiPacket(api_packet, out var packet))
-			{
-				DebugConsole.LogError($"[PacketSender] Failed to wrap API packet of type: {type.Name}");
-				return;
-			}
-			SendToAllOtherPeersFromHost(packet);
-		}
-
-
-		/// <summary>
-		/// Sends a packet to all other players.
-		/// if sent from the host, it goes to all clients.
-		/// otherwise it is wrapped in a HostBroadcastPacket and sent to the host for rebroadcasting.
-		/// </summary>
-		/// <param name="packet"></param>
-		public static void SendToAllOtherPeers(IPacket packet)
-		{
-			using var _ = Profiler.Scope();
-
-			if (!MultiplayerSession.InSession)
-			{
-				DebugConsole.LogWarning("[PacketSender] Not in a multiplayer session, cannot send to other peers");
-				return;
-			}
-			//DebugConsole.Log("[PacketSender] Sending packet to all other peers: " + packet.GetType().Name);
-
-			if (MultiplayerSession.IsHost)
-				SendToAllClients(packet);
-			else if (packet is IBulkablePacket && packet is not IClientRelayable)
-				SendToHost(packet);
-			else
-				SendToHost(new HostBroadcastPacket(packet, MultiplayerSession.LocalUserID));
-		}
-
-		public static void SendToAllOtherPeers_API(object api_packet)
-		{
-			using var _ = Profiler.Scope();
-
-			var type = api_packet.GetType();
-			if (!PacketRegistry.HasRegisteredPacket(type))
-			{
-				DebugConsole.LogError($"[PacketSender] Attempted to send unregistered packet type: {type.Name}");
-				return;
-			}
-			if (!API_Helper.WrapApiPacket(api_packet, out var packet))
-			{
-				DebugConsole.LogError($"[PacketSender] Failed to wrap API packet of type: {type.Name}");
-				return;
-			}
-			SendToAllOtherPeers(packet);
-		}
-
-		/// <summary>
-		/// custom types, interfaces and enums are not directly usable across assembly boundaries
-		/// </summary>
-		/// <param name="api_packet">data object of the packet class that got registered with a ModApiPacket wrapper earlier</param>
-		/// <param name="exclude"></param>
-		/// <param name="sendType"></param>
-		public static void SendToAll_API(object api_packet, ulong? exclude = null, int sendType = (int)PacketSendMode.Reliable)
-		{
-			using var _ = Profiler.Scope();
-
-			var type = api_packet.GetType();
-			if (!PacketRegistry.HasRegisteredPacket(type))
-			{
-				DebugConsole.LogError($"[PacketSender] Attempted to send unregistered packet type: {type.Name}");
-				return;
-			}
-			if (!API_Helper.WrapApiPacket(api_packet, out var packet))
-			{
-				DebugConsole.LogError($"[PacketSender] Failed to wrap API packet of type: {type.Name}");
-				return;
-			}
-			SendToAll(packet, exclude, (PacketSendMode)sendType);
-		}
-
-		public static void SendToAllClients_API(object api_packet, int sendType = (int)PacketSendMode.Reliable)
-		{
-			using var _ = Profiler.Scope();
-
-			var type = api_packet.GetType();
-			if (!PacketRegistry.HasRegisteredPacket(type))
-			{
-				DebugConsole.LogError($"[PacketSender] Attempted to send unregistered packet type: {type.Name}");
-				return;
-			}
-
-			if (!API_Helper.WrapApiPacket(api_packet, out var packet))
-			{
-				DebugConsole.LogError($"[PacketSender] Failed to wrap API packet of type: {type.Name}");
-				return;
-			}
-			SendToAllClients(packet, (PacketSendMode)sendType);
-		}
-
-		public static void SendToAllExcluding_API(object api_packet, HashSet<ulong> excludedIds, int sendType = (int)PacketSendMode.Reliable)
-		{
-			using var _ = Profiler.Scope();
-
-			var type = api_packet.GetType();
-			if (!PacketRegistry.HasRegisteredPacket(type))
-			{
-				DebugConsole.LogError($"[PacketSender] Attempted to send unregistered packet type: {type.Name}");
-				return;
-			}
-
-			if (!API_Helper.WrapApiPacket(api_packet, out var packet))
-			{
-				DebugConsole.LogError($"[PacketSender] Failed to wrap API packet of type: {type.Name}");
-				return;
-			}
-			SendToAllExcluding(packet, excludedIds, (PacketSendMode)sendType);
-		}
-
-		public static void SendToPlayer_API(ulong steamID, object api_packet, int sendType = (int)PacketSendMode.ReliableImmediate)
-		{
-			using var _ = Profiler.Scope();
-
-			var type = api_packet.GetType();
-			if (!PacketRegistry.HasRegisteredPacket(type))
-			{
-				DebugConsole.LogError($"[PacketSender] Attempted to send unregistered packet type: {type.Name}");
-				return;
-			}
-
-			if (!API_Helper.WrapApiPacket(api_packet, out var packet))
-			{
-				DebugConsole.LogError($"[PacketSender] Failed to wrap API packet of type: {type.Name}");
-				return;
-			}
-			SendToPlayer(steamID, packet, (PacketSendMode)sendType);
-		}
-
-		public static void SendToHost_API(object api_packet, int sendType = (int)PacketSendMode.ReliableImmediate)
-		{
-			using var _ = Profiler.Scope();
-
-			var type = api_packet.GetType();
-			if (!PacketRegistry.HasRegisteredPacket(type))
-			{
-				DebugConsole.LogError($"[PacketSender] Attempted to send unregistered packet type: {type.Name}");
-				return;
-			}
-
-			if (!API_Helper.WrapApiPacket(api_packet, out var packet))
-			{
-				DebugConsole.LogError($"[PacketSender] Failed to wrap API packet of type: {type.Name}");
-				return;
-			}
-			SendToHost(packet, (PacketSendMode)sendType);
-		}
-
 	}
 }

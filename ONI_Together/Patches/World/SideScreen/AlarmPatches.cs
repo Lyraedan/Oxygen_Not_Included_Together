@@ -2,6 +2,7 @@ using HarmonyLib;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.World;
+using Shared;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -32,7 +33,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "AlarmNotificationType".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("AlarmNotificationType"),
 				Value = (int)__instance.notificationType,
 				ConfigType = BuildingConfigType.Float
 			};
@@ -42,7 +43,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "AlarmPauseOnNotify".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("AlarmPauseOnNotify"),
 				Value = __instance.pauseOnNotify ? 1f : 0f,
 				ConfigType = BuildingConfigType.Boolean
 			};
@@ -52,7 +53,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "AlarmZoomOnNotify".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("AlarmZoomOnNotify"),
 				Value = __instance.zoomOnNotify ? 1f : 0f,
 				ConfigType = BuildingConfigType.Boolean
 			};
@@ -62,7 +63,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "AlarmNotificationName".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("AlarmNotificationName"),
 				Value = 0,
 				ConfigType = BuildingConfigType.String,
 				StringValue = __instance.notificationName ?? ""
@@ -73,7 +74,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "AlarmNotificationTooltip".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("AlarmNotificationTooltip"),
 				Value = 0,
 				ConfigType = BuildingConfigType.String,
 				StringValue = __instance.notificationTooltip ?? ""
@@ -119,7 +120,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.targetAlarm.gameObject),
-				ConfigHash = "AlarmName".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("AlarmName"),
 				ConfigType = BuildingConfigType.String,
 				StringValue = __instance.targetAlarm.notificationName ?? ""
 			};
@@ -150,7 +151,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.targetAlarm.gameObject),
-				ConfigHash = "AlarmTooltip".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("AlarmTooltip"),
 				ConfigType = BuildingConfigType.String,
 				StringValue = __instance.targetAlarm.notificationTooltip ?? ""
 			};
@@ -181,7 +182,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.targetAlarm.gameObject),
-				ConfigHash = "AlarmPause".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("AlarmPause"),
 				Value = __instance.targetAlarm.pauseOnNotify ? 1f : 0f,
 				ConfigType = BuildingConfigType.Boolean
 			};
@@ -212,7 +213,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.targetAlarm.gameObject),
-				ConfigHash = "AlarmZoom".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("AlarmZoom"),
 				Value = __instance.targetAlarm.zoomOnNotify ? 1f : 0f,
 				ConfigType = BuildingConfigType.Boolean
 			};
@@ -243,7 +244,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.targetAlarm.gameObject),
-				ConfigHash = "AlarmType".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("AlarmType"),
 				Value = (int)type,
 				ConfigType = BuildingConfigType.Float
 			};

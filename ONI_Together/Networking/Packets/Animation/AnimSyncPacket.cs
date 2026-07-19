@@ -5,7 +5,7 @@ using System.IO;
 
 namespace ONI_Together.Networking.Packets.Animation
 {
-	internal class AnimSyncPacket : IPacket
+	internal class AnimSyncPacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
 		public int NetId;
 		public int AnimHash;

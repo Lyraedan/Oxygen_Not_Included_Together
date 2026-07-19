@@ -2,13 +2,15 @@ using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Architecture;
 using Shared.Profiling;
 using System.IO;
+using Shared.Interfaces.Networking;
 using UnityEngine;
 
 namespace ONI_Together.Networking.Packets.Social
 {
-	public class TrailDeletePacket : IPacket
+	public class TrailDeletePacket : IPacket, IClientRelayable, ISenderBoundRelay
 	{
 		public ulong PlayerID;
+		ulong ISenderBoundRelay.RelaySenderId => PlayerID;
 		public float WorldX;
 		public float WorldY;
 
@@ -51,9 +53,6 @@ namespace ONI_Together.Networking.Packets.Social
 				return;
 
 			PingManager.Instance?.DeleteTrailAtPosition(new Vector2(WorldX, WorldY));
-
-			if (MultiplayerSession.IsHost)
-				PacketSender.SendToAllOtherPeers(this);
 		}
 	}
 }

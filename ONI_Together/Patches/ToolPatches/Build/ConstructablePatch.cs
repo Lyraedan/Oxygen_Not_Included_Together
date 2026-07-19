@@ -5,13 +5,20 @@ using ONI_Together.Networking.Packets.Tools.Build;
 using System.Linq;
 using Shared.Profiling;
 using ONI_Together.Misc;
+using ONI_Together.Networking.Components;
+using ONI_Together.Networking.Packets.World;
+using UnityEngine;
 
 [HarmonyPatch(typeof(Constructable), nameof(Constructable.FinishConstruction))]
 public static class ConstructablePatch
 {
-	public static void Prefix(Constructable __instance, WorkerBase workerForGameplayEvent)
+	public static void Prefix(
+		Constructable __instance,
+		WorkerBase workerForGameplayEvent,
+		out BuildCompletePacket __state)
 	{
 		using var _ = Profiler.Scope();
+		__state = null;
 
 		if (!MultiplayerSession.IsHost || !MultiplayerSession.InSession)
 			return;
@@ -52,7 +59,7 @@ public static class ConstructablePatch
             }
 		}*/
 
-		int workerId = workerForGameplayEvent.GetNetId();
+		int workerId = workerForGameplayEvent?.GetNetId() ?? 0;
 		var packet = new BuildCompletePacket
 		{
 			Cell = cell,
@@ -65,9 +72,44 @@ public static class ConstructablePatch
 			ObjectLayer = def.ObjectLayer,
 			WorkerNetId = workerId
 		};
+		__state = packet;
 
 		PacketSender.SendToAllClients(packet);
 		DebugConsole.Log($"[Host] Sent BuildCompletePacket for {def.PrefabID} at cell {cell}");
 	}
-}
 
+	public static void Postfix(BuildCompletePacket __state)
+	{
+		if (__state == null || !MultiplayerSession.IsHostInSession)
+			return;
+		GameObject built = FindCompletedBuilding(__state);
+		if (built == null)
+			return;
+		NetworkIdentity identity = built.AddOrGet<NetworkIdentity>();
+		if (identity.NetId == 0)
+			identity.RegisterIdentity();
+		SpawnPrefabPacket lifecycle = SpawnPrefabPacket.FromIdentity(identity);
+		if (lifecycle == null)
+			return;
+		lifecycle.BindExistingOnly = true;
+		PacketSender.SendToAllClients(lifecycle, PacketSendMode.ReliableImmediate);
+	}
+
+	private static GameObject FindCompletedBuilding(BuildCompletePacket state)
+	{
+		int[] cells =
+		{
+			state.Cell, Grid.CellLeft(state.Cell), Grid.CellRight(state.Cell),
+			Grid.CellAbove(state.Cell), Grid.CellBelow(state.Cell)
+		};
+		foreach (int cell in cells)
+		{
+			if (!Grid.IsValidCell(cell))
+				continue;
+			GameObject candidate = Grid.Objects[cell, (int)state.ObjectLayer];
+			if (candidate?.GetComponent<BuildingComplete>()?.Def?.PrefabID == state.PrefabID)
+				return candidate;
+		}
+		return null;
+	}
+}

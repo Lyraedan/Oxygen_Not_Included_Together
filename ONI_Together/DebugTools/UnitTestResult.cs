@@ -23,6 +23,9 @@ namespace ONI_Together.DebugTools
         public static UnitTestResult Fail(string message)
             => new UnitTestResult { State = TestState.Failed, Message = message };
 
+        public static UnitTestResult Skip(string message)
+            => new UnitTestResult { State = TestState.NotRun, Message = message };
+
         public static UnitTestResult InProgress(string message = null)
             => new UnitTestResult { State = TestState.InProgress, Message = message };
     }

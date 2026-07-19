@@ -14,6 +14,7 @@ using System.Collections;
 using ONI_Together.Networking.States;
 using ONI_Together.UI;
 using Steamworks;
+using System.Threading;
 using static ONI_Together.STRINGS.UI.MP_OVERLAY;
 
 namespace ONI_Together.Networking.Transport.Lan
@@ -28,7 +29,37 @@ namespace ONI_Together.Networking.Transport.Lan
             get { return _client; }
         }
 
-        private static readonly ConcurrentQueue<byte[]> _incomingPackets = new ConcurrentQueue<byte[]>();
+        private static readonly ConcurrentQueue<(byte[] Data, DispatchContext Context)> _incomingPackets = new();
+        private static long _lastConnectionEpoch;
+        private static long _activeConnectionEpoch;
+
+		internal static long BeginConnectionEpoch()
+		{
+			ClearIncomingPackets();
+			long epoch = Interlocked.Increment(ref _lastConnectionEpoch);
+			Interlocked.Exchange(ref _activeConnectionEpoch, epoch);
+			PacketHandler.SetClientSessionEpoch(epoch);
+			return epoch;
+		}
+
+		internal static bool IsCurrentConnectionEpoch(long epoch)
+			=> epoch > 0 && Interlocked.Read(ref _activeConnectionEpoch) == epoch;
+
+		internal static void EndConnectionEpoch(long epoch)
+		{
+			if (epoch > 0
+			    && Interlocked.CompareExchange(ref _activeConnectionEpoch, 0, epoch) != epoch)
+				return;
+			if (epoch <= 0)
+				Interlocked.Exchange(ref _activeConnectionEpoch, 0);
+			ClearIncomingPackets();
+			PacketHandler.SetClientSessionEpoch(0);
+		}
+
+		private static void ClearIncomingPackets()
+		{
+			while (_incomingPackets.TryDequeue(out _)) { }
+		}
 
         // Network health
         private const int JITTER_SAMPLE_COUNT = 20;
@@ -56,6 +87,8 @@ namespace ONI_Together.Networking.Transport.Lan
                     return;
             }
 
+			ResetClientMembership();
+			long connectionEpoch = BeginConnectionEpoch();
             MultiplayerSession.ServerIp = ip;
             MultiplayerSession.ServerPort = port;
             _client = new Client("RiptideClient");
@@ -68,7 +101,7 @@ namespace ONI_Together.Networking.Transport.Lan
             _client.ClientConnected += OnOtherClientConnected;
             _client.ClientDisconnected += OnOtherClientDisconnected;
             DebugConsole.Log($"Connecting to {ip}:{port}");
-            CoroutineRunner.RunOne(WaitForConnectionSuccess(timeout));
+            CoroutineRunner.RunOne(WaitForConnectionSuccess(timeout, connectionEpoch));
             _client.Connect($"{ip}:{port}", useMessageHandlers: false);
         }
 
@@ -88,17 +121,31 @@ namespace ONI_Together.Networking.Transport.Lan
             AddClientToList(e.Id);
         }
 
-        private void OnMessageRecievedFromServer(object sender, MessageReceivedEventArgs e)
+		private void OnMessageRecievedFromServer(object sender, MessageReceivedEventArgs e)
         {
             using var _ = Profiler.Scope();
 
+			long connectionEpoch = Interlocked.Read(ref _activeConnectionEpoch);
+			if (!ReferenceEquals(sender, _client) || connectionEpoch <= 0)
+				return;
             byte[] rawData = e.Message.GetBytes();
-            _incomingPackets.Enqueue(rawData);
+			ulong senderId = MultiplayerSession.HostUserID;
+			MultiplayerPlayer host = MultiplayerSession.GetPlayer(senderId);
+			if (host == null || host.ConnectionGeneration <= 0)
+				return;
+			_incomingPackets.Enqueue((rawData, new DispatchContext(
+				senderId,
+				senderId == MultiplayerSession.HostUserID,
+				host.ConnectionGeneration,
+				connectionEpoch)));
         }
 
         private void OnConnectedToServer(object sender, EventArgs e)
         {
             using var _ = Profiler.Scope();
+			if (!ReferenceEquals(sender, _client))
+				return;
+			ClearIncomingPackets();
 
             CLIENT_ID = GetClientID();
             AddClientToList(CLIENT_ID);
@@ -115,9 +162,9 @@ namespace ONI_Together.Networking.Transport.Lan
             PacketHandler.readyToProcess = true;
 
             // The clients MultiplayerSession.ConnectedPlayers should only ever contain the host
-            MultiplayerPlayer host = new MultiplayerPlayer(1);
-            host.Connection = conn;
-            MultiplayerSession.ConnectedPlayers.Add(1, host);
+			MultiplayerPlayer host = new MultiplayerPlayer(1);
+			host.BeginConnection(conn);
+			MultiplayerSession.ConnectedPlayers.Add(1, host);
 
             MultiplayerSession.KnownPlayerNames[CLIENT_ID] = Utils.GetLocalPlayerName();
 
@@ -130,12 +177,18 @@ namespace ONI_Together.Networking.Transport.Lan
         private void OnDisconnectedFromServer(object sender, DisconnectedEventArgs e)
         {
             using var _ = Profiler.Scope();
+			if (!ReferenceEquals(sender, _client))
+				return;
+			long connectionEpoch = Interlocked.Read(ref _activeConnectionEpoch);
+			ClearIncomingPackets();
 
             RemoveClientFromList(CLIENT_ID);
             CLIENT_ID = Utils.NilUlong();
 
-            OnClientDisconnected?.Invoke();
-            MultiplayerSession.ConnectedPlayers.Clear();
+			OnClientDisconnected?.Invoke();
+			if (MultiplayerSession.GetPlayer(MultiplayerSession.HostUserID) is MultiplayerPlayer host)
+				host.EndConnection(host.Connection, host.ConnectionGeneration);
+			MultiplayerSession.ConnectedPlayers.Clear();
 
             DisconnectReason disconnectReason = e.Reason;
             var (reason, message) = GetDisconnectInfo(e);
@@ -148,12 +201,13 @@ namespace ONI_Together.Networking.Transport.Lan
                     break;
             }
 
-            CleanupRiptide();
+            CleanupRiptide(connectionEpoch);
         }
 
         public override void Disconnect()
         {
             using var _ = Profiler.Scope();
+			EndConnectionEpoch(Interlocked.Read(ref _activeConnectionEpoch));
 
             if (_client == null)
                 return;
@@ -168,8 +222,11 @@ namespace ONI_Together.Networking.Transport.Lan
         {
             using var _ = Profiler.Scope();
 
-            while (_incomingPackets.TryDequeue(out var rawData))
+            while (_incomingPackets.TryDequeue(out var incoming))
             {
+				if (!IsCurrentConnectionEpoch(incoming.Context.SessionEpoch))
+					continue;
+                byte[] rawData = incoming.Data;
                 int size = rawData.Length;
 
                 int packetType = rawData.Length >= 4
@@ -180,7 +237,7 @@ namespace ONI_Together.Networking.Transport.Lan
 
                 try
                 {
-                    PacketHandler.HandleIncoming(rawData);
+                    PacketHandler.HandleIncoming(rawData, incoming.Context);
                 }
                 catch (Exception ex)
                 {
@@ -191,14 +248,37 @@ namespace ONI_Together.Networking.Transport.Lan
             }
         }
 
-        public override void ReconnectToSession()
+        internal static bool IsReconnectEndpointValid(string ip, int port)
+            => (IPAddress.TryParse(ip, out _) || Uri.CheckHostName(ip) == UriHostNameType.Dns)
+               && port > IPEndPoint.MinPort
+               && port <= IPEndPoint.MaxPort;
+
+        public override bool TryReconnectToSession()
         {
             using var _ = Profiler.Scope();
 
             string ip = MultiplayerSession.ServerIp;
             int port = MultiplayerSession.ServerPort;
+            if (!IsReconnectEndpointValid(ip, port))
+            {
+                DebugConsole.LogWarning($"[Riptide] Cannot reconnect: invalid endpoint '{ip}:{port}'.");
+                return false;
+            }
+
+            long previousEpoch = Interlocked.Read(ref _lastConnectionEpoch);
             Disconnect();
-            ConnectToHost(ip, port);
+            try
+            {
+                ConnectToHost(ip, port);
+            }
+            catch (Exception ex)
+            {
+                DebugConsole.LogWarning($"[Riptide] Failed to start reconnect: {ex}");
+                return false;
+            }
+
+            long reconnectEpoch = Interlocked.Read(ref _activeConnectionEpoch);
+            return reconnectEpoch > previousEpoch && IsCurrentConnectionEpoch(reconnectEpoch);
         }
 
         public override void Update()
@@ -229,6 +309,8 @@ namespace ONI_Together.Networking.Transport.Lan
 
             Game.Instance?.Trigger(MP_HASHES.OnPlayerJoined);
         }
+
+		internal void ResetClientMembership() => ClientList.Clear();
 
         public void RemoveClientFromList(ulong id)
         {
@@ -379,7 +461,7 @@ namespace ONI_Together.Networking.Transport.Lan
             return NetworkIndicatorsScreen.NetworkState.GOOD;
         }
 
-        IEnumerator WaitForConnectionSuccess(int timeout)
+        IEnumerator WaitForConnectionSuccess(int timeout, long connectionEpoch)
         {
             using var _ = Profiler.Scope();
 
@@ -388,6 +470,8 @@ namespace ONI_Together.Networking.Transport.Lan
             bool wasSuccessful = false;
             while (timer < timeout)
             {
+				if (!IsCurrentConnectionEpoch(connectionEpoch))
+					yield break;
                 _client?.Update(); // Update needs to happen during this process so that the client can acknowledge the connection and trigger the Connected event
                 if (_client != null && _client.IsConnected)
                 {
@@ -403,20 +487,25 @@ namespace ONI_Together.Networking.Transport.Lan
 
             if (!wasSuccessful)
             {
-                CleanupRiptide();
-
-                MultiplayerOverlay.Show(STRINGS.UI.MP_OVERLAY.CLIENT.CONNECTION_FAILED);
-                yield return new WaitForSeconds(3f);
-                MultiplayerOverlay.Close();
+				if (!IsCurrentConnectionEpoch(connectionEpoch))
+					yield break;
+				CleanupRiptide(connectionEpoch);
+				OnReturnToMenu?.Invoke(
+					CLIENT.RIPTIDE.CONNECTION_FAILED,
+					CLIENT.RIPTIDE.CONNECTION_FAILED_DESC);
             } else
             {
                 yield return null;
             }
         }
 
-        void CleanupRiptide()
+        void CleanupRiptide(long connectionEpoch = 0)
         {
             using var _ = Profiler.Scope();
+			if (connectionEpoch > 0 && !IsCurrentConnectionEpoch(connectionEpoch))
+				return;
+			ClearIncomingPackets();
+			ResetClientMembership();
 
             // Timeout reached — double check we didn't connect at the last frame
             if (_client != null && !_client.IsConnected)
@@ -441,8 +530,6 @@ namespace ONI_Together.Networking.Transport.Lan
                     _client.ClientConnected -= OnOtherClientConnected;
                     _client.ClientDisconnected -= OnOtherClientDisconnected;
 
-                    MultiplayerSession.ServerIp = "127.0.0.1";
-                    MultiplayerSession.ServerPort = 7777;
                 }
                 catch (Exception ex)
                 {
@@ -454,6 +541,9 @@ namespace ONI_Together.Networking.Transport.Lan
 
             MultiplayerSession.HostUserID = Utils.NilUlong();
             MultiplayerSession.InSession = false;
+			EndConnectionEpoch(connectionEpoch > 0
+				? connectionEpoch
+				: Interlocked.Read(ref _activeConnectionEpoch));
         }
 
         /*IEnumerator Handshake()

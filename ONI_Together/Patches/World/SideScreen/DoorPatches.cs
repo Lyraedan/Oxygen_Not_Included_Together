@@ -1,10 +1,58 @@
 using HarmonyLib;
 using ONI_Together.Networking;
+using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.World;
+using Shared;
 using Shared.Profiling;
 
 namespace ONI_Together.Patches.World.SideScreen
 {
+	[HarmonyPatch(typeof(Door), nameof(Door.OrderUnseal))]
+	public static class Door_OrderUnseal_Patch
+	{
+		internal const string ConfigKey = "DoorUnseal";
+		internal static readonly int ConfigHash = NetworkingHash.ForConfigKey(ConfigKey);
+
+		public static bool Prefix(Door __instance, out bool __state)
+		{
+			__state = ShouldOrderUnseal(__instance);
+			return !MultiplayerSession.InSession || __state;
+		}
+
+		public static void Postfix(Door __instance, bool __state)
+		{
+			using var _ = Profiler.Scope();
+
+			if (!__state || BuildingConfigPacket.IsApplyingPacket || !MultiplayerSession.InSession)
+				return;
+
+			var identity = __instance.gameObject.AddOrGet<NetworkIdentity>();
+			identity.RegisterIdentity();
+
+			var packet = new BuildingConfigPacket
+			{
+				NetId = identity.NetId,
+				Cell = Grid.PosToCell(__instance.gameObject),
+				ConfigHash = ConfigHash,
+				ConfigType = BuildingConfigType.Boolean,
+				Value = 1f
+			};
+
+			if (MultiplayerSession.IsHost)
+				PacketSender.SendToAllClients(packet);
+			else
+				PacketSender.SendToHost(packet);
+		}
+
+		internal static bool ShouldOrderUnseal(Door door)
+		{
+			return door != null &&
+			       door.isSealed &&
+			       door.controller != null &&
+			       door.controller.IsInsideState(door.controller.sm.Sealed.closed);
+		}
+	}
+
 	/// <summary>
 	/// Patches for door state synchronization
 	/// </summary>

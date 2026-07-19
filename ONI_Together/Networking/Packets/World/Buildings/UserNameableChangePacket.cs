@@ -8,11 +8,12 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Shared.Interfaces.Networking;
 using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.World.Buildings
 {
-	internal class UserNameableChangePacket : IPacket
+	internal class UserNameableChangePacket : IPacket, IClientRelayable
 	{
 		public int NetId;
 		public string NewName;

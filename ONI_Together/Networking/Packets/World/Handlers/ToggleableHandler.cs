@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Shared;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -19,8 +20,8 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 
         private static readonly int[] _hashes = new int[]
         {
-            "QueueToggleable".GetHashCode(),
-            "ToggleableChange".GetHashCode(),
+            NetworkingHash.ForConfigKey("QueueToggleable"),
+            NetworkingHash.ForConfigKey("ToggleableChange"),
         };
 
         public int[] SupportedConfigHashes => _hashes;
@@ -42,10 +43,14 @@ namespace ONI_Together.Networking.Packets.World.Handlers
                 return false;
             }
 
-            var targets = TargetsRef(toggleable);
-            int targetIndex = targets.FindIndex(pair => pair.Key is Component c && c.gameObject == go);
+			if (packet.ConfigType != BuildingConfigType.Boolean
+			    || !BuildingConfigPacket.IsBooleanValue(packet.Value))
+				return false;
 
-            if (targetIndex == -1)
+            var targets = TargetsRef(toggleable);
+			int targetIndex = packet.SliderIndex;
+
+			if (targetIndex < 0 || targetIndex >= targets.Count || targets[targetIndex].Key == null)
             {
                 //DebugConsole.LogError($"[ToggleableHandler] Nope!");
                 return false;
@@ -55,15 +60,16 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 
             bool targetState = packet.Value > 0.5f;
 
-            if (packet.ConfigHash == "QueueToggleable".GetHashCode())
+            if (packet.ConfigHash == NetworkingHash.ForConfigKey("QueueToggleable"))
             {
                 //DebugConsole.Log($"[ToggleableHandler] Queue Toggleable Change current={toggleable.IsToggleQueued(targetIndex)} new={targetState}");
 
                 // Check if we are already in our target state
                 if (targetState != toggleable.IsToggleQueued(targetIndex)) toggleable.Toggle(targetIndex);
+				packet.Value = toggleable.IsToggleQueued(targetIndex) ? 1f : 0f;
                 return true;
             }
-            else if (packet.ConfigHash == "ToggleableChange".GetHashCode())
+            else if (packet.ConfigHash == NetworkingHash.ForConfigKey("ToggleableChange"))
             {
                 IToggleHandler handler = targets[targetIndex].Key;
                 //DebugConsole.Log($"[ToggleableHandler] Changing Toggleable State current={handler.IsHandlerOn()} new={targetState}");
@@ -75,6 +81,7 @@ namespace ONI_Together.Networking.Packets.World.Handlers
                     handler.HandleToggle();
                     toggleable.GetComponent<KSelectable>().RemoveStatusItem(Db.Get().BuildingStatusItems.PendingSwitchToggle);
                 }
+				packet.Value = handler.IsHandlerOn() ? 1f : 0f;
                 return true;
             }
 

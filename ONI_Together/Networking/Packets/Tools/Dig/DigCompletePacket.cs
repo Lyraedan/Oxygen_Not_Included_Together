@@ -4,7 +4,7 @@ using System.IO;
 using Shared.Profiling;
 using UnityEngine;
 
-public class DigCompletePacket : IPacket
+public class DigCompletePacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 {
 	public int Cell;
 	public float Mass;

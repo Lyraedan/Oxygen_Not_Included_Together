@@ -1,6 +1,5 @@
 using ONI_Together.DebugTools;
 using ONI_Together.Networking.Packets.World;
-using Steamworks;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -9,41 +8,42 @@ using Shared.Profiling;
 namespace ONI_Together.Networking
 {
     /// <summary>
-    /// Manages transfers with ACK system
-    /// Tracks sent chunks and received ACKs to detect losses and resend specific chunks
+    /// Tracks application-level ACKs for reliable save transfers.
     /// </summary>
     public static class SaveFileTransferManager
     {
+        internal const int AckWindowChunks = 4;
+		internal const int MaxTrackedChunks =
+			(SaveFileChunkPacket.MaxSaveBytes + SaveFileChunkPacket.MaxChunkBytes - 1)
+			/ SaveFileChunkPacket.MaxChunkBytes;
+
+        internal enum ChunkSendDecision
+        {
+            Send,
+            Wait,
+            Stop
+        }
+
         private class ClientTransfer
         {
             public ulong ClientID;
             public string TransferId;
-            public string FileName;
-            public byte[] FileData;
             public int TotalChunks;
-            public int ChunkSize;
 
-            public bool[] ChunkSent;           // [true, true, false] - which were sent
             public bool[] ChunkAcked;          // [true, false, false] - which were confirmed
-            public System.DateTime[] ChunkSentTime;   // When each chunk was sent
 
+            public int HighestChunkSent = -1;
             public int HighestAckReceived = -1; // Last sequential ACK received
             public System.DateTime LastActivity = System.DateTime.Now;
 
-            public ClientTransfer(ulong clientID, string transferId, string fileName, byte[] data, int chunkSize)
+			public ClientTransfer(ulong clientID, string transferId, int totalChunks)
             {
                 using var _ = Profiler.Scope();
 
                 ClientID = clientID;
                 TransferId = transferId;
-                FileName = fileName;
-                FileData = data;
-                ChunkSize = chunkSize;
-                TotalChunks = (int)Math.Ceiling((double)data.Length / chunkSize);
-
-                ChunkSent = new bool[TotalChunks];
+				TotalChunks = totalChunks;
                 ChunkAcked = new bool[TotalChunks];
-                ChunkSentTime = new System.DateTime[TotalChunks];
             }
         }
 
@@ -59,16 +59,62 @@ namespace ONI_Together.Networking
         /// <summary>
         /// Register new transfer and track chunks
         /// </summary>
-        public static void StartTransfer(ulong clientID, string transferId, string fileName, byte[] data, int chunkSize)
+		public static void StartTransfer(
+			ulong clientID,
+			string transferId,
+			int totalChunks)
         {
             using var _ = Profiler.Scope();
+			if (clientID == 0)
+				throw new ArgumentException("Save transfer client ID must be non-zero", nameof(clientID));
+			if (string.IsNullOrEmpty(transferId)
+			    || transferId.Length > SecureTransferPacket.MaxTransferIdChars)
+				throw new ArgumentException("Invalid save transfer ID", nameof(transferId));
+			if (totalChunks <= 0 || totalChunks > MaxTrackedChunks)
+				throw new ArgumentOutOfRangeException(nameof(totalChunks), totalChunks,
+					$"Save transfer chunk count must be between 1 and {MaxTrackedChunks}");
 
             string key = GetTransferKey(clientID, transferId);
-            var transfer = new ClientTransfer(clientID, transferId, fileName, data, chunkSize);
+			var transfer = new ClientTransfer(clientID, transferId, totalChunks);
             ActiveTransfers[key] = transfer;
 
             DebugConsole.Log($"[TransferManager] Started transfer {transferId} to {clientID} - {transfer.TotalChunks} chunks");
-        }
+		}
+
+		public static void CancelTransfers(ulong clientID)
+		{
+			foreach (string key in ActiveTransfers
+			         .Where(entry => entry.Value.ClientID == clientID)
+			         .Select(entry => entry.Key)
+			         .ToArray())
+			{
+				ActiveTransfers.Remove(key);
+			}
+		}
+
+		internal static ChunkSendDecision GetChunkSendDecision(
+			ulong clientID,
+			string transferId,
+			int chunkIndex)
+        {
+            if (!ActiveTransfers.TryGetValue(GetTransferKey(clientID, transferId), out var transfer)
+                || chunkIndex < 0
+                || chunkIndex >= transfer.TotalChunks
+                || chunkIndex != transfer.HighestChunkSent + 1)
+            {
+                return ChunkSendDecision.Stop;
+            }
+
+            int chunksAheadOfAck = chunkIndex - (transfer.HighestAckReceived + 1);
+            return chunksAheadOfAck < AckWindowChunks
+				? ChunkSendDecision.Send
+				: ChunkSendDecision.Wait;
+		}
+
+		internal static void ResetSessionState()
+		{
+			ActiveTransfers.Clear();
+		}
 
         /// <summary>
         /// Mark chunk as sent when server sends it
@@ -78,10 +124,11 @@ namespace ONI_Together.Networking
             using var _ = Profiler.Scope();
 
             string key = GetTransferKey(clientID, transferId);
-            if (ActiveTransfers.TryGetValue(key, out var transfer))
+            if (ActiveTransfers.TryGetValue(key, out var transfer)
+                && chunkIndex == transfer.HighestChunkSent + 1
+                && chunkIndex < transfer.TotalChunks)
             {
-                transfer.ChunkSent[chunkIndex] = true;
-                transfer.ChunkSentTime[chunkIndex] = System.DateTime.Now;
+                transfer.HighestChunkSent = chunkIndex;
                 transfer.LastActivity = System.DateTime.Now;
             }
         }
@@ -100,7 +147,9 @@ namespace ONI_Together.Networking
                 return;
             }
 
-            if (chunkIndex >= 0 && chunkIndex < transfer.TotalChunks)
+            if (chunkIndex >= 0
+                && chunkIndex <= transfer.HighestChunkSent
+                && !transfer.ChunkAcked[chunkIndex])
             {
                 transfer.ChunkAcked[chunkIndex] = true;
                 transfer.LastActivity = System.DateTime.Now;
@@ -127,7 +176,7 @@ namespace ONI_Together.Networking
         }
 
         /// <summary>
-        /// Detect lost chunks and resend only the necessary ones
+        /// Expire transfers that have stopped making application-level progress.
         /// </summary>
         public static void CheckForLostChunks()
         {
@@ -137,66 +186,11 @@ namespace ONI_Together.Networking
 
             foreach (var transfer in ActiveTransfers.Values.ToArray())
             {
-                // Check chunks that were sent but haven't received ACK for more than 5 seconds
-                for (int i = 0; i <= Math.Min(transfer.HighestAckReceived + 10, transfer.TotalChunks - 1); i++) // Only check window near last ACK
-                {
-                    if (transfer.ChunkSent[i] && !transfer.ChunkAcked[i] &&
-                        (now - transfer.ChunkSentTime[i]).TotalSeconds > 5.0)
-                    {
-                        DebugConsole.LogWarning($"[TransferManager] Chunk {i} lost for {transfer.ClientID} - resending specific chunk");
-                        ResendSpecificChunk(transfer, i);
-                    }
-                }
-
-                // Remove old transfers
                 if ((now - transfer.LastActivity).TotalMinutes > 2)
                 {
                     DebugConsole.LogWarning($"[TransferManager] Transfer {transfer.TransferId} to {transfer.ClientID} timed out");
                     ActiveTransfers.Remove(GetTransferKey(transfer.ClientID, transfer.TransferId));
                 }
-            }
-        }
-
-        /// <summary>
-        /// Resend specific lost chunk
-        /// </summary>
-        private static void ResendSpecificChunk(ClientTransfer transfer, int chunkIndex)
-        {
-            using var _ = Profiler.Scope();
-
-            try
-            {
-                int offset = chunkIndex * transfer.ChunkSize;
-                int size = Math.Min(transfer.ChunkSize, transfer.FileData.Length - offset);
-                byte[] chunkData = new byte[size];
-                Buffer.BlockCopy(transfer.FileData, offset, chunkData, 0, size);
-
-                var chunkPacket = new SaveFileChunkPacket
-                {
-                    FileName = transfer.FileName,
-                    Offset = offset,
-                    TotalSize = transfer.FileData.Length,
-                    Chunk = chunkData
-                };
-
-                var securePacket = new SecureTransferPacket
-                {
-                    SequenceNumber = chunkIndex,
-                    TransferId = transfer.TransferId,
-                    PayloadBytes = SecureTransferPacket.SerializeSaveFileChunk(chunkPacket)
-                };
-
-                PacketSender.SendToPlayer(transfer.ClientID, securePacket);
-
-                // Update send timestamp
-                transfer.ChunkSentTime[chunkIndex] = System.DateTime.Now;
-                transfer.LastActivity = System.DateTime.Now;
-
-                DebugConsole.Log($"[TransferManager] Resent chunk {chunkIndex} to {transfer.ClientID}");
-            }
-            catch (Exception ex)
-            {
-                DebugConsole.LogError($"[TransferManager] Failed to resend chunk {chunkIndex}: {ex.Message}");
             }
         }
     }

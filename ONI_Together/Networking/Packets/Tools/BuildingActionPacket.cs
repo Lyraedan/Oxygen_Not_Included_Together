@@ -4,6 +4,7 @@ using ONI_Together.Misc;
 using ONI_Together.Networking.Packets.Architecture;
 using Shared.Profiling;
 using System.IO;
+using Shared.Interfaces.Networking;
 using ONI_Together.Misc;
 using UnityEngine;
 
@@ -21,7 +22,7 @@ namespace ONI_Together.Networking.Packets.Tools
 		CancelConstruct = 3,    // Constructable.OnCancel() — cancel an unfinished build
 	}
 
-	public class BuildingActionPacket : IPacket
+	public class BuildingActionPacket : IPacket, IClientRelayable
 	{
 		// Guard against the handler's local call re-triggering the Harmony prefix
 		// and re-broadcasting the same action in a loop.

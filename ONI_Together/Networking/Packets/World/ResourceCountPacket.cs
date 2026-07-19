@@ -8,7 +8,7 @@ using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.World
 {
-	public class ResourceCountPacket : IPacket
+	public class ResourceCountPacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
 
 		// Using a dictionary is heavy, so let's Serialize a list of tag hashes/names and amounts.

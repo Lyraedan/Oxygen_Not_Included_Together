@@ -19,6 +19,7 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
         protected Dictionary<string, Variant> lastOptionalValues;
         protected bool checkOptionalsValuesForChanges = true;
         protected bool cullByViewport = true;
+		protected virtual PacketSendMode PeriodicSendMode => PacketSendMode.Unreliable;
 
         private readonly HashSet<ulong> _viewportScratch = new();
 
@@ -84,7 +85,7 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
                 lastOptionalValues = optionalValues;
 
                 var identity = gameObject.GetNetIdentity();
-                if (identity.NetId == 0)
+                if (identity == null || identity.NetId == 0)
                 {
                     DebugConsole.Log($"No Net ID found on sync structure of type {GetType().Name}.");
                     return;
@@ -94,6 +95,8 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
                 {
                     NetId = identity.NetId,
                     Cell = cell,
+					Revision = NetworkIdentityRegistry.NextAuthorityRevision(),
+					SyncerTypeName = GetType().AssemblyQualifiedName,
                     Value = currentValue,
                     IsActive = currentActive,
                     OptionalValues = optionalValues,
@@ -104,12 +107,12 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
                     WorldStateSyncer.Instance.GetClientsViewingCell(cell, _viewportScratch, 2);
                     foreach (var playerId in _viewportScratch)
                     {
-                        PacketSender.SendToPlayer(playerId, packet, PacketSendMode.Unreliable);
+						PacketSender.SendToPlayer(playerId, packet, PeriodicSendMode);
                     }
                 }
                 else
                 {
-                    PacketSender.SendToAllClients(packet, PacketSendMode.Unreliable);
+					PacketSender.SendToAllClients(packet, PeriodicSendMode);
                 }
             }
         }
@@ -129,17 +132,25 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
                 {
                     _clientRequestTimer = 0f;
 
-                    var identity = gameObject.GetNetIdentity();
-                    if (identity.NetId == 0) return;
+					RequestFreshState();
+				}
+			}
+		}
 
-                    PacketSender.SendToHost(new StructureStateRequestPacket
-                    {
-                        NetId = identity.NetId,
-                        RequesterId = MultiplayerSession.LocalUserID,
-                    }, PacketSendMode.ReliableImmediate);
-                }
-            }
-        }
+		protected void RequestFreshState()
+		{
+			if (!MultiplayerSession.IsClient
+			    || !GameClient.CanSendRuntimeRequests(GameClient.State))
+				return;
+			NetworkIdentity identity = gameObject.GetNetIdentity();
+			if (identity == null || identity.NetId == 0)
+				return;
+			PacketSender.SendToHost(new StructureStateRequestPacket
+			{
+				NetId = identity.NetId,
+				RequesterId = MultiplayerSession.LocalUserID,
+			}, PacketSendMode.ReliableImmediate);
+		}
 
         public void SendStateToClient(ulong playerId)
         {
@@ -148,12 +159,14 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
                 active = operational.IsActive;
 
             var identity = gameObject.GetNetIdentity();
-            if (identity.NetId == 0) return;
+            if (identity == null || identity.NetId == 0) return;
 
             var packet = new StructureStatePacket
             {
                 NetId = identity.NetId,
                 Cell = cell,
+				Revision = NetworkIdentityRegistry.NextAuthorityRevision(),
+				SyncerTypeName = GetType().AssemblyQualifiedName,
                 Value = value,
                 IsActive = active,
                 OptionalValues = optionalValues,
@@ -170,6 +183,8 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
         public void HandlePacket(StructureStatePacket packet)
         {
             if (!Grid.IsValidCell(packet.Cell)) return;
+			if (packet.SyncerTypeName != GetType().AssemblyQualifiedName) return;
+			if (!TryAcceptPacketRevision(packet)) return;
 
             if (!MultiplayerSession.IsHost)
                 _lastClientPacketTime = Time.unscaledTime;
@@ -177,6 +192,12 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
             ApplyState(packet);
             ApplyOperationalState(packet);
         }
+
+		protected virtual bool TryAcceptPacketRevision(StructureStatePacket packet)
+		{
+			return NetworkIdentityRegistry.TryAcceptStateRevision(
+				packet.NetId, packet.SyncerTypeName, packet.Revision);
+		}
 
         private void ApplyOperationalState(StructureStatePacket packet)
         {

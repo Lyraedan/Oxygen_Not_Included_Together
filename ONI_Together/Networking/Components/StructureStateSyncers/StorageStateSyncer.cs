@@ -3,13 +3,18 @@ using System.Collections.Generic;
 using System.Text;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Packets.World;
+using Shared.Interfaces.Networking;
 using UnityEngine;
 
 namespace ONI_Together.Networking.Components.StructureStateSyncers
 {
     public class StorageStateSyncer : StructureSyncerBase
     {
+		internal static PacketSendMode SnapshotSendMode => PacketSendMode.Reliable;
+		protected override PacketSendMode PeriodicSendMode => SnapshotSendMode;
+
         private Storage storage;
+		private StorageSnapshotSync.SnapshotBatch _preparedStorageBatch;
         private float temperatureThreshold = 0.3f;
         private float lastStorageTemperature;
 
@@ -26,7 +31,7 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
         protected override void Initialize()
         {
             storage = GetComponent<Storage>();
-            checkOptionalsValuesForChanges = false; // Skip checking optionals for changes since we check temperature in ShouldForceSync and mass is checked via value
+			checkOptionalsValuesForChanges = true;
         }
 
 
@@ -35,14 +40,35 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
             value = storage?.MassStored() ?? 0f;
             active = false;
             optionalValues = new Dictionary<string, Variant>();
-            BuildingUtils.EncodeStorageContents(storage, optionalValues);
+            StorageSnapshotSync.Encode(storage, optionalValues);
         }
 
         protected override void ApplyState(StructureStatePacket packet)
         {
-            if (storage == null || packet.OptionalValues.Count < 1) return;
-            BuildingUtils.RebuildStorageFromData(storage, packet.OptionalValues);
+			StorageSnapshotSync.SnapshotBatch batch = _preparedStorageBatch;
+			_preparedStorageBatch = null;
+			if (batch?.Apply() == true)
+				return;
+			RequestFreshState();
         }
+
+		protected override bool TryAcceptPacketRevision(StructureStatePacket packet)
+		{
+			_preparedStorageBatch = null;
+			var request = new StorageSnapshotSync.SnapshotRequest
+			{
+				Storage = storage,
+				Data = packet.OptionalValues,
+				SnapshotRevision = packet.Revision,
+			};
+			if (!StorageSnapshotSync.TryPrepareBatch(
+				    new[] { request }, out StorageSnapshotSync.SnapshotBatch batch)
+			    || !NetworkIdentityRegistry.TryAcceptStorageSnapshotRevision(
+				    packet.NetId, packet.Revision))
+				return false;
+			_preparedStorageBatch = batch;
+			return true;
+		}
 
         protected override bool ShouldForceSync()
         {

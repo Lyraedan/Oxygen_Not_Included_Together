@@ -34,7 +34,9 @@ namespace ONI_Together.Patches.World
 				Temperature = temperature,
 				Mass = mass,
 				DiseaseIdx = disease_idx,
-				DiseaseCount = disease_count
+				DiseaseCount = disease_count,
+				ReplaceType = replace_type,
+				DoVerticalSolidDisplacement = do_vertical_solid_displacement
 			});
 		}
 	}

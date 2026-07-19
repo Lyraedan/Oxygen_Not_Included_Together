@@ -135,36 +135,52 @@ namespace ONI_Together.Patches.KleiPatches
 
 		/// Kanim Overrides
 
-		private static bool TogglingOverrideFromPacket = false;
+		private static int _overridePacketDepth;
+
+		internal static bool IsTogglingOverrideFromPacket => _overridePacketDepth > 0;
+
+		internal static void RunWithOverridePacketGuard(System.Action action)
+		{
+			_overridePacketDepth++;
+			try
+			{
+				action();
+			}
+			finally
+			{
+				_overridePacketDepth--;
+			}
+		}
+
+		internal static void ResetOverridePacketGuardForTests() => _overridePacketDepth = 0;
+
 		internal static void AddKanimOverride(KAnimControllerBase kbac, string kanim, float priority)
 		{
 			using var _ = Profiler.Scope();
 
-			TogglingOverrideFromPacket = true;
-			if (Assets.TryGetAnim(kanim, out var anim))
+			RunWithOverridePacketGuard(() =>
 			{
-				kbac.AddAnimOverrides(anim, priority);
-			}
-			else
-				DebugConsole.LogWarning("could not find anim " + kanim);
+				if (Assets.TryGetAnim(kanim, out var anim))
+					kbac.AddAnimOverrides(anim, priority);
+				else
+					DebugConsole.LogWarning("could not find anim " + kanim);
 
-			Console.WriteLine("Adding Kanim Override " + kanim);
-			TogglingOverrideFromPacket = false;
+				Console.WriteLine("Adding Kanim Override " + kanim);
+			});
 		}
 
 		internal static void RemoveKanimOverride(KAnimControllerBase kbac, string kanim)
 		{
 			using var _ = Profiler.Scope();
 
-			TogglingOverrideFromPacket = true;
-			if (Assets.TryGetAnim(kanim, out var anim))
+			RunWithOverridePacketGuard(() =>
 			{
-				kbac.RemoveAnimOverrides(anim);
-			}
-			else
-				DebugConsole.LogWarning("could not find anim " + kanim);
-			Console.WriteLine("Removing Kanim Override " + kanim);
-			TogglingOverrideFromPacket = false;
+				if (Assets.TryGetAnim(kanim, out var anim))
+					kbac.RemoveAnimOverrides(anim);
+				else
+					DebugConsole.LogWarning("could not find anim " + kanim);
+				Console.WriteLine("Removing Kanim Override " + kanim);
+			});
 		}
 
 
@@ -184,7 +200,7 @@ namespace ONI_Together.Patches.KleiPatches
 						return kanim_file != null;
 
 					if (MultiplayerSession.IsClient)
-						return TogglingOverrideFromPacket;
+						return IsTogglingOverrideFromPacket;
 
 					Console.WriteLine("sending addAnimOveridePacket");
 					PacketSender.SendToAllClients(new ToggleAnimOverridePacket(__instance.gameObject, kanim_file, priority));
@@ -214,7 +230,7 @@ namespace ONI_Together.Patches.KleiPatches
 						return kanim_file != null;
 
 					if (MultiplayerSession.IsClient)
-						return TogglingOverrideFromPacket;
+						return IsTogglingOverrideFromPacket;
 
 					Console.WriteLine("sending removeAnimOveridePacket");
 					PacketSender.SendToAllClients(new ToggleAnimOverridePacket(__instance.gameObject, kanim_file));

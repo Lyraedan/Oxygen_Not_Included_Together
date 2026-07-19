@@ -1,6 +1,8 @@
 using UnityEngine;
 using ONI_Together.DebugTools;
+using Shared;
 using Shared.Profiling;
+using ONI_Together.Networking.Components;
 
 namespace ONI_Together.Networking.Packets.World.Handlers
 {
@@ -12,9 +14,9 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 	{
 		private static readonly int[] _hashes = new int[]
 		{
-			"ClusterCometDetectorState".GetHashCode(),
-			"ClusterCometDetectorTarget".GetHashCode(),
-			"CometDetectorTarget".GetHashCode(),
+			NetworkingHash.ForConfigKey("ClusterCometDetectorState"),
+			NetworkingHash.ForConfigKey("ClusterCometDetectorTarget"),
+			NetworkingHash.ForConfigKey("CometDetectorTarget"),
 		};
 
 		public int[] SupportedConfigHashes => _hashes;
@@ -28,8 +30,14 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 			// ==================== DLC (Spaced Out) ====================
 
 			// ClusterCometDetector state (meteors, ballistic, rocket)
-			if (hash == "ClusterCometDetectorState".GetHashCode())
+			if (hash == NetworkingHash.ForConfigKey("ClusterCometDetectorState"))
 			{
+				if (packet.ConfigType != BuildingConfigType.Float
+				    || !BuildingConfigPacket.IsIntegralValue(packet.Value)
+				    || !System.Enum.IsDefined(
+					    typeof(ClusterCometDetector.Instance.ClusterCometDetectorState),
+					    (int)packet.Value))
+					return false;
 				var clusterDetector = go.GetSMI<ClusterCometDetector.Instance>();
 				if (clusterDetector != null)
 				{
@@ -41,21 +49,19 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 			}
 
 			// ClusterCometDetector target (which rocket to track)
-			if (hash == "ClusterCometDetectorTarget".GetHashCode())
+			if (hash == NetworkingHash.ForConfigKey("ClusterCometDetectorTarget"))
 			{
 				var clusterDetector = go.GetSMI<ClusterCometDetector.Instance>();
 				if (clusterDetector != null)
 				{
-					int targetNetId = packet.SliderIndex;
+					int targetNetId = packet.ReferenceNetId;
 					Clustercraft targetCraft = null;
 
-					if (targetNetId != -1)
+					if (targetNetId != 0)
 					{
 						// Find the clustercraft by NetId
-						if (NetworkIdentityRegistry.TryGet(targetNetId, out var targetIdentity) && targetIdentity != null)
-						{
-							targetCraft = targetIdentity.gameObject.GetComponent<Clustercraft>();
-						}
+						if (!TryResolveClustercraft(targetNetId, out targetCraft))
+							return false;
 					}
 
 					clusterDetector.SetClustercraftTarget(targetCraft);
@@ -67,21 +73,21 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 			// ==================== Base Game ====================
 
 			// CometDetector target craft
-			if (hash == "CometDetectorTarget".GetHashCode())
+			if (hash == NetworkingHash.ForConfigKey("CometDetectorTarget"))
 			{
 				var detector = go.GetSMI<CometDetector.Instance>();
 				if (detector != null)
 				{
-					int targetNetId = packet.SliderIndex;
+					int targetNetId = packet.ReferenceNetId;
 					LaunchConditionManager targetCraft = null;
 
-					if (targetNetId != -1)
+					if (targetNetId != 0)
 					{
 						// Find the launch condition manager by NetId
-						if (NetworkIdentityRegistry.TryGet(targetNetId, out var targetIdentity) && targetIdentity != null)
-						{
-							targetCraft = targetIdentity.gameObject.GetComponent<LaunchConditionManager>();
-						}
+						if (!NetworkIdentityRegistry.TryGet(targetNetId, out var targetIdentity)
+						    || targetIdentity == null
+						    || (targetCraft = targetIdentity.gameObject.GetComponent<LaunchConditionManager>()) == null)
+							return false;
 					}
 
 					detector.SetTargetCraft(targetCraft);
@@ -91,6 +97,18 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 			}
 
 			return false;
+		}
+
+		private static bool TryResolveClustercraft(int netId, out Clustercraft craft)
+		{
+			craft = null;
+			if (!NetworkIdentityRegistry.TryGet(netId, out NetworkIdentity identity) || identity == null)
+				return false;
+			craft = identity.gameObject.GetComponent<Clustercraft>();
+			if (craft != null) return true;
+			craft = identity.gameObject.GetComponent<RocketModuleCluster>()
+				?.CraftInterface?.GetComponent<Clustercraft>();
+			return craft != null;
 		}
 	}
 }

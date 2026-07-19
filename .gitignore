@@ -1,6 +1,9 @@
 ##generated/downloaded files/folders
 .downloaded
 .generated
+dist/
+.codex_tmp/
+.codex_handoff.md
 
 
 ## || VISUAL STUDIO STUFF BELOW || ##

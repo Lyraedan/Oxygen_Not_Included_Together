@@ -1,85 +1,48 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using ONI_Together.Networking.Packets.Architecture;
-using Shared.Profiling;
+using Shared.Interfaces.Networking;
+using System.IO;
 
 namespace ONI_Together.Networking.Packets.Social
 {
-    public class ScheduleBlockUpdatePacket : IPacket
-    {
+	public sealed class ScheduleBlockUpdatePacket : IPacket, IClientRelayable
+	{
+		public ulong ClientRequestId;
+		public long BaseRevision;
+		public int ScheduleIndex;
+		public int BlockIndex;
+		public string GroupId = string.Empty;
 
-        public int ScheduleIndex;
-        public int BlockIndex;
-        public string GroupId;
+		public void Serialize(BinaryWriter writer)
+		{
+			if (!IsWireValid())
+				throw new InvalidDataException("Invalid schedule block request");
+			writer.Write(ClientRequestId);
+			writer.Write(BaseRevision);
+			writer.Write(ScheduleIndex);
+			writer.Write(BlockIndex);
+			ScheduleSyncProtocol.WriteString(writer, GroupId, ScheduleSyncProtocol.MaxGroupIdLength);
+		}
 
-        public static bool IsApplying = false;
+		public void Deserialize(BinaryReader reader)
+		{
+			ClientRequestId = reader.ReadUInt64();
+			BaseRevision = reader.ReadInt64();
+			ScheduleIndex = reader.ReadInt32();
+			BlockIndex = reader.ReadInt32();
+			GroupId = ScheduleSyncProtocol.ReadString(reader, ScheduleSyncProtocol.MaxGroupIdLength);
+			if (!IsWireValid())
+				throw new InvalidDataException("Invalid schedule block request");
+		}
 
-        public void Serialize(BinaryWriter writer)
-        {
-            using var _ = Profiler.Scope();
+		public void OnDispatched()
+		{
+			ScheduleSyncCoordinator.Handle(this);
+		}
 
-            writer.Write(ScheduleIndex);
-            writer.Write(BlockIndex);
-            writer.Write(GroupId);
-        }
-
-        public void Deserialize(BinaryReader reader)
-        {
-            using var _ = Profiler.Scope();
-
-            ScheduleIndex = reader.ReadInt32();
-            BlockIndex = reader.ReadInt32();
-            GroupId = reader.ReadString();
-        }
-
-        public void OnDispatched()
-        {
-            using var _ = Profiler.Scope();
-
-            if (IsApplying)
-                return;
-
-            Apply();
-        }
-
-        private void Apply()
-        {
-            using var _ = Profiler.Scope();
-
-            List<Schedule> schedules = ScheduleManager.Instance.schedules;
-            if (schedules == null) return;
-
-            // Somehow the schedules are out of sync
-            while (schedules.Count <= ScheduleIndex)
-            {
-                var defaultGroups = Db.Get().ScheduleGroups.allGroups;
-                ScheduleManager.Instance.AddSchedule(defaultGroups, "Synced Schedule", false);
-            }
-
-            var schedule = schedules[ScheduleIndex];
-
-            IsApplying = true;
-            try
-            {
-                var groups = Db.Get().ScheduleGroups;
-                var blocks = schedule.blocks;
-
-                var group = groups.resources.Find(g => g.Id == GroupId);
-                if(group != null)
-                {
-                    schedule.SetBlockGroup(BlockIndex, group);
-                }
-
-            } finally
-            {
-                IsApplying = false;
-            }
-
-        }
-
-    }
+		internal bool IsWireValid()
+			=> ClientRequestId != 0 && BaseRevision >= 0 &&
+			   ScheduleIndex >= 0 && ScheduleIndex < ScheduleSyncProtocol.MaxSchedules &&
+			   BlockIndex >= 0 && BlockIndex < ScheduleSyncProtocol.MaxBlocksPerSchedule &&
+			   !string.IsNullOrEmpty(GroupId) && GroupId.Length <= ScheduleSyncProtocol.MaxGroupIdLength;
+	}
 }

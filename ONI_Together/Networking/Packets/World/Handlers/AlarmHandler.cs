@@ -1,5 +1,6 @@
 using UnityEngine;
 using ONI_Together.DebugTools;
+using Shared;
 using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.World.Handlers
@@ -12,17 +13,17 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 		private static readonly int[] _hashes = new int[]
 		{
 			// New hash names (from side screen patches)
-			"AlarmName".GetHashCode(),
-			"AlarmTooltip".GetHashCode(),
-			"AlarmPause".GetHashCode(),
-			"AlarmZoom".GetHashCode(),
-			"AlarmType".GetHashCode(),
+			NetworkingHash.ForConfigKey("AlarmName"),
+			NetworkingHash.ForConfigKey("AlarmTooltip"),
+			NetworkingHash.ForConfigKey("AlarmPause"),
+			NetworkingHash.ForConfigKey("AlarmZoom"),
+			NetworkingHash.ForConfigKey("AlarmType"),
 			// Legacy hash names (from OnCopySettings patch)
-			"AlarmNotificationName".GetHashCode(),
-			"AlarmNotificationTooltip".GetHashCode(),
-			"AlarmNotificationType".GetHashCode(),
-			"AlarmPauseOnNotify".GetHashCode(),
-			"AlarmZoomOnNotify".GetHashCode(),
+			NetworkingHash.ForConfigKey("AlarmNotificationName"),
+			NetworkingHash.ForConfigKey("AlarmNotificationTooltip"),
+			NetworkingHash.ForConfigKey("AlarmNotificationType"),
+			NetworkingHash.ForConfigKey("AlarmPauseOnNotify"),
+			NetworkingHash.ForConfigKey("AlarmZoomOnNotify"),
 		};
 
 		public int[] SupportedConfigHashes => _hashes;
@@ -37,11 +38,12 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 			int hash = packet.ConfigHash;
 
 			// Name (both old and new hash)
-			if (hash == "AlarmName".GetHashCode() || hash == "AlarmNotificationName".GetHashCode())
+			if (hash == NetworkingHash.ForConfigKey("AlarmName") || hash == NetworkingHash.ForConfigKey("AlarmNotificationName"))
 			{
-				if (packet.ConfigType == BuildingConfigType.String && !string.IsNullOrEmpty(packet.StringValue))
+				if (packet.ConfigType == BuildingConfigType.String
+				    && (packet.StringValue?.Length ?? 0) <= 256)
 				{
-					alarm.notificationName = packet.StringValue;
+					alarm.notificationName = packet.StringValue ?? "";
 					alarm.UpdateNotification(true);
 					//DebugConsole.Log($"[AlarmHandler] Set notificationName='{packet.StringValue}' on {go.name}");
 					return true;
@@ -49,7 +51,7 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 			}
 
 			// Tooltip (both old and new hash)
-			if (hash == "AlarmTooltip".GetHashCode() || hash == "AlarmNotificationTooltip".GetHashCode())
+			if (hash == NetworkingHash.ForConfigKey("AlarmTooltip") || hash == NetworkingHash.ForConfigKey("AlarmNotificationTooltip"))
 			{
 				if (packet.ConfigType == BuildingConfigType.String)
 				{
@@ -61,8 +63,11 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 			}
 
 			// Pause (both old and new hash)
-			if (hash == "AlarmPause".GetHashCode() || hash == "AlarmPauseOnNotify".GetHashCode())
+			if (hash == NetworkingHash.ForConfigKey("AlarmPause") || hash == NetworkingHash.ForConfigKey("AlarmPauseOnNotify"))
 			{
+				if (packet.ConfigType != BuildingConfigType.Boolean
+				    || !BuildingConfigPacket.IsBooleanValue(packet.Value))
+					return false;
 				alarm.pauseOnNotify = packet.Value > 0.5f;
 				alarm.UpdateNotification(true);
 				//DebugConsole.Log($"[AlarmHandler] Set pauseOnNotify={alarm.pauseOnNotify} on {go.name}");
@@ -70,8 +75,11 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 			}
 
 			// Zoom (both old and new hash)
-			if (hash == "AlarmZoom".GetHashCode() || hash == "AlarmZoomOnNotify".GetHashCode())
+			if (hash == NetworkingHash.ForConfigKey("AlarmZoom") || hash == NetworkingHash.ForConfigKey("AlarmZoomOnNotify"))
 			{
+				if (packet.ConfigType != BuildingConfigType.Boolean
+				    || !BuildingConfigPacket.IsBooleanValue(packet.Value))
+					return false;
 				alarm.zoomOnNotify = packet.Value > 0.5f;
 				alarm.UpdateNotification(true);
 				//DebugConsole.Log($"[AlarmHandler] Set zoomOnNotify={alarm.zoomOnNotify} on {go.name}");
@@ -79,8 +87,12 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 			}
 
 			// Type (both old and new hash)
-			if (hash == "AlarmType".GetHashCode() || hash == "AlarmNotificationType".GetHashCode())
+			if (hash == NetworkingHash.ForConfigKey("AlarmType") || hash == NetworkingHash.ForConfigKey("AlarmNotificationType"))
 			{
+				if (packet.ConfigType != BuildingConfigType.Float
+				    || !BuildingConfigPacket.IsIntegralValue(packet.Value)
+				    || !System.Enum.IsDefined(typeof(NotificationType), (int)packet.Value))
+					return false;
 				alarm.notificationType = (NotificationType)(int)packet.Value;
 				alarm.UpdateNotification(true);
 				//DebugConsole.Log($"[AlarmHandler] Set notificationType={alarm.notificationType} on {go.name}");

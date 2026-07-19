@@ -59,7 +59,7 @@ namespace ONI_Together.Patches.GamePatches
 			}
 		}
 
-		// Host logic: send WorldCyclePacket every 1s and trigger HardSync at cycle start
+		// Host logic: send WorldCyclePacket every 1s and schedule the cycle checkpoint.
 		[HarmonyPatch(nameof(GameClock.AddTime))]
 		[HarmonyPostfix]
 		public static void AddTime_Postfix(GameClock __instance)
@@ -81,11 +81,12 @@ namespace ONI_Together.Patches.GamePatches
 					PacketSender.SendToAllClients(new WorldCyclePacket
 					{
 						Cycle = __instance.GetCycle(),
-						CycleTime = __instance.GetTimeSinceStartOfCycle()
+						CycleTime = __instance.GetTimeSinceStartOfCycle(),
+						Revision = NetworkIdentityRegistry.NextAuthorityRevision()
 					}, PacketSendMode.Unreliable);
 				}
 
-				// 2. Trigger HardSync at the start of a new cycle
+				// 2. Check a causally fenced snapshot after the cycle-start autosave.
 				int currentCycle = __instance.GetCycle();
 				if (currentCycle != _lastCycle)
 				{
@@ -93,10 +94,9 @@ namespace ONI_Together.Patches.GamePatches
 
 					GameServerHardSync.hardSyncDoneThisCycle = false;
 
-					DebugConsole.Log($"[HardSync] New cycle detected ({currentCycle}) — Hard Sync disabled.");
-
-                    if (Configuration.Instance.HardSyncOnCycleStart)
-                        CoroutineRunner.RunOne(DelayedHardSync());
+					DebugConsole.Log($"[ProductionDesync] New cycle detected ({currentCycle}); scheduling checkpoint.");
+					CoroutineRunner.RunOne(DelayedCycleCheckpoint(
+						currentCycle, Configuration.Instance.HardSyncOnCycleStart));
 				}
 			}
 			catch (Exception ex)
@@ -105,12 +105,17 @@ namespace ONI_Together.Patches.GamePatches
 			}
 		}
 
-		private static IEnumerator DelayedHardSync()
+		private static IEnumerator DelayedCycleCheckpoint(int cycle, bool forceHardSync)
 		{
 			using var _ = Profiler.Scope();
 
 			yield return new WaitForSecondsRealtime(5f); // wait to ensure ONI's autosave completes (generous wait time)
-			GameServerHardSync.PerformHardSync(false);
+			if (!MultiplayerSession.IsHostInSession || GameClock.Instance?.GetCycle() != cycle)
+				yield break;
+			if (forceHardSync)
+				GameServerHardSync.PerformHardSync(false);
+			else
+				ProductionDesyncRecovery.TryBeginCycleProbe(cycle);
 		}
 	}
 }

@@ -4,11 +4,12 @@ using ONI_Together.Networking.Packets.Architecture;
 using System.Collections;
 using System.IO;
 using Shared.Profiling;
+using Shared.Interfaces.Networking;
 using UnityEngine;
 
 namespace ONI_Together.Networking.Packets.Core
 {
-	public class AllClientsReadyPacket : IPacket
+	public class AllClientsReadyPacket : IPacket, IHostOnlyPacket
 	{
 
 		public void Serialize(BinaryWriter writer)
@@ -32,7 +33,6 @@ namespace ONI_Together.Networking.Packets.Core
 		public static void ProcessAllReady()
 		{
 			using var _ = Profiler.Scope();
-
 			//CoroutineRunner.RunOne(CloseOverlayAfterDelay());
 			MultiplayerOverlay.Show(STRINGS.UI.MP_OVERLAY.SYNC.FINALIZING_SYNC);
             MultiplayerOverlay.Close();

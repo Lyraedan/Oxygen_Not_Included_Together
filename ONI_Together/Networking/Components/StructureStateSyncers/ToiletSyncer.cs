@@ -14,6 +14,7 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
         private FlushToilet flushToilet;
         private Toilet outhouseToilet;
         private Storage storage;
+		private StorageSnapshotSync.SnapshotBatch _preparedStorageBatch;
         private ConduitConsumer conduitConsumer;
         private KPrefabID prefabID;
 
@@ -30,7 +31,7 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
         {
             active = false;
             optionalValues = new Dictionary<string, Variant>();
-            BuildingUtils.EncodeStorageContents(storage, optionalValues);
+            StorageSnapshotSync.Encode(storage, optionalValues);
             optionalValues["is_operational"] = operational?.IsOperational ?? true;
             if (flushToilet != null)
             {
@@ -52,8 +53,13 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
 
         protected override void ApplyState(StructureStatePacket packet)
         {
-            if (storage == null) return;
-            BuildingUtils.RebuildStorageFromData(storage, packet.OptionalValues);
+			StorageSnapshotSync.SnapshotBatch batch = _preparedStorageBatch;
+			_preparedStorageBatch = null;
+			if (batch?.Apply() != true)
+			{
+				RequestFreshState();
+				return;
+			}
             SyncToilet(packet);
 
             if (packet.OptionalValues.TryGetValue("is_operational", out var isOp))
@@ -65,15 +71,33 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
             }
         }
 
-        private void SyncToilet(StructureStatePacket packet)
+		private void SyncToilet(StructureStatePacket packet)
         {
             if (flushToilet != null)
                 SyncFlushToilet(packet);
             else if (outhouseToilet != null)
                 SyncOuthouse(packet);
-        }
+		}
 
-        private void GetTotalWater(out float totalWater, out float totalWaste, out float totalGunk)
+		protected override bool TryAcceptPacketRevision(StructureStatePacket packet)
+		{
+			_preparedStorageBatch = null;
+			var request = new StorageSnapshotSync.SnapshotRequest
+			{
+				Storage = storage,
+				Data = packet.OptionalValues,
+				SnapshotRevision = packet.Revision,
+			};
+			if (!StorageSnapshotSync.TryPrepareBatch(
+				    new[] { request }, out StorageSnapshotSync.SnapshotBatch batch)
+			    || !NetworkIdentityRegistry.TryAcceptStateAndStorageSnapshotRevision(
+				    packet.NetId, packet.SyncerTypeName, packet.Revision))
+				return false;
+			_preparedStorageBatch = batch;
+			return true;
+		}
+
+		private void GetTotalWater(out float totalWater, out float totalWaste, out float totalGunk)
         {
             totalWater = 0f;
             totalWaste = 0f; 

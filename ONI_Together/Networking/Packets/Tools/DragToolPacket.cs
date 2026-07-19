@@ -16,6 +16,8 @@ namespace ONI_Together.Networking.Packets.Tools
 {
 	public abstract class DragToolPacket : IPacket, IBulkablePacket, IClientRelayable
 	{
+		internal const int MaxFilterCount = 256;
+		private const int MaxFilterNameLength = 256;
 		// Per-cell OnDragTool fires once per frame during a drag. Batching
 		// coalesces the fan-out leg (host -> N clients) and the host-receive
 		// side so a 60-cell drag becomes ~1 bulk message instead of 60.
@@ -44,7 +46,7 @@ namespace ONI_Together.Networking.Packets.Tools
 		HashSet<string> currentFilterTargets = [];
 		public Vector3 downPos, upPos;
 		public int cell, distFromOrigin;
-		private PrioritySetting Priority;
+		protected PrioritySetting Priority;
 
 		public virtual void Serialize(BinaryWriter writer)
 		{
@@ -88,10 +90,15 @@ namespace ONI_Together.Networking.Packets.Tools
 			if (ToolInstance is FilteredDragTool)
 			{
 				var count = reader.ReadInt32();
+				if (count < 0 || count > MaxFilterCount)
+					throw new InvalidDataException($"Invalid drag tool filter count: {count}");
 				currentFilterTargets = new HashSet<string>(count);
 				for (int i = 0; i < count; i++)
 				{
-					currentFilterTargets.Add(reader.ReadString());
+					string filter = reader.ReadString();
+					if (filter.Length > MaxFilterNameLength)
+						throw new InvalidDataException("Drag tool filter name is too long");
+					currentFilterTargets.Add(filter);
 				}
 			}
 

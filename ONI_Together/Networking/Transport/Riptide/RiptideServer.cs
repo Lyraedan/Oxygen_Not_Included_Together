@@ -18,7 +18,13 @@ namespace ONI_Together.Networking.Transport.Lan
         private static Server _server;
         private static Client _client; // Server client (Other users will use GameClient)
         private TcpFileTransferServer _tcpTransfer;
-        private Dictionary<ulong, float> _loadingClients = new Dictionary<ulong, float>();
+        private sealed class LoadingClient
+        {
+            public ulong ClientId;
+            public float StartedAt;
+        }
+
+        private Dictionary<ulong, LoadingClient> _loadingClients = new Dictionary<ulong, LoadingClient>();
         private List<ulong> _expiredLoadingClients = new List<ulong>();
         private HashSet<ulong> _reconnectedFromLoad = new HashSet<ulong>();
 
@@ -61,6 +67,11 @@ namespace ONI_Together.Networking.Transport.Lan
 
             _server = new Server("Lan/Riptide");
             _server.TimeoutTime = Configuration.Instance.Host.TimeoutSeconds * 1000;
+			_server.HandleConnection = (connection, _) =>
+			{
+				ConfigureConnectionForHandshake(connection);
+				_server.Accept(connection);
+			};
             _server.MessageReceived += OnServerMessageReceived;
             _server.ConnectionFailed += OnClientConnectionFailed;
             _server.ClientConnected += ServerOnClientConnected;
@@ -135,12 +146,9 @@ namespace ONI_Together.Networking.Transport.Lan
                 player = new MultiplayerPlayer(clientId);
                 MultiplayerSession.ConnectedPlayers.Add(clientId, player);
             }
-            player.Connection = e.Client;
+            player.BeginConnection(e.Client);
 
-            e.Client.CanQualityDisconnect = false;
-            e.Client.MaxSendAttempts = 30;
-            e.Client.MaxAvgSendAttempts = 12;
-            e.Client.AvgSendAttemptsResilience = 128;
+			ConfigureConnectionForHandshake(e.Client);
 
             if (clientId == CLIENT_ID)
             {
@@ -150,6 +158,16 @@ namespace ONI_Together.Networking.Transport.Lan
             AddClientToList(e.Client.Id);
             DebugConsole.Log($"New client connected: {clientId}");
         }
+
+		internal static void ConfigureConnectionForHandshake(Connection connection)
+		{
+			if (connection == null)
+				return;
+			connection.CanQualityDisconnect = false;
+			connection.MaxSendAttempts = 30;
+			connection.MaxAvgSendAttempts = 12;
+			connection.AvgSendAttemptsResilience = 128;
+		}
 
         private void ServerOnClientDisconnected(object sender, ServerDisconnectedEventArgs e)
         {
@@ -161,7 +179,9 @@ namespace ONI_Together.Networking.Transport.Lan
 
             if (MultiplayerSession.ConnectedPlayers.TryGetValue(clientId, out MultiplayerPlayer player))
             {
-                player.Connection = null;
+				player.EndConnection(e.Client, player.ConnectionGeneration);
+				SaveFileTransferManager.CancelTransfers(clientId);
+				_tcpTransfer?.CancelTransfers(clientId);
                 MultiplayerSession.ConnectedPlayers.Remove(clientId);
                 DebugConsole.Log($"Player {clientId} disconnected.");
             }
@@ -194,7 +214,17 @@ namespace ONI_Together.Networking.Transport.Lan
 
             try
             {
-                PacketHandler.HandleIncoming(rawData);
+				if (!MultiplayerSession.ConnectedPlayers.TryGetValue(clientId, out MultiplayerPlayer player)
+				    || !player.IsCurrentConnection(e.FromConnection, player.ConnectionGeneration)
+				    || player.ConnectionGeneration <= 0)
+				{
+					DebugConsole.LogWarning($"[LanServer] Rejected packet from stale connection {clientId}");
+					return;
+				}
+                PacketHandler.HandleIncoming(rawData, new DispatchContext(
+                    clientId,
+					clientId == MultiplayerSession.HostUserID,
+					player.ConnectionGeneration));
             }
             catch (Exception ex)
             {
@@ -225,6 +255,8 @@ namespace ONI_Together.Networking.Transport.Lan
 
             _tcpTransfer?.Stop();
             _tcpTransfer = null;
+			_loadingClients.Clear();
+			_reconnectedFromLoad.Clear();
 
             _server.Stop();
             _server = null;
@@ -270,7 +302,7 @@ namespace ONI_Together.Networking.Transport.Lan
                 _expiredLoadingClients.Clear();
                 foreach (var kvp in _loadingClients)
                 {
-                    if (now - kvp.Value > Configuration.Instance.Host.TimeoutSeconds)
+                    if (now - kvp.Value.StartedAt > ReadyManager.LoadingLeaseSeconds)
                     {
                         _expiredLoadingClients.Add(kvp.Key);
                     }
@@ -279,6 +311,8 @@ namespace ONI_Together.Networking.Transport.Lan
                 {
                     _loadingClients.Remove(id);
                 }
+				if (_expiredLoadingClients.Count > 0)
+					ReadyManager.RefreshReadyState();
             }
         }
 
@@ -287,10 +321,71 @@ namespace ONI_Together.Networking.Transport.Lan
             return _reconnectedFromLoad.Remove(id);
         }
 
-        public void MarkClientLoading(ulong id)
+        public void MarkClientLoading(ulong id, ulong reconnectToken)
         {
-            _loadingClients[id] = UnityEngine.Time.unscaledTime;
+            if (reconnectToken == 0)
+                return;
+
+            _expiredLoadingClients.Clear();
+            foreach (var entry in _loadingClients)
+            {
+                if (entry.Value.ClientId == id)
+                    _expiredLoadingClients.Add(entry.Key);
+            }
+            foreach (ulong token in _expiredLoadingClients)
+                _loadingClients.Remove(token);
+
+            _loadingClients[reconnectToken] = new LoadingClient
+            {
+                ClientId = id,
+                StartedAt = UnityEngine.Time.unscaledTime
+            };
         }
+
+		public bool IsClientLoading(ulong id)
+		{
+			foreach (LoadingClient loading in _loadingClients.Values)
+			{
+				if (loading.ClientId == id)
+					return true;
+			}
+			return false;
+		}
+
+		public bool TryResumeLoadingClient(
+			ulong reconnectToken,
+			ulong newClientId,
+			System.Func<ulong, bool> tryTransfer,
+			out ulong previousId)
+		{
+			previousId = 0;
+			if (reconnectToken == 0 || tryTransfer == null)
+				return false;
+
+			lock (_loadingClients)
+			{
+				if (!_loadingClients.TryGetValue(reconnectToken, out LoadingClient loading)
+				    || !tryTransfer(loading.ClientId))
+					return false;
+
+				previousId = loading.ClientId;
+				loading.ClientId = newClientId;
+				loading.StartedAt = UnityEngine.Time.unscaledTime;
+				_reconnectedFromLoad.Add(newClientId);
+				return true;
+			}
+		}
+
+		public bool CompleteLoadingClient(ulong reconnectToken, ulong clientId)
+		{
+			lock (_loadingClients)
+			{
+				if (!_loadingClients.TryGetValue(reconnectToken, out LoadingClient loading)
+				    || loading.ClientId != clientId)
+					return false;
+				return _loadingClients.Remove(reconnectToken);
+			}
+		}
 
         public void AddClientToList(ulong id)
         {
@@ -301,14 +396,6 @@ namespace ONI_Together.Networking.Transport.Lan
 
             ClientList.Add(id);
 
-            // A loading client reconnects with a new Riptide ID, so we consume one loading entry
-            if (_loadingClients.Count > 0)
-            {
-                var enumerator = _loadingClients.GetEnumerator();
-                enumerator.MoveNext();
-                _loadingClients.Remove(enumerator.Current.Key);
-                _reconnectedFromLoad.Add(id);
-            }
             Game.Instance?.Trigger(MP_HASHES.OnPlayerJoined);
         }
 
@@ -321,7 +408,7 @@ namespace ONI_Together.Networking.Transport.Lan
 
             ClientList.Remove(id);
 
-            if (!_loadingClients.ContainsKey(id))
+            if (!IsClientLoading(id))
             {
                 string name = MultiplayerSession.GetPlayer(id)?.PlayerName ?? $"Player {id}";
                 ChatScreen.PendingMessage pending = ChatScreen.GeneratePendingMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_LEFT, name));

@@ -11,6 +11,13 @@ using Shared.Profiling;
 
 namespace ONI_Together_API.Networking
 {
+	public enum ModApiAuthority : byte
+	{
+		HostToClientsOnly = 0,
+		ClientToHost = 1,
+		ClientBroadcast = 2
+	}
+
 	public static class PacketRegistryAPI
 	{
 		static bool Init()
@@ -20,7 +27,11 @@ namespace ONI_Together_API.Networking
 			if (typesInitialized)
 				return true;
 
-			if (!ReflectionHelper.TryCreateDelegate<TryRegisterPacketDelegate>("ONI_Together.Networking.Packets.Architecture.PacketRegistry, ONI_Together", "TryRegister", [typeof(Type), typeof(string)], out _TryRegister))
+			if (!ReflectionHelper.TryCreateDelegate<TryRegisterPacketDelegate>(
+				    "ONI_Together.Networking.Packets.Architecture.PacketRegistry, ONI_Together",
+				    "TryRegister",
+				    [typeof(Type), typeof(string), typeof(byte)],
+				    out _TryRegister))
 				return false;
 			typesInitialized = true;
 			return true;
@@ -28,7 +39,7 @@ namespace ONI_Together_API.Networking
 
 		static bool typesInitialized = false;
 		static TryRegisterPacketDelegate? _TryRegister = null;
-		delegate void TryRegisterPacketDelegate(Type packetType, string nameOverride);
+		delegate void TryRegisterPacketDelegate(Type packetType, string nameOverride, byte authority);
 
 
 		/// <summary>
@@ -37,26 +48,38 @@ namespace ONI_Together_API.Networking
 		/// </summary>
 		/// <param name="packetType"></param>
 		public static void TryRegister(Type packetType, string nameOverride = null)
+			=> TryRegister(packetType, ModApiAuthority.HostToClientsOnly, nameOverride);
+
+		/// <summary>
+		/// Registers a packet with an explicit direction allowed for non-host senders.
+		/// </summary>
+		public static void TryRegister(
+			Type packetType,
+			ModApiAuthority authority,
+			string nameOverride = null)
 		{
 			using var _ = Profiler.Scope();
 
 			if (!Init())
 				return;
-			_TryRegister(packetType, nameOverride);
+			_TryRegister(packetType, nameOverride, (byte)authority);
 		}
 
 		/// <summary>
 		/// Automatically registers all packets that inherit IPackage to the multiplayer mod
 		/// </summary>
 		/// <param name="assembly"></param>
-		public static void AutoRegisterAll(Assembly? assembly = null)
+		public static void AutoRegisterAll(
+			Assembly? assembly = null,
+			ModApiAuthority authority = ModApiAuthority.HostToClientsOnly)
 		{
 			using var _ = Profiler.Scope();
 
 			if(assembly == null)
 				assembly = Assembly.GetExecutingAssembly();
 
-			PacketRegistrationHelper.AutoRegisterPackets(assembly,t => TryRegister(t),out int count, out var duration);
+			PacketRegistrationHelper.AutoRegisterPackets(
+				assembly, t => TryRegister(t, authority), out int count, out var duration);
 
 			Debug.Log($"[MP-API]: Registered {count} network packets in assembly {assembly.GetName()}, taking {duration.TotalMilliseconds} milliseconds");
 		}

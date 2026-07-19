@@ -1,46 +1,63 @@
+using System;
 using HarmonyLib;
 using ONI_Together.DebugTools;
 using ONI_Together.Networking;
-using ONI_Together.Networking.Packets.Architecture;
-using ONI_Together.Networking.Packets.Tools;
 using ONI_Together.Networking.Packets.Tools.Build;
-using System.Collections;
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
 using Shared.Profiling;
 
 namespace ONI_Together.Patches.ToolPatches.Build
 {
-	// Try patching BuildPath - called when drag is complete and building is placed
 	[HarmonyPatch(typeof(BaseUtilityBuildTool), nameof(BaseUtilityBuildTool.BuildPath))]
 	public static class UtilityBuildToolPatch
 	{
-		public static void Prefix(BaseUtilityBuildTool __instance)
+		static bool Prefix(BaseUtilityBuildTool __instance, out UtilityBuildCapture __state)
 		{
 			using var _ = Profiler.Scope();
-
-			//DebugConsole.Log($"[UtilityBuildToolPatch] Prefix called! Tool type: {__instance.GetType().Name}");
-			if (!MultiplayerSession.InSession)
+			__state = null;
+			bool runLocally = ShouldRunLocally(
+				MultiplayerSession.InSession,
+				MultiplayerSession.IsHost,
+				UtilityBuildPacket.ProcessingIncoming);
+			if (runLocally)
 			{
-				return;
-			}
-			//prevent recursion
-			if (UtilityBuildPacket.ProcessingIncoming)
-			{
-				DebugConsole.Log("UtilityBuildPacket currently processing");
-				return;
-			}
-
-			if (__instance.path == null || __instance.def == null || __instance.path.Count == 0)
-			{
-				DebugConsole.LogWarning("[UtilityBuildToolPatch] Path or Def is null, cannot send UtilityBuildPacket.");
-				return;
+				if (MultiplayerSession.IsHostInSession && !UtilityBuildPacket.ProcessingIncoming)
+					__state = UtilityBuildAuthority.Capture(__instance);
+				return true;
 			}
 
-			bool instantBuild = DebugHandler.InstantBuildMode || (Game.Instance.SandboxModeActive && SandboxToolParameterMenu.instance.settings.InstantBuild);
-			PacketSender.SendToAllOtherPeers(new UtilityBuildPacket(__instance.def.PrefabID, __instance.path, [.. __instance.selectedElements.Select(t => t.ToString())], __instance.facadeID, instantBuild));
-			DebugConsole.Log($"[UtilityBuild] Sent packet for {__instance.def.PrefabID} with {__instance.path.Count} nodes.");
+			try
+			{
+				UtilityBuildCapture capture = UtilityBuildAuthority.Capture(__instance);
+				if (capture?.Request == null)
+					return false;
+				PacketSender.SendToAllOtherPeers(capture.Request);
+				DebugConsole.Log(
+					$"[UtilityBuild] Requested {capture.Request.PrefabID} with {capture.Request.Cells.Count} nodes");
+			}
+			catch (Exception exception)
+			{
+				DebugConsole.LogError($"[UtilityBuildToolPatch.Prefix] {exception}");
+			}
+			return false;
 		}
+
+		static void Postfix(UtilityBuildCapture __state)
+		{
+			using var _ = Profiler.Scope();
+			if (!MultiplayerSession.IsHostInSession || __state == null || UtilityBuildPacket.ProcessingIncoming)
+				return;
+			try
+			{
+				if (UtilityBuildAuthority.TryCaptureOutcome(__state, out UtilityBuildStatePacket state))
+					PacketSender.SendToAllClients(state);
+			}
+			catch (Exception exception)
+			{
+				DebugConsole.LogError($"[UtilityBuildToolPatch.Postfix] {exception}");
+			}
+		}
+
+		internal static bool ShouldRunLocally(bool inSession, bool isHost, bool processingIncoming)
+			=> !inSession || isHost || processingIncoming;
 	}
 }

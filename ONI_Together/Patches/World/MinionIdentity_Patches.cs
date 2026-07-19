@@ -13,14 +13,30 @@ namespace ONI_Together.Patches.World
 {
 	internal class MinionIdentity_Patches
 	{
-		static bool ApplyingPacket = false;
+		private static int _applyDepth;
+
+		internal static bool IsApplyingPacket => _applyDepth > 0;
+
+		internal static void RunWithPacketGuard(System.Action action)
+		{
+			_applyDepth++;
+			try
+			{
+				action();
+			}
+			finally
+			{
+				_applyDepth--;
+			}
+		}
+
+		internal static void ResetPacketGuardForTests() => _applyDepth = 0;
+
 		public static void ApplyPacketName(MinionIdentity nameable, string name)
 		{
 			using var _ = Profiler.Scope();
 
-			ApplyingPacket = true;
-			nameable.SetName(name);
-			ApplyingPacket = false;
+			RunWithPacketGuard(() => nameable.SetName(name));
 		}
 
 		[HarmonyPatch(typeof(MinionIdentity), nameof(MinionIdentity.SetName))]
@@ -33,7 +49,7 @@ namespace ONI_Together.Patches.World
 				if (MultiplayerSession.NotInSession)
 					return;
 
-				if (ApplyingPacket)
+				if (IsApplyingPacket)
 					return;
 				PacketSender.SendToAllOtherPeers(new MinionIdentitySetNamePacket(__instance.GetNetId(), name));
 			}

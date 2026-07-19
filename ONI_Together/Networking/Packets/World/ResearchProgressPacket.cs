@@ -11,7 +11,7 @@ namespace ONI_Together.Networking.Packets.World
 	/// Syncs research progress percentage from host to clients.
 	/// Sent periodically to keep progress bars in sync.
 	/// </summary>
-	public class ResearchProgressPacket : IPacket
+	public class ResearchProgressPacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
 
 		public string TechId;
@@ -88,4 +88,3 @@ namespace ONI_Together.Networking.Packets.World
 		}
 	}
 }
-

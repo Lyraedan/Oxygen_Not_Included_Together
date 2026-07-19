@@ -4,6 +4,7 @@ using ONI_Together.Menus;
 using ONI_Together.Misc.World;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
+using ONI_Together.Networking.Packets.World;
 using ONI_Together.Networking.States;
 using Shared.Profiling;
 
@@ -48,6 +49,7 @@ namespace ONI_Together.Patches.GamePatches
       // Instead check for cached connection and ensure we're not the host
       if (GameClient.HasCachedConnection() && !MultiplayerSession.IsHost)
       {
+		SpeedChangePacket.EnforceClientWorldLoadPause();
         DebugConsole.Log("[GamePatch] World fully loaded, reconnecting to host from cache...");
         GameClient.ReconnectFromCache();
         MultiplayerOverlay.Close();

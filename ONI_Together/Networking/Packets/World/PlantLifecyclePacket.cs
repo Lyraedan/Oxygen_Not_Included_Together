@@ -14,7 +14,7 @@ namespace ONI_Together.Networking.Packets.World
 		Remove = 1,
 	}
 
-	public class PlantLifecyclePacket : IPacket
+	public class PlantLifecyclePacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
 		public PlantLifecycleOperation Operation;
 		public PlantData Plant;
@@ -24,14 +24,7 @@ namespace ONI_Together.Networking.Packets.World
 			using var _ = Profiler.Scope();
 
 			writer.Write((byte)Operation);
-			writer.Write(Plant.PlantNetId);
-			writer.Write(Plant.ReceptacleNetId);
-			writer.Write(Plant.Cell);
-			writer.Write(Plant.PlantPrefabTag ?? string.Empty);
-			writer.Write(Plant.Maturity);
-			writer.Write(Plant.IsWilting);
-			writer.Write(Plant.IsHarvestReady);
-			writer.Write(Plant.IsWild);
+			Plant.Serialize(writer);
 		}
 
 		public void Deserialize(BinaryReader reader)
@@ -39,17 +32,9 @@ namespace ONI_Together.Networking.Packets.World
 			using var _ = Profiler.Scope();
 
 			Operation = (PlantLifecycleOperation)reader.ReadByte();
-			Plant = new PlantData
-			{
-				PlantNetId = reader.ReadInt32(),
-				ReceptacleNetId = reader.ReadInt32(),
-				Cell = reader.ReadInt32(),
-				PlantPrefabTag = reader.ReadString(),
-				Maturity = reader.ReadSingle(),
-				IsWilting = reader.ReadBoolean(),
-				IsHarvestReady = reader.ReadBoolean(),
-				IsWild = reader.ReadBoolean()
-			};
+			if (Operation is not PlantLifecycleOperation.Spawn and not PlantLifecycleOperation.Remove)
+				throw new InvalidDataException($"Invalid plant lifecycle operation: {Operation}");
+			Plant = PlantData.Deserialize(reader);
 		}
 
 		public void OnDispatched()

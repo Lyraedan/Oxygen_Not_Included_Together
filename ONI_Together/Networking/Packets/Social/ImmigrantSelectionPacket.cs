@@ -1,163 +1,159 @@
-using HarmonyLib;
 using ONI_Together.DebugTools;
 using ONI_Together.Networking.Packets.Architecture;
-using System.Collections.Generic;
-using System.IO;
+using ONI_Together.Patches.GamePatches;
 using Shared.Profiling;
+using System.IO;
 
 namespace ONI_Together.Networking.Packets.Social
 {
 	public class ImmigrantSelectionPacket : IPacket
 	{
-		public int PrintingPodWorldIndex = 0; //defaults to world 0, can be different in spaced out, used with negative values to clear other pods
-		public ImmigrantOptionEntry selectedOption;
+		public int PrintingPodWorldIndex;
+		public int SelectedOptionIndex = -1;
 
 		public void Serialize(BinaryWriter writer)
 		{
 			using var _ = Profiler.Scope();
-
 			writer.Write(PrintingPodWorldIndex);
-			selectedOption.Serialize(writer);
+			writer.Write(SelectedOptionIndex);
 		}
 
 		public void Deserialize(BinaryReader reader)
 		{
 			using var _ = Profiler.Scope();
-
 			PrintingPodWorldIndex = reader.ReadInt32();
-			selectedOption = ImmigrantOptionEntry.Deserialize(reader);
+			SelectedOptionIndex = reader.ReadInt32();
+		}
+
+		public static bool IsSelectionRequestValid(
+			DispatchContext context,
+			bool protocolVerified,
+			bool optionsLocked,
+			int optionCount,
+			int worldIndex,
+			int optionIndex)
+		{
+			if (context.SenderIsHost || !protocolVerified || !optionsLocked)
+				return false;
+			if (worldIndex == -1)
+				return optionIndex == -1;
+			return worldIndex >= 0 && optionIndex >= 0 && optionIndex < optionCount;
 		}
 
 		public void OnDispatched()
 		{
 			using var _ = Profiler.Scope();
+			if (!MultiplayerSession.InSession)
+				return;
 
-			if (!MultiplayerSession.InSession) return;
-
-			DebugConsole.Log($"[ImmigrantSelectionPacket] Received selection: world index {PrintingPodWorldIndex}, IsHost: {MultiplayerSession.IsHost} with id: {selectedOption.GetId()}");
-
-			// Handle client receiving notification from host
-			if (!MultiplayerSession.IsHost)
+			DispatchContext context = PacketHandler.CurrentContext;
+			if (MultiplayerSession.IsClient)
 			{
-				// Host sends -2 when selection is made, or -1 for Reject All
-				// EntitySpawnPacket is sent separately to handle actual spawning with correct NetId
-				if (PrintingPodWorldIndex < 0)
-				{
-					if (PrintingPodWorldIndex == -1)
-					{
-						DebugConsole.Log("[ImmigrantSelectionPacket] Client: Host rejected all, closing screen and resetting Immigration");
-					}
-					else
-					{
-						DebugConsole.Log("[ImmigrantSelectionPacket] Client: Host made selection, closing screen and resetting Immigration");
-					}
-
-					ONI_Together.Patches.GamePatches.ImmigrantScreenPatch.ClearOptionsLock();
-
-					if (ImmigrantScreen.instance != null && ImmigrantScreen.instance.gameObject.activeInHierarchy)
-					{
-						ImmigrantScreen.instance.Deactivate();
-					}
-
-					try
-					{
-						if (Immigration.Instance != null)
-						{
-							Immigration.Instance.EndImmigration();
-						}
-					}
-					catch (System.Exception ex) { DebugConsole.LogError($"[ImmigrantSelectionPacket] Error ending immigration: {ex}"); }
-				}
+				HandleHostNotification(context);
 				return;
 			}
-			else
+
+			HandleClientRequest(context);
+		}
+
+		private void HandleHostNotification(DispatchContext context)
+		{
+			if (!context.SenderIsHost || SelectedOptionIndex != -1
+			    || (PrintingPodWorldIndex != -1 && PrintingPodWorldIndex != -2))
 			{
-				DebugConsole.Log("[ImmigrantSelectionPacket] Host: Processing client selection using AvailableOptions");
-
-				// Close host's screen if open
-				if (ImmigrantScreen.instance != null && ImmigrantScreen.instance.gameObject.activeInHierarchy)
-				{
-					ImmigrantScreen.instance.Deactivate();
-				}
-				// Screen is closed - spawn directly using cached options
-				DebugConsole.Log("[ImmigrantSelectionPacket] Host: Screen is closed, spawning using cached options");
-
-				// Handle Reject All from client
-				if (PrintingPodWorldIndex == -1)
-				{
-					DebugConsole.Log("[ImmigrantSelectionPacket] Host: Client rejected all, ending immigration");
-
-					// End immigration cycle
-					if (Immigration.Instance != null)
-					{
-						Immigration.Instance.EndImmigration();
-					}
-
-					ONI_Together.Patches.GamePatches.ImmigrantScreenPatch.ClearOptionsLock();
-
-					// Notify all clients to close screens
-					var rejectPacket = new ImmigrantSelectionPacket { PrintingPodWorldIndex = -1 };
-					PacketSender.SendToAllClients(rejectPacket);
-					return;
-				}
-
-				ImmigrantOptionEntry opt = selectedOption;
-
-				try
-				{
-					Telepad telepad = null;
-					foreach (Telepad existing in global::Components.Telepads)
-					{
-						if (existing.GetMyWorldId() == PrintingPodWorldIndex)
-						{
-							telepad = existing;
-							break;
-						}
-					}
-					if (telepad == null)
-					{
-						DebugConsole.LogWarning("[ImmigrantSelectionPacket] Cannot find Telepad");
-						return;
-					}
-					var deliverable = opt.ToGameDeliverable();
-					var position = Grid.CellToPosCBC(Grid.PosToCell(telepad), Grid.SceneLayer.Move);
-					if (deliverable is MinionStartingStats stats)
-					{
-						//telepad.OnAcceptDelivery(stats);
-						///Delivery is handled via EntityDeliverPatch to send EntitySpawnPacket
-						DebugConsole.Log($"[ImmigrantSelectionPacket] Spawned duplicant via Telepad: {opt.Name}");
-						telepad.OnAcceptDelivery(deliverable);
-					}
-					else if (deliverable is CarePackageInfo pkg)
-					{
-						//var spawnedGO = pkg.Deliver(position);
-						///Delivery is handled via EntityDeliverPatch to send EntitySpawnPacket
-						DebugConsole.Log($"[ImmigrantSelectionPacket] Spawned care package via Telepad: {opt.CarePackageId} x{opt.Quantity}");
-						telepad.OnAcceptDelivery(deliverable);
-					}
-
-					// Clear options and notify clients (with -2 to just close screens, EntitySpawnPacket handles spawning)
-					ONI_Together.Patches.GamePatches.ImmigrantScreenPatch.ClearOptionsLock();
-
-					// Send close screen notification
-					var notifyPacket = new ImmigrantSelectionPacket { PrintingPodWorldIndex = -2 };
-					PacketSender.SendToAllClients(notifyPacket);
-				}
-				catch (System.Exception ex)
-				{
-					DebugConsole.LogError($"[ImmigrantSelectionPacket] Failed to spawn: {ex}");
-				}
-
-
-				if (PrintingPodWorldIndex == -1) // Reject All
-				{
-					if (ImmigrantScreen.instance != null)
-					{
-						ImmigrantScreen.instance.Deactivate();
-					}
-					DebugConsole.Log("[ImmigrantSelectionPacket] Host rejected all");
-				}
+				DebugConsole.LogWarning("[ImmigrantSelectionPacket] Rejected invalid host notification");
+				return;
 			}
+
+			ImmigrantScreenPatch.ClearOptionsLock();
+			if (ImmigrantScreen.instance != null && ImmigrantScreen.instance.gameObject.activeInHierarchy)
+				ImmigrantScreen.instance.Deactivate();
+
+			try
+			{
+				Immigration.Instance?.EndImmigration();
+			}
+			catch (System.Exception ex)
+			{
+				DebugConsole.LogError($"[ImmigrantSelectionPacket] Error ending immigration: {ex}");
+			}
+		}
+
+		private void HandleClientRequest(DispatchContext context)
+		{
+			MultiplayerPlayer player = MultiplayerSession.GetPlayer(context.SenderId);
+			int optionCount = ImmigrantScreenPatch.AvailableOptions?.Count ?? 0;
+			if (!IsSelectionRequestValid(context, player?.ProtocolVerified == true,
+				ImmigrantScreenPatch.OptionsLocked, optionCount,
+				PrintingPodWorldIndex, SelectedOptionIndex))
+			{
+				DebugConsole.LogWarning($"[ImmigrantSelectionPacket] Rejected selection from {context.SenderId}");
+				return;
+			}
+
+			if (PrintingPodWorldIndex == -1)
+			{
+				RejectAll();
+				return;
+			}
+
+			DeliverSelectedOption();
+		}
+
+		private void RejectAll()
+		{
+			Immigration.Instance?.EndImmigration();
+			ImmigrantScreenPatch.ClearOptionsLock();
+			CloseHostScreen();
+			BroadcastClose(-1);
+		}
+
+		private void DeliverSelectedOption()
+		{
+			Telepad telepad = FindTelepad(PrintingPodWorldIndex);
+			if (telepad == null)
+			{
+				DebugConsole.LogWarning($"[ImmigrantSelectionPacket] No Telepad in world {PrintingPodWorldIndex}");
+				return;
+			}
+
+			ImmigrantOptionEntry option = ImmigrantScreenPatch.AvailableOptions[SelectedOptionIndex];
+			ITelepadDeliverable deliverable = option.ToGameDeliverable();
+			if (deliverable == null)
+			{
+				DebugConsole.LogWarning("[ImmigrantSelectionPacket] Host option could not be materialized");
+				return;
+			}
+
+			CloseHostScreen();
+			telepad.OnAcceptDelivery(deliverable);
+			ImmigrantScreenPatch.ClearOptionsLock();
+			BroadcastClose(-2);
+		}
+
+		private static Telepad FindTelepad(int worldIndex)
+		{
+			foreach (Telepad telepad in global::Components.Telepads)
+			{
+				if (telepad.GetMyWorldId() == worldIndex)
+					return telepad;
+			}
+			return null;
+		}
+
+		private static void CloseHostScreen()
+		{
+			if (ImmigrantScreen.instance != null && ImmigrantScreen.instance.gameObject.activeInHierarchy)
+				ImmigrantScreen.instance.Deactivate();
+		}
+
+		private static void BroadcastClose(int state)
+		{
+			PacketSender.SendToAllClients(new ImmigrantSelectionPacket
+			{
+				PrintingPodWorldIndex = state,
+				SelectedOptionIndex = -1
+			});
 		}
 	}
 }

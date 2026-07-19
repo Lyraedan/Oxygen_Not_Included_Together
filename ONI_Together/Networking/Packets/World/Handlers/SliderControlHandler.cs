@@ -1,5 +1,6 @@
 using UnityEngine;
 using ONI_Together.DebugTools;
+using Shared;
 using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.World.Handlers
@@ -11,8 +12,8 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 	{
 		private static readonly int[] _hashes = new int[]
 		{
-			"Slider".GetHashCode(),
-			"SliderIndex".GetHashCode(),
+			NetworkingHash.ForConfigKey("Slider"),
+			NetworkingHash.ForConfigKey("SliderIndex"),
 		};
 
 		public int[] SupportedConfigHashes => _hashes;
@@ -24,40 +25,48 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 			int hash = packet.ConfigHash;
 
 			// Handle single slider control
-			if (hash == "Slider".GetHashCode())
+			if (hash == NetworkingHash.ForConfigKey("Slider"))
 			{
 				var singleSlider = go.GetComponent<ISingleSliderControl>();
 				if (singleSlider != null)
 				{
 					try
 					{
-						singleSlider.SetSliderValue(packet.Value, -1);
-						//DebugConsole.Log($"[SliderControlHandler] Set SingleSlider value={packet.Value} on {go.name}");
+						if (packet.ConfigType != BuildingConfigType.Float || packet.SliderIndex != 0
+						    || !BuildingConfigPacket.IsInRange(
+							    packet.Value, singleSlider.GetSliderMin(0), singleSlider.GetSliderMax(0)))
+							return false;
+						singleSlider.SetSliderValue(packet.Value, 0);
+						packet.Value = singleSlider.GetSliderValue(0);
 					}
 					catch (System.Exception e)
 					{
 						DebugConsole.Log($"[SliderControlHandler] Warning: SetSliderValue triggered exception on {go.name}: {e.Message}");
+						return false;
 					}
 					return true;
 				}
 			}
 
 			// Handle indexed slider control
-			if (hash == "SliderIndex".GetHashCode() && packet.ConfigType == BuildingConfigType.SliderIndex)
+			if (hash == NetworkingHash.ForConfigKey("SliderIndex") && packet.ConfigType == BuildingConfigType.SliderIndex)
 			{
 				var sliderControl = go.GetComponent<ISliderControl>();
 				if (sliderControl != null)
 				{
 					try
 					{
-						int sliderIndex = (int)(packet.Value / 1000000f);
-						float actualValue = packet.Value - (sliderIndex * 1000000f);
-						sliderControl.SetSliderValue(actualValue, sliderIndex);
-						//DebugConsole.Log($"[SliderControlHandler] Set Slider[{sliderIndex}]={actualValue} on {go.name}");
+						float minimum = sliderControl.GetSliderMin(packet.SliderIndex);
+						float maximum = sliderControl.GetSliderMax(packet.SliderIndex);
+						if (!BuildingConfigPacket.IsInRange(packet.Value, minimum, maximum))
+							return false;
+						sliderControl.SetSliderValue(packet.Value, packet.SliderIndex);
+						packet.Value = sliderControl.GetSliderValue(packet.SliderIndex);
 					}
 					catch (System.Exception e)
 					{
 						DebugConsole.Log($"[SliderControlHandler] Warning: SetSliderValue triggered exception on {go.name}: {e.Message}");
+						return false;
 					}
 					return true;
 				}

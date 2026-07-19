@@ -10,8 +10,10 @@ using static STRINGS.UI.OUTFITS;
 namespace ONI_Together.Networking.Packets.DuplicantActions
 {
 	// Host -> Client only. Vitals are simulated on Host.
-	public class VitalStatsPacket : IPacket
+	public class VitalStatsPacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
+		internal const int MaxVitalCount = 256;
+		private const int MaxVitalIdLength = 256;
 		Dictionary<string, float> VitalAmounts = [];
 		public byte TargetDiseaseIdx;
 		public int TargetDiseaseCount;
@@ -57,10 +59,14 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 			TargetDiseaseIdx = reader.ReadByte();
 			TargetDiseaseCount = reader.ReadInt32();
 			int amountsCount = reader.ReadInt32();
+			if (amountsCount < 0 || amountsCount > MaxVitalCount)
+				throw new InvalidDataException($"Invalid vital amount count: {amountsCount}");
 			VitalAmounts = new Dictionary<string, float>(amountsCount);
 			for (int i = 0; i < amountsCount; i++)
 			{
 				string key = reader.ReadString();
+				if (key.Length > MaxVitalIdLength)
+					throw new InvalidDataException("Vital amount ID is too long");
 				float value = reader.ReadSingle();
 				VitalAmounts[key] = value;
 			}

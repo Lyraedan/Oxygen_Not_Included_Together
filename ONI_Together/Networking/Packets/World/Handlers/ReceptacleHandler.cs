@@ -1,5 +1,6 @@
 using UnityEngine;
 using ONI_Together.DebugTools;
+using Shared;
 using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.World.Handlers
@@ -11,10 +12,9 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 	{
 		private static readonly int[] _hashes = new int[]
 		{
-			"ReceptacleEntityTag".GetHashCode(),
-			"ReceptacleFilterTag".GetHashCode(),
-			"ReceptacleCancelRequest".GetHashCode(),
-			"IncubatorAutoReplace".GetHashCode(),
+			NetworkingHash.ForConfigKey("ReceptacleOrder"),
+			NetworkingHash.ForConfigKey("ReceptacleCancelRequest"),
+			NetworkingHash.ForConfigKey("IncubatorAutoReplace"),
 		};
 
 		public int[] SupportedConfigHashes => _hashes;
@@ -29,43 +29,41 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 			var receptacle = go.GetComponent<SingleEntityReceptacle>();
 			if (receptacle != null)
 			{
-				if (hash == "ReceptacleEntityTag".GetHashCode())
+				if (hash == NetworkingHash.ForConfigKey("ReceptacleOrder"))
 				{
-					if (packet.ConfigType == BuildingConfigType.String)
-					{
-						Tag entityTag = string.IsNullOrEmpty(packet.StringValue) ? Tag.Invalid : new Tag(packet.StringValue);
-						if (entityTag.IsValid)
-						{
-							receptacle.CreateOrder(entityTag, Tag.Invalid);
-							//DebugConsole.Log($"[ReceptacleHandler] Created order for {entityTag} on {go.name}");
-						}
-						else
-						{
-							receptacle.CancelActiveRequest();
-							//DebugConsole.Log($"[ReceptacleHandler] Cancelled order on {go.name}");
-						}
-						return true;
-					}
-				}
-
-				if (hash == "ReceptacleFilterTag".GetHashCode())
-				{
-					// Additional filter tag (for mutations, etc.) is handled together with entity tag
+					if (packet.ConfigType != BuildingConfigType.String
+					    || string.IsNullOrEmpty(packet.StringValue))
+						return false;
+					Tag entityTag = new Tag(packet.StringValue);
+					Tag filterTag = string.IsNullOrEmpty(packet.SecondaryStringValue)
+						? Tag.Invalid
+						: new Tag(packet.SecondaryStringValue);
+					if (!entityTag.IsValid || !receptacle.HasDepositTag(entityTag))
+						return false;
+					receptacle.CreateOrder(entityTag, filterTag);
+					packet.StringValue = receptacle.requestedEntityTag.Name;
+					packet.SecondaryStringValue = receptacle.requestedEntityAdditionalFilterTag.IsValid
+						? receptacle.requestedEntityAdditionalFilterTag.Name
+						: string.Empty;
 					return true;
 				}
 
-				if (hash == "ReceptacleCancelRequest".GetHashCode())
+				if (hash == NetworkingHash.ForConfigKey("ReceptacleCancelRequest"))
 				{
+					if (packet.ConfigType != BuildingConfigType.Boolean || packet.Value != 1f)
+						return false;
 					receptacle.CancelActiveRequest();
-					//DebugConsole.Log($"[ReceptacleHandler] Cancelled request on {go.name}");
 					return true;
 				}
 			}
 
 			// Handle EggIncubator auto-replace
 			var incubator = go.GetComponent<EggIncubator>();
-			if (incubator != null && hash == "IncubatorAutoReplace".GetHashCode())
+			if (incubator != null && hash == NetworkingHash.ForConfigKey("IncubatorAutoReplace"))
 			{
+				if (packet.ConfigType != BuildingConfigType.Boolean
+				    || !BuildingConfigPacket.IsBooleanValue(packet.Value))
+					return false;
 				incubator.autoReplaceEntity = packet.Value > 0.5f;
 				//DebugConsole.Log($"[ReceptacleHandler] Set autoReplaceEntity={incubator.autoReplaceEntity} on {go.name}");
 				return true;

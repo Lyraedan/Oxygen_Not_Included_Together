@@ -10,7 +10,7 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 	/// This helps clients understand what the duplicant is doing beyond just animations.
 	/// Includes continuous animation reconciliation to self-correct desync.
 	/// </summary>
-	public class DuplicantStatePacket : IPacket
+	public class DuplicantStatePacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
 		public int NetId;
 		public DuplicantActionState ActionState;

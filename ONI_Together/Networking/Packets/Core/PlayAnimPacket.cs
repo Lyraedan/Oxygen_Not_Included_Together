@@ -11,8 +11,9 @@ using System.Reflection;
 using Shared.Profiling;
 using UnityEngine;
 
-public class PlayAnimPacket : IPacket
+public class PlayAnimPacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 {
+	internal const int MaxAnimCount = 64;
 
 	public PlayAnimPacket() { }
 	public PlayAnimPacket(int targetNetId, HashedString[] anims, bool queue, KAnim.PlayMode mode, float speed, float offset)
@@ -65,6 +66,8 @@ public class PlayAnimPacket : IPacket
 		IsQueue = reader.ReadBoolean();
 
 		int count = reader.ReadInt32();
+		if (count < 0 || count > MaxAnimCount)
+			throw new InvalidDataException($"Invalid animation count: {count}");
 		AnimHashes = new HashedString[count];
 		for (int i = 0; i < count; i++)
 			AnimHashes[i] = new HashedString(reader.ReadInt32());
@@ -190,4 +193,3 @@ public class PlayAnimPacket : IPacket
 
 	}
 }
-

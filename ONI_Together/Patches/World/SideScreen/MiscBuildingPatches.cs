@@ -3,6 +3,7 @@ using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.World;
+using Shared;
 using Shared.Profiling;
 
 namespace ONI_Together.Patches.World.SideScreen
@@ -28,7 +29,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "BottleEmptierManualPump".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("BottleEmptierAllowManualPump"),
 				Value = __instance.allowManualPumpingStationFetching ? 1f : 0f,
 				ConfigType = BuildingConfigType.Boolean
 			};
@@ -55,7 +56,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "AutomationOnly".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("AutomationOnly"),
 				Value = only ? 1f : 0f,
 				ConfigType = BuildingConfigType.Boolean
 			};
@@ -84,7 +85,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "DirectionControl".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("DirectionControl"),
 				Value = (int)new_direction,
 				ConfigType = BuildingConfigType.Float
 			};
@@ -113,7 +114,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "IceMachineElement".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("IceMachineElement"),
 				StringValue = option.tag.Name,
 				ConfigType = BuildingConfigType.String
 			};

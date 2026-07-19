@@ -12,9 +12,12 @@ namespace ONI_Together.Networking.Packets.Core
 {
 	class ClientReadyStatusPacket : IPacket
 	{
+		internal const int MaxPlayerNameChars = 128;
 		public ulong SenderId;
 		public ClientReadyState Status = ClientReadyState.Unready;
 		public string PlayerName = string.Empty;
+		public ulong ReconnectToken;
+		public long SnapshotGeneration;
 
 		public ClientReadyStatusPacket() { }
 
@@ -33,6 +36,8 @@ namespace ONI_Together.Networking.Packets.Core
 			writer.Write((int)Status);
 			writer.Write(SenderId);
 			writer.Write(PlayerName ?? string.Empty);
+			writer.Write(ReconnectToken);
+			writer.Write(SnapshotGeneration);
 		}
 
 		public void Deserialize(BinaryReader reader)
@@ -42,11 +47,20 @@ namespace ONI_Together.Networking.Packets.Core
 			Status = (ClientReadyState)reader.ReadInt32();
 			SenderId = reader.ReadUInt64();
 			PlayerName = reader.ReadString();
+			if (PlayerName.Length > MaxPlayerNameChars)
+				throw new InvalidDataException("Ready-state player name is too long");
+			ReconnectToken = reader.ReadUInt64();
+			SnapshotGeneration = reader.ReadInt64();
 		}
 
 		public void OnDispatched()
 		{
 			using var _ = Profiler.Scope();
+			if (!SyncBarrier.IsValidReadyState(Status))
+			{
+				DebugConsole.LogWarning($"[ClientReadyStatusPacket] Rejected invalid ready state {(int)Status}");
+				return;
+			}
 
 			if (!MultiplayerSession.IsHost)
 			{
@@ -80,6 +94,11 @@ namespace ONI_Together.Networking.Packets.Core
 				}
 				return;
 			}
+			if (!SyncBarrier.SenderMatches(SenderId, PacketHandler.CurrentContext.SenderId))
+			{
+				DebugConsole.LogWarning($"[ClientReadyStatusPacket] Rejected spoofed sender {SenderId} from {PacketHandler.CurrentContext.SenderId}");
+				return;
+			}
 
 			MultiplayerPlayer player;
 			MultiplayerSession.ConnectedPlayers.TryGetValue(SenderId, out player);
@@ -90,10 +109,53 @@ namespace ONI_Together.Networking.Packets.Core
 				return;
 			}
 
+			if (Status == ClientReadyState.Aborted)
+			{
+				if (!ReadyManager.TryAbortClientWorldLoad(
+					    SenderId, ReconnectToken, SnapshotGeneration))
+				{
+					DebugConsole.LogWarning(
+						$"[ClientReadyStatusPacket] Rejected invalid abort proof from {SenderId}");
+					return;
+				}
+				DebugConsole.LogWarning(
+					$"[ClientReadyStatusPacket] Client {SenderId} aborted world loading");
+				NetworkConfig.TransportServer?.KickClient(SenderId);
+				ReadyManager.RefreshScreen();
+				ReadyManager.RefreshReadyState();
+				return;
+			}
+
 			if (Status == ClientReadyState.Loading)
 			{
+				if (!ReadyManager.SetPlayerReadyState(
+					    player, Status, ReconnectToken, SnapshotGeneration))
+				{
+					DebugConsole.LogWarning($"[ClientReadyStatusPacket] Rejected loading proof from {SenderId}");
+					return;
+				}
 				var server = NetworkConfig.TransportServer as RiptideServer;
-				server?.MarkClientLoading(SenderId);
+				server?.MarkClientLoading(SenderId, ReconnectToken);
+				if (!PacketSender.SendToPlayer(SenderId, new LoadingAcceptedPacket
+				{
+					ReconnectToken = ReconnectToken,
+					SnapshotGeneration = SnapshotGeneration
+				}, PacketSendMode.ReliableImmediate))
+				{
+					DebugConsole.LogWarning($"[ClientReadyStatusPacket] Failed to acknowledge loading for {SenderId}");
+					ReadyManager.AbortSyncBarrier(SenderId);
+					NetworkConfig.TransportServer?.KickClient(SenderId);
+					return;
+				}
+				ReadyManager.RefreshScreen();
+				ReadyManager.RefreshReadyState();
+				return;
+			}
+
+			if (!ReadyManager.SetPlayerReadyState(
+				    player, Status, ReconnectToken, SnapshotGeneration))
+			{
+				DebugConsole.LogWarning($"[ClientReadyStatusPacket] Rejected {Status} transition from {SenderId}");
 				return;
 			}
 
@@ -103,7 +165,6 @@ namespace ONI_Together.Networking.Packets.Core
 				player.PlayerName = PlayerName;
 			}
 
-            ReadyManager.SetPlayerReadyState(player, Status);
 			DebugConsole.Log($"[ClientReadyStatusPacket] {SenderId} marked as {Status}");
 
 			if (NetworkConfig.IsLanConfig() && nameChanged)

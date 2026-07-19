@@ -5,17 +5,24 @@ using ONI_Together.Networking.Packets.World;
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.IO;
 using Shared.Profiling;
 using UnityEngine;
+using System.Security.Cryptography;
 
 namespace ONI_Together.Misc.World
 {
 	public static class SaveChunkAssembler
 	{
 		public static bool isDownloading = false;
+		private static long _activeSnapshotGeneration;
 
 		private class InProgressSave
 		{
+			public string TransferId;
+			public long SnapshotGeneration;
+			public string FileName;
+			public byte[] FileHash;
 			public byte[] Data;
 			public int TotalSize;
 			public int ChunkSize;
@@ -26,10 +33,20 @@ namespace ONI_Together.Misc.World
 			public int MissingChunkRequestCount = 0;
 			public int LastReportedProgress = -1;  // Last percentage sent to host
 
-			public InProgressSave(int totalSize, int chunkSize)
+			public InProgressSave(
+				string transferId,
+				string fileName,
+				long snapshotGeneration,
+				int totalSize,
+				int chunkSize,
+				byte[] fileHash)
 			{
 				using var _ = Profiler.Scope();
 
+				TransferId = transferId;
+				FileName = fileName;
+				SnapshotGeneration = snapshotGeneration;
+				FileHash = (byte[])fileHash.Clone();
 				TotalSize = totalSize;
 				ChunkSize = chunkSize;
 				TotalChunks = (int)Math.Ceiling((double)totalSize / chunkSize);
@@ -85,18 +102,22 @@ namespace ONI_Together.Misc.World
 			}
 		}
 
-		private static readonly Dictionary<string, InProgressSave> InProgress = new Dictionary<string, InProgressSave>();
+		private static readonly Dictionary<string, InProgressSave> InProgress = new Dictionary<string, InProgressSave>(StringComparer.Ordinal);
 
-		public static void ReceiveChunk(SaveFileChunkPacket chunk)
+		public static bool ReceiveChunk(string transferId, int sequenceNumber, SaveFileChunkPacket chunk)
 		{
 			using var _ = Profiler.Scope();
+			if (!IsValidChunk(transferId, sequenceNumber, chunk))
+				return false;
+			if (!BeginSnapshot(chunk.SnapshotGeneration))
+				return false;
 
-			if (!InProgress.TryGetValue(chunk.FileName, out var save))
+			if (!InProgress.TryGetValue(transferId, out var save))
 			{
-				// Determine chunk size from first received chunk
-				int chunkSize = chunk.Chunk.Length;
-				save = new InProgressSave(chunk.TotalSize, chunkSize);
-				InProgress[chunk.FileName] = save;
+				save = new InProgressSave(
+					transferId, chunk.FileName, chunk.SnapshotGeneration,
+					chunk.TotalSize, chunk.ChunkSize, chunk.FileHash);
+				InProgress[transferId] = save;
 				DebugConsole.Log($"[ChunkAssembler] Starting download of '{chunk.FileName}' ({Utils.FormatBytes(chunk.TotalSize)}) in {save.TotalChunks} chunks");
 
 				// Send initial progress (0%) to host
@@ -108,16 +129,21 @@ namespace ONI_Together.Misc.World
                 string initialDisplay = string.Format(STRINGS.UI.MP_OVERLAY.CLIENT.DOWNLOADING_SAVE_FILE, initialProgressBar, "0", "0", save.TotalChunks);
 				MultiplayerOverlay.Show(initialDisplay);
 			}
+			else if (!MetadataMatches(save, chunk))
+			{
+				DebugConsole.LogWarning($"[ChunkAssembler] Rejected metadata change in transfer {transferId}");
+				return false;
+			}
 
 			isDownloading = true;
 
 			// Calculate which chunk based on offset (SEQUENCE-BASED APPROACH)
-			int chunkIndex = chunk.Offset / save.ChunkSize;
+			int chunkIndex = sequenceNumber;
 
 			if (chunkIndex < 0 || chunkIndex >= save.TotalChunks)
 			{
 				DebugConsole.LogError($"[ChunkAssembler] Invalid chunk index {chunkIndex} for '{chunk.FileName}' (offset {chunk.Offset})");
-				return;
+				return false;
 			}
 
 			// Copy chunk data
@@ -166,17 +192,88 @@ namespace ONI_Together.Misc.World
                 string completeDisplay = string.Format(STRINGS.UI.MP_OVERLAY.CLIENT.DOWNLOAD_COMPLETE, completeProgressBar, save.TotalChunks, save.TotalChunks);
 				MultiplayerOverlay.Show(completeDisplay);
 
-				InProgress.Remove(chunk.FileName);
-				isDownloading = false;
+				using SHA256 sha = SHA256.Create();
+				byte[] actualHash = sha.ComputeHash(save.Data);
+				if (!HashesEqual(actualHash, save.FileHash))
+				{
+					DebugConsole.LogError($"[ChunkAssembler] Final SHA-256 mismatch for '{chunk.FileName}'", false);
+					InProgress.Remove(transferId);
+					isDownloading = InProgress.Count != 0;
+					return false;
+				}
 
-				var fullSave = new WorldSave(chunk.FileName, save.Data);
+				InProgress.Remove(transferId);
+				isDownloading = InProgress.Count != 0;
+
+				var fullSave = new WorldSave(chunk.FileName, save.Data, save.SnapshotGeneration);
 				CoroutineRunner.RunOne(DelayedLoad(fullSave));
 			}
 			// REMOVED: Don't check for missing chunks immediately after each packet
 			// Let the background periodic checker handle missing chunks based on inactivity timeout
+			return true;
 		}
 
-		private static void CheckForMissingChunks(string fileName, InProgressSave save)
+		private static bool IsValidChunk(string transferId, int sequenceNumber, SaveFileChunkPacket chunk)
+		{
+			if (chunk == null || string.IsNullOrEmpty(transferId)
+			    || transferId.Length > SecureTransferPacket.MaxTransferIdChars
+			    || sequenceNumber < 0 || chunk.SnapshotGeneration <= 0
+			    || chunk.FileHash == null || chunk.FileHash.Length != 32)
+				return false;
+
+			try
+			{
+				SaveFileChunkPacket.ValidateMetadata(chunk.Offset, chunk.TotalSize, chunk.ChunkSize, chunk.Chunk?.Length ?? 0);
+			}
+			catch (InvalidDataException)
+			{
+				return false;
+			}
+
+			int totalChunks = (chunk.TotalSize + chunk.ChunkSize - 1) / chunk.ChunkSize;
+			return sequenceNumber < totalChunks && chunk.Offset == sequenceNumber * chunk.ChunkSize;
+		}
+
+		private static bool MetadataMatches(InProgressSave save, SaveFileChunkPacket chunk)
+		{
+			return save.SnapshotGeneration == chunk.SnapshotGeneration
+			       && save.TotalSize == chunk.TotalSize
+			       && save.ChunkSize == chunk.ChunkSize
+			       && string.Equals(save.FileName, chunk.FileName, StringComparison.Ordinal)
+			       && HashesEqual(save.FileHash, chunk.FileHash);
+		}
+
+		internal static bool BeginSnapshot(long snapshotGeneration)
+		{
+			if (!ReadyManager.TryBeginClientSnapshot(snapshotGeneration))
+				return false;
+			if (_activeSnapshotGeneration == snapshotGeneration)
+				return true;
+
+			InProgress.Clear();
+			isDownloading = false;
+			_activeSnapshotGeneration = snapshotGeneration;
+			return true;
+		}
+
+		internal static void ResetSessionState()
+		{
+			InProgress.Clear();
+			isDownloading = false;
+			_activeSnapshotGeneration = 0;
+		}
+
+		private static bool HashesEqual(byte[] left, byte[] right)
+		{
+			if (left == null || right == null || left.Length != right.Length)
+				return false;
+			int difference = 0;
+			for (int i = 0; i < left.Length; i++)
+				difference |= left[i] ^ right[i];
+			return difference == 0;
+		}
+
+		private static void CheckForMissingChunks(string transferId, InProgressSave save)
 		{
 			using var _ = Profiler.Scope();
 
@@ -198,13 +295,13 @@ namespace ONI_Together.Misc.World
 				save.LastCheckTime = System.DateTime.Now;
 				save.MissingChunkRequestCount++;
 
-				DebugConsole.LogWarning($"[ChunkAssembler] Possible transfer stall for '{fileName}' - received {receivedChunks}/{save.TotalChunks}, missing {missingChunks.Count}, contiguous: {contiguousChunks}");
+				DebugConsole.LogWarning($"[ChunkAssembler] Possible transfer stall for '{save.FileName}' - received {receivedChunks}/{save.TotalChunks}, missing {missingChunks.Count}, contiguous: {contiguousChunks}");
 
 				// More attempts allowed
 				if (save.MissingChunkRequestCount > 3)
 				{
-					DebugConsole.LogError($"[ChunkAssembler] Transfer appears stalled for '{fileName}' after 3 checks. Requesting full resend.", false);
-					RequestSpecificChunks(fileName, missingChunks);
+					DebugConsole.LogError($"[ChunkAssembler] Transfer appears stalled for '{save.FileName}' after 3 checks. Requesting full resend.", false);
+					RequestSpecificChunks(transferId, save.FileName, missingChunks);
 				}
 				else
 				{
@@ -218,12 +315,12 @@ namespace ONI_Together.Misc.World
 
 				if (missingChunks.Count > 0)
 				{
-					DebugConsole.Log($"[ChunkAssembler] Transfer active for '{fileName}' - {receivedChunks}/{save.TotalChunks} chunks, {missingChunks.Count} missing (normal)");
+					DebugConsole.Log($"[ChunkAssembler] Transfer active for '{save.FileName}' - {receivedChunks}/{save.TotalChunks} chunks, {missingChunks.Count} missing (normal)");
 				}
 			}
 		}
 
-		private static void RequestSpecificChunks(string fileName, List<int> missingChunks)
+		private static void RequestSpecificChunks(string transferId, string fileName, List<int> missingChunks)
 		{
 			using var _ = Profiler.Scope();
 
@@ -231,16 +328,15 @@ namespace ONI_Together.Misc.World
 			DebugConsole.LogWarning($"[ChunkAssembler] Requesting full resend due to missing chunks");
 
 			// Clear current progress to restart fresh
-			if (InProgress.ContainsKey(fileName))
+			if (InProgress.ContainsKey(transferId))
 			{
 				DebugConsole.Log($"[ChunkAssembler] Clearing previous download progress for '{fileName}' before resend");
-				InProgress.Remove(fileName);
+				InProgress.Remove(transferId);
 			}
+			isDownloading = InProgress.Count != 0;
 
-			var requestPacket = new SaveFileRequestPacket
-			{
-				Requester = MultiplayerSession.LocalUserID
-			};
+				SaveFileRequestPacket requestPacket = SaveFileRequestPacket.CreateRestart(
+					MultiplayerSession.LocalUserID, transferId);
 
 			PacketSender.SendToHost(requestPacket);
 		}
@@ -255,7 +351,7 @@ namespace ONI_Together.Misc.World
 
 			foreach (var kvp in InProgress.ToArray())
 			{
-				string fileName = kvp.Key;
+				string transferId = kvp.Key;
 				InProgressSave save = kvp.Value;
 
 				// Check if should check missing chunks based on inactivity time
@@ -264,7 +360,7 @@ namespace ONI_Together.Misc.World
 				// Only check if enough time passed since last chunk received
 				if (timeSinceLastChunk > 10.0) // 10 seconds of inactivity
 				{
-					CheckForMissingChunks(fileName, save);
+					CheckForMissingChunks(transferId, save);
 				}
 			}
 		}

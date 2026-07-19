@@ -1,11 +1,12 @@
 ﻿using System.IO;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Architecture;
+using Shared.Interfaces.Networking;
 using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.Tools.CopySettingsTool;
 
-public class CopySettingsToolPacket : IPacket
+public class CopySettingsToolPacket : IPacket, IClientRelayable
 {
     private int NetID;
     private int Cell;

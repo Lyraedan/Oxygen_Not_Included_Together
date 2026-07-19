@@ -46,9 +46,12 @@ public static class WorkProgressPatch
 
 		if (nextSendTime.TryGetValue(trackingKey, out float next) && now < next)
 			return;
+		if (!WorkableProgressPacket.TryCreate(
+			    __instance, showProgressBar: true, out var packet))
+			return;
 
 		nextSendTime[trackingKey] = now + SEND_INTERVAL;
-		PacketSender.SendToAllClients(new WorkableProgressPacket(__instance), PacketSendMode.Unreliable);
+		PacketSender.SendToAllClients(packet, PacketSendMode.Unreliable);
 	}
 
 	public static void ClearTracking()

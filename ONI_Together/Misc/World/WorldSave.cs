@@ -7,13 +7,15 @@ namespace ONI_Together.Misc.World
 	{
 		public byte[] Data { get; set; }
 		public string Name { get; set; }
+		public long SnapshotGeneration { get; set; }
 
-		public WorldSave(string name, byte[] data)
+		public WorldSave(string name, byte[] data, long snapshotGeneration = 0)
 		{
 			using var _ = Profiler.Scope();
 
 			Name = name;
 			Data = data;
+			SnapshotGeneration = snapshotGeneration;
 		}
 
 		public static WorldSave FromFile(string filePath)

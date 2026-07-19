@@ -1,0 +1,1 @@
+1.0.0 release: complete shared-colony synchronization, host-authoritative actions, snapshot join, reconnect recovery, state-hash repair, Steam/LAN transport, and supported DLC synchronization. Replaced separate platform packages with one Steam Workshop release containing all platform assets.

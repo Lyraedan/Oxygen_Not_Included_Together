@@ -2,17 +2,25 @@
 using ONI_Together.Networking;
 using ONI_Together.Networking.Packets.World.Buildings;
 using ONI_Together.Scripts.Buildings;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Shared.Profiling;
 
 namespace ONI_Together.Patches.World.Buildings
 {
 	internal class Operational_Patch
 	{
+		internal static bool ShouldShortCircuitDestroyedClient(bool isClient, bool isDestroyed)
+			=> isClient && isDestroyed;
+
+		private static void BroadcastState(Operational operational)
+		{
+			if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost
+			    || operational.IsNullOrDestroyed())
+				return;
+			if (OperationalStatePacket.TryCreate(
+				    operational, out OperationalStatePacket packet))
+				PacketSender.SendToAllClients(packet);
+		}
+
 		///Server sends state updates to clients
 		///
 
@@ -23,11 +31,7 @@ namespace ONI_Together.Patches.World.Buildings
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost)
-					return;
-				if (__instance.IsNullOrDestroyed())
-					return;
-				PacketSender.SendToAllClients(new OperationalStatePacket(__instance));
+				BroadcastState(__instance);
 			}
 		}
 		[HarmonyPatch(typeof(Operational), nameof(Operational.IsActive), MethodType.Setter)]
@@ -37,11 +41,7 @@ namespace ONI_Together.Patches.World.Buildings
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost)
-					return;
-				if (__instance.IsNullOrDestroyed())
-					return;
-				PacketSender.SendToAllClients(new OperationalStatePacket(__instance));
+				BroadcastState(__instance);
 			}
 		}
 		[HarmonyPatch(typeof(Operational), nameof(Operational.IsFunctional), MethodType.Setter)]
@@ -51,11 +51,7 @@ namespace ONI_Together.Patches.World.Buildings
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost)
-					return;
-				if (__instance.IsNullOrDestroyed())
-					return;
-				PacketSender.SendToAllClients(new OperationalStatePacket(__instance));
+				BroadcastState(__instance);
 			}
 		}
 
@@ -75,6 +71,12 @@ namespace ONI_Together.Patches.World.Buildings
 
                 if (!MultiplayerSession.IsClient)
                     return true;
+				if (ShouldShortCircuitDestroyedClient(
+					    MultiplayerSession.IsClient, __instance.IsNullOrDestroyed()))
+				{
+					__result = false;
+					return false;
+				}
 
                 if(__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
                 {
@@ -95,6 +97,12 @@ namespace ONI_Together.Patches.World.Buildings
 
 				if (!MultiplayerSession.IsClient)
 					return true;
+				if (ShouldShortCircuitDestroyedClient(
+					    MultiplayerSession.IsClient, __instance.IsNullOrDestroyed()))
+				{
+					__result = false;
+					return false;
+				}
 
 				if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
 				{
@@ -113,6 +121,12 @@ namespace ONI_Together.Patches.World.Buildings
 
 				if (!MultiplayerSession.IsClient)
 					return true;
+				if (ShouldShortCircuitDestroyedClient(
+					    MultiplayerSession.IsClient, __instance.IsNullOrDestroyed()))
+				{
+					__result = false;
+					return false;
+				}
 
 				if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
 				{

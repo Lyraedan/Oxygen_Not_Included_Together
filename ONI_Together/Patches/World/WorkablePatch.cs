@@ -35,7 +35,13 @@ namespace ONI_Together.Patches.World
 			{
 				using var _ = Profiler.Scope();
 
-				__instance.gameObject.AddOrGet<NetworkIdentity>();
+				GameObject gameObject = __instance.gameObject;
+				if (!NetworkIdentity.ShouldResolveBehaviourIdentity(
+					    isWorkable: true,
+					    gameObject.GetComponent<SaveLoadRoot>() != null,
+					    gameObject.GetComponent<NetworkIdentity>() != null))
+					return;
+				NetworkIdentity.EnsurePersistentPrefabIdentity(gameObject);
 			}
 		}
 

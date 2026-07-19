@@ -7,8 +7,28 @@ using Shared.Profiling;
 
 namespace ONI_Together.Patches.World
 {
-	public static class PickupablePatches
+    public static class PickupablePatches
 	{
+        [HarmonyPatch(typeof(Pickupable), nameof(Pickupable.OnPrefabInit))]
+        public static class PickupablePrefabPatch
+        {
+            public static void Postfix(Pickupable __instance)
+            {
+				NetworkIdentity.EnsurePersistentPrefabIdentity(__instance.gameObject);
+            }
+        }
+
+		[HarmonyPatch(typeof(Pickupable), nameof(Pickupable.OnSpawn))]
+		public static class PickupableSpawnPatch
+		{
+			public static void Postfix(Pickupable __instance)
+			{
+				var identity = __instance.gameObject.AddOrGet<NetworkIdentity>();
+				identity.RegisterIdentity();
+				identity.EnsureAuthoritativeSpawnBroadcast();
+			}
+		}
+
         [HarmonyPatch(typeof(Pickupable), nameof(Pickupable.Take))]
         public static class PickupableTakePatch
         {

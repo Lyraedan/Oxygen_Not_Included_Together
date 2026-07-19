@@ -33,6 +33,7 @@ namespace ONI_Together.Networking.Components
 			using var _ = Profiler.Scope();
 
 			scheduler.Tick();
+			NetworkIdentityRegistry.PruneUnassigned();
 
 			if (NetworkConfig.transport.Equals(NetworkConfig.NetworkTransport.STEAMWORKS))
 			{

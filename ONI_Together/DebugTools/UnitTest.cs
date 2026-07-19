@@ -9,6 +9,7 @@ namespace ONI_Together.DebugTools
     {
         public string Name { get; }
         public string Category { get; }
+        public bool LiveSafe { get; }
 
         private readonly MethodInfo _method;
 
@@ -21,16 +22,25 @@ namespace ONI_Together.DebugTools
         public bool IsFailed => State == TestState.Failed;
         public bool IsInProgress => State == TestState.InProgress;
 
-        public UnitTest(string name, string category, MethodInfo method)
+        public UnitTest(string name, string category, bool liveSafe, MethodInfo method)
         {
             Name = name;
             Category = category;
+            LiveSafe = liveSafe;
             _method = method;
         }
 
-        public void Run()
+        public void Run(bool liveSession)
         {
             HasRun = true;
+            if (liveSession && !LiveSafe)
+            {
+                State = TestState.NotRun;
+                Message = "Not declared safe during an active multiplayer session";
+                DurationMs = 0;
+                return;
+            }
+
             State = TestState.InProgress;
             Message = null;
 

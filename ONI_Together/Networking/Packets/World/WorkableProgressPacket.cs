@@ -8,8 +8,9 @@ using UnityEngine;
 
 namespace ONI_Together.Networking.Packets.World
 {
-	internal class WorkableProgressPacket : IPacket
+	internal class WorkableProgressPacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
+		private const int MaxTargetTypeNameLength = 4096;
 		private int TargetNetId;
 		private string TargetTypeName;
 		private RemoteProgressKind ProgressKind;
@@ -17,30 +18,38 @@ namespace ONI_Together.Networking.Packets.World
 		private bool ShowProgressBar;
 		private float WorkTimeRemaining;
 		private float WorkTimeTotal;
+		internal ulong Revision;
 
 		public WorkableProgressPacket() { }
 
-		public WorkableProgressPacket(Workable workable)
+		public static bool TryCreate(
+			Workable workable,
+			bool showProgressBar,
+			out WorkableProgressPacket packet)
 		{
 			using var _ = Profiler.Scope();
 
-			PopulateFromWorkable(workable, showProgressBar: true);
+			packet = null;
+			if (workable == null || workable.IsNullOrDestroyed())
+				return false;
+
+			var candidate = new WorkableProgressPacket();
+			candidate.PopulateFromWorkable(workable, showProgressBar);
+			return candidate.TryFinalizeCreation(out packet);
 		}
 
-		public static WorkableProgressPacket CreateHidden(Workable workable)
+		public static bool TryCreateComplexFabricator(
+			ComplexFabricator fabricator,
+			bool showProgressBar,
+			out WorkableProgressPacket packet)
 		{
 			using var _ = Profiler.Scope();
 
-			var packet = new WorkableProgressPacket();
-			packet.PopulateFromWorkable(workable, showProgressBar: false);
-			return packet;
-		}
+			packet = null;
+			if (fabricator == null || fabricator.IsNullOrDestroyed())
+				return false;
 
-		public static WorkableProgressPacket CreateComplexFabricator(ComplexFabricator fabricator, bool showProgressBar)
-		{
-			using var _ = Profiler.Scope();
-
-			var packet = new WorkableProgressPacket
+			var candidate = new WorkableProgressPacket
 			{
 				TargetNetId = fabricator.GetNetId(),
 				TargetTypeName = fabricator.GetType().AssemblyQualifiedName,
@@ -50,13 +59,18 @@ namespace ONI_Together.Networking.Packets.World
 				WorkTimeRemaining = showProgressBar ? 1f - Mathf.Clamp01(fabricator.OrderProgress) : 0f,
 				WorkTimeTotal = 1f
 			};
-			return packet;
+			return candidate.TryFinalizeCreation(out packet);
 		}
 
 		public void Serialize(BinaryWriter writer)
 		{
 			using var _ = Profiler.Scope();
 
+			if (Revision == 0)
+				Revision = NetworkIdentityRegistry.NextAuthorityRevision();
+			NormalizeProgressState();
+			if (!HasValidWireState())
+				throw new InvalidDataException("Invalid workable progress state");
 			writer.Write(TargetNetId);
 			writer.Write(TargetTypeName ?? string.Empty);
 			writer.Write((int)ProgressKind);
@@ -64,6 +78,7 @@ namespace ONI_Together.Networking.Packets.World
 			writer.Write(ShowProgressBar);
 			writer.Write(WorkTimeRemaining);
 			writer.Write(WorkTimeTotal);
+			writer.Write(Revision);
 		}
 
 		public void Deserialize(BinaryReader reader)
@@ -77,13 +92,68 @@ namespace ONI_Together.Networking.Packets.World
 			ShowProgressBar = reader.ReadBoolean();
 			WorkTimeRemaining = reader.ReadSingle();
 			WorkTimeTotal = reader.ReadSingle();
+			Revision = reader.ReadUInt64();
+			if (!HasValidWireState())
+				throw new InvalidDataException("Invalid workable progress state");
 		}
+
+		private void NormalizeProgressState()
+		{
+			if (!ShowProgressBar || !IsFinite(PercentComplete)
+			    || !IsFinite(WorkTimeRemaining) || !IsFinite(WorkTimeTotal)
+			    || WorkTimeTotal <= 0f)
+			{
+				ShowProgressBar = false;
+				PercentComplete = 0f;
+				WorkTimeRemaining = 0f;
+				WorkTimeTotal = 0f;
+				return;
+			}
+
+			PercentComplete = Mathf.Clamp01(PercentComplete);
+			WorkTimeRemaining = Mathf.Clamp(WorkTimeRemaining, 0f, WorkTimeTotal);
+		}
+
+		private bool TryFinalizeCreation(out WorkableProgressPacket packet)
+		{
+			NormalizeProgressState();
+			Revision = NetworkIdentityRegistry.NextAuthorityRevision();
+			if (!HasValidWireState())
+			{
+				packet = null;
+				return false;
+			}
+
+			packet = this;
+			return true;
+		}
+
+		private bool HasValidWireState()
+		{
+			bool knownKind = ProgressKind == RemoteProgressKind.WorkablePercent
+			                 || ProgressKind == RemoteProgressKind.ComplexFabricatorOrder;
+			if (TargetNetId == 0 || string.IsNullOrEmpty(TargetTypeName)
+			    || TargetTypeName.Length > MaxTargetTypeNameLength
+			    || !knownKind || Revision == 0 || !IsFinite(PercentComplete)
+			    || !IsFinite(WorkTimeRemaining) || !IsFinite(WorkTimeTotal)
+			    || PercentComplete < 0f || PercentComplete > 1f
+			    || WorkTimeRemaining < 0f || WorkTimeTotal < 0f)
+				return false;
+			if (!ShowProgressBar)
+				return PercentComplete == 0f && WorkTimeRemaining == 0f && WorkTimeTotal == 0f;
+			return WorkTimeTotal > 0f && WorkTimeRemaining <= WorkTimeTotal;
+		}
+
+		private static bool IsFinite(float value)
+			=> !float.IsNaN(value) && !float.IsInfinity(value);
 
 		public void OnDispatched()
 		{
 			using var _ = Profiler.Scope();
 
 			if (MultiplayerSession.IsHost)
+				return;
+			if (!NetworkIdentityRegistry.TryAcceptStateRevision(TargetNetId, RevisionDomain, Revision))
 				return;
 
 			if (TryApply())
@@ -118,13 +188,16 @@ namespace ONI_Together.Networking.Packets.World
 				PercentComplete = PercentComplete,
 				ShowProgressBar = ShowProgressBar,
 				WorkTimeRemaining = WorkTimeRemaining,
-				WorkTimeTotal = WorkTimeTotal
+				WorkTimeTotal = WorkTimeTotal,
+				Revision = Revision
 			};
 		}
 
 		private bool TryApply()
 		{
 			using var _ = Profiler.Scope();
+			if (!NetworkIdentityRegistry.IsCurrentStateRevision(TargetNetId, RevisionDomain, Revision))
+				return true;
 
 			switch (ProgressKind)
 			{
@@ -138,6 +211,11 @@ namespace ONI_Together.Networking.Packets.World
 					return true;
 			}
 		}
+
+		private string RevisionDomain => $"workable:{(int)ProgressKind}:{TargetTypeName}";
+
+		internal static bool ShouldApplyRevision(ulong current, ulong incoming)
+			=> NetworkIdentityRegistry.IsNewerRevision(current, incoming);
 
 		private bool TryApplyWorkableProgress()
 		{

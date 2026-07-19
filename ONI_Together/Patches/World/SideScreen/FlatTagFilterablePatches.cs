@@ -3,6 +3,7 @@ using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.World;
+using Shared;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -33,7 +34,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "FlatTagFilter".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("FlatTagFilter"),
 				Value = isSelected ? 1f : 0f,
 				ConfigType = BuildingConfigType.String,
 				StringValue = tag.Name

@@ -3,11 +3,32 @@ using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.World;
+using Shared;
 using Shared.Profiling;
 using UnityEngine;
 
 namespace ONI_Together.Patches.World.SideScreen
 {
+	internal static class CometDetectorTargetIdentity
+	{
+		internal static int GetClustercraftNetId(Clustercraft craft)
+		{
+			RocketModuleCluster module = craft?.ModuleInterface?.GetPrimaryPilotModule(out bool hasPilot);
+			if (module == null) return 0;
+			NetworkIdentity identity = module.gameObject.AddOrGet<NetworkIdentity>();
+			identity.RegisterIdentity();
+			return identity.NetId;
+		}
+
+		internal static int GetLaunchManagerNetId(LaunchConditionManager manager)
+		{
+			if (manager == null) return 0;
+			NetworkIdentity identity = manager.gameObject.AddOrGet<NetworkIdentity>();
+			identity.RegisterIdentity();
+			return identity.NetId;
+		}
+	}
+
 	/// <summary>
 	/// Patches for Comet Detector (Space Scanner) synchronization.
 	/// Handles both DLC (ClusterCometDetector) and base game (CometDetector).
@@ -38,7 +59,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(go),
-				ConfigHash = "ClusterCometDetectorState".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("ClusterCometDetectorState"),
 				Value = (float)(int)newState,
 				ConfigType = BuildingConfigType.Float
 			};
@@ -70,23 +91,16 @@ namespace ONI_Together.Patches.World.SideScreen
 			identity.RegisterIdentity();
 
 			// Get the clustercraft NetId if available
-			int targetNetId = -1;
-			if (target != null)
-			{
-				var targetIdentity = target.gameObject.GetComponent<NetworkIdentity>();
-				if (targetIdentity != null)
-				{
-					targetNetId = targetIdentity.NetId;
-				}
-			}
+			int targetNetId = CometDetectorTargetIdentity.GetClustercraftNetId(target);
+			if (target != null && targetNetId == 0) return;
 
 			var packet = new BuildingConfigPacket
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(go),
-				ConfigHash = "ClusterCometDetectorTarget".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("ClusterCometDetectorTarget"),
 				Value = 0f,
-				SliderIndex = targetNetId, // Store target NetId in SliderIndex
+				ReferenceNetId = targetNetId,
 				ConfigType = BuildingConfigType.Float
 			};
 
@@ -119,23 +133,16 @@ namespace ONI_Together.Patches.World.SideScreen
 			identity.RegisterIdentity();
 
 			// Get the target craft NetId if available
-			int targetNetId = -1;
-			if (target != null)
-			{
-				var targetIdentity = target.gameObject.GetComponent<NetworkIdentity>();
-				if (targetIdentity != null)
-				{
-					targetNetId = targetIdentity.NetId;
-				}
-			}
+			int targetNetId = CometDetectorTargetIdentity.GetLaunchManagerNetId(target);
+			if (target != null && targetNetId == 0) return;
 
 			var packet = new BuildingConfigPacket
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(go),
-				ConfigHash = "CometDetectorTarget".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("CometDetectorTarget"),
 				Value = 0f,
-				SliderIndex = targetNetId, // Store target NetId in SliderIndex (-1 means null/meteors)
+				ReferenceNetId = targetNetId,
 				ConfigType = BuildingConfigType.Float
 			};
 

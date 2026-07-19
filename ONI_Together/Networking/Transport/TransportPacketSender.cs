@@ -42,8 +42,11 @@ namespace ONI_Together.Networking.Transport
                 int sent = 0;
                 while (kvp.Value.Count > 0 && sent < maxThisTick)
                 {
-                    var (packet, sendType) = kvp.Value.Dequeue();
-                    SendPacket(kvp.Key, packet, sendType);
+					var (packet, sendType) = kvp.Value.Peek();
+					bool accepted = SendPacket(kvp.Key, packet, sendType);
+					if (!ShouldDequeueAfterSend(accepted, sendType))
+						break;
+					kvp.Value.Dequeue();
                     sent++;
                 }
                 if (kvp.Value.Count == 0)
@@ -53,6 +56,30 @@ namespace ONI_Together.Networking.Transport
             foreach (var key in _emptyConnections)
                 _pendingQueues.Remove(key);
         }
+
+		public void ResetSessionState()
+		{
+			_pendingQueues.Clear();
+			_emptyConnections.Clear();
+		}
+
+		public void DropConnection(object connection)
+		{
+			if (connection == null)
+				return;
+			_pendingQueues.Remove(connection);
+			_emptyConnections.Remove(connection);
+		}
+
+		internal int PendingCount(object connection)
+			=> connection != null && _pendingQueues.TryGetValue(connection, out var queue)
+				? queue.Count
+				: 0;
+
+		internal int PendingCountForTests(object connection) => PendingCount(connection);
+
+		internal static bool ShouldDequeueAfterSend(bool accepted, PacketSendMode sendType)
+			=> accepted || (sendType & PacketSendMode.Reliable) == 0;
 
         public abstract bool SendPacket(object conn, IPacket packet, PacketSendMode sendType = PacketSendMode.ReliableImmediate);
 

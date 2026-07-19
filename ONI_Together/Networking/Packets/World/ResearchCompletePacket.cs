@@ -9,7 +9,7 @@ namespace ONI_Together.Networking.Packets.World
 	/// <summary>
 	/// Sent when research completes on the host to sync the completion to clients.
 	/// </summary>
-	public class ResearchCompletePacket : IPacket
+	public class ResearchCompletePacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
 		public string TechId;
 

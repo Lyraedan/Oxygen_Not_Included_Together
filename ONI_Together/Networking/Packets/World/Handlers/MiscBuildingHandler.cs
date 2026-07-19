@@ -1,7 +1,10 @@
 using UnityEngine;
 using HarmonyLib;
 using ONI_Together.DebugTools;
+using ONI_Together.Patches.World.SideScreen;
+using Shared;
 using Shared.Profiling;
+using Database;
 
 namespace ONI_Together.Networking.Packets.World.Handlers
 {
@@ -15,52 +18,55 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 		private static readonly int[] _hashes = new int[]
 		{
 			// LogicSwitch
-			"LogicSwitchState".GetHashCode(),
-			"LogicState".GetHashCode(), // Alias for backwards compatibility
+			NetworkingHash.ForConfigKey("LogicSwitchState"),
+			NetworkingHash.ForConfigKey("LogicState"), // Alias for backwards compatibility
 			// LogicCounter
-			"CounterMaxCount".GetHashCode(),
-			"CounterAdvancedMode".GetHashCode(),
-			"CounterResetAtMax".GetHashCode(),
-			"CounterReset".GetHashCode(),
+			NetworkingHash.ForConfigKey("CounterMaxCount"),
+			NetworkingHash.ForConfigKey("CounterAdvancedMode"),
+			NetworkingHash.ForConfigKey("CounterResetAtMax"),
+			NetworkingHash.ForConfigKey("CounterReset"),
 			// CritterSensor
-			"CritterSensorCountCritters".GetHashCode(),
-			"CritterSensorCountEggs".GetHashCode(),
-			"CritterCountCritters".GetHashCode(),
-			"CritterCountEggs".GetHashCode(),
+			NetworkingHash.ForConfigKey("CritterSensorCountCritters"),
+			NetworkingHash.ForConfigKey("CritterSensorCountEggs"),
+			NetworkingHash.ForConfigKey("CritterCountCritters"),
+			NetworkingHash.ForConfigKey("CritterCountEggs"),
 			// LimitValve (both old and new hash names)
-			"LimitValveLimit".GetHashCode(),
-			"LimitValve".GetHashCode(),
+			NetworkingHash.ForConfigKey("LimitValveLimit"),
+			NetworkingHash.ForConfigKey("LimitValve"),
 			// ManualGenerator
-			"ManualGeneratorThreshold".GetHashCode(),
+			NetworkingHash.ForConfigKey("ManualGeneratorThreshold"),
 			// BottleEmptier
-			"BottleEmptierAllowManualPump".GetHashCode(),
+			NetworkingHash.ForConfigKey("BottleEmptierAllowManualPump"),
 			// Checkbox control
-			"Checkbox".GetHashCode(),
+			NetworkingHash.ForConfigKey("Checkbox"),
 			// Automatable (both old and new hash names)
-			"AutomatableAutomationOnly".GetHashCode(),
-			"AutomationOnly".GetHashCode(),
+			NetworkingHash.ForConfigKey("AutomatableAutomationOnly"),
+			NetworkingHash.ForConfigKey("AutomationOnly"),
 			// DirectionControl (both names)
-			"LoopConveyorDirection".GetHashCode(),
-			"DirectionControl".GetHashCode(),
+			NetworkingHash.ForConfigKey("LoopConveyorDirection"),
+			NetworkingHash.ForConfigKey("DirectionControl"),
 			// Valve rate
-			"Rate".GetHashCode(),
+			NetworkingHash.ForConfigKey("Rate"),
 			// FoodStorage
-			"FoodStorageSpicedFoodOnly".GetHashCode(),
+			NetworkingHash.ForConfigKey("FoodStorageSpicedFoodOnly"),
 			// IceMachine
-			"IceMachineElement".GetHashCode(),
+			NetworkingHash.ForConfigKey("IceMachineElement"),
 			// Artable (paintings, sculptures)
-			"ArtableState".GetHashCode(),
-			"ArtableDefault".GetHashCode(),
+			NetworkingHash.ForConfigKey("ArtableState"),
+			NetworkingHash.ForConfigKey("ArtableDefault"),
 			// SuitLocker
-			"SuitLockerRequestSuit".GetHashCode(),
-			"SuitLockerNoSuit".GetHashCode(),
-			"SuitLockerDropSuit".GetHashCode(),
-			// RemoteWorkTerminal (DLC3)
-			"RemoteWorkTerminalDock".GetHashCode(),
+			NetworkingHash.ForConfigKey("SuitLockerRequestSuit"),
+			NetworkingHash.ForConfigKey("SuitLockerNoSuit"),
+			NetworkingHash.ForConfigKey("SuitLockerDropSuit"),
+			// Gantry
+			NetworkingHash.ForConfigKey("GantryToggle"),
 			// SuitMarker (checkpoint clearance)
-			"SuitMarkerTraversal".GetHashCode(),
+			NetworkingHash.ForConfigKey("SuitMarkerTraversal"),
 			// FlatTagFilterable (meteor type selection)
-			"FlatTagFilter".GetHashCode(),
+			NetworkingHash.ForConfigKey("FlatTagFilter"),
+			// Configurable consumer and sealed POI door actions
+			SpiceGrinderWorkable_SetSelectedOption_Patch.ConfigHash,
+			Door_OrderUnseal_Patch.ConfigHash,
 		};
 
 		public int[] SupportedConfigHashes => _hashes;
@@ -70,8 +76,48 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 			using var _ = Profiler.Scope();
 
 			int hash = packet.ConfigHash;
-			int logicSwitchHash = "LogicSwitchState".GetHashCode();
-			int logicStateHash = "LogicState".GetHashCode();
+			int logicSwitchHash = NetworkingHash.ForConfigKey("LogicSwitchState");
+			int logicStateHash = NetworkingHash.ForConfigKey("LogicState");
+
+			if (hash == SpiceGrinderWorkable_SetSelectedOption_Patch.ConfigHash)
+			{
+				var grinder = go.GetComponent<SpiceGrinderWorkable>();
+				if (grinder == null || packet.ConfigType != BuildingConfigType.String ||
+				    string.IsNullOrEmpty(packet.StringValue))
+					return false;
+
+				string requestedId = packet.StringValue;
+				string currentId = grinder.GetSelectedOption()?.GetID().Name;
+				if (!SpiceGrinderWorkable_SetSelectedOption_Patch.ShouldApplyOption(currentId, requestedId))
+					return true;
+
+				IConfigurableConsumerOption[] options = grinder.GetSettingOptions();
+				if (options == null)
+					return false;
+
+				var optionIds = new string[options.Length];
+				for (int i = 0; i < options.Length; i++)
+					optionIds[i] = options[i]?.GetID().Name;
+
+				int optionIndex = SpiceGrinderWorkable_SetSelectedOption_Patch.FindOptionIndex(optionIds, requestedId);
+				if (optionIndex < 0)
+					return false;
+
+				grinder.SetSelectedOption(options[optionIndex]);
+				return true;
+			}
+
+			if (hash == Door_OrderUnseal_Patch.ConfigHash)
+			{
+				var door = go.GetComponent<Door>();
+				if (door == null || packet.ConfigType != BuildingConfigType.Boolean || packet.Value != 1f)
+					return false;
+
+				if (Door_OrderUnseal_Patch.ShouldOrderUnseal(door))
+					door.OrderUnseal();
+
+				return true;
+			}
 
 			// LogicSwitch
 			var logicSwitch = go.GetComponent<LogicSwitch>();
@@ -79,6 +125,9 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 
 			if (hash == logicSwitchHash || hash == logicStateHash)
 			{
+				if (packet.ConfigType != BuildingConfigType.Boolean
+				    || !BuildingConfigPacket.IsBooleanValue(packet.Value))
+					return false;
 				if (logicSwitch != null)
 				{
 					bool targetState = packet.Value > 0.5f;
@@ -109,29 +158,36 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 			var counter = go.GetComponent<LogicCounter>();
 			if (counter != null)
 			{
-				if (hash == "CounterMaxCount".GetHashCode())
+				if (hash == NetworkingHash.ForConfigKey("CounterMaxCount"))
 				{
+					if (packet.ConfigType != BuildingConfigType.Float
+					    || !BuildingConfigPacket.IsIntegralValue(packet.Value)
+					    || !BuildingConfigPacket.IsInRange(packet.Value, 1f, 9999f))
+						return false;
 					counter.maxCount = (int)packet.Value;
 					counter.SetCounterState();
 					//DebugConsole.Log($"[MiscBuildingHandler] Set counter maxCount={counter.maxCount} on {go.name}");
 					return true;
 				}
-				if (hash == "CounterAdvancedMode".GetHashCode())
+				if (hash == NetworkingHash.ForConfigKey("CounterAdvancedMode"))
 				{
+					if (!IsBooleanPacket(packet)) return false;
 					counter.advancedMode = packet.Value > 0.5f;
 					counter.SetCounterState();
 					//DebugConsole.Log($"[MiscBuildingHandler] Set counter advancedMode={counter.advancedMode} on {go.name}");
 					return true;
 				}
-				if (hash == "CounterResetAtMax".GetHashCode())
+				if (hash == NetworkingHash.ForConfigKey("CounterResetAtMax"))
 				{
+					if (!IsBooleanPacket(packet)) return false;
 					counter.resetCountAtMax = packet.Value > 0.5f;
 					counter.SetCounterState();
 					//DebugConsole.Log($"[MiscBuildingHandler] Set counter resetCountAtMax={counter.resetCountAtMax} on {go.name}");
 					return true;
 				}
-				if (hash == "CounterReset".GetHashCode())
+				if (hash == NetworkingHash.ForConfigKey("CounterReset"))
 				{
+					if (!BuildingConfigPacket.IsBooleanValue(packet.Value)) return false;
 					counter.ResetCounter();
 					//DebugConsole.Log($"[MiscBuildingHandler] Reset counter on {go.name}");
 					return true;
@@ -142,14 +198,16 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 			var critterSensor = go.GetComponent<LogicCritterCountSensor>();
 			if (critterSensor != null)
 			{
-				if (hash == "CritterSensorCountCritters".GetHashCode() || hash == "CritterCountCritters".GetHashCode())
+				if (hash == NetworkingHash.ForConfigKey("CritterSensorCountCritters") || hash == NetworkingHash.ForConfigKey("CritterCountCritters"))
 				{
+					if (!IsBooleanPacket(packet)) return false;
 					critterSensor.countCritters = packet.Value > 0.5f;
 					//DebugConsole.Log($"[MiscBuildingHandler] Set countCritters={critterSensor.countCritters} on {go.name}");
 					return true;
 				}
-				if (hash == "CritterSensorCountEggs".GetHashCode() || hash == "CritterCountEggs".GetHashCode())
+				if (hash == NetworkingHash.ForConfigKey("CritterSensorCountEggs") || hash == NetworkingHash.ForConfigKey("CritterCountEggs"))
 				{
+					if (!IsBooleanPacket(packet)) return false;
 					critterSensor.countEggs = packet.Value > 0.5f;
 					//DebugConsole.Log($"[MiscBuildingHandler] Set countEggs={critterSensor.countEggs} on {go.name}");
 					return true;
@@ -158,8 +216,11 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 
 			// LimitValve
 			var limitValve = go.GetComponent<LimitValve>();
-			if (limitValve != null && (hash == "LimitValveLimit".GetHashCode() || hash == "LimitValve".GetHashCode()))
+			if (limitValve != null && (hash == NetworkingHash.ForConfigKey("LimitValveLimit") || hash == NetworkingHash.ForConfigKey("LimitValve")))
 			{
+				if (packet.ConfigType != BuildingConfigType.Float
+				    || !BuildingConfigPacket.IsInRange(packet.Value, 0f, 1_000_000_000f))
+					return false;
 				limitValve.Limit = packet.Value;
 				//DebugConsole.Log($"[MiscBuildingHandler] Set LimitValve Limit={packet.Value} on {go.name}");
 				return true;
@@ -167,8 +228,11 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 
 			// ManualGenerator
 			var manualGenerator = go.GetComponent<ManualGenerator>();
-			if (manualGenerator != null && hash == "ManualGeneratorThreshold".GetHashCode())
+			if (manualGenerator != null && hash == NetworkingHash.ForConfigKey("ManualGeneratorThreshold"))
 			{
+				if (packet.ConfigType != BuildingConfigType.Float
+				    || !BuildingConfigPacket.IsInRange(packet.Value, 0f, 1f))
+					return false;
 				Traverse.Create(manualGenerator).Field("refillPercent").SetValue(packet.Value);
 				//DebugConsole.Log($"[MiscBuildingHandler] Set ManualGenerator refillPercent={packet.Value} on {go.name}");
 				return true;
@@ -176,19 +240,21 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 
 			// BottleEmptier
 			var bottleEmptier = go.GetComponent<BottleEmptier>();
-			if (bottleEmptier != null && hash == "BottleEmptierAllowManualPump".GetHashCode())
+			if (bottleEmptier != null && hash == NetworkingHash.ForConfigKey("BottleEmptierAllowManualPump"))
 			{
+				if (!IsBooleanPacket(packet)) return false;
 				bottleEmptier.allowManualPumpingStationFetching = packet.Value > 0.5f;
 				//DebugConsole.Log($"[MiscBuildingHandler] Set BottleEmptier allowManualPump={packet.Value > 0.5f} on {go.name}");
 				return true;
 			}
 
 			// ICheckboxControl
-			if (hash == "Checkbox".GetHashCode())
+			if (hash == NetworkingHash.ForConfigKey("Checkbox"))
 			{
 				var checkbox = go.GetComponent<ICheckboxControl>();
 				if (checkbox != null)
 				{
+					if (!IsBooleanPacket(packet)) return false;
 					checkbox.SetCheckboxValue(packet.Value > 0.5f);
 					//DebugConsole.Log($"[MiscBuildingHandler] Set Checkbox={packet.Value > 0.5f} on {go.name}");
 					return true;
@@ -197,8 +263,9 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 
 			// Automatable
 			var automatable = go.GetComponent<Automatable>();
-			if (automatable != null && (hash == "AutomatableAutomationOnly".GetHashCode() || hash == "AutomationOnly".GetHashCode()))
+			if (automatable != null && (hash == NetworkingHash.ForConfigKey("AutomatableAutomationOnly") || hash == NetworkingHash.ForConfigKey("AutomationOnly")))
 			{
+				if (!IsBooleanPacket(packet)) return false;
 				automatable.SetAutomationOnly(packet.Value > 0.5f);
 				//DebugConsole.Log($"[MiscBuildingHandler] Set AutomationOnly={packet.Value > 0.5f} on {go.name}");
 				return true;
@@ -206,8 +273,13 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 
 			// DirectionControl (Loop Conveyor, Wash Basin, etc.)
 			var directionControl = go.GetComponent<DirectionControl>();
-			if (directionControl != null && (hash == "LoopConveyorDirection".GetHashCode() || hash == "DirectionControl".GetHashCode()))
+			if (directionControl != null && (hash == NetworkingHash.ForConfigKey("LoopConveyorDirection") || hash == NetworkingHash.ForConfigKey("DirectionControl")))
 			{
+				if (packet.ConfigType != BuildingConfigType.Float
+				    || !BuildingConfigPacket.IsIntegralValue(packet.Value)
+				    || !System.Enum.IsDefined(
+					    typeof(WorkableReactable.AllowedDirection), (int)packet.Value))
+					return false;
 				directionControl.SetAllowedDirection((WorkableReactable.AllowedDirection)(int)packet.Value);
 				//DebugConsole.Log($"[MiscBuildingHandler] Set Direction={(WorkableReactable.AllowedDirection)(int)packet.Value} on {go.name}");
 				return true;
@@ -215,8 +287,11 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 
 			// Valve rate
 			var valve = go.GetComponent<Valve>();
-			if (valve != null && hash == "Rate".GetHashCode())
+			if (valve != null && hash == NetworkingHash.ForConfigKey("Rate"))
 			{
+				if (packet.ConfigType != BuildingConfigType.Float
+				    || !BuildingConfigPacket.IsInRange(packet.Value, 0f, 1_000_000_000f))
+					return false;
 				Traverse.Create(valve).Method("ChangeFlow", packet.Value).GetValue();
 				//DebugConsole.Log($"[MiscBuildingHandler] Set Valve Rate={packet.Value} on {go.name}");
 				return true;
@@ -224,8 +299,9 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 
 			// FoodStorage (Refrigerator spiced food toggle)
 			var foodStorage = go.GetComponent<FoodStorage>();
-			if (foodStorage != null && hash == "FoodStorageSpicedFoodOnly".GetHashCode())
+			if (foodStorage != null && hash == NetworkingHash.ForConfigKey("FoodStorageSpicedFoodOnly"))
 			{
+				if (!IsBooleanPacket(packet)) return false;
 				foodStorage.SpicedFoodOnly = packet.Value > 0.5f;
 				//DebugConsole.Log($"[MiscBuildingHandler] Set SpicedFoodOnly={packet.Value > 0.5f} on {go.name}");
 				return true;
@@ -233,12 +309,26 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 
 			// IceMachine element selection
 			var iceMachine = go.GetComponent<IceMachine>();
-			if (iceMachine != null && hash == "IceMachineElement".GetHashCode())
+			if (iceMachine != null && hash == NetworkingHash.ForConfigKey("IceMachineElement"))
 			{
 				if (packet.ConfigType == BuildingConfigType.String && !string.IsNullOrEmpty(packet.StringValue))
 				{
 					Tag tag = new Tag(packet.StringValue);
-					iceMachine.OnOptionSelected(new FewOptionSideScreen.IFewOptionSideScreen.Option(tag, null, null));
+					FewOptionSideScreen.IFewOptionSideScreen.Option selected = default;
+					bool found = false;
+					foreach (FewOptionSideScreen.IFewOptionSideScreen.Option option in iceMachine.GetOptions())
+					{
+						if (option.tag == tag)
+						{
+							selected = option;
+							found = true;
+							break;
+						}
+					}
+					if (!found)
+						return false;
+					iceMachine.OnOptionSelected(selected);
+					packet.StringValue = iceMachine.GetSelectedOption().Name;
 					//DebugConsole.Log($"[MiscBuildingHandler] Set IceMachine element={tag} on {go.name}");
 					return true;
 				}
@@ -248,17 +338,29 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 			var artable = go.GetComponent<Artable>();
 			if (artable != null)
 			{
-				if (hash == "ArtableState".GetHashCode())
+				if (hash == NetworkingHash.ForConfigKey("ArtableState"))
 				{
-					if (!string.IsNullOrEmpty(packet.StringValue))
+					if (packet.ConfigType == BuildingConfigType.String
+					    && !string.IsNullOrEmpty(packet.StringValue))
 					{
+						bool allowed = false;
+						foreach (ArtableStage stage in Db.GetArtableStages().GetPrefabStages(go.PrefabID()))
+						{
+							if (stage != null && stage.id == packet.StringValue && stage.IsUnlocked())
+							{
+								allowed = true;
+								break;
+							}
+						}
+						if (!allowed) return false;
 						artable.SetUserChosenTargetState(packet.StringValue);
 						//DebugConsole.Log($"[MiscBuildingHandler] Set Artable state={packet.StringValue} on {go.name}");
 						return true;
 					}
 				}
-				if (hash == "ArtableDefault".GetHashCode())
+				if (hash == NetworkingHash.ForConfigKey("ArtableDefault"))
 				{
+					if (!BuildingConfigPacket.IsBooleanValue(packet.Value)) return false;
 					artable.SetDefault();
 					//DebugConsole.Log($"[MiscBuildingHandler] Reset Artable to default on {go.name}");
 					return true;
@@ -269,53 +371,48 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 			var suitLocker = go.GetComponent<SuitLocker>();
 			if (suitLocker != null)
 			{
-				if (hash == "SuitLockerRequestSuit".GetHashCode())
+				if (hash == NetworkingHash.ForConfigKey("SuitLockerRequestSuit"))
 				{
+					if (!IsBooleanPacket(packet) || packet.Value != 1f) return false;
 					suitLocker.ConfigRequestSuit();
 					//DebugConsole.Log($"[MiscBuildingHandler] ConfigRequestSuit on {go.name}");
 					return true;
 				}
-				if (hash == "SuitLockerNoSuit".GetHashCode())
+				if (hash == NetworkingHash.ForConfigKey("SuitLockerNoSuit"))
 				{
+					if (!IsBooleanPacket(packet) || packet.Value != 0f) return false;
 					suitLocker.ConfigNoSuit();
 					//DebugConsole.Log($"[MiscBuildingHandler] ConfigNoSuit on {go.name}");
 					return true;
 				}
-				if (hash == "SuitLockerDropSuit".GetHashCode())
+				if (hash == NetworkingHash.ForConfigKey("SuitLockerDropSuit"))
 				{
+					if (!IsBooleanPacket(packet) || packet.Value != 1f) return false;
 					suitLocker.DropSuit();
 					//DebugConsole.Log($"[MiscBuildingHandler] DropSuit on {go.name}");
 					return true;
 				}
 			}
 
-			// RemoteWorkTerminal (DLC3)
-			if (hash == "RemoteWorkTerminalDock".GetHashCode())
+			// Gantry
+			if (hash == NetworkingHash.ForConfigKey("GantryToggle"))
 			{
-				var terminal = go.GetComponent<RemoteWorkTerminal>();
-				if (terminal != null)
+				var gantry = go.GetComponent<Gantry>();
+				if (gantry != null)
 				{
-					int dockNetId = packet.SliderIndex;
-					RemoteWorkerDock targetDock = null;
-
-					if (dockNetId != -1)
-					{
-						if (NetworkIdentityRegistry.TryGet(dockNetId, out var dockIdentity) && dockIdentity != null)
-						{
-							targetDock = dockIdentity.gameObject.GetComponent<RemoteWorkerDock>();
-						}
-					}
-
-					terminal.FutureDock = targetDock;
-					//DebugConsole.Log($"[MiscBuildingHandler] Set RemoteWorkTerminal FutureDock={targetDock?.GetProperName() ?? "null"} on {go.name}");
+					if (!IsBooleanPacket(packet)) return false;
+					bool targetState = packet.Value > 0.5f;
+					if (gantry.IsSwitchedOn != targetState)
+						gantry.Toggle();
 					return true;
 				}
 			}
 
 			// SuitMarker (checkpoint clearance - traverse only when room available)
 			var suitMarker = go.GetComponent<SuitMarker>();
-			if (suitMarker != null && hash == "SuitMarkerTraversal".GetHashCode())
+			if (suitMarker != null && hash == NetworkingHash.ForConfigKey("SuitMarkerTraversal"))
 			{
+				if (!IsBooleanPacket(packet)) return false;
 				if (packet.Value > 0.5f)
 				{
 					// Use Traverse to call private method
@@ -334,9 +431,15 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 			var flatTagFilter = go.GetComponent<FlatTagFilterable>();
 			if (flatTagFilter != null)
 			{
-				if (hash == "FlatTagFilter".GetHashCode())
+				if (hash == NetworkingHash.ForConfigKey("FlatTagFilter"))
 				{
+					if (packet.ConfigType != BuildingConfigType.String
+					    || string.IsNullOrEmpty(packet.StringValue)
+					    || !BuildingConfigPacket.IsBooleanValue(packet.Value))
+						return false;
 					Tag tag = new Tag(packet.StringValue);
+					if (!flatTagFilter.tagOptions.Contains(tag))
+						return false;
 					bool shouldBeSelected = packet.Value > 0.5f;
 					bool isSelected = flatTagFilter.selectedTags.Contains(tag);
 
@@ -352,5 +455,9 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 
 			return false;
 		}
+
+		private static bool IsBooleanPacket(BuildingConfigPacket packet)
+			=> packet.ConfigType == BuildingConfigType.Boolean
+			   && BuildingConfigPacket.IsBooleanValue(packet.Value);
 	}
 }

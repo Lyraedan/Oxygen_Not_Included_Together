@@ -1,5 +1,6 @@
 using UnityEngine;
 using ONI_Together.DebugTools;
+using Shared;
 using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.World.Handlers
@@ -11,7 +12,7 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 	{
 		private static readonly int[] _hashes = new int[]
 		{
-			"DoorState".GetHashCode(),
+			NetworkingHash.ForConfigKey("DoorState"),
 		};
 
 		public int[] SupportedConfigHashes => _hashes;
@@ -20,10 +21,14 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 		{
 			using var _ = Profiler.Scope();
 
-			if (packet.ConfigHash != "DoorState".GetHashCode()) return false;
+			if (packet.ConfigHash != NetworkingHash.ForConfigKey("DoorState")) return false;
 
 			var door = go.GetComponent<Door>();
 			if (door == null) return false;
+			if (packet.ConfigType != BuildingConfigType.Float
+			    || !BuildingConfigPacket.IsIntegralValue(packet.Value)
+			    || !System.Enum.IsDefined(typeof(Door.ControlState), (int)packet.Value))
+				return false;
 
 			Door.ControlState state = (Door.ControlState)(int)packet.Value;
 

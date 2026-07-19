@@ -9,6 +9,7 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 {
 	public class DuplicantPriorityPacket : IPacket
 	{
+		internal const int MaxChoreGroupIdChars = 128;
 		public int NetId;
 		public string ChoreGroupId;
 		public int Priority;
@@ -16,6 +17,8 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 		public void Serialize(BinaryWriter writer)
 		{
 			using var _ = Profiler.Scope();
+			if (!IsValidRequest(NetId, ChoreGroupId, Priority))
+				throw new InvalidDataException("Invalid duplicant priority request");
 
 			writer.Write(NetId);
 			writer.Write(ChoreGroupId ?? string.Empty);
@@ -29,6 +32,8 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 			NetId = reader.ReadInt32();
 			ChoreGroupId = reader.ReadString();
 			Priority = reader.ReadInt32();
+			if (!IsValidRequest(NetId, ChoreGroupId, Priority))
+				throw new InvalidDataException("Invalid duplicant priority request");
 		}
 
 		public void OnDispatched()
@@ -37,40 +42,33 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 
 			if (MultiplayerSession.IsHost)
 			{
-				// Host receives from client, apply and broadcast
-				Apply();
-
-				// Broadcast to other clients
+				if (PacketHandler.CurrentContext.SenderIsHost || !Apply())
+					return;
 				PacketSender.SendToAllClients(this);
 			}
 			else
 			{
-				// Client receives from host
+				if (!PacketHandler.CurrentContext.SenderIsHost)
+					return;
 				Apply();
 			}
 		}
 
-		private void Apply()
+		private bool Apply()
 		{
 			using var _ = Profiler.Scope();
 
-			// First try normal registry lookup
 			if (!NetworkIdentityRegistry.TryGet(NetId, out var identity) || identity == null)
 			{
-				// Not in registry - try to find and force-register
-				identity = TryFindAndRegisterIdentity(NetId);
-				if (identity == null)
-				{
-					DebugConsole.LogWarning($"[DuplicantPriorityPacket] NetId {NetId} not found anywhere.");
-					return;
-				}
+				DebugConsole.LogWarning($"[DuplicantPriorityPacket] Signed NetId {NetId} is not registered.");
+				return false;
 			}
 
 			var consumer = identity.GetComponent<ChoreConsumer>();
 			if (consumer == null)
 			{
 				DebugConsole.LogWarning($"[DuplicantPriorityPacket] NetId {NetId} has no ChoreConsumer.");
-				return;
+				return false;
 			}
 
 			// Find the ChoreGroup
@@ -86,12 +84,15 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 
 			if (targetGroup != null)
 			{
+				if (consumer.IsChoreGroupDisabled(targetGroup))
+					return false;
 				IsApplying = true;
 				try
 				{
 					consumer.SetPersonalPriority(targetGroup, Priority);
-					ManagementMenu.Instance.jobsScreen.MarkRowsDirty();
+					ManagementMenu.Instance?.jobsScreen?.MarkRowsDirty();
 					DebugConsole.Log($"[DuplicantPriorityPacket] Applied {ChoreGroupId} = {Priority} to {identity.name}");
+					return true;
 				}
 				finally
 				{
@@ -101,35 +102,18 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 			else
 			{
 				DebugConsole.LogWarning($"[DuplicantPriorityPacket] ChoreGroup {ChoreGroupId} not found.");
+				return false;
 			}
 		}
 
-		/// <summary>
-		/// Searches all live duplicants for one with the matching NetId component,
-		/// and if found, forces registration with the NetworkIdentityRegistry.
-		/// </summary>
-		private static NetworkIdentity TryFindAndRegisterIdentity(int netId)
-		{
-			using var _ = Profiler.Scope();
-
-			// Search all live duplicants
-			foreach (var minionIdentity in global::Components.LiveMinionIdentities.Items)
-			{
-				if (minionIdentity == null) continue;
-
-				var identity = minionIdentity.GetComponent<NetworkIdentity>();
-				if (identity != null && identity.NetId == netId)
-				{
-					// Found it! Force register using RegisterOverride to bypass any checks
-					NetworkIdentityRegistry.RegisterOverride(identity, netId);
-					DebugConsole.Log($"[DuplicantPriorityPacket] Force-registered NetId {netId} for {minionIdentity.name}");
-					return identity;
-				}
-			}
-
-			return null;
-		}
+		internal static bool IsValidRequest(int netId, string choreGroupId, int priority)
+			=> netId != 0
+			   && !string.IsNullOrEmpty(choreGroupId)
+			   && choreGroupId.Length <= MaxChoreGroupIdChars
+			   && priority >= 0 && priority <= 5;
 
 		public static bool IsApplying = false;
+
+		internal static void ResetSessionState() => IsApplying = false;
 	}
 }

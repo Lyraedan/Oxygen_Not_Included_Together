@@ -15,42 +15,49 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Shared.Profiling;
 using UnityEngine;
 
-public static class SaveHelper
+public static partial class SaveHelper
 {
+	private const string MultiplayerStaticId = "ONI_Together";
 
 	public static int SAVEFILE_CHUNKSIZE_KB
 	{
-		get
-		{
-			int minChunkKB = NetworkConfig.IsLanConfig() ? 1 : 64;
-			return Math.Max(minChunkKB, Configuration.GetHostProperty<int>("SaveFileTransferChunkKB"));
-		}
+		get => ResolveSaveFileChunkSizeKb(
+			Configuration.GetHostProperty<int>("SaveFileTransferChunkKB"),
+			NetworkConfig.transport);
+	}
+
+	internal static int ResolveSaveFileChunkSizeKb(
+		int configuredChunkKb,
+		NetworkConfig.NetworkTransport transport)
+	{
+		int boundedChunkKb = Math.Max(1, configuredChunkKb);
+		return transport == NetworkConfig.NetworkTransport.STEAMWORKS
+			? Math.Min(64, boundedChunkKb)
+			: boundedChunkKb;
 	}
 	public static void RequestWorldLoad(WorldSave world)
 	{
 		using var _ = Profiler.Scope();
 
-		NetworkingComponent.scheduler.Run(() => LoadWorldSave(Path.GetFileNameWithoutExtension(world.Name), world.Data));
+		NetworkingComponent.scheduler.Run(() => LoadWorldSave(
+			Path.GetFileNameWithoutExtension(world.Name), world.Data, world.SnapshotGeneration));
 	}
 
-	private static void LoadWorldSave(string name, byte[] data)
+	private static void LoadWorldSave(string name, byte[] data, long snapshotGeneration)
 	{
 		using var _ = Profiler.Scope();
-
-		var savePath = SaveLoader.GetCloudSavesDefault() ? SaveLoader.GetCloudSavePrefix() : SaveLoader.GetSavePrefixAndCreateFolder();
-
-		var baseName = Path.GetFileNameWithoutExtension(name);
-		var path = SecurePath.Combine(savePath, baseName, $"{baseName}.sav");
-
-		Directory.CreateDirectory(Path.GetDirectoryName(path));
-
-		File.WriteAllBytes(path, data);
+		if (!ReadyManager.IsCurrentClientSnapshot(snapshotGeneration))
+		{
+			DebugConsole.LogWarning($"[SaveHelper] Ignored stale snapshot generation {snapshotGeneration}");
+			return;
+		}
 
 		if (!SavegameDlcListValid(data, out string errorMsg))
 		{
@@ -58,15 +65,33 @@ public static class SaveHelper
 			return;
 		}
 
-		// Notify host before disconnecting so it can suppress leave/join messages
-		ReadyManager.SendReadyStatusPacket(ClientReadyState.Loading);
+		string path = GetMultiplayerSnapshotPath(
+			Path.GetTempPath(), MultiplayerSession.HostUserID, snapshotGeneration, name);
+		Directory.CreateDirectory(Path.GetDirectoryName(path));
+		File.WriteAllBytes(path, data);
 
-		GameClient.SetState(ClientState.LoadingWorld);
+		if (!ReadyManager.RequestLoadingApproval(
+			    snapshotGeneration, () => CompleteWorldLoad(path)))
+		{
+			DebugConsole.LogError("[SaveHelper] Failed to request host loading approval", false);
+			GameClient.FailWorldLoadHandshake(
+				"Could not request host approval to load the synchronized world.");
+		}
+	}
+
+	private static void CompleteWorldLoad(string path)
+	{
+		if (!GameClient.BeginWorldLoadReconnect())
+		{
+			ShowMessageAndReturnToMainMenu(
+				"Could not preserve client authority while loading the host world.");
+			return;
+		}
 		GameClient.CacheCurrentServer();
 		GameClient.Disconnect();
 		PacketHandler.readyToProcess = false;
 		NetworkIdentityRegistry.Clear();
-		MultiplayerSession.PlayerCursors.Clear();
+		MultiplayerSession.RemoveAllPlayerCursors();
 		MultiplayerOverlay.Show(global::STRINGS.UI.FRONTEND.LOADING);
 
 		LoadScreen.DoLoad(path);
@@ -245,7 +270,50 @@ public static class SaveHelper
 		missingMods = [.. modsToBeActive];
 
 
-		return diffCount == 0;
+		return diffCount == 0 && missingMods.Count == 0;
+	}
+
+	public static List<string> GetActiveModFingerprints()
+	{
+		using var _ = Profiler.Scope();
+
+		var fingerprints = new List<string>();
+		int loadOrder = 0;
+		foreach (KMod.Mod mod in Global.Instance.modManager.mods)
+		{
+			if (!mod.IsEnabledForActiveDlc()
+			    || string.Equals(mod.staticID, MultiplayerStaticId, StringComparison.Ordinal))
+			{
+				continue;
+			}
+
+			string platform = Convert.ToString((int)mod.label.distribution_platform, CultureInfo.InvariantCulture);
+			string version = Convert.ToString(mod.label.version, CultureInfo.InvariantCulture);
+			string contentPath = mod.ContentPath;
+			string contentHash = ComputeCachedDirectoryHash(contentPath);
+			string configHash = ComputeCachedDirectoryHash(
+				ProtocolCompatibility.GetModConfigDirectory(contentPath, mod.staticID));
+			fingerprints.Add(ProtocolCompatibility.ComposeModFingerprint(
+				loadOrder++, mod.staticID, platform, mod.label.id, version, contentHash, configHash));
+		}
+
+		return fingerprints;
+	}
+
+	public static bool ActiveModFingerprintsMatch(
+		IEnumerable<string> hostFingerprints,
+		out HashSet<string> missingLocally,
+		out HashSet<string> extraLocally)
+	{
+		using var _ = Profiler.Scope();
+
+		var host = new HashSet<string>(hostFingerprints ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
+		var local = new HashSet<string>(GetActiveModFingerprints(), StringComparer.Ordinal);
+		missingLocally = new HashSet<string>(host, StringComparer.Ordinal);
+		missingLocally.ExceptWith(local);
+		extraLocally = new HashSet<string>(local, StringComparer.Ordinal);
+		extraLocally.ExceptWith(host);
+		return missingLocally.Count == 0 && extraLocally.Count == 0;
 	}
 
 
@@ -253,34 +321,20 @@ public static class SaveHelper
 	{
 		using var _ = Profiler.Scope();
 
-		errorMsg = string.Empty;
-		HashSet<string> missingDLCs = new HashSet<string>();
-
-		bool spacedOutSave = dlcIds.Contains(DlcManager.EXPANSION1_ID);
-
-		foreach (var dlcId in dlcIds)
+		List<string> activeDlcList = DlcManager.GetActiveDLCIds();
+		if (SimulationDlcSetsMatch(
+		    activeDlcList, dlcIds, out HashSet<string> activeDlcIds, out HashSet<string> saveDlcIds))
 		{
-			if (!DlcManager.IsContentSubscribed(dlcId))
-			{
-				DebugConsole.LogWarning($"[SaveHelper] Missing DLC required by savegame: {dlcId}");
-				missingDLCs.Add(dlcId);
-			}
-		}
-		if (spacedOutSave != DlcManager.IsExpansion1Active())
-		{
-			errorMsg = spacedOutSave
-				? ONI_Together.STRINGS.UI.MP_OVERLAY.SYNC.DLCSYNC.WRONGDLC_BASEGAME
-				: ONI_Together.STRINGS.UI.MP_OVERLAY.SYNC.DLCSYNC.WRONGDLC_SPACEDOUT;
-			return false;
+			errorMsg = string.Empty;
+			return true;
 		}
 
-
-		if (missingDLCs.Any())
-		{
-			errorMsg = ONI_Together.STRINGS.UI.MP_OVERLAY.SYNC.DLCSYNC.WRONGDLC_LISTHEADER + "\n" + string.Join(", ", missingDLCs.Select(id => DlcManager.GetDlcTitleNoFormatting(id)));
-			return false;
-		}
-		return true;
+		DebugConsole.LogWarning(
+			$"[SaveHelper] Simulation DLC mismatch: save={string.Join(",", saveDlcIds)}, active={string.Join(",", activeDlcIds)}");
+		errorMsg = "Active simulation DLCs must exactly match the server save.\n"
+		           + "Server save: " + string.Join(", ", saveDlcIds.Select(DlcManager.GetDlcTitleNoFormatting)) + "\n"
+		           + "Client active: " + string.Join(", ", activeDlcIds.Select(DlcManager.GetDlcTitleNoFormatting));
+		return false;
 	}
 
 	public static bool SavegameDlcListValid(byte[] saveBytes, out string errorMsg)
@@ -414,7 +468,12 @@ public static class SaveHelper
 		// Notify host before disconnecting so it can suppress leave/join messages
 		ReadyManager.SendReadyStatusPacket(ClientReadyState.Loading);
 
-		GameClient.SetState(ClientState.LoadingWorld);
+		if (!GameClient.BeginWorldLoadReconnect())
+		{
+			ShowMessageAndReturnToMainMenu(
+				"Could not preserve client authority while loading the host world.");
+			return;
+		}
 		GameClient.CacheCurrentServer();
 		GameClient.Disconnect();
 		PacketHandler.readyToProcess = false;

@@ -6,7 +6,7 @@ using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.Events
 {
-	public class EventTriggeredPacket : IPacket
+	public class EventTriggeredPacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
 		public int NetId;
 		public int EventHash;

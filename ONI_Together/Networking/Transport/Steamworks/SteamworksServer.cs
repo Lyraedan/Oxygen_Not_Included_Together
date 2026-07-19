@@ -9,6 +9,7 @@ using ONI_Together.Networking.Packets.Architecture;
 using Shared.Profiling;
 using ONI_Together.Networking.States;
 using ONI_Together.UI;
+using ONI_Together.Networking.Transport.Steamworks;
 using Steamworks;
 
 namespace ONI_Together.Networking.Transport.Steam
@@ -101,12 +102,13 @@ namespace ONI_Together.Networking.Transport.Steam
             {
                 if (player.Connection != null)
                 {
+					object connection = player.Connection;
                     if (player.Connection is HSteamNetConnection)
                     {
                         var conn = (HSteamNetConnection) player.Connection;
                         SteamNetworkingSockets.CloseConnection(conn, 0, "Shutdown", false);
                     }
-                    player.Connection = null;
+					player.EndConnection(connection, player.ConnectionGeneration);
                 }
             }
         }
@@ -132,14 +134,33 @@ namespace ONI_Together.Networking.Transport.Steam
 
             for (int i = 0; i < msgCount; i++)
             {
-                var msg = Marshal.PtrToStructure<SteamNetworkingMessage_t>(messages[i]);
-                totalBytes += msg.m_cbSize;
-                byte[] bytes = new byte[msg.m_cbSize];
-                Marshal.Copy(msg.m_pData, bytes, 0, msg.m_cbSize);
+                try
+                {
+                    var msg = Marshal.PtrToStructure<SteamNetworkingMessage_t>(messages[i]);
+                    totalBytes += msg.m_cbSize;
+                    byte[] bytes = new byte[msg.m_cbSize];
+                    Marshal.Copy(msg.m_pData, bytes, 0, msg.m_cbSize);
 
-                PacketHandler.HandleIncoming(bytes);
-
-                SteamNetworkingMessage_t.Release(messages[i]);
+                    ulong senderId = msg.m_identityPeer.GetSteamID64();
+					if (!MultiplayerSession.ConnectedPlayers.TryGetValue(senderId, out var player)
+					    || !player.IsCurrentConnection(msg.m_conn, player.ConnectionGeneration))
+					{
+						DebugConsole.LogWarning($"[SteamworksServer] Rejected stale connection message from {senderId}");
+						continue;
+					}
+                    PacketHandler.HandleIncoming(bytes, new DispatchContext(
+                        senderId,
+						senderId == MultiplayerSession.HostUserID,
+						player.ConnectionGeneration));
+                }
+                catch (Exception ex)
+                {
+                    DebugConsole.LogWarning($"[SteamworksServer] Rejected malformed message: {ex}");
+                }
+                finally
+                {
+                    SteamNetworkingMessage_t.Release(messages[i]);
+                }
             }
             scope.End(msgCount, totalBytes);
         }
@@ -174,6 +195,12 @@ namespace ONI_Together.Networking.Transport.Steam
         private static void TryAcceptConnection(HSteamNetConnection conn, CSteamID clientId)
         {
             using var _ = Profiler.Scope();
+
+			if (!SteamLobby.IsCurrentLobbyMember(clientId.m_SteamID))
+			{
+				RejectConnection(conn, clientId, "Steam identity is not a member of the active lobby");
+				return;
+			}
 
             // Get connection info to check actual state
             SteamNetConnectionInfo_t info = default;
@@ -232,27 +259,25 @@ namespace ONI_Together.Networking.Transport.Steam
                 MultiplayerSession.ConnectedPlayers.Add(clientId.m_SteamID, player);
                 //MultiplayerSession.ConnectedPlayers[clientId] = player;
             }
-            player.Connection = conn;
+			player.BeginConnection(conn);
 
             DebugConsole.Log($"[GameServer] Connection to {clientId} fully established!");
             //SaveFileRequestPacket.SendSaveFile(clientId); // Old method
             //GoogleDriveUtils.UploadAndSendToClient(clientId); // Upload to googledrive and send to the client
         }
 
-        private static void OnClientClosed(HSteamNetConnection conn, CSteamID clientId)
+		private static void OnClientClosed(HSteamNetConnection conn, CSteamID clientId)
         {
             using var _ = Profiler.Scope();
 
             SteamNetworkingSockets.CloseConnection(conn, 0, null, false);
 
-            if (MultiplayerSession.ConnectedPlayers.TryGetValue(clientId.m_SteamID, out var playerToRemove))
-            {
-                playerToRemove.Connection = null;
-            }
+			bool closedCurrentSession = TryCleanupClientSession(clientId.m_SteamID, conn);
 
             DebugConsole.Log($"[GameServer] Connection closed for {clientId}");
 
-            ReadyManager.RefreshReadyState();
+			if (closedCurrentSession)
+				ReadyManager.RefreshReadyState();
             // Do I wanna auto shutdown here? I don't think so
             // if (MultiplayerSession.ConnectedPlayers.Count == 0)
             // {
@@ -260,6 +285,16 @@ namespace ONI_Together.Networking.Transport.Steam
             //     Shutdown
             // }
         }
+
+		internal static bool TryCleanupClientSession(ulong clientId, object connection)
+		{
+			if (!MultiplayerSession.ConnectedPlayers.TryGetValue(clientId, out MultiplayerPlayer player)
+			    || !player.EndConnection(connection, player.ConnectionGeneration))
+				return false;
+
+			SaveFileTransferManager.CancelTransfers(clientId);
+			return true;
+		}
 
         public override void KickClient(ulong clientId)
         {

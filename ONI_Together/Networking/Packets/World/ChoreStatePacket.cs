@@ -18,8 +18,9 @@ namespace ONI_Together.Networking.Packets.World
 		public SyncedChoreType Type;
 	}
 
-	public class ChoreStatePacket : IPacket
+	public class ChoreStatePacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
+		internal const int MaxChoreCount = 262144;
 		public List<ChoreData> Chores = new List<ChoreData>();
 
 		public void Serialize(BinaryWriter writer)
@@ -39,6 +40,8 @@ namespace ONI_Together.Networking.Packets.World
 			using var _ = Profiler.Scope();
 
 			int count = reader.ReadInt32();
+			if (count < 0 || count > MaxChoreCount)
+				throw new InvalidDataException($"Invalid chore state count: {count}");
 			Chores = new List<ChoreData>(count);
 			for (int i = 0; i < count; i++)
 			{

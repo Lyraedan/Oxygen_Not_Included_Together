@@ -4,13 +4,18 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using ONI_Together.Networking.Packets.Architecture;
+using Shared;
 using Shared.Profiling;
 
 namespace ONI_Together_DedicatedServer
 {
     public static class Utils
     {
-        public static readonly int DEDICATED_SERVER_PACKET_ID = -235098231;
+        private const string DedicatedServerPacketTypeName =
+            "ONI_Together.Networking.Packets.Core.DedicatedServerMessagePacket";
+
+        public static readonly int DEDICATED_SERVER_PACKET_ID =
+            NetworkingHash.ForString(DedicatedServerPacketTypeName);
 
         public static string FormatBytes(long bytes)
         {

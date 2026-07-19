@@ -2,6 +2,7 @@ using HarmonyLib;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.World;
+using Shared;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -31,7 +32,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.targetSensor.gameObject),
-				ConfigHash = "CritterCountCritters".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("CritterCountCritters"),
 				Value = __instance.targetSensor.countCritters ? 1f : 0f,
 				ConfigType = BuildingConfigType.Boolean
 			};
@@ -58,7 +59,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.targetSensor.gameObject),
-				ConfigHash = "CritterCountEggs".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("CritterCountEggs"),
 				Value = __instance.targetSensor.countEggs ? 1f : 0f,
 				ConfigType = BuildingConfigType.Boolean
 			};
@@ -89,7 +90,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "TimerOnDuration".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("TimerOnDuration"),
 				Value = __instance.onDuration,
 				ConfigType = BuildingConfigType.Float
 			};
@@ -97,7 +98,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "TimerOffDuration".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("TimerOffDuration"),
 				Value = __instance.offDuration,
 				ConfigType = BuildingConfigType.Float
 			};
@@ -137,7 +138,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.targetTimedSwitch.gameObject),
-				ConfigHash = "TimerOnDuration".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("TimerOnDuration"),
 				Value = __instance.targetTimedSwitch.onDuration,
 				ConfigType = BuildingConfigType.Float
 			};
@@ -145,7 +146,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.targetTimedSwitch.gameObject),
-				ConfigHash = "TimerOffDuration".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("TimerOffDuration"),
 				Value = __instance.targetTimedSwitch.offDuration,
 				ConfigType = BuildingConfigType.Float
 			};
@@ -183,7 +184,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "StartTime".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("StartTime"),
 				Value = __instance.startTime,
 				ConfigType = BuildingConfigType.Float
 			};
@@ -191,7 +192,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "Duration".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("Duration"),
 				Value = __instance.duration,
 				ConfigType = BuildingConfigType.Float
 			};
@@ -230,7 +231,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.targetTimedSwitch.gameObject),
-				ConfigHash = "StartTime".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("StartTime"),
 				Value = __instance.startTime.value,
 				ConfigType = BuildingConfigType.Float
 			};
@@ -238,7 +239,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.targetTimedSwitch.gameObject),
-				ConfigHash = "Duration".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("Duration"),
 				Value = __instance.duration.value,
 				ConfigType = BuildingConfigType.Float
 			};

@@ -12,6 +12,12 @@ namespace ONI_Together.Misc.World
 		private static float timeSinceLastFlush = 0f;
 		private const float FlushInterval = 2.0f;
 
+		public static void ResetSessionState()
+		{
+			queue.Clear();
+			timeSinceLastFlush = 0f;
+		}
+
 		public static void Queue(InstantiationsPacket.InstantiationEntry entry)
 		{
 			using var _ = Profiler.Scope();

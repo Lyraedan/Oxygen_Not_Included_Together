@@ -99,10 +99,7 @@ namespace ONI_Together.Networking.Components
 					isFirstTrailBatch = false;
 					trailBuffer.Clear();
 
-					if (MultiplayerSession.IsHost)
-						PacketSender.SendToAllClients(packet);
-					else
-						PacketSender.SendToHost(packet);
+					PacketSender.SendToAllOtherPeers(packet);
 
 					lastTrailSendTime = Time.unscaledTime;
 				}
@@ -120,10 +117,7 @@ namespace ONI_Together.Networking.Components
 					var packet = new TrailPointsPacket(new List<Vector2>(trailBuffer), isFirstTrailBatch);
 					trailBuffer.Clear();
 
-					if (MultiplayerSession.IsHost)
-						PacketSender.SendToAllClients(packet);
-					else
-						PacketSender.SendToHost(packet);
+					PacketSender.SendToAllOtherPeers(packet);
 				}
 
 				isDrawingTrail = false;
@@ -181,10 +175,7 @@ namespace ONI_Together.Networking.Components
 			if (DeleteTrailAtPosition(clickPos))
 			{
 				var packet = new TrailDeletePacket(clickPos);
-				if (MultiplayerSession.IsHost)
-					PacketSender.SendToAllClients(packet);
-				else
-					PacketSender.SendToHost(packet);
+				PacketSender.SendToAllOtherPeers(packet);
 			}
 		}
 
@@ -221,10 +212,7 @@ namespace ONI_Together.Networking.Components
 
 			ShowPing(MultiplayerSession.LocalUserID, worldPos, CursorManager.Instance.color);
 
-			if (MultiplayerSession.IsHost)
-				PacketSender.SendToAllClients(packet);
-			else
-				PacketSender.SendToHost(packet);
+			PacketSender.SendToAllOtherPeers(packet);
 		}
 
 		public void ShowPing(ulong playerID, Vector3 worldPos, Color color)

@@ -1,5 +1,6 @@
 using UnityEngine;
 using ONI_Together.DebugTools;
+using Shared;
 using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.World.Handlers
@@ -11,9 +12,9 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 	{
 		private static readonly int[] _hashes = new int[]
 		{
-			"Threshold".GetHashCode(),
-			"ThresholdDirection".GetHashCode(),
-			"ThresholdDir".GetHashCode(),
+			NetworkingHash.ForConfigKey("Threshold"),
+			NetworkingHash.ForConfigKey("ThresholdDirection"),
+			NetworkingHash.ForConfigKey("ThresholdDir"),
 		};
 
 		public int[] SupportedConfigHashes => _hashes;
@@ -27,15 +28,21 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 
 			int hash = packet.ConfigHash;
 
-			if (hash == "Threshold".GetHashCode())
+			if (hash == NetworkingHash.ForConfigKey("Threshold"))
 			{
+				if (packet.ConfigType != BuildingConfigType.Float
+				    || !BuildingConfigPacket.IsInRange(packet.Value, -1_000_000_000f, 1_000_000_000f))
+					return false;
 				thresholdSwitch.Threshold = packet.Value;
 				//DebugConsole.Log($"[ThresholdSwitchHandler] Set Threshold={packet.Value} on {go.name}");
 				return true;
 			}
 
-			if (hash == "ThresholdDirection".GetHashCode() || hash == "ThresholdDir".GetHashCode())
+			if (hash == NetworkingHash.ForConfigKey("ThresholdDirection") || hash == NetworkingHash.ForConfigKey("ThresholdDir"))
 			{
+				if (packet.ConfigType != BuildingConfigType.Boolean
+				    || !BuildingConfigPacket.IsBooleanValue(packet.Value))
+					return false;
 				thresholdSwitch.ActivateAboveThreshold = packet.Value > 0.5f;
 				//DebugConsole.Log($"[ThresholdSwitchHandler] Set ActivateAboveThreshold={packet.Value > 0.5f} on {go.name}");
 				return true;

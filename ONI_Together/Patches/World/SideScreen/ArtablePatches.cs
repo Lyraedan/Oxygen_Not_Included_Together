@@ -3,6 +3,7 @@ using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.World;
+using Shared;
 using Shared.Profiling;
 
 namespace ONI_Together.Patches.World.SideScreen
@@ -40,7 +41,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "ArtableState".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("ArtableState"),
 				ConfigType = BuildingConfigType.String,
 				StringValue = stageID ?? ""
 			};
@@ -70,7 +71,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "ArtableDefault".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("ArtableDefault"),
 				ConfigType = BuildingConfigType.Boolean,
 				Value = 0f
 			};

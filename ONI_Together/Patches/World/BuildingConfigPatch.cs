@@ -3,6 +3,7 @@ using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.World;
+using Shared;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -49,7 +50,7 @@ namespace ONI_Together.Patches.World
 					{
 						NetId = identity.NetId,
 						Cell = Grid.PosToCell(__instance.gameObject),
-						ConfigHash = "LogicSwitchState".GetHashCode(),
+						ConfigHash = NetworkingHash.ForConfigKey("LogicSwitchState"),
 						Value = switchedOn ? 1f : 0f,
 						ConfigType = BuildingConfigType.Boolean
 					};
@@ -121,7 +122,7 @@ namespace ONI_Together.Patches.World
 				var packet = new BuildingConfigPacket
 				{
 					NetId = netId,
-					ConfigHash = configId.GetHashCode(),
+					ConfigHash = NetworkingHash.ForConfigKey(configId),
 					Value = value
 				};
 

@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace ONI_Together.Networking.Packets.World
 {
-	internal class WorkProgressPacket : IPacket
+	internal class WorkProgressPacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
 		public WorkProgressPacket() { }
 

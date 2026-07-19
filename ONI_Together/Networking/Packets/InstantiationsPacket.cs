@@ -8,10 +8,12 @@ using UnityEngine;
 
 namespace ONI_Together.Networking.Packets
 {
-	public class InstantiationsPacket : IPacket
+	public class InstantiationsPacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
-		private const int MaxCompressedBytes = 16 * 1024 * 1024;
-		private const int MaxInstantiationCount = 8192;
+		internal const int MaxCompressedBytes = 16 * 1024 * 1024;
+		internal const int MaxDecompressedBytes = 16 * 1024 * 1024;
+		internal const int MaxInstantiationCount = 8192;
+		private const int MaxNameLength = 256;
 
 		public List<InstantiationEntry> Entries = new List<InstantiationEntry>();
 
@@ -59,43 +61,64 @@ namespace ONI_Together.Networking.Packets
 			using var _ = Profiler.Scope();
 
 			int compressedLength = r.ReadInt32();
-			if (compressedLength < 0 || compressedLength > MaxCompressedBytes)
-			{
-				DebugConsole.LogWarning($"[InstantiationsPacket] Invalid compressed payload length: {compressedLength}");
-				Entries = [];
-				return;
-			}
+			if (compressedLength <= 0 || compressedLength > MaxCompressedBytes)
+				throw new InvalidDataException($"Invalid instantiations payload length: {compressedLength}");
 			byte[] compressedData = r.ReadBytes(compressedLength);
+			if (compressedData.Length != compressedLength)
+				throw new EndOfStreamException("Instantiations payload is truncated");
 
-			using (var ms = new MemoryStream(compressedData))
+			using (var ms = new MemoryStream(Decompress(compressedData)))
 			{
-				using (var deflate = new DeflateStream(ms, CompressionMode.Decompress))
+				using (var tempReader = new BinaryReader(ms))
 				{
-					using (var tempReader = new BinaryReader(deflate))
-					{
-						int count = tempReader.ReadInt32();
-						if (count < 0 || count > MaxInstantiationCount)
-						{
-							DebugConsole.LogWarning($"[InstantiationsPacket] Invalid instantiation count: {count}");
-							Entries = [];
-							return;
-						}
-						Entries = new List<InstantiationEntry>(count);
+					int count = tempReader.ReadInt32();
+					if (count < 0 || count > MaxInstantiationCount)
+						throw new InvalidDataException($"Invalid instantiation count: {count}");
+					Entries = new List<InstantiationEntry>(count);
 
-						for (int i = 0; i < count; i++)
+					for (int i = 0; i < count; i++)
+					{
+						string prefabName = tempReader.ReadString();
+						if (prefabName.Length > MaxNameLength)
+							throw new InvalidDataException("Instantiation prefab name is too long");
+						var position = new Vector3(tempReader.ReadSingle(), tempReader.ReadSingle(), tempReader.ReadSingle());
+						var rotation = new Quaternion(tempReader.ReadSingle(), tempReader.ReadSingle(), tempReader.ReadSingle(), tempReader.ReadSingle());
+						string objectName = tempReader.ReadString();
+						if (objectName.Length > MaxNameLength)
+							throw new InvalidDataException("Instantiation object name is too long");
+						Entries.Add(new InstantiationEntry
 						{
-							Entries.Add(new InstantiationEntry
-							{
-								PrefabName = tempReader.ReadString(),
-								Position = new Vector3(tempReader.ReadSingle(), tempReader.ReadSingle(), tempReader.ReadSingle()),
-								Rotation = new Quaternion(tempReader.ReadSingle(), tempReader.ReadSingle(), tempReader.ReadSingle(), tempReader.ReadSingle()),
-								ObjectName = tempReader.ReadString(),
-								InitializeId = tempReader.ReadBoolean(),
-								GameLayer = tempReader.ReadInt32()
-							});
-						}
+							PrefabName = prefabName,
+							Position = position,
+							Rotation = rotation,
+							ObjectName = objectName,
+							InitializeId = tempReader.ReadBoolean(),
+							GameLayer = tempReader.ReadInt32()
+						});
 					}
+					if (tempReader.BaseStream.Position != tempReader.BaseStream.Length)
+						throw new InvalidDataException("Instantiations payload contains trailing bytes");
 				}
+			}
+		}
+
+		private static byte[] Decompress(byte[] compressedData)
+		{
+			using var input = new MemoryStream(compressedData);
+			using var deflate = new DeflateStream(input, CompressionMode.Decompress);
+			using var output = new MemoryStream();
+			var buffer = new byte[8192];
+			int total = 0;
+			while (true)
+			{
+				int remaining = MaxDecompressedBytes - total;
+				int read = deflate.Read(buffer, 0, remaining < buffer.Length ? remaining + 1 : buffer.Length);
+				if (read == 0)
+					return output.ToArray();
+				total += read;
+				if (total > MaxDecompressedBytes)
+					throw new InvalidDataException($"Instantiations payload expands beyond {MaxDecompressedBytes} bytes");
+				output.Write(buffer, 0, read);
 			}
 		}
 

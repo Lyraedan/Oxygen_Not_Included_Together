@@ -3,6 +3,7 @@ using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.World;
 using System.Security.Principal;
+using Shared;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -24,13 +25,14 @@ namespace ONI_Together.Patches.World.SideScreen
 
 			var identity = target.gameObject.AddOrGet<NetworkIdentity>();
 
+			bool indexed = target is ISliderControl;
 			var packet = new BuildingConfigPacket
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(target.gameObject),
-				ConfigHash = "Slider".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey(indexed ? "SliderIndex" : "Slider"),
 				Value = value,
-				ConfigType = BuildingConfigType.SliderIndex,
+				ConfigType = indexed ? BuildingConfigType.SliderIndex : BuildingConfigType.Float,
 				SliderIndex = sliderIndex
 			};
 
@@ -57,7 +59,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(target),
-				ConfigHash = "Threshold".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("Threshold"),
 				Value = value,
 				ConfigType = BuildingConfigType.Float
 			};
@@ -81,7 +83,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(target),
-				ConfigHash = "ThresholdDir".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("ThresholdDir"),
 				Value = activateAbove ? 1f : 0f,
 				ConfigType = BuildingConfigType.Boolean
 			};
@@ -103,7 +105,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(target),
-				ConfigHash = "Checkbox".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("Checkbox"),
 				Value = value ? 1f : 0f,
 				ConfigType = BuildingConfigType.Boolean
 			};
@@ -125,7 +127,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(target),
-				ConfigHash = "Capacity".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("Capacity"),
 				Value = value,
 				ConfigType = BuildingConfigType.Float
 			};
@@ -149,7 +151,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(target),
-				ConfigHash = "DoorState".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("DoorState"),
 				Value = (float)(int)state,
 				ConfigType = BuildingConfigType.Float
 			};
@@ -158,7 +160,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			else PacketSender.SendToHost(packet);
 		}
 
-        public static void SyncQueueToggleable(GameObject target, bool expectedQueue)
+        public static void SyncQueueToggleable(GameObject target, int targetIndex, bool expectedQueue)
         {
 	        using var _ = Profiler.Scope();
 
@@ -172,9 +174,10 @@ namespace ONI_Together.Patches.World.SideScreen
             {
                 NetId = identity.NetId,
                 Cell = Grid.PosToCell(target),
-                ConfigHash = "QueueToggleable".GetHashCode(),
+                ConfigHash = NetworkingHash.ForConfigKey("QueueToggleable"),
                 Value = expectedQueue ? 1f : 0f,
-                ConfigType = BuildingConfigType.Boolean
+                ConfigType = BuildingConfigType.Boolean,
+				SliderIndex = targetIndex
             };
 
             DebugConsole.Log($"[SideScreenSyncHelper.SyncQueueToggleable] Sending packet: ConfigHash={packet.ConfigHash}, Value={packet.Value}");
@@ -183,7 +186,7 @@ namespace ONI_Together.Patches.World.SideScreen
             else PacketSender.SendToHost(packet);
         }
 
-        public static void SyncToggleableState(GameObject target, bool buildingEnabled)
+        public static void SyncToggleableState(GameObject target, int targetIndex, bool buildingEnabled)
         {
 	        using var _ = Profiler.Scope();
 
@@ -197,9 +200,10 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(target),
-				ConfigHash = "ToggleableChange".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("ToggleableChange"),
 				Value = buildingEnabled ? 1f : 0f,
-				ConfigType = BuildingConfigType.Boolean
+				ConfigType = BuildingConfigType.Boolean,
+				SliderIndex = targetIndex
 			};
 
             DebugConsole.Log($"[SideScreenSyncHelper.SyncToggleableState] Sending packet: ConfigHash={packet.ConfigHash}, Value={packet.Value}");

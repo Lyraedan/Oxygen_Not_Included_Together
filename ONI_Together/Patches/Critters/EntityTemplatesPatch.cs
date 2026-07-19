@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using HarmonyLib;
 using ONI_Together.DebugTools;
 using ONI_Together.Menus;
+using ONI_Together.Misc;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Scripts.Creatures;
@@ -32,6 +33,7 @@ namespace ONI_Together.Patches.Critters
 
 					__result.AddOrGet<EntityPositionHandler>();
 					__result.AddOrGet<NetworkIdentity>();
+					__result.GetComponent<SaveLoadRoot>()?.TryDeclareOptionalComponent<NetworkIdentity>();
 					__result.AddOrGet<AnimStateSyncer>();
 					__result.AddOrGet<CreatureMultiplayerInitializer>();
 				}

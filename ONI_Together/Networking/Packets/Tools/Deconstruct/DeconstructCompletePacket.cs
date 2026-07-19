@@ -2,11 +2,12 @@
 using ONI_Together.Networking.Packets.Architecture;
 using System.IO;
 using Shared.Profiling;
+using Shared.Interfaces.Networking;
 using UnityEngine;
 
 namespace ONI_Together.Networking.Packets.Tools.Deconstruct
 {
-	public class DeconstructCompletePacket : IPacket
+	public class DeconstructCompletePacket : IPacket, IHostOnlyPacket
 	{
 		public int Cell, ObjectLayer;
 

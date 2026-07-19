@@ -11,7 +11,7 @@ using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.Animation
 {
-	internal class SymbolOverridePacket : IPacket, IBulkablePacket
+	internal class SymbolOverridePacket : IPacket, IBulkablePacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
 		public enum Mode
 		{

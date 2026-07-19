@@ -2,6 +2,7 @@ using HarmonyLib;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.World;
+using Shared;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -36,7 +37,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(targetGO),
-				ConfigHash = "FilterTagString".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("FilterTagString"),
 				Value = 0,
 				ConfigType = BuildingConfigType.String,
 				StringValue = tag.Name
@@ -67,7 +68,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "StorageFilterAdd".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("StorageFilterAdd"),
 				Value = 0,
 				ConfigType = BuildingConfigType.String,
 				StringValue = t.Name
@@ -98,7 +99,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "StorageFilterRemove".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("StorageFilterRemove"),
 				Value = 0,
 				ConfigType = BuildingConfigType.String,
 				StringValue = t.Name

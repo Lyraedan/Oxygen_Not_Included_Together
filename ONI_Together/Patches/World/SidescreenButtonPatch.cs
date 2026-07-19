@@ -2,6 +2,7 @@ using HarmonyLib;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.World;
+using Shared;
 using Shared.Profiling;
 
 namespace ONI_Together.Patches.World
@@ -37,7 +38,7 @@ namespace ONI_Together.Patches.World
 			var packet = new BuildingConfigPacket
 			{
 				NetId = identity.NetId,
-				ConfigHash = configId.GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey(configId),
 				Value = value,
 				ConfigType = BuildingConfigType.Float
 			};

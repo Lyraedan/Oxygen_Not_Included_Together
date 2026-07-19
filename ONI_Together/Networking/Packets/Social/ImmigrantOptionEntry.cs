@@ -12,6 +12,10 @@ namespace ONI_Together.Networking.Packets.Social
 
 	public struct ImmigrantOptionEntry
 	{
+		private const int MaxTraits = 64;
+		private const int MaxSkillAptitudes = 64;
+		private const int MaxStartingLevels = 64;
+
 		public ImmigrantOptionEntry()
 		{
 
@@ -52,6 +56,8 @@ namespace ONI_Together.Networking.Packets.Social
 		{
 			using var _ = Profiler.Scope();
 
+			if (EntryType != 0 && EntryType != 1)
+				throw new InvalidDataException($"Invalid immigrant option type: {EntryType}");
 			writer.Write(EntryType);
 			if (EntryType == 0)
 			{
@@ -60,6 +66,7 @@ namespace ONI_Together.Networking.Packets.Social
 
 				// Traits list
 				int traitCount = TraitIds?.Count ?? 0;
+				ValidateCount(traitCount, MaxTraits, "traits");
 				writer.Write(traitCount);
 				if (TraitIds != null)
 				{
@@ -79,6 +86,7 @@ namespace ONI_Together.Networking.Packets.Social
 
 				// Skill aptitudes
 				int aptCount = SkillAptitudes?.Count ?? 0;
+				ValidateCount(aptCount, MaxSkillAptitudes, "skill aptitudes");
 				writer.Write(aptCount);
 				if (SkillAptitudes != null)
 				{
@@ -91,6 +99,7 @@ namespace ONI_Together.Networking.Packets.Social
 
 				// Starting levels
 				int levelCount = StartingLevels?.Count ?? 0;
+				ValidateCount(levelCount, MaxStartingLevels, "starting levels");
 				writer.Write(levelCount);
 				if (StartingLevels != null)
 				{
@@ -105,7 +114,7 @@ namespace ONI_Together.Networking.Packets.Social
 			{
 				writer.Write(CarePackageId ?? "None");
 				writer.Write(Quantity);
-				writer.Write(CarePackageFacadeId);
+				writer.Write(CarePackageFacadeId ?? string.Empty);
 			}
 
 		}
@@ -115,6 +124,8 @@ namespace ONI_Together.Networking.Packets.Social
 
 			var opt = new ImmigrantOptionEntry();
 			opt.EntryType = reader.ReadInt32();
+			if (opt.EntryType != 0 && opt.EntryType != 1)
+				throw new InvalidDataException($"Invalid immigrant option type: {opt.EntryType}");
 			if (opt.EntryType == 0)
 			{
 				opt.Name = reader.ReadString();
@@ -122,7 +133,8 @@ namespace ONI_Together.Networking.Packets.Social
 
 				// Traits list
 				int traitCount = reader.ReadInt32();
-				opt.TraitIds = new List<string>();
+				ValidateCount(traitCount, MaxTraits, "traits");
+				opt.TraitIds = new List<string>(traitCount);
 				for (int t = 0; t < traitCount; t++)
 				{
 					opt.TraitIds.Add(reader.ReadString());
@@ -138,7 +150,8 @@ namespace ONI_Together.Networking.Packets.Social
 
 				// Skill aptitudes
 				int aptCount = reader.ReadInt32();
-				opt.SkillAptitudes = new Dictionary<string, float>();
+				ValidateCount(aptCount, MaxSkillAptitudes, "skill aptitudes");
+				opt.SkillAptitudes = new Dictionary<string, float>(aptCount);
 				for (int a = 0; a < aptCount; a++)
 				{
 					string key = reader.ReadString();
@@ -148,7 +161,8 @@ namespace ONI_Together.Networking.Packets.Social
 
 				// Starting levels
 				int levelCount = reader.ReadInt32();
-				opt.StartingLevels = new Dictionary<string, int>();
+				ValidateCount(levelCount, MaxStartingLevels, "starting levels");
+				opt.StartingLevels = new Dictionary<string, int>(levelCount);
 				for (int l = 0; l < levelCount; l++)
 				{
 					string key = reader.ReadString();
@@ -163,6 +177,55 @@ namespace ONI_Together.Networking.Packets.Social
 				opt.CarePackageFacadeId = reader.ReadString();
 			}
 			return opt;
+		}
+
+		private static void ValidateCount(int count, int maximum, string field)
+		{
+			if (count < 0 || count > maximum)
+				throw new InvalidDataException($"Invalid immigrant {field} count: {count}");
+		}
+
+		internal bool ContentEquals(ImmigrantOptionEntry other)
+		{
+			if (EntryType != other.EntryType)
+				return false;
+			if (EntryType == 1)
+				return CarePackageId == other.CarePackageId
+				       && Quantity.Equals(other.Quantity)
+				       && CarePackageFacadeId == other.CarePackageFacadeId;
+			if (EntryType != 0)
+				return false;
+
+			return Name == other.Name
+			       && PersonalityId == other.PersonalityId
+			       && StressTraitId == other.StressTraitId
+			       && JoyTraitId == other.JoyTraitId
+			       && VoiceIdx == other.VoiceIdx
+			       && StickerType == other.StickerType
+			       && ListsEqual(TraitIds, other.TraitIds)
+			       && DictionariesEqual(SkillAptitudes, other.SkillAptitudes)
+			       && DictionariesEqual(StartingLevels, other.StartingLevels);
+		}
+
+		private static bool ListsEqual<T>(IReadOnlyList<T> left, IReadOnlyList<T> right)
+		{
+			if (ReferenceEquals(left, right)) return true;
+			if (left == null || right == null || left.Count != right.Count) return false;
+			for (int i = 0; i < left.Count; i++)
+				if (!EqualityComparer<T>.Default.Equals(left[i], right[i])) return false;
+			return true;
+		}
+
+		private static bool DictionariesEqual<TKey, TValue>(
+			IReadOnlyDictionary<TKey, TValue> left,
+			IReadOnlyDictionary<TKey, TValue> right)
+		{
+			if (ReferenceEquals(left, right)) return true;
+			if (left == null || right == null || left.Count != right.Count) return false;
+			foreach (KeyValuePair<TKey, TValue> pair in left)
+				if (!right.TryGetValue(pair.Key, out TValue value)
+				    || !EqualityComparer<TValue>.Default.Equals(pair.Value, value)) return false;
+			return true;
 		}
 
 		public static ImmigrantOptionEntry FromGameDeliverable(ITelepadDeliverable deliverable)

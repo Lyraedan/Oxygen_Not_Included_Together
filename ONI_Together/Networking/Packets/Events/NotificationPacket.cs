@@ -8,7 +8,7 @@ using Shared.Profiling;
 namespace ONI_Together.Networking.Packets.Events
 {
 	// Host -> Client: Syncs notifications like "Research Complete", "Starvation", etc.
-	public class NotificationPacket : IPacket
+	public class NotificationPacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
 		public string Title;
 		public string Text;

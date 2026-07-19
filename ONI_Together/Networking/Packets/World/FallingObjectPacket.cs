@@ -7,7 +7,7 @@ using UnityEngine;
 
 namespace ONI_Together.Networking.Packets.World
 {
-	public class FallingObjectPacket : IPacket
+	public class FallingObjectPacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
 		public int Cell;
 		public ushort ElementIndex;

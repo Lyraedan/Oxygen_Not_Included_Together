@@ -78,6 +78,7 @@ namespace ONI_Together.Networking
 					{
 						NetworkConfig.TransportServer.Update();
 						NetworkConfig.TransportServer.OnMessageRecieved();
+						ReadyManager.Update();
 
 						// Check for lost chunks and retransmit specific missing chunks
 						SaveFileTransferManager.CheckForLostChunks();

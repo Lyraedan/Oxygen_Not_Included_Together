@@ -13,7 +13,7 @@ using static ColonyDiagnostic.DiagnosticResult;
 
 namespace ONI_Together.Networking.Packets.Events
 {
-	internal class DiagnosticPacket : IPacket//, IBulkablePacket
+	internal class DiagnosticPacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket//, IBulkablePacket
 	{
 		public int MaxPackSize => 500;
 

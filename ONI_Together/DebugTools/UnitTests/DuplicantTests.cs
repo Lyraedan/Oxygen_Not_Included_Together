@@ -9,40 +9,40 @@ namespace ONI_Together.DebugTools.UnitTests
 {
     public static class DuplicantTests
     {
-        [UnitTest(name: "Duplicant is selected?", category: "Duplicant")]
+        [UnitTest(name: "Duplicant is selected?", category: "Duplicant", liveSafe: true)]
         public static UnitTestResult HasDuplicantSelected()
         {
             var selected = SelectTool.Instance?.selected;
             if (selected == null)
-                return UnitTestResult.Fail("No object selected");
+                return UnitTestResult.Skip("Select a duplicant before running this test");
             var hasDuplicant = selected.TryGetComponent(out MinionIdentity _);
             if (!hasDuplicant)
                 return UnitTestResult.Fail("Selected object is not a duplicant");
             return UnitTestResult.Pass($"Selected object is the duplicant: {selected.name}");
         }
         
-        [UnitTest(name: "MinionMultiplayerInitializer present", category: "Duplicant")]
+        [UnitTest(name: "MinionMultiplayerInitializer present", category: "Duplicant", liveSafe: true)]
         public static UnitTestResult MinionMultiplayerInitializerExists()
         {
             var selected = SelectTool.Instance?.selected;
             if (selected == null)
-                return UnitTestResult.Fail("No object selected");
+                return UnitTestResult.Skip("Select a duplicant before running this test");
             if (!selected.TryGetComponent(out MinionMultiplayerInitializer _))
                 return UnitTestResult.Fail("MinionMultiplayerInitializer not found on selected duplicant");
             return UnitTestResult.Pass("MinionMultiplayerInitializer is present");
         }
 
-        [UnitTest(name: "Client init disables AI components", category: "Duplicant")]
+        [UnitTest(name: "Client init disables AI components", category: "Duplicant", liveSafe: true)]
         public static UnitTestResult ClientInitDisablesAI()
         {
             if (!MultiplayerSession.InSession)
-                return UnitTestResult.Fail("Not in a multiplayer session");
+                return UnitTestResult.Skip("Requires an active multiplayer session");
             if (!MultiplayerSession.IsClient)
-                return UnitTestResult.Fail("Not a client");
+                return UnitTestResult.Skip("Requires a multiplayer client");
 
             var selected = SelectTool.Instance?.selected;
             if (selected == null)
-                return UnitTestResult.Fail("No object selected");
+                return UnitTestResult.Skip("Select a duplicant before running this test");
             if (!selected.TryGetComponent(out MinionMultiplayerInitializer _))
                 return UnitTestResult.Fail("MinionMultiplayerInitializer not found");
 
@@ -60,17 +60,17 @@ namespace ONI_Together.DebugTools.UnitTests
             return UnitTestResult.Pass("AI disabled, ClientReceiver_ChoreErrands present");
         }
 
-        [UnitTest(name: "Host init adds sync components", category: "Duplicant")]
+        [UnitTest(name: "Host init adds sync components", category: "Duplicant", liveSafe: true)]
         public static UnitTestResult HostInitAddsSyncComponents()
         {
             if (!MultiplayerSession.InSession)
-                return UnitTestResult.Fail("Not in a multiplayer session");
+                return UnitTestResult.Skip("Requires an active multiplayer session");
             if (!MultiplayerSession.IsHost)
-                return UnitTestResult.Fail("Not the host");
+                return UnitTestResult.Skip("Requires a multiplayer host");
 
             var selected = SelectTool.Instance?.selected;
             if (selected == null)
-                return UnitTestResult.Fail("No object selected");
+                return UnitTestResult.Skip("Select a duplicant before running this test");
             if (!selected.TryGetComponent(out MinionMultiplayerInitializer _))
                 return UnitTestResult.Fail("MinionMultiplayerInitializer not found");
 
@@ -82,12 +82,12 @@ namespace ONI_Together.DebugTools.UnitTests
             return UnitTestResult.Pass("DuplicantStateSender and DuplicantChoreBroadcaster present");
         }
 
-        [UnitTest(name: "BaseMinion tag guard", category: "Duplicant")]
+        [UnitTest(name: "BaseMinion tag guard", category: "Duplicant", liveSafe: true)]
         public static UnitTestResult BaseMinionTagGuard()
         {
             var selected = SelectTool.Instance?.selected;
             if (selected == null)
-                return UnitTestResult.Fail("No object selected");
+                return UnitTestResult.Skip("Select a duplicant before running this test");
 
             var kpref = selected.GetComponent<KPrefabID>();
             if (kpref == null)

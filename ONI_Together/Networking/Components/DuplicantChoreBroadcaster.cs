@@ -13,6 +13,36 @@ namespace ONI_Together.Networking.Components
 	{
 		public static readonly HashSet<int> SubscribedNetIds = new();
 		public static readonly HashSet<int> PendingImmediate = new();
+		private static readonly Dictionary<int, HashSet<ulong>> SubscribersByNetId = new();
+
+		public static void ResetSessionState()
+		{
+			SubscribedNetIds.Clear();
+			PendingImmediate.Clear();
+			SubscribersByNetId.Clear();
+		}
+
+		public static void SetSubscription(ulong clientId, int netId, bool subscribe)
+		{
+			if (subscribe)
+			{
+				if (!SubscribersByNetId.TryGetValue(netId, out var clients))
+					SubscribersByNetId[netId] = clients = new HashSet<ulong>();
+				clients.Add(clientId);
+				SubscribedNetIds.Add(netId);
+				PendingImmediate.Add(netId);
+				return;
+			}
+
+			if (!SubscribersByNetId.TryGetValue(netId, out var subscribers))
+				return;
+			subscribers.Remove(clientId);
+			if (subscribers.Count != 0)
+				return;
+			SubscribersByNetId.Remove(netId);
+			SubscribedNetIds.Remove(netId);
+			PendingImmediate.Remove(netId);
+		}
 
 		private const float BroadcastIntervalSeconds = 0.5f;
 

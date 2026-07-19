@@ -7,10 +7,11 @@ using Shared.Profiling;
 using UnityEngine;
 using ONI_Together.Networking.Components;
 using Rendering;
+using Shared.Interfaces.Networking;
 
 namespace ONI_Together.Networking.Packets.Tools.Build
 {
-    public class BuildCompletePacket : IPacket
+    public class BuildCompletePacket : IPacket, IHostOnlyPacket
     {
         private const int MaxMaterialTagCount = 64;
 
@@ -180,4 +181,3 @@ namespace ONI_Together.Networking.Packets.Tools.Build
         }
     }
 }
-

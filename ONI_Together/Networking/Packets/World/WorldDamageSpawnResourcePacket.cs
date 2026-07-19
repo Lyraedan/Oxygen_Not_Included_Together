@@ -5,10 +5,11 @@ using System.IO;
 using Shared.Profiling;
 using UnityEngine;
 using TemplateClasses;
+using Shared.Interfaces.Networking;
 
 namespace ONI_Together.Networking.Packets.World
 {
-	public class WorldDamageSpawnResourcePacket : IPacket
+	public class WorldDamageSpawnResourcePacket : IPacket, IHostOnlyPacket
 	{
 		public int NetId;
 		public Vector3 Position;
@@ -68,6 +69,14 @@ namespace ONI_Together.Networking.Packets.World
 		public void OnDispatched()
 		{
 			using var _ = Profiler.Scope();
+			if (MultiplayerSession.IsHost || !PacketHandler.CurrentContext.SenderIsHost)
+				return;
+			NetworkIdentityRegistry.ReleaseUnavailableRegistration(NetId);
+			if (!ShouldApply(
+				    localIsHost: false, senderIsHost: true,
+				    entityExists: NetworkIdentityRegistry.Exists(NetId),
+				    lifecycleTombstoned: NetworkIdentityRegistry.IsLifecycleTombstoned(NetId)))
+				return;
 
 			Element element = ElementLoader.elements[ElementIndex];
 
@@ -78,17 +87,22 @@ namespace ONI_Together.Networking.Packets.World
 				return;
 
 			GameObject dropped = element.substance.SpawnResource(Position, dropMass, Temperature, DiseaseIndex, DiseaseCount);
-			NetworkIdentity identity = dropped.GetComponent<NetworkIdentity>();
-			identity.OverrideNetId(NetId);
-			DebugConsole.Log("[WorldDamageSpawnResourcePacket] Synchronized Network ID");
-
-			// First check GroundItemPickedUp, then PickupItem then StoreItem, TODO: Rope into 1 list
-			if (GroundItemPickedUpPacket.TryConsumePending(NetId) || StorageItemPacket.TryConsumePending(NetId))
+			NetworkIdentity identity = dropped.AddOrGet<NetworkIdentity>();
+			if (!identity.OverrideNetId(NetId))
 			{
-				DebugConsole.Log($"[WorldDamageSpawnResourcePacket] Consumed pending ground-item pickup for NetId {NetId}");
 				Util.KDestroyGameObject(dropped);
 				return;
 			}
+			DebugConsole.Log("[WorldDamageSpawnResourcePacket] Synchronized Network ID");
+
+            if (GroundItemPickedUpPacket.TryConsumePending(NetId))
+            {
+                DebugConsole.Log($"[WorldDamageSpawnResourcePacket] Consumed pending ground-item pickup for NetId {NetId}");
+                Util.KDestroyGameObject(dropped);
+                return;
+            }
+
+			StorageItemPacket.TryApplyPending(NetId, dropped);
 
 			Pickupable pickup = dropped.GetComponent<Pickupable>();
 			if (pickup != null && pickup.GetMyWorld()?.worldInventory.IsReachable(pickup) == true)
@@ -100,6 +114,10 @@ namespace ONI_Together.Networking.Packets.World
 				);
 			}
 		}
+
+		internal static bool ShouldApply(
+			bool localIsHost, bool senderIsHost, bool entityExists, bool lifecycleTombstoned)
+			=> !localIsHost && senderIsHost && !entityExists && !lifecycleTombstoned;
 
 		private static void InvokePlaySoundForSubstance(Element element, Vector3 position)
 		{

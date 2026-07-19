@@ -3,6 +3,7 @@ using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.World;
+using Shared;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -30,7 +31,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "SuitMarkerTraversal".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("SuitMarkerTraversal"),
 				Value = 1f, // 1 = Only when room available
 				ConfigType = BuildingConfigType.Boolean
 			};
@@ -59,7 +60,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "SuitMarkerTraversal".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("SuitMarkerTraversal"),
 				Value = 0f, // 0 = Always allow
 				ConfigType = BuildingConfigType.Boolean
 			};

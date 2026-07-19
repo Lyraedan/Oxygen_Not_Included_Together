@@ -10,7 +10,7 @@ using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.Animation
 {
-	internal class MultiToolSyncPacket : IPacket
+	internal class MultiToolSyncPacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
 		int WorkerNetId, WorkableNetId;
 		string HitEffectPrefabId;

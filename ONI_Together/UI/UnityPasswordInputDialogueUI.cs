@@ -80,14 +80,14 @@ namespace ONI_Together.UI
 			using var _ = Profiler.Scope();
 
 			string password = PasswortInput.Text;
-			if (SteamLobby.ValidateLobbyPassword(LobbyId, password))
+			if (!string.IsNullOrEmpty(password))
 			{
 				SetRegularStatus();
 				SteamLobby.JoinLobby(LobbyId.AsCSteamID(), (lobbyId) =>
 				{
 					DebugConsole.Log($"[LobbyBrowser] Successfully joined lobby: {lobbyId}");
 
-				});
+				}, password);
 				Show(false);
 			}
 			else

@@ -27,9 +27,18 @@ using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.Architecture
 {
+	public enum ModApiAuthority : byte
+	{
+		HostToClientsOnly = 0,
+		ClientToHost = 1,
+		ClientBroadcast = 2
+	}
+
 	public static class PacketRegistry
 	{
+		public const ModApiAuthority DefaultModApiAuthority = ModApiAuthority.HostToClientsOnly;
 		private static readonly Dictionary<int, Type> _PacketTypes = new ();
+		private static readonly Dictionary<Type, ModApiAuthority> _ModApiAuthorities = new();
 
         public static bool HasRegisteredPacket(int type)
         {
@@ -44,7 +53,9 @@ namespace ONI_Together.Networking.Packets.Architecture
 			return _PacketTypes.ContainsKey(API_Helper.GetHashCode(type));
 		}
 
-		private static void Register(Type packageType)
+		private static void Register(
+			Type packageType,
+			ModApiAuthority modApiAuthority = ModApiAuthority.HostToClientsOnly)
         {
 	        using var _ = Profiler.Scope();
 
@@ -74,6 +85,7 @@ namespace ONI_Together.Networking.Packets.Architecture
 				_PacketTypes[id] = wrappedType;
 				var wrappedId = API_Helper.GetHashCode(wrappedType);
 				_PacketTypes[wrappedId] = wrappedType;
+				_ModApiAuthorities[wrappedType] = modApiAuthority;
 				DebugConsole.LogSuccess($"[PacketRegistry] Registered from ModAPI: {packageType.Name} => {id} (unwrapped), {wrappedId} (wrapped)");
 			}
             else
@@ -119,20 +131,54 @@ namespace ONI_Together.Networking.Packets.Architecture
 			foreach (int id in ids)
 			{
 				writer.Write(id);
+				Type packetType = _PacketTypes[id];
+				writer.Write((byte)(_ModApiAuthorities.TryGetValue(packetType, out var authority)
+					? authority
+					: ModApiAuthority.HostToClientsOnly));
 			}
 
 			using var sha256 = SHA256.Create();
 			byte[] hash = sha256.ComputeHash(ms.ToArray());
-			return BitConverter.ToInt32(hash, 0);
+			return hash[0]
+				| hash[1] << 8
+				| hash[2] << 16
+				| hash[3] << 24;
 		}
 
-        public static void TryRegister(Type packetType, string nameOverride = "")
+		internal static bool CanClientDispatchModApi(IPacket packet, bool relayed)
+		{
+			if (packet is not IModApiPacket
+			    || !_ModApiAuthorities.TryGetValue(packet.GetType(), out ModApiAuthority authority))
+				return false;
+
+			return CanClientDispatchModApi(authority, relayed);
+		}
+
+		internal static bool CanClientDispatchModApi(ModApiAuthority authority, bool relayed)
+		{
+			return relayed
+				? authority == ModApiAuthority.ClientBroadcast
+				: authority == ModApiAuthority.ClientToHost;
+		}
+
+		public static void TryRegister(Type packetType, string nameOverride = "")
+			=> TryRegister(packetType, nameOverride, DefaultModApiAuthority);
+
+		public static void TryRegister(Type packetType, string nameOverride, byte modApiAuthority)
+			=> TryRegister(packetType, nameOverride, (ModApiAuthority)modApiAuthority);
+
+		public static void TryRegister(
+			Type packetType,
+			string nameOverride,
+			ModApiAuthority modApiAuthority)
         {
 	        using var _ = Profiler.Scope();
 
             try
             {
-                Register(packetType);
+				if (!Enum.IsDefined(typeof(ModApiAuthority), modApiAuthority))
+					throw new ArgumentOutOfRangeException(nameof(modApiAuthority));
+				Register(packetType, modApiAuthority);
             }
             catch (Exception e)
             {

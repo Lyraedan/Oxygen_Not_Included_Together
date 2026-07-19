@@ -1,12 +1,9 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text;
-using System.Threading.Tasks;
-using ClipperLib;
 using ONI_Together.DebugTools;
+using ONI_Together.Misc;
 using ONI_Together.Networking.Packets.Architecture;
+using ONI_Together.Networking.Packets.Core;
 using Shared.Profiling;
 using Steamworks;
 
@@ -18,20 +15,44 @@ namespace ONI_Together.Networking.Transport.Steam
         {
             using var _ = Profiler.Scope();
 
-            if (conn is not HSteamNetConnection)
+            if (conn is not HSteamNetConnection connection)
                 return false;
 
-            HSteamNetConnection s_conn = (HSteamNetConnection)conn;
+            byte[] bytes = PacketSender.SerializePacketForSending(packet);
+            int steamSendType = ConvertSendType(sendType);
+            if (bytes.Length >= Utils.MaxSteamNetworkingSocketsMessageSizeSend)
+            {
+                if (packet is ChunkedPacket)
+                    return false;
+                return ChunkedPacket.TrySendSerializedChunks(
+                    bytes,
+                    Utils.MaxSteamNetworkingSocketsMessageSizeSend,
+                    chunk => SendRaw(
+                        connection,
+                        PacketSender.SerializePacketForSending(chunk),
+                        chunk,
+                        steamSendType));
+            }
+            return SendRaw(connection, bytes, packet, steamSendType);
+        }
 
-            var bytes = PacketSender.SerializePacketForSending(packet);
-            var _sendType = ConvertSendType(sendType); //(int)sendType;
-
+        private static bool SendRaw(
+            HSteamNetConnection connection,
+            byte[] bytes,
+            IPacket packet,
+            int steamSendType)
+        {
             IntPtr unmanagedPointer = Marshal.AllocHGlobal(bytes.Length);
             try
             {
                 Marshal.Copy(bytes, 0, unmanagedPointer, bytes.Length);
 
-                var result = SteamNetworkingSockets.SendMessageToConnection(s_conn, unmanagedPointer, (uint)bytes.Length, _sendType, out long msgNum);
+                EResult result = SteamNetworkingSockets.SendMessageToConnection(
+                    connection,
+                    unmanagedPointer,
+                    (uint)bytes.Length,
+                    steamSendType,
+                    out _);
 
                 bool sent = result == EResult.k_EResultOK;
 
@@ -76,5 +97,6 @@ namespace ONI_Together.Networking.Transport.Steam
 
             return result;
         }
+
     }
 }

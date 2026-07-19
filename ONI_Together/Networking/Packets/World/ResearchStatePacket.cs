@@ -8,8 +8,10 @@ using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.World
 {
-	public class ResearchStatePacket : IPacket
+	public class ResearchStatePacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
+		internal const int MaxTechCount = 4096;
+		private const int MaxTechIdLength = 256;
 		public List<string> UnlockedTechIds = new List<string>();
 		public List<string> QueuedTechIds = new List<string>(); // Full queue from host
 		public string ActiveTechId; // Current research selection
@@ -41,20 +43,32 @@ namespace ONI_Together.Networking.Packets.World
 			using var _ = Profiler.Scope();
 
 			int count = reader.ReadInt32();
+			if (count < 0 || count > MaxTechCount)
+				throw new InvalidDataException($"Invalid unlocked tech count: {count}");
 			UnlockedTechIds = new List<string>(count);
 			for (int i = 0; i < count; i++)
 			{
-				UnlockedTechIds.Add(reader.ReadString());
+				UnlockedTechIds.Add(ReadTechId(reader));
 			}
 
 			int queueCount = reader.ReadInt32();
+			if (queueCount < 0 || queueCount > MaxTechCount)
+				throw new InvalidDataException($"Invalid queued tech count: {queueCount}");
 			QueuedTechIds = new List<string>(queueCount);
 			for (int i = 0; i < queueCount; i++)
 			{
-				QueuedTechIds.Add(reader.ReadString());
+				QueuedTechIds.Add(ReadTechId(reader));
 			}
 
-			ActiveTechId = reader.ReadString();
+			ActiveTechId = ReadTechId(reader);
+		}
+
+		private static string ReadTechId(BinaryReader reader)
+		{
+			string value = reader.ReadString();
+			if (value.Length > MaxTechIdLength)
+				throw new InvalidDataException("Research tech ID is too long");
+			return value;
 		}
 
 		public void OnDispatched()
@@ -193,4 +207,3 @@ namespace ONI_Together.Networking.Packets.World
 		}
 	}
 }
-

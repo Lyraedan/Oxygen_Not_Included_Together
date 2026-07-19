@@ -28,16 +28,12 @@ namespace ONI_Together.Networking.Packets.Chores
 		{
 			using var _ = Profiler.Scope();
 			if (!MultiplayerSession.IsHost) return;
-			if (Subscribe)
-			{
-				DuplicantChoreBroadcaster.SubscribedNetIds.Add(DupeNetId);
-				DuplicantChoreBroadcaster.PendingImmediate.Add(DupeNetId);
-			}
-			else
-			{
-				DuplicantChoreBroadcaster.SubscribedNetIds.Remove(DupeNetId);
-				DuplicantChoreBroadcaster.PendingImmediate.Remove(DupeNetId);
-			}
+			DispatchContext context = PacketHandler.CurrentContext;
+			var player = MultiplayerSession.GetPlayer(context.SenderId);
+			if (context.SenderIsHost || player == null || !player.ProtocolVerified
+			    || !NetworkIdentityRegistry.Exists(DupeNetId))
+				return;
+			DuplicantChoreBroadcaster.SetSubscription(context.SenderId, DupeNetId, Subscribe);
 		}
 	}
 }

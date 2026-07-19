@@ -3,13 +3,16 @@ using ONI_Together.Networking.Packets.Architecture;
 using Shared.Profiling;
 using System.Collections.Generic;
 using System.IO;
+using Shared.Interfaces.Networking;
 using UnityEngine;
 
 namespace ONI_Together.Networking.Packets.Social
 {
-	public class TrailPointsPacket : IPacket
+	public class TrailPointsPacket : IPacket, IClientRelayable, ISenderBoundRelay
 	{
+		internal const int MaxPointCount = 256;
 		public ulong PlayerID;
+		ulong ISenderBoundRelay.RelaySenderId => PlayerID;
 		public Color PlayerColor;
 		public bool IsNewStroke;
 		public List<Vector2> Points = new List<Vector2>();
@@ -56,6 +59,8 @@ namespace ONI_Together.Networking.Packets.Social
 			PlayerColor = new Color(r, g, b, 1f);
 			IsNewStroke = reader.ReadBoolean();
 			int count = reader.ReadInt32();
+			if (count < 0 || count > MaxPointCount)
+				throw new InvalidDataException($"Invalid trail point count: {count}");
 			Points = new List<Vector2>(count);
 			for (int i = 0; i < count; i++)
 			{
@@ -73,9 +78,6 @@ namespace ONI_Together.Networking.Packets.Social
 				return;
 
 			PingManager.Instance?.AddRemoteTrailPoints(PlayerID, Points, PlayerColor, IsNewStroke);
-
-			if (MultiplayerSession.IsHost)
-				PacketSender.SendToAllOtherPeers(this);
 		}
 	}
 }

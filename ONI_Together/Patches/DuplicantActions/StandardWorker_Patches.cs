@@ -54,7 +54,11 @@ namespace ONI_Together.Patches.DuplicantActions
                         return;
                 }
 
-                PacketSender.SendToAllClients(new StandardWorker_WorkingState_Packet(__instance, start_work_info.workable, true));
+				if (StandardWorker_WorkingState_Packet.TryCreate(
+					    __instance, start_work_info.workable, startedWorking: true, out var packet))
+				{
+					PacketSender.SendToAllClients(packet);
+				}
 			}
 		}
 
@@ -75,11 +79,19 @@ namespace ONI_Together.Patches.DuplicantActions
 				if (workable == null || workable.IsNullOrDestroyed())
 					return;
 
-				PacketSender.SendToAllClients(WorkableProgressPacket.CreateHidden(workable), PacketSendMode.ReliableImmediate);
+				if (WorkableProgressPacket.TryCreate(
+					    workable, showProgressBar: false, out var progressPacket))
+				{
+					PacketSender.SendToAllClients(progressPacket, PacketSendMode.ReliableImmediate);
+				}
 
 				if (workable.TryGetComponent<ComplexFabricator>(out var fabricator) && fabricator != null && !fabricator.IsNullOrDestroyed())
 				{
-					PacketSender.SendToAllClients(WorkableProgressPacket.CreateComplexFabricator(fabricator, showProgressBar: false), PacketSendMode.ReliableImmediate);
+					if (WorkableProgressPacket.TryCreateComplexFabricator(
+						    fabricator, showProgressBar: false, out var fabricatorPacket))
+					{
+						PacketSender.SendToAllClients(fabricatorPacket, PacketSendMode.ReliableImmediate);
+					}
 				}
 			}
 
@@ -93,7 +105,11 @@ namespace ONI_Together.Patches.DuplicantActions
 				if (!Utils.IsHostMinion(__instance))
 					return;
 
-				PacketSender.SendToAllClients(new StandardWorker_WorkingState_Packet(__instance,null, false));
+				if (StandardWorker_WorkingState_Packet.TryCreate(
+					    __instance, workable: null, startedWorking: false, out var packet))
+				{
+					PacketSender.SendToAllClients(packet);
+				}
 			}
 		}
 	}

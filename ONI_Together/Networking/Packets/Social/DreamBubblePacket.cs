@@ -7,8 +7,10 @@ using UnityEngine;
 
 namespace ONI_Together.Networking.Packets.Social
 {
-	public class DreamBubblePacket : IPacket
+	public class DreamBubblePacket : IPacket, Shared.Interfaces.Networking.IHostOnlyPacket
 	{
+		internal const int MaxIconCount = 64;
+		private const int MaxIdLength = 256;
 		public int NetId;
 		public bool IsVisible;
 		public string DreamId;
@@ -47,11 +49,19 @@ namespace ONI_Together.Networking.Packets.Social
 			IsVisible = reader.ReadBoolean();
 			DreamId = reader.ReadString();
 			BackgroundAnim = reader.ReadString();
+			if (DreamId.Length > MaxIdLength || BackgroundAnim.Length > MaxIdLength)
+				throw new InvalidDataException("Dream bubble ID is too long");
 
 			int iconCount = reader.ReadInt32();
+			if (iconCount < 0 || iconCount > MaxIconCount)
+				throw new InvalidDataException($"Invalid dream icon count: {iconCount}");
 			IconSpriteNames = new string[iconCount];
 			for (int i = 0; i < iconCount; i++)
+			{
 				IconSpriteNames[i] = reader.ReadString();
+				if (IconSpriteNames[i].Length > MaxIdLength)
+					throw new InvalidDataException("Dream icon ID is too long");
+			}
 
 			SecondPerImage = reader.ReadSingle();
 		}

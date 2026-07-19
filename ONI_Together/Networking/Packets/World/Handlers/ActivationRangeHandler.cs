@@ -1,6 +1,7 @@
 using UnityEngine;
 using HarmonyLib;
 using ONI_Together.DebugTools;
+using Shared;
 using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.World.Handlers
@@ -12,12 +13,12 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 	{
 		private static readonly int[] _hashes = new int[]
 		{
-			"Activate".GetHashCode(),
-			"Deactivate".GetHashCode(),
-			"SmartReservoirActivate".GetHashCode(),
-			"SmartReservoirDeactivate".GetHashCode(),
-			"MassageTableActivate".GetHashCode(),
-			"MassageTableDeactivate".GetHashCode(),
+			NetworkingHash.ForConfigKey("Activate"),
+			NetworkingHash.ForConfigKey("Deactivate"),
+			NetworkingHash.ForConfigKey("SmartReservoirActivate"),
+			NetworkingHash.ForConfigKey("SmartReservoirDeactivate"),
+			NetworkingHash.ForConfigKey("MassageTableActivate"),
+			NetworkingHash.ForConfigKey("MassageTableDeactivate"),
 		};
 
 		public int[] SupportedConfigHashes => _hashes;
@@ -27,18 +28,19 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 			using var _ = Profiler.Scope();
 
 			var activationRange = go.GetComponent<IActivationRangeTarget>();
-			if (activationRange == null) return false;
+			if (activationRange == null || packet.ConfigType != BuildingConfigType.Float
+			    || !BuildingConfigPacket.IsInRange(packet.Value, 0f, 100f)) return false;
 
 			int hash = packet.ConfigHash;
 
 			// Handle SmartReservoir specific hashes
-			if (hash == "SmartReservoirActivate".GetHashCode())
+			if (hash == NetworkingHash.ForConfigKey("SmartReservoirActivate"))
 			{
 				activationRange.ActivateValue = packet.Value;
 				//DebugConsole.Log($"[ActivationRangeHandler] Set SmartReservoir ActivateValue={packet.Value}");
 				return true;
 			}
-			if (hash == "SmartReservoirDeactivate".GetHashCode())
+			if (hash == NetworkingHash.ForConfigKey("SmartReservoirDeactivate"))
 			{
 				activationRange.DeactivateValue = packet.Value;
 				//DebugConsole.Log($"[ActivationRangeHandler] Set SmartReservoir DeactivateValue={packet.Value}");
@@ -46,13 +48,13 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 			}
 
 			// Handle MassageTable specific hashes
-			if (hash == "MassageTableActivate".GetHashCode())
+			if (hash == NetworkingHash.ForConfigKey("MassageTableActivate"))
 			{
 				activationRange.ActivateValue = packet.Value;
 				//DebugConsole.Log($"[ActivationRangeHandler] Set MassageTable ActivateValue={packet.Value}");
 				return true;
 			}
-			if (hash == "MassageTableDeactivate".GetHashCode())
+			if (hash == NetworkingHash.ForConfigKey("MassageTableDeactivate"))
 			{
 				activationRange.DeactivateValue = packet.Value;
 				//DebugConsole.Log($"[ActivationRangeHandler] Set MassageTable DeactivateValue={packet.Value}");
@@ -60,13 +62,13 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 			}
 
 			// Handle generic hashes (e.g., Smart Battery)
-			if (hash == "Activate".GetHashCode())
+			if (hash == NetworkingHash.ForConfigKey("Activate"))
 			{
 				activationRange.ActivateValue = packet.Value;
 				//DebugConsole.Log($"[ActivationRangeHandler] Set ActivateValue={packet.Value}");
 				return true;
 			}
-			if (hash == "Deactivate".GetHashCode())
+			if (hash == NetworkingHash.ForConfigKey("Deactivate"))
 			{
 				activationRange.DeactivateValue = packet.Value;
 				//DebugConsole.Log($"[ActivationRangeHandler] Set DeactivateValue={packet.Value}");

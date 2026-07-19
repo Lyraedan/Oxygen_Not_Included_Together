@@ -3,6 +3,7 @@ using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.World;
+using Shared;
 using Shared.Profiling;
 
 namespace ONI_Together.Patches.World.SideScreen
@@ -28,7 +29,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "AccessControlDefault".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("AccessControlDefault"),
 				Value = (float)(int)permission,
 				ConfigType = BuildingConfigType.String,
 				StringValue = groupTag.Name
@@ -52,7 +53,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			var identity = __instance.gameObject.AddOrGet<NetworkIdentity>();
 			identity.RegisterIdentity();
 
-			int minionNetId = -1;
+			int minionNetId = 0;
 			var targetGO = key.GetTargetGameObject();
 			if (targetGO != null)
 			{
@@ -63,15 +64,15 @@ namespace ONI_Together.Patches.World.SideScreen
 				}
 			}
 
-			if (minionNetId == -1) return;
+			if (minionNetId == 0) return;
 
 			var packet = new BuildingConfigPacket
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "AccessControlMinion".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("AccessControlMinion"),
 				Value = (int)permission,
-				SliderIndex = minionNetId,
+				ReferenceNetId = minionNetId,
 				ConfigType = BuildingConfigType.Float
 			};
 
@@ -95,7 +96,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			var identity = __instance.gameObject.AddOrGet<NetworkIdentity>();
 			identity.RegisterIdentity();
 
-			int minionNetId = -1;
+			int minionNetId = 0;
 			var targetGO = key.GetTargetGameObject();
 			if (targetGO != null)
 			{
@@ -106,15 +107,15 @@ namespace ONI_Together.Patches.World.SideScreen
 				}
 			}
 
-			if (minionNetId == -1) return;
+			if (minionNetId == 0) return;
 
 			var packet = new BuildingConfigPacket
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "AccessControlClear".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("AccessControlClear"),
 				Value = 0f,
-				SliderIndex = minionNetId,
+				ReferenceNetId = minionNetId,
 				ConfigType = BuildingConfigType.Float
 			};
 
@@ -145,7 +146,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "AccessControlRobot".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("AccessControlRobot"),
 				Value = (float)(int)permission,
 				ConfigType = BuildingConfigType.String,
 				StringValue = gameTag.Name
@@ -178,7 +179,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "AccessControlRobotClear".GetHashCode(),
+				ConfigHash = NetworkingHash.ForConfigKey("AccessControlRobotClear"),
 				Value = 0f,
 				ConfigType = BuildingConfigType.String,
 				StringValue = tag.Name

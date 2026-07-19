@@ -33,10 +33,17 @@ namespace ONI_Together.Networking.Components
 
 		private ushort[] _shadowElements;
 		private float[] _shadowMass;
+		private float[] _shadowTemperature;
+		private byte[] _shadowDiseaseIdx;
+		private int[] _shadowDiseaseCount;
 
 		// Rotating background scan - covers off-screen areas
 		private const int BG_SCAN_CHUNK_SIZE = 32;
+		private const float BACKGROUND_SWEEP_TARGET_SECONDS = 30f;
 		private int _bgScanIndex = 0;
+		private int _bgScanCellOffset;
+		private static bool _authoritativeRepairSuppressed;
+		private static bool _worldScanPaused;
 
 		// Pinned areas - always synced regardless of viewport
 		private static readonly List<RectInt> _pinnedAreas = new List<RectInt>();
@@ -87,7 +94,8 @@ namespace ONI_Together.Networking.Components
 			Grid.CellToXY(cell, out int x, out int y);
 			foreach (var kvp in _clientViewports)
 			{
-				if (!MultiplayerSession.ConnectedPlayers.TryGetValue(kvp.Key, out var player) || player.Connection == null)
+				if (!MultiplayerSession.ConnectedPlayers.TryGetValue(kvp.Key, out var player)
+				    || !CanReceiveViewportRuntime(player))
 					continue;
 
 				var rect = kvp.Value;
@@ -100,6 +108,11 @@ namespace ONI_Together.Networking.Components
 				}
 			}
 		}
+
+		internal static bool CanReceiveViewportRuntime(MultiplayerPlayer player)
+			=> player?.Connection != null
+			   && player.ProtocolVerified
+			   && SyncBarrier.IsExactReady(player.readyState);
 
 		public bool IsCellVisibleToAnyClient(int cell, int margin = 2)
 		{
@@ -131,7 +144,8 @@ namespace ONI_Together.Networking.Components
             Grid.CellToXY(cell, out int x, out int y);
             foreach (var kvp in _clientViewports)
             {
-                if (!MultiplayerSession.ConnectedPlayers.TryGetValue(kvp.Key, out var player) || player.Connection == null)
+                if (!MultiplayerSession.ConnectedPlayers.TryGetValue(kvp.Key, out var player)
+                    || !CanReceiveViewportRuntime(player))
                     continue;
                 var rect = kvp.Value;
                 if (x >= rect.xMin - margin && x < rect.xMax + margin &&
@@ -206,7 +220,8 @@ namespace ONI_Together.Networking.Components
 				// Adaptive gas sync based on FPS and client count
 				_effectiveGasInterval = GAS_SYNC_INTERVAL * GetSyncMultiplier();
 
-				if (Time.unscaledTime - _lastGasSyncTime > _effectiveGasInterval)
+				if (ShouldRunWorldScan(_worldScanPaused)
+				    && Time.unscaledTime - _lastGasSyncTime > _effectiveGasInterval)
 				{
 					_lastGasSyncTime = Time.unscaledTime;
 					SyncGasLiquid();
@@ -667,28 +682,38 @@ namespace ONI_Together.Networking.Components
 		private void SyncGasLiquid()
 		{
 			using var _ = Profiler.Scope();
-
 			var sw = System.Diagnostics.Stopwatch.StartNew();
+			if (Grid.WidthInCells == 0 || Grid.HeightInCells == 0
+			    || !EnsureShadowGrid())
+				return;
+
+			int cellsScanned = ScanVisibleAreas();
+			cellsScanned += ScanBackgroundSweep();
+			int packetSize = ONI_Together.Misc.World.WorldUpdateBatcher.Flush();
+			sw.Stop();
+			SyncStats.RecordSync(
+				SyncStats.Gas, cellsScanned, packetSize, sw.ElapsedMilliseconds);
+		}
+
+		private bool EnsureShadowGrid()
+		{
+			if (_shadowElements != null && _shadowElements.Length == Grid.CellCount)
+				return true;
+			_shadowElements = new ushort[Grid.CellCount];
+			_shadowMass = new float[Grid.CellCount];
+			_shadowTemperature = new float[Grid.CellCount];
+			_shadowDiseaseIdx = new byte[Grid.CellCount];
+			_shadowDiseaseCount = new int[Grid.CellCount];
+			_bgScanIndex = 0;
+			_bgScanCellOffset = 0;
+			for (int cell = 0; cell < Grid.CellCount; cell++)
+				UpdateShadow(cell, CaptureCell(cell));
+			return false;
+		}
+
+		private int ScanVisibleAreas()
+		{
 			int cellsScanned = 0;
-
-			if (Grid.WidthInCells == 0 || Grid.HeightInCells == 0) return;
-
-			// Initialize Shadow Grid if needed
-			if (_shadowElements == null)
-			{
-				_shadowElements = new ushort[Grid.CellCount];
-				_shadowMass = new float[Grid.CellCount];
-
-				// First run: Copy current state to avoid sending entire map!
-				for (int i = 0; i < Grid.CellCount; i++)
-				{
-					_shadowElements[i] = Grid.ElementIdx[i];
-					_shadowMass[i] = Grid.Mass[i];
-				}
-				return; // Wait for next tick to sync *changes*
-			}
-
-			// Add local player viewport
 			if (CursorManager.Instance != null && Camera.main != null)
 			{
 				Camera cam = Camera.main;
@@ -705,7 +730,7 @@ namespace ONI_Together.Networking.Components
 				y2 = Mathf.Min(Grid.HeightInCells, y2 + margin);
 
 				cellsScanned += (x2 - x1) * (y2 - y1);
-				ScanArea(x1, y1, x2, y2);
+				ScanArea(new RectInt(x1, y1, x2 - x1, y2 - y1));
 			}
 
 			// Scan Client Viewports
@@ -718,7 +743,7 @@ namespace ONI_Together.Networking.Components
 				int y2 = Mathf.Min(Grid.HeightInCells, rect.yMax + 2);
 
 				cellsScanned += (x2 - x1) * (y2 - y1);
-				ScanArea(x1, y1, x2, y2);
+				ScanArea(new RectInt(x1, y1, x2 - x1, y2 - y1));
 			}
 
 			// Scan pinned areas
@@ -729,32 +754,59 @@ namespace ONI_Together.Networking.Components
 				int px2 = Mathf.Min(Grid.WidthInCells, rect.xMax);
 				int py2 = Mathf.Min(Grid.HeightInCells, rect.yMax);
 				cellsScanned += (px2 - px1) * (py2 - py1);
-				ScanArea(px1, py1, px2, py2);
+				ScanArea(new RectInt(px1, py1, px2 - px1, py2 - py1));
 			}
+			return cellsScanned;
+		}
 
-			// Rotating background scan - covers entire map over ~30 seconds
-			if (_shadowElements != null)
+		private int ScanBackgroundSweep()
+		{
+			int cellsScanned = 0;
+			int totalChunks = BackgroundChunkCount(Grid.WidthInCells, Grid.HeightInCells);
+			int chunkBudget = BackgroundChunksPerPass(totalChunks, _effectiveGasInterval);
+			int requestedCells = chunkBudget * BG_SCAN_CHUNK_SIZE * BG_SCAN_CHUNK_SIZE;
+			int cellBudget = ONI_Together.Misc.World.WorldUpdateBatcher
+				.RepairProducerCellBudget(requestedCells, Grid.CellCount);
+			for (int chunk = 0; chunk < chunkBudget && cellBudget > 0; chunk++)
 			{
-				int totalCells = Grid.CellCount;
-				int totalChunks = Mathf.CeilToInt((float)totalCells / (BG_SCAN_CHUNK_SIZE * BG_SCAN_CHUNK_SIZE));
-
-				int chunkX = (_bgScanIndex % Mathf.CeilToInt((float)Grid.WidthInCells / BG_SCAN_CHUNK_SIZE)) * BG_SCAN_CHUNK_SIZE;
-				int chunkY = (_bgScanIndex / Mathf.CeilToInt((float)Grid.WidthInCells / BG_SCAN_CHUNK_SIZE)) * BG_SCAN_CHUNK_SIZE;
-
-				int bgX2 = Mathf.Min(chunkX + BG_SCAN_CHUNK_SIZE, Grid.WidthInCells);
-				int bgY2 = Mathf.Min(chunkY + BG_SCAN_CHUNK_SIZE, Grid.HeightInCells);
-
-				cellsScanned += (bgX2 - chunkX) * (bgY2 - chunkY);
-				ScanArea(chunkX, chunkY, bgX2, bgY2);
-
-				_bgScanIndex = (_bgScanIndex + 1) % Mathf.Max(1, totalChunks);
+				RectInt area = BackgroundChunkBounds(
+					Grid.WidthInCells, Grid.HeightInCells, _bgScanIndex);
+				int chunkCells = area.width * area.height;
+				int attemptBudget = Mathf.Min(
+					cellBudget, Mathf.Max(0, chunkCells - _bgScanCellOffset));
+				int processed = ScanAuthoritativeArea(
+					area, _bgScanCellOffset, attemptBudget,
+					_authoritativeRepairSuppressed);
+				cellsScanned += processed;
+				cellBudget -= processed;
+				int previousOffset = _bgScanCellOffset;
+				AdvanceBackgroundSweepPosition(
+					_bgScanIndex, previousOffset, processed, chunkCells, totalChunks,
+					out _bgScanIndex, out _bgScanCellOffset);
+				if (previousOffset + processed < chunkCells)
+					break;
 			}
+			return cellsScanned;
+		}
 
-			// Flush the batcher
-			int packetSize = ONI_Together.Misc.World.WorldUpdateBatcher.Flush();
-
-			sw.Stop();
-			SyncStats.RecordSync(SyncStats.Gas, cellsScanned, packetSize, sw.ElapsedMilliseconds);
+		internal bool QueueChangedCellsForCheckpoint()
+		{
+			if (Grid.WidthInCells == 0 || Grid.HeightInCells == 0)
+				return false;
+			if (!EnsureShadowGrid())
+				return true;
+			for (int cell = 0; cell < Grid.CellCount; cell++)
+			{
+				if (!Grid.IsValidCell(cell))
+					continue;
+				WorldUpdatePacket.CellUpdate current = CaptureCell(cell);
+				if (!ShouldQueueCheckpointCell(CaptureShadow(cell), current))
+					continue;
+				if (!ONI_Together.Misc.World.WorldUpdateBatcher.Queue(current))
+					return false;
+				UpdateShadow(cell, current);
+			}
+			return true;
 		}
 
 		/// <summary>
@@ -779,46 +831,181 @@ namespace ONI_Together.Networking.Components
 			return Mathf.Min(multiplier, 6f);
 		}
 
-		private void ScanArea(int x1, int y1, int x2, int y2)
+		private void ScanArea(RectInt area, bool authoritative = false)
 		{
 			using var _ = Profiler.Scope();
 
-			for (int y = y1; y < y2; y++)
+			for (int y = area.yMin; y < area.yMax; y++)
+			for (int x = area.xMin; x < area.xMax; x++)
+				TryScanCell(y * Grid.WidthInCells + x, authoritative);
+		}
+
+		private int ScanAuthoritativeArea(
+			RectInt area, int cellOffset, int cellBudget, bool repairSuppressed)
+		{
+			int processed = 0;
+			int chunkCells = area.width * area.height;
+			while (processed < cellBudget && cellOffset + processed < chunkCells)
 			{
-				for (int x = x1; x < x2; x++)
-				{
-					int cell = y * Grid.WidthInCells + x;
-					if (!Grid.IsValidCell(cell)) continue;
-
-					ushort currentElement = Grid.ElementIdx[cell];
-					float currentMass = Grid.Mass[cell];
-
-					// Optimization: Ignore very small mass changes?
-					// Gas flow changes mass constantly.
-					bool changed = false;
-
-					if (currentElement != _shadowElements[cell]) changed = true;
-					else if (Mathf.Abs(currentMass - _shadowMass[cell]) > 0.01f) changed = true; // 10g threshold
-
-					if (changed)
-					{
-						// Update Shadow
-						_shadowElements[cell] = currentElement;
-						_shadowMass[cell] = currentMass;
-
-						// Queue for Network
-						ONI_Together.Misc.World.WorldUpdateBatcher.Queue(new WorldUpdatePacket.CellUpdate
-						{
-							Cell = cell,
-							ElementIdx = currentElement,
-							Mass = currentMass,
-							Temperature = Grid.Temperature[cell],
-							DiseaseIdx = Grid.DiseaseIdx[cell],
-							DiseaseCount = Grid.DiseaseCount[cell]
-						});
-					}
-				}
+				int local = cellOffset + processed;
+				int x = area.xMin + local % area.width;
+				int y = area.yMin + local / area.width;
+				if (!TryScanCell(
+					    y * Grid.WidthInCells + x, authoritative: true,
+					    repairSuppressed: repairSuppressed))
+					break;
+				processed++;
 			}
+			return processed;
+		}
+
+		private bool TryScanCell(
+			int cell, bool authoritative, bool repairSuppressed = false)
+		{
+			if (!Grid.IsValidCell(cell))
+				return true;
+			WorldUpdatePacket.CellUpdate current = CaptureCell(cell);
+			WorldUpdatePacket.CellUpdate shadow = CaptureShadow(cell);
+			bool changed = CellStateChanged(shadow, current);
+			if (!ShouldQueueCell(authoritative, shadow, current)
+			    || authoritative && !ShouldQueueAuthoritativeSweepCell(
+				    repairSuppressed, shadow, current))
+				return true;
+			if (!ONI_Together.Misc.World.WorldUpdateBatcher.Queue(
+				    current, ShouldUseBackgroundRepair(authoritative, changed)))
+				return false;
+			UpdateShadow(cell, current);
+			return true;
+		}
+
+		private static WorldUpdatePacket.CellUpdate CaptureCell(int cell)
+			=> new WorldUpdatePacket.CellUpdate
+			{
+				Cell = cell,
+				ElementIdx = Grid.ElementIdx[cell],
+				Mass = Grid.Mass[cell],
+				Temperature = Grid.Temperature[cell],
+				DiseaseIdx = Grid.DiseaseIdx[cell],
+				DiseaseCount = Grid.DiseaseCount[cell],
+				ReplaceType = SimMessages.ReplaceType.Replace,
+			};
+
+		private WorldUpdatePacket.CellUpdate CaptureShadow(int cell)
+			=> new WorldUpdatePacket.CellUpdate
+			{
+				ElementIdx = _shadowElements[cell],
+				Mass = _shadowMass[cell],
+				Temperature = _shadowTemperature[cell],
+				DiseaseIdx = _shadowDiseaseIdx[cell],
+				DiseaseCount = _shadowDiseaseCount[cell],
+			};
+
+		private void UpdateShadow(int cell, WorldUpdatePacket.CellUpdate current)
+		{
+			_shadowElements[cell] = current.ElementIdx;
+			_shadowMass[cell] = current.Mass;
+			_shadowTemperature[cell] = current.Temperature;
+			_shadowDiseaseIdx[cell] = current.DiseaseIdx;
+			_shadowDiseaseCount[cell] = current.DiseaseCount;
+		}
+
+		internal static bool CellStateChanged(
+			WorldUpdatePacket.CellUpdate previous,
+			WorldUpdatePacket.CellUpdate current)
+		{
+			return previous.ElementIdx != current.ElementIdx
+				|| !previous.Mass.Equals(current.Mass)
+				|| !previous.Temperature.Equals(current.Temperature)
+				|| previous.DiseaseIdx != current.DiseaseIdx
+				|| previous.DiseaseCount != current.DiseaseCount;
+		}
+
+		internal static bool ShouldQueueCell(
+			bool authoritative,
+			WorldUpdatePacket.CellUpdate previous,
+			WorldUpdatePacket.CellUpdate current)
+		{
+			return authoritative || CellStateChanged(previous, current);
+		}
+
+		internal static bool ShouldUseBackgroundRepair(bool authoritative, bool changed)
+			=> authoritative && !changed;
+
+		internal static bool ShouldQueueAuthoritativeSweepCell(
+			bool repairSuppressed,
+			WorldUpdatePacket.CellUpdate previous,
+			WorldUpdatePacket.CellUpdate current)
+			=> !repairSuppressed || CellStateChanged(previous, current);
+
+		internal static bool ShouldQueueCheckpointCell(
+			WorldUpdatePacket.CellUpdate previous,
+			WorldUpdatePacket.CellUpdate current)
+			=> CellStateChanged(previous, current);
+
+		internal static void SetAuthoritativeRepairSuppressed(bool suppressed)
+			=> _authoritativeRepairSuppressed = suppressed;
+
+		internal static void SetWorldScanPaused(bool paused)
+			=> _worldScanPaused = paused;
+
+		internal static bool ShouldRunWorldScan(bool paused) => !paused;
+
+		internal static bool AuthoritativeRepairSuppressedForTests
+			=> _authoritativeRepairSuppressed;
+
+		internal static bool WorldScanPausedForTests => _worldScanPaused;
+
+		internal static void AdvanceBackgroundSweepPosition(
+			int chunkIndex,
+			int cellOffset,
+			int processedCells,
+			int chunkCellCount,
+			int totalChunks,
+			out int nextChunkIndex,
+			out int nextCellOffset)
+		{
+			nextChunkIndex = chunkIndex;
+			nextCellOffset = cellOffset;
+			if (chunkIndex < 0 || chunkIndex >= totalChunks || cellOffset < 0
+			    || cellOffset >= chunkCellCount || processedCells < 0)
+				return;
+			nextCellOffset = Mathf.Min(chunkCellCount, cellOffset + processedCells);
+			if (nextCellOffset < chunkCellCount)
+				return;
+			nextChunkIndex = (chunkIndex + 1) % totalChunks;
+			nextCellOffset = 0;
+		}
+
+		internal static int BackgroundChunkCount(int width, int height)
+		{
+			if (width <= 0 || height <= 0)
+				return 0;
+			int chunksX = (width + BG_SCAN_CHUNK_SIZE - 1) / BG_SCAN_CHUNK_SIZE;
+			int chunksY = (height + BG_SCAN_CHUNK_SIZE - 1) / BG_SCAN_CHUNK_SIZE;
+			return chunksX * chunksY;
+		}
+
+		internal static int BackgroundChunksPerPass(int totalChunks, float intervalSeconds)
+		{
+			if (totalChunks <= 0 || intervalSeconds <= 0f
+			    || float.IsNaN(intervalSeconds) || float.IsInfinity(intervalSeconds))
+				return 0;
+			int budget = Mathf.CeilToInt(
+				totalChunks * intervalSeconds / BACKGROUND_SWEEP_TARGET_SECONDS);
+			return Mathf.Clamp(budget, 1, totalChunks);
+		}
+
+		internal static RectInt BackgroundChunkBounds(int width, int height, int chunkIndex)
+		{
+			int chunkCount = BackgroundChunkCount(width, height);
+			if (chunkIndex < 0 || chunkIndex >= chunkCount)
+				return default;
+			int chunksPerRow = (width + BG_SCAN_CHUNK_SIZE - 1) / BG_SCAN_CHUNK_SIZE;
+			int x = chunkIndex % chunksPerRow * BG_SCAN_CHUNK_SIZE;
+			int y = chunkIndex / chunksPerRow * BG_SCAN_CHUNK_SIZE;
+			return new RectInt(x, y,
+				Mathf.Min(BG_SCAN_CHUNK_SIZE, width - x),
+				Mathf.Min(BG_SCAN_CHUNK_SIZE, height - y));
 		}
 	}
 }

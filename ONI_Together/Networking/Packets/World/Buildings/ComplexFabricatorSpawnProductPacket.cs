@@ -7,10 +7,11 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Shared.Profiling;
+using Shared.Interfaces.Networking;
 
 namespace ONI_Together.Networking.Packets.World.Buildings
 {
-	internal class ComplexFabricatorSpawnProductPacket : IPacket
+	internal class ComplexFabricatorSpawnProductPacket : IPacket, IHostOnlyPacket
 	{
 		public int NetId, CompletedRecipeIdx;
 		public ComplexFabricatorSpawnProductPacket() { }

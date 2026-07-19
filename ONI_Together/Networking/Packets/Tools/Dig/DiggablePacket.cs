@@ -2,10 +2,11 @@
 using System.IO;
 using Shared.Profiling;
 using UnityEngine;
+using Shared.Interfaces.Networking;
 
 namespace ONI_Together.Networking.Packets.Tools.Dig
 {
-    public class DiggablePacket : IPacket
+    public class DiggablePacket : IPacket, IClientRelayable
     {
         /// <summary>
         /// Gets a value indicating whether incoming messages are currently being processed.

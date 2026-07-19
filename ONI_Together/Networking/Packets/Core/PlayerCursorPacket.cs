@@ -6,15 +6,19 @@ using Steamworks;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using Shared.Interfaces.Networking;
 using Shared.Profiling;
 using UnityEngine;
 using YamlDotNet.Core;
 
 namespace ONI_Together.Networking.Packets.Core
 {
-	public class PlayerCursorPacket : IPacket
+	public class PlayerCursorPacket : IPacket, IClientRelayable, ISenderBoundRelay
 	{
+		internal const int MaxUtilityPathCount = 8192;
+		private const int MaxPrefabIdLength = 256;
 		public ulong PlayerID;
+		ulong ISenderBoundRelay.RelaySenderId => PlayerID;
 		public Vector3 Position;
 		public Color Color;
 		public CursorState CursorState;
@@ -109,6 +113,8 @@ namespace ONI_Together.Networking.Packets.Core
 		    ViewMaxY = (short)(viewMax & 0xFFFF);
 
 		    BuildingPrefabId = reader.ReadString();
+		    if (BuildingPrefabId.Length > MaxPrefabIdLength)
+		        throw new InvalidDataException("Cursor building prefab ID is too long");
 
 		    if (Dragging)
 		    {
@@ -119,6 +125,8 @@ namespace ONI_Together.Networking.Packets.Core
 		    if (HasUtilityPath)
 		    {
 		        int count = reader.ReadInt32();
+		        if (count < 0 || count > MaxUtilityPathCount)
+		            throw new InvalidDataException($"Invalid cursor utility path count: {count}");
 		        UtilityPathData = new uint[count];
 		        for (int i = 0; i < count; i++)
 		            UtilityPathData[i] = reader.ReadUInt32();
@@ -126,12 +134,17 @@ namespace ONI_Together.Networking.Packets.Core
 		    else
 		        UtilityPathData = null;
 		}
-        public void OnDispatched()
+		public void OnDispatched()
 		{
 			using var _ = Profiler.Scope();
 
 			if (PlayerID == MultiplayerSession.LocalUserID)
 				return;
+			if (!MultiplayerSession.IsConnectedRemotePlayer(PlayerID))
+			{
+				MultiplayerSession.RemovePlayerCursor(PlayerID);
+				return;
+			}
 
 			if (MultiplayerSession.TryGetCursorObject(PlayerID, out PlayerCursor cursor))
 			{
@@ -158,8 +171,6 @@ namespace ONI_Together.Networking.Packets.Core
 				{
 					WorldStateSyncer.Instance.UpdateClientView(PlayerID, ViewMinX, ViewMinY, ViewMaxX, ViewMaxY);
 				}
-
-				PacketSender.SendToAllOtherPeers(this);
 			}
 		}
 

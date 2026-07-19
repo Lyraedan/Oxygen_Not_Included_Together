@@ -16,6 +16,8 @@ namespace ONI_Together.Patches.World
 		public static bool Prefix(int cell, float mass, float temperature, ushort element_idx, byte disease_idx, int disease_count)
 		{
 			using var _ = Profiler.Scope();
+			if (MultiplayerSession.InSession && MultiplayerSession.IsClient)
+				return false;
 
 			try
 			{
@@ -72,23 +74,7 @@ namespace ONI_Together.Patches.World
 							DebugConsole.LogWarning($"[WorldDamagePatch] NetId still 0 after RegisterIdentity for '{gameObject.name}'; skipping spawn sync (client will be short one item)");
 						}
 						else
-						{
-							Vector3 pos = Grid.CellToPos(cell, CellAlignment.RandomInternal, Grid.SceneLayer.Ore);
-
-							var packet = new WorldDamageSpawnResourcePacket
-							{
-								NetId = networkIdentity.NetId,
-								Position = pos,
-								Mass = mass * 0.5f,
-								Temperature = temperature,
-								ElementIndex = element_idx,
-								DiseaseIndex = disease_idx,
-								DiseaseCount = disease_count
-							};
-
-							PacketSender.SendToAllClients(packet);
-							DebugConsole.Log("Sent spawn resource packet with netid " + networkIdentity.NetId);
-						}
+							DebugConsole.Log("Host assigned spawned resource NetId " + networkIdentity.NetId);
 					}
 				}
 			}

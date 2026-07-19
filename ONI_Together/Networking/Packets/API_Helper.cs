@@ -5,9 +5,8 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 using System.Threading.Tasks;
+using Shared;
 using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets
@@ -27,10 +26,7 @@ namespace ONI_Together.Networking.Packets
 		{
 			using var _ = Profiler.Scope();
 
-			var identity = type.FullName!;
-			using var sha256 = SHA256.Create();
-			var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(identity));
-			return BitConverter.ToInt32(bytes, 0);
+			return NetworkingHash.ForType(type);
 		}
 
 		public static bool WrapApiPacket(object packet, out IPacket wrap)

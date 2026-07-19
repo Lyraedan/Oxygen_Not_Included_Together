@@ -1,90 +1,159 @@
-﻿using HarmonyLib;
+using System;
+using HarmonyLib;
 using Klei.AI;
 using ONI_Together.DebugTools;
 using ONI_Together.Networking;
+using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.DuplicantActions;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Shared.Profiling;
 
 namespace ONI_Together.Patches.Duplicant
 {
 	internal class EffectsPatch
 	{
-		private static bool TogglingEffectFromPacket = false;
+		private static int _packetApplyDepth;
+		private static bool IsApplyingPacket => _packetApplyDepth > 0;
 
-		public static void AddEffect(Effects minionEffects, string effectId, bool shouldSave)
+		internal static bool ShouldRunMutation(
+			bool inSession,
+			bool isHost,
+			bool isApplyingPacket,
+			bool hasNetworkIdentity)
+			=> !inSession || isHost || isApplyingPacket || !hasNetworkIdentity;
+
+		internal static bool ShouldPredictLocally(
+			bool inSession,
+			bool isHost,
+			bool isApplyingPacket,
+			bool hasNetworkIdentity)
+			=> inSession && !isHost && !isApplyingPacket && hasNetworkIdentity;
+
+		public static EffectInstance AddEffect(
+			Effects effects,
+			string effectId,
+			bool shouldSave,
+			float timeRemaining)
 		{
 			using var _ = Profiler.Scope();
-
-			TogglingEffectFromPacket = true;
-
-			Effect newEffect = Db.Get().effects.TryGet(effectId);
-			if (newEffect != null)
+			Effect effect = Db.Get().effects.TryGet(effectId);
+			if (effect == null)
 			{
-				minionEffects.Add(newEffect, shouldSave);
-			}
-			else
 				DebugConsole.LogWarning("Could not find effect with id " + effectId);
+				return null;
+			}
 
-			TogglingEffectFromPacket = false;
+			EffectInstance instance = AddLocally(effects, effect, shouldSave, null);
+			if (instance != null)
+				instance.timeRemaining = timeRemaining;
+			return instance;
 		}
-		public static void RemoveEffect(Effects minionEffects, HashedString effectId)
+
+		public static void RemoveEffect(Effects effects, HashedString effectId)
 		{
 			using var _ = Profiler.Scope();
-
-			TogglingEffectFromPacket = true;
-
-			minionEffects.Remove(effectId);
-
-			TogglingEffectFromPacket = false;
+			_packetApplyDepth++;
+			try
+			{
+				effects.Remove(effectId);
+			}
+			finally
+			{
+				_packetApplyDepth--;
+			}
 		}
 
-
-
-		[HarmonyPatch(typeof(Effects), nameof(Effects.Add), [typeof(Effect), typeof(bool), typeof(Func<string, object, string>)])]
-		public class TargetType_TargetMethod_Patch
+		private static EffectInstance AddLocally(
+			Effects effects,
+			Effect effect,
+			bool shouldSave,
+			Func<string, object, string> resolveTooltip)
 		{
-			public static bool Prefix(Effects __instance, Effect newEffect, bool should_save)
+			_packetApplyDepth++;
+			try
 			{
-				using var _ = Profiler.Scope();
-
-				if (!MultiplayerSession.InSession) return true;
-
-				if (!__instance.HasTag(GameTags.BaseMinion))
-					return true;
-
-				if (MultiplayerSession.IsClient && !TogglingEffectFromPacket)
-					return false;
-
-				if (MultiplayerSession.IsHost)
-					PacketSender.SendToAllClients(new ToggleEffectPacket(__instance, newEffect, should_save));
-
-				return true;
+				return effects.Add(effect, shouldSave, resolveTooltip);
 			}
+			finally
+			{
+				_packetApplyDepth--;
+			}
+		}
+
+		private static bool TryGetIdentity(Effects effects, out NetworkIdentity identity)
+		{
+			identity = effects?.GetComponent<NetworkIdentity>();
+			return identity != null && identity.NetId != 0;
+		}
+
+		[HarmonyPatch(typeof(Effects), nameof(Effects.Add),
+			[typeof(Effect), typeof(bool), typeof(Func<string, object, string>)])]
+		public class EffectsAddPatch
+		{
+			public static bool Prefix(
+				Effects __instance,
+				Effect newEffect,
+				bool should_save,
+				Func<string, object, string> resolveTooltipCallback,
+				ref EffectInstance __result)
+			{
+				using var scope = Profiler.Scope();
+				bool hasIdentity = TryGetIdentity(__instance, out _);
+				if (ShouldPredictLocally(MultiplayerSession.InSession,
+					MultiplayerSession.IsHost, IsApplyingPacket, hasIdentity))
+				{
+					__result = AddLocally(__instance, newEffect, should_save, resolveTooltipCallback);
+					return false;
+				}
+
+				return ShouldRunMutation(MultiplayerSession.InSession,
+					MultiplayerSession.IsHost, IsApplyingPacket, hasIdentity);
+			}
+
+			public static void Postfix(Effects __instance, Effect newEffect)
+			{
+				if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost ||
+				    IsApplyingPacket || !TryGetIdentity(__instance, out NetworkIdentity identity))
+					return;
+				ScheduleHostSnapshot(identity, newEffect);
+			}
+		}
+
+		private static void ScheduleHostSnapshot(NetworkIdentity identity, Effect effect)
+		{
+			if (GameScheduler.Instance == null)
+			{
+				SendHostSnapshot(identity, effect);
+				return;
+			}
+			GameScheduler.Instance.ScheduleNextFrame("ONI Together effect snapshot",
+				_ => SendHostSnapshot(identity, effect));
+		}
+
+		private static void SendHostSnapshot(NetworkIdentity identity, Effect effect)
+		{
+			if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost ||
+			    identity == null || identity.NetId == 0 || effect == null)
+				return;
+			EffectInstance current = identity.GetComponent<Effects>()?.Get(effect);
+			ToggleEffectPacket packet = current != null
+				? new ToggleEffectPacket(identity, current)
+				: new ToggleEffectPacket(identity, effect.IdHash);
+			PacketSender.SendToAllClients(packet);
 		}
 
 		[HarmonyPatch(typeof(Effects), nameof(Effects.Remove), [typeof(HashedString)])]
-		public class Effects_Remove_Patch
+		public class EffectsRemovePatch
 		{
 			public static bool Prefix(Effects __instance, HashedString effect_id)
 			{
 				using var _ = Profiler.Scope();
-
-				if (!MultiplayerSession.InSession) return true;
-				if (MultiplayerSession.IsClient && !TogglingEffectFromPacket)
-					return false;
-
-				if (!__instance.HasTag(GameTags.BaseMinion))
-					return true;
-
-				if (MultiplayerSession.IsHost)
-					PacketSender.SendToAllClients(new ToggleEffectPacket(__instance, effect_id));
-
-				return true;
+				bool hasIdentity = TryGetIdentity(__instance, out NetworkIdentity identity);
+				bool shouldRun = ShouldRunMutation(MultiplayerSession.InSession,
+					MultiplayerSession.IsHost, IsApplyingPacket, hasIdentity);
+				if (shouldRun && MultiplayerSession.InSession && MultiplayerSession.IsHost &&
+				    !IsApplyingPacket && hasIdentity)
+					PacketSender.SendToAllClients(new ToggleEffectPacket(identity, effect_id));
+				return shouldRun;
 			}
 		}
 	}

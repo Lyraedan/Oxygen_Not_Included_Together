@@ -1,4 +1,5 @@
 ﻿using HarmonyLib;
+using ONI_Together.Networking.Components;
 using ONI_Together.Scripts.Buildings;
 using System;
 using System.Collections.Generic;
@@ -19,6 +20,7 @@ namespace ONI_Together.Patches.World
             {
 	            using var _ = Profiler.Scope();
 
+				NetworkIdentity.EnsurePersistentPrefabIdentity(__instance.gameObject);
                 __instance.gameObject.AddOrGet<ClientReceiver_Operational>();
             }
         }

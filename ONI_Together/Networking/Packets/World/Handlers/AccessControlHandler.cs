@@ -1,5 +1,6 @@
 using UnityEngine;
 using ONI_Together.DebugTools;
+using Shared;
 using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.World.Handlers
@@ -12,11 +13,11 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 	{
     private static readonly int[] _hashes = new int[]
 		{
-			"AccessControlDefault".GetHashCode(),
-			"AccessControlMinion".GetHashCode(),
-			"AccessControlClear".GetHashCode(),
-			"AccessControlRobot".GetHashCode(),
-			"AccessControlRobotClear".GetHashCode(),
+			NetworkingHash.ForConfigKey("AccessControlDefault"),
+			NetworkingHash.ForConfigKey("AccessControlMinion"),
+			NetworkingHash.ForConfigKey("AccessControlClear"),
+			NetworkingHash.ForConfigKey("AccessControlRobot"),
+			NetworkingHash.ForConfigKey("AccessControlRobotClear"),
 		};
 
 		public int[] SupportedConfigHashes => _hashes;
@@ -29,11 +30,15 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 
 			var accessControl = go.GetComponent<AccessControl>();
 			if (accessControl == null) return false;
+			bool permissionValid = BuildingConfigPacket.IsIntegralValue(packet.Value)
+			                       && System.Enum.IsDefined(
+				                       typeof(AccessControl.Permission), (int)packet.Value);
 
 			// Handle default group permission
-			if (hash == "AccessControlDefault".GetHashCode())
+			if (hash == NetworkingHash.ForConfigKey("AccessControlDefault"))
 			{
-				if (!string.IsNullOrEmpty(packet.StringValue))
+				if (packet.ConfigType == BuildingConfigType.String && permissionValid
+				    && !string.IsNullOrEmpty(packet.StringValue))
 				{
 					Tag groupTag = new Tag(packet.StringValue);
 					AccessControl.Permission permission = (AccessControl.Permission)(int)packet.Value;
@@ -44,9 +49,13 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 			}
 
 			// Handle individual minion permission via NetID
-			if (hash == "AccessControlMinion".GetHashCode())
+			if (hash == NetworkingHash.ForConfigKey("AccessControlMinion"))
 			{
-				int minionNetId = packet.SliderIndex;
+				if (!permissionValid)
+					return false;
+				int minionNetId = packet.ReferenceNetId;
+				if (minionNetId == 0)
+					return false;
 				AccessControl.Permission permission = (AccessControl.Permission)(int)packet.Value;
 
 				// Find the minion by NetID using the registry
@@ -66,13 +75,15 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 					}
 				}
 				//DebugConsole.Log($"[AccessControlHandler] Could not find minion with NetID={minionNetId}");
-				return true; // Still return true to prevent "unhandled" warning
+				return false;
 			}
 
 			// Handle clear individual minion permission
-			if (hash == "AccessControlClear".GetHashCode())
+			if (hash == NetworkingHash.ForConfigKey("AccessControlClear"))
 			{
-				int minionNetId = packet.SliderIndex;
+				int minionNetId = packet.ReferenceNetId;
+				if (minionNetId == 0)
+					return false;
 
 				if (NetworkIdentityRegistry.TryGet(minionNetId, out var minionIdentity) && minionIdentity != null)
 				{
@@ -90,13 +101,14 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 					}
 				}
 				//DebugConsole.Log($"[AccessControlHandler] Could not find minion with NetID={minionNetId} for clear");
-				return true;
+				return false;
 			}
 
 			// Handle robot tag permission (FetchDrone, ScoutRover, MorbRover)
-			if (hash == "AccessControlRobot".GetHashCode())
+			if (hash == NetworkingHash.ForConfigKey("AccessControlRobot"))
 			{
-				if (!string.IsNullOrEmpty(packet.StringValue))
+				if (packet.ConfigType == BuildingConfigType.String && permissionValid
+				    && !string.IsNullOrEmpty(packet.StringValue))
 				{
 					Tag robotTag = new Tag(packet.StringValue);
 					AccessControl.Permission permission = (AccessControl.Permission)(int)packet.Value;
@@ -107,9 +119,10 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 			}
 
 			// Handle clear robot tag permission
-			if (hash == "AccessControlRobotClear".GetHashCode())
+			if (hash == NetworkingHash.ForConfigKey("AccessControlRobotClear"))
 			{
-				if (!string.IsNullOrEmpty(packet.StringValue))
+				if (packet.ConfigType == BuildingConfigType.String
+				    && !string.IsNullOrEmpty(packet.StringValue))
 				{
 					Tag robotTag = new Tag(packet.StringValue);
 					// Clear robot permission - uses GameTags.Robot as the default key

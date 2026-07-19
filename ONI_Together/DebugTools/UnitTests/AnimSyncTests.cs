@@ -10,7 +10,7 @@ namespace ONI_Together.DebugTools.UnitTests
 {
 	public static class AnimSyncTests
 	{
-		[UnitTest(name: "Anim reconciliation: detects wrong animation", category: "Animation")]
+		[UnitTest(name: "Anim reconciliation: detects wrong animation", category: "Animation", liveSafe: true)]
 		public static UnitTestResult DetectsWrongAnimation()
 		{
 			var identities = NetworkIdentityRegistry.AllIdentities;
@@ -34,10 +34,12 @@ namespace ONI_Together.DebugTools.UnitTests
 
 				return UnitTestResult.Pass($"Minion '{id.gameObject.name}' anim='{currentAnim}', would detect mismatch");
 			}
-			return UnitTestResult.Fail("No minions with anim controller found");
+			return Game.Instance == null
+				? UnitTestResult.Skip("Requires a loaded colony with a duplicant")
+				: UnitTestResult.Fail("No minions with anim controller found");
 		}
 
-		[UnitTest(name: "Anim reconciliation: elapsed time readable", category: "Animation")]
+		[UnitTest(name: "Anim reconciliation: elapsed time readable", category: "Animation", liveSafe: true)]
 		public static UnitTestResult ElapsedTimeReadable()
 		{
 			var identities = NetworkIdentityRegistry.AllIdentities;
@@ -51,7 +53,9 @@ namespace ONI_Together.DebugTools.UnitTests
 				float elapsed = kbac.GetElapsedTime();
 				return UnitTestResult.Pass($"ElapsedTime={elapsed:F3}s on '{id.gameObject.name}'");
 			}
-			return UnitTestResult.Fail("No minions found");
+			return Game.Instance == null
+				? UnitTestResult.Skip("Requires a loaded colony with a duplicant")
+				: UnitTestResult.Fail("No minions found");
 		}
 
 		[UnitTest(name: "Anim reconciliation: reflection helper resolves", category: "Animation")]
@@ -69,7 +73,9 @@ namespace ONI_Together.DebugTools.UnitTests
 
 				return UnitTestResult.Pass($"SetElapsedTime resolved. Before={before:F3}, After={after:F3}");
 			}
-			return UnitTestResult.Fail("No anim controllers found");
+			return Game.Instance == null
+				? UnitTestResult.Skip("Requires a loaded colony with animated entities")
+				: UnitTestResult.Fail("No anim controllers found");
 		}
 
 		[UnitTest(name: "Anim sync packet: roundtrip", category: "Animation")]
@@ -123,7 +129,7 @@ namespace ONI_Together.DebugTools.UnitTests
 			return UnitTestResult.Pass("AnimStateSyncer relies on the shared coordinator");
 		}
 
-		[UnitTest(name: "Anim sync: non-minion entities discoverable", category: "Animation")]
+		[UnitTest(name: "Anim sync: non-minion entities discoverable", category: "Animation", liveSafe: true)]
 		public static UnitTestResult NonMinionAnimEntitiesDiscoverable()
 		{
 			var identities = NetworkIdentityRegistry.AllIdentities;
@@ -141,7 +147,9 @@ namespace ONI_Together.DebugTools.UnitTests
 				return UnitTestResult.Pass($"Entity '{id.gameObject.name}' is sync-eligible");
 			}
 
-			return UnitTestResult.Fail("No non-minion animated network entities found");
+			return Game.Instance == null
+				? UnitTestResult.Skip("Requires a loaded colony with animated entities")
+				: UnitTestResult.Fail("No non-minion animated network entities found");
 		}
 
 		[UnitTest(name: "Anim resync request packet: roundtrip", category: "Animation")]

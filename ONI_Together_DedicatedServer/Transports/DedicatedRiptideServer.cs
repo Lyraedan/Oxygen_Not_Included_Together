@@ -20,21 +20,8 @@ namespace ONI_Together_DedicatedServer.Transports
 
         public override void Start()
         {
-            using var _ = Profiler.Scope();
-
-            if (IsRunning())
-                return;
-
-            string ip = ServerConfiguration.Instance.Config.Ip;
-            int port = ServerConfiguration.Instance.Config.Port;
-            int maxPlayers = ServerConfiguration.Instance.Config.MaxLobbySize;
-
-            _server = new Server("ONI Together: Dedicated Server");
-            _server.MessageReceived += OnServerMessageReceived;
-            _server.ClientConnected += OnClientConnected;
-            _server.ClientDisconnected += OnClientDisconnected;
-            _server.Start((ushort)port, (ushort)maxPlayers, useMessageHandlers: false);
-            Console.WriteLine($"Started server on {ip}:{port}");
+            throw new NotSupportedException(
+                "Dedicated server is disabled: authenticated designated-host handshake is not implemented.");
         }
 
         private void OnClientConnected(object? sender, ServerConnectedEventArgs e)
@@ -100,23 +87,30 @@ namespace ONI_Together_DedicatedServer.Transports
                 if (rawData.Length >= 4)
                     packetType = BitConverter.ToInt32(rawData, 0);
 
+                if (packetType == Utils.DEDICATED_SERVER_PACKET_ID)
+                {
+                    Console.WriteLine($"Rejected nested dedicated wrapper from client {clientId}");
+                    return;
+                }
+
                 Console.WriteLine(
                     $"\nServer received packet from {clientId}, " +
                     $"PacketType={packetType}, Size={size} bytes"
                 );
 
-                MessageSendMode SendMode = MessageSendMode.Reliable;
+                MessageSendMode sendMode = e.Message.SendMode == MessageSendMode.Reliable
+                    ? MessageSendMode.Reliable
+                    : MessageSendMode.Unreliable;
                 // Wrap this as a DedicatedServerMessagePacket
                 byte[] relayedPacketData = Utils.SerializePacketForSending(Utils.DEDICATED_SERVER_PACKET_ID, (writer) =>
                 {
                     writer.Write(packetType); // PacketID
-                    writer.Write((int)SendMode); // Send Type
+                    writer.Write((int)sendMode); // Send Type
+                    writer.Write(clientId); // Original sender
+                    writer.Write(player.IsMaster); // Original sender role
                     writer.Write(rawData.Length);
                     writer.Write(rawData); // PacketData
                 });
-
-                Riptide.Message msg = Riptide.Message.Create(SendMode, 1);
-                msg.AddBytes(relayedPacketData);
 
                 // Check if player.IsMaster
                 // If we're not the master, send this to the master
@@ -130,7 +124,7 @@ namespace ONI_Together_DedicatedServer.Transports
                     {
                         foreach (ONI.Player client in slaves)
                         {
-                            client.Connection.Send(msg);
+                            SendRelay(client.Connection, relayedPacketData, sendMode);
                         }
                     }
                 }
@@ -140,10 +134,17 @@ namespace ONI_Together_DedicatedServer.Transports
                     ONI.Player master = ConnectedPlayers.Values.Where(p => p.IsMaster).FirstOrDefault();
                     if (master != null)
                     {
-                        _server?.Send(msg, master.Connection);
+                        SendRelay(master.Connection, relayedPacketData, sendMode);
                     }
                 }
             }
+        }
+
+        private static void SendRelay(Connection connection, byte[] data, MessageSendMode sendMode)
+        {
+            Riptide.Message message = Riptide.Message.Create(sendMode, 1);
+            message.AddBytes(data);
+            connection.Send(message);
         }
 
         public override void Stop()
