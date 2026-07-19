@@ -1,5 +1,8 @@
-Install Oxygen Not Included Together from its current Steam Workshop page, or build the maintained source from:
+Install Oxygen Not Included Together from its current Steam Workshop page, or build this personal development fork from:
 https://github.com/Ericbai06/Oxygen_Not_Included_Together/blob/main/INSTALL.md#install-from-source
+
+This is an independent, unofficial fork of the original repository, which is no longer maintained:
+https://github.com/Lyraedan/Oxygen_Not_Included_Together
 
 Enable the mod for the active DLC, accept the restart, and make sure every peer uses game build 740622, the same DLC selection, the same enabled mods, and the same ONI Together version.
 

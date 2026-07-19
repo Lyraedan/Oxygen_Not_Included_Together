@@ -22,7 +22,7 @@ The connection is rejected when the game build, protocol, packet registry, mod v
 
 Source installation uses the repository's existing MSBuild deployment targets. Docker is not required. The default environment is Windows with PowerShell, Git, the .NET 8 SDK, and a legally installed Steam copy of Oxygen Not Included.
 
-Clone the maintained fork:
+Clone the personal development fork:
 
 ```powershell
 git clone https://github.com/Ericbai06/Oxygen_Not_Included_Together.git
