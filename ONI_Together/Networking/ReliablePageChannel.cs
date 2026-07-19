@@ -5,6 +5,7 @@ using System.Linq;
 using ONI_Together.Networking.Packets;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.Packets.Core;
+using Steamworks;
 
 namespace ONI_Together.Networking
 {
@@ -13,9 +14,15 @@ namespace ONI_Together.Networking
 		internal const int MaxOrderedWireBytes = 6 * 980;
 		internal const int MaxPageDataBytes = MaxOrderedWireBytes - 44;
 		internal const int MaxInFlightPages = 2;
+		internal const int MaxSteamInFlightPages = 8;
 		internal const int MaxQueuedFrames = 4096;
 		internal const int MaxQueuedBytes = 16 * 1024 * 1024;
 		internal static readonly TimeSpan AckTimeout = TimeSpan.FromSeconds(30);
+
+		internal static int GetMaxInFlightPages(object connection)
+			=> connection is HSteamNetConnection
+				? MaxSteamInFlightPages
+				: MaxInFlightPages;
 
 		private sealed class Frame
 		{
@@ -209,7 +216,8 @@ namespace ONI_Together.Networking
 
 		private bool Pump(object connection, OutgoingState state)
 		{
-			while (state.InFlightPages < MaxInFlightPages)
+			int maxInFlightPages = GetMaxInFlightPages(connection);
+			while (state.InFlightPages < maxInFlightPages)
 			{
 				Transfer transfer = state.Transfers.FirstOrDefault(
 					item => item.NextPageToSend < item.PageCount);

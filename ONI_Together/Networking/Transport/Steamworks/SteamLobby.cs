@@ -3,6 +3,7 @@ using ONI_Together.Menus;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Architecture;
+using ONI_Together.Networking.States;
 using ONI_Together.Patches.ToolPatches;
 using ONI_Together.UI;
 using Steamworks;
@@ -217,14 +218,18 @@ namespace ONI_Together.Networking.Transport.Steamworks
             }
         }
 
-        private static void OnLobbyEntered(LobbyEnter_t callback)
+		private static void OnLobbyEntered(LobbyEnter_t callback)
 		{
 			using var _ = Profiler.Scope();
 
 			CurrentLobby = new CSteamID(callback.m_ulSteamIDLobby);
 			DebugConsole.Log($"[SteamLobby] Entered lobby: {CurrentLobby}");
 
-			MultiplayerSession.Clear();
+			if (ShouldClearSessionOnLobbyEntered(
+				    MultiplayerSession.IsHost,
+				    MultiplayerSession.InSession,
+				    GameServer.State))
+				MultiplayerSession.Clear();
 
 			string hostStr = SteamMatchmaking.GetLobbyData(CurrentLobby, "host");
 			if (ulong.TryParse(hostStr, out ulong hostId))
@@ -241,6 +246,10 @@ namespace ONI_Together.Networking.Transport.Steamworks
 				GameClient.ConnectToHost();
 			}
 		}
+
+		internal static bool ShouldClearSessionOnLobbyEntered(
+			bool localIsHost, bool localInSession, ServerState serverState)
+			=> !(localIsHost && localInSession && serverState == ServerState.Started);
 
 		private static void OnLobbyChatUpdate(LobbyChatUpdate_t callback)
 		{

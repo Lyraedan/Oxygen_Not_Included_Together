@@ -58,7 +58,9 @@ namespace ONI_Together.Networking.Transport.Steam
 
                 if (!sent)
                 {
-                    // DebugConsole.LogError($"[Sockets] Failed to send {packet.Type} to conn {conn} ({Utils.FormatBytes(bytes.Length)} | result: {result})", false);
+					DebugConsole.LogWarning(
+						$"[Sockets] Failed to send {packet.GetType().Name} to " +
+						$"{connection.m_HSteamNetConnection} ({Utils.FormatBytes(bytes.Length)} | result: {result})");
                 }
                 else
                 {

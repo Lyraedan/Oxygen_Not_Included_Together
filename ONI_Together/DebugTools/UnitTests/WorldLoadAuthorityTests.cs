@@ -97,6 +97,8 @@ public static class WorldLoadAuthorityTests
 		bool previousHost = MultiplayerSession.IsHost;
 		var authorityObject = new GameObject("AuthorityOverrideLifecycleTest");
 		var clientObject = new GameObject("ClientOverrideLifecycleTest");
+		authorityObject.AddComponent<KPrefabID>().PrefabTag = new Tag("AuthorityOverrideLifecycleTest");
+		clientObject.AddComponent<KPrefabID>().PrefabTag = new Tag("ClientOverrideLifecycleTest");
 		NetworkIdentity authority = authorityObject.AddComponent<NetworkIdentity>();
 		NetworkIdentity client = clientObject.AddComponent<NetworkIdentity>();
 		try

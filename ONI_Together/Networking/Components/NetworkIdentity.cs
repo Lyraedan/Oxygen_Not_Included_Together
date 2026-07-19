@@ -76,6 +76,21 @@ namespace ONI_Together.Networking.Components
 			bool isWorkable, bool hasSaveLoadRoot, bool hasExistingIdentity)
 			=> !isWorkable || hasSaveLoadRoot || hasExistingIdentity;
 
+		internal static bool ShouldRegisterLifecycleObject(
+			bool hasPrefabIdentity, int prefabHash)
+			=> hasPrefabIdentity && prefabHash != 0;
+
+		internal static bool TryGetLifecyclePrefabHash(
+			UnityEngine.GameObject gameObject, out int prefabHash)
+		{
+			prefabHash = 0;
+			if (gameObject.IsNullOrDestroyed()
+			    || !gameObject.TryGetComponent<KPrefabID>(out var prefabIdentity))
+				return false;
+			prefabHash = prefabIdentity.PrefabTag.GetHashCode();
+			return ShouldRegisterLifecycleObject(true, prefabHash);
+		}
+
 		internal static void BeginManagedSpawn()
 		{
 			managedSpawnSuppressionDepth++;
@@ -121,6 +136,8 @@ namespace ONI_Together.Networking.Components
 		{
 			using var scope = Profiler.Scope();
 			if (IsUnavailableForBinding || IsRegistered)
+				return;
+			if (!TryGetLifecyclePrefabHash(gameObject, out _))
 				return;
 			if (Grid.WidthInCells == 0)
 			{
@@ -226,9 +243,10 @@ namespace ONI_Together.Networking.Components
 		/// <param name="netIdOverride"></param>
 		public bool OverrideNetId(int netIdOverride)
 		{
-			using var _ = Profiler.Scope();
+			using var scope = Profiler.Scope();
 
-			if (IsUnavailableForBinding || netIdOverride == 0)
+			if (IsUnavailableForBinding || netIdOverride == 0
+			    || !TryGetLifecyclePrefabHash(gameObject, out _))
 				return false;
 			bool ownsLifecycle = ShouldBeginLifecycleForOverride(
 				MultiplayerSession.InSession, MultiplayerSession.IsHost);

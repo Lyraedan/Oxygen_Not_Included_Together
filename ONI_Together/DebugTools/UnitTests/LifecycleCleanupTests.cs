@@ -12,6 +12,24 @@ namespace ONI_Together.DebugTools.UnitTests
 {
 	public static class LifecycleCleanupTests
 	{
+		[UnitTest(name: "Lifecycle descriptor rejects non-prefab objects", category: "Sync")]
+		public static UnitTestResult DescriptorRejectsNonPrefabObject()
+		{
+			GameObject transient = CreateIdentity("ClusterMapPeekAnim(Clone)", 4);
+			try
+			{
+				SpawnPrefabPacket descriptor = SpawnPrefabPacket.FromIdentity(
+					transient.GetComponent<NetworkIdentity>());
+				return descriptor == null
+					? UnitTestResult.Pass("Transient animation objects cannot enter a world baseline")
+					: UnitTestResult.Fail("A transient animation object produced a lifecycle descriptor");
+			}
+			finally
+			{
+				DestroyIfLive(transient);
+			}
+		}
+
 		[UnitTest(
 			name: "Lifecycle cleanup preserves expected child of extra parent",
 			category: "Sync")]

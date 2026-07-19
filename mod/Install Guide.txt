@@ -6,4 +6,6 @@ https://github.com/Lyraedan/Oxygen_Not_Included_Together
 
 Enable the mod for the active DLC, accept the restart, and make sure every peer uses game build 740622, the same DLC selection, the same enabled mods, and the same ONI Together version.
 
+For Internet play, use separate Steam accounts. The host creates a Steam lobby and shares its code or sends an invite. SteamNetworkingSockets handles NAT traversal and relay, so no port forwarding or LAN tunnel is required. Direct LAN remains available as a separate transport.
+
 Do not enable a local source build and a Workshop copy at the same time.

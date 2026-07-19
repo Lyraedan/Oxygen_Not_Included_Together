@@ -25,12 +25,14 @@ namespace ONI_Together.Networking
 		}
 		public static NetworkIdentity GetNetIdentity(this GameObject go)
 		{
-			using var _ = Profiler.Scope();
+			using var scope = Profiler.Scope();
 
 			if (go.IsNullOrDestroyed())
 			{
 				return null;
 			}
+			if (!NetworkIdentity.TryGetLifecyclePrefabHash(go, out _))
+				return null;
 
 			if (go.TryGetComponent<NetworkIdentity>(out var identity))
 			{

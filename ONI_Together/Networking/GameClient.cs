@@ -166,7 +166,11 @@ namespace ONI_Together.Networking
 			NetworkConfig.TransportClient.OnReturnToMenu = (reason, message) => CoroutineRunner.RunOne(ShowMessageAndReturnToTitle(reason, message));
 			NetworkConfig.TransportClient.OnRequestStateOrReturn = () =>
 			{
-                PacketSender.SendToHost(GameStateRequestPacket.CreateClientRequest(MultiplayerSession.LocalUserID));
+				bool sent = PacketSender.SendToHost(
+					GameStateRequestPacket.CreateClientRequest(MultiplayerSession.LocalUserID));
+				DebugConsole.Log(
+					$"[GameClient] Initial GameStateRequest sent={sent} " +
+					$"sender={NetworkConfig.TransportPacketSender?.GetType().Name ?? "null"}");
                 MP_Timer.Instance.StartDelayedAction(10, () => CoroutineRunner.RunOne(ShowMessageAndReturnToTitle()));
             };
             NetworkConfig.TransportClient.Prepare();

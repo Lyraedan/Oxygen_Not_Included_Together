@@ -37,7 +37,7 @@ namespace ONI_Together.DebugTools
 	}
 #endif
 
-	public class DebugMenu : MonoBehaviour
+	public partial class DebugMenu : MonoBehaviour
 	{
 		private static DebugMenu _instance;
 
@@ -144,9 +144,29 @@ namespace ONI_Together.DebugTools
 
 			if (!showMenu) return;
 
-			GUIStyle windowStyle = new GUIStyle(GUI.skin.window) { padding = new RectOffset(10, 10, 20, 20) };
-			windowRect = GUI.ModalWindow(888, windowRect, DrawMenuContents, "DEBUG MENU", windowStyle);
+			Matrix4x4 previousMatrix = GUI.matrix;
+			try
+			{
+				GUI.matrix = ComposeUiScaleMatrix(previousMatrix, GetGameUiScale());
+				GUIStyle windowStyle = new GUIStyle(GUI.skin.window) { padding = new RectOffset(10, 10, 20, 20) };
+				windowRect = GUI.ModalWindow(888, windowRect, DrawMenuContents, "DEBUG MENU", windowStyle);
+			}
+			finally
+			{
+				GUI.matrix = previousMatrix;
+			}
 		}
+
+		private static float GetGameUiScale()
+		{
+			var canvas = GameScreenManager.Instance?.ssOverlayCanvas;
+			var scaler = canvas?.GetComponent<KCanvasScaler>();
+			return scaler != null ? scaler.GetCanvasScale() : 1f;
+		}
+
+		internal static Matrix4x4 ComposeUiScaleMatrix(
+			Matrix4x4 currentMatrix, float uiScale)
+			=> currentMatrix * Matrix4x4.Scale(new Vector3(uiScale, uiScale, 1f));
 
         private void DrawMenuContents(int windowID)
         {
@@ -343,12 +363,18 @@ namespace ONI_Together.DebugTools
 		{
 			try
 			{
+				if (TryParseSteamJoinCommand(command, out string lobbyCode))
+					return StartConfiguredSteamJoin(lobbyCode);
+				if (command?.StartsWith("steam-join", StringComparison.Ordinal) == true)
+					return DebugCommandOutcome.Fail("steam-join", "valid-lobby-code-required");
+
 				return command switch
 				{
 					"tests" => RunAllUnitTests(),
 					"riptide" => RunRiptideSmokeTest(),
 					"host" => StartConfiguredLanHost(),
 					"join" => StartConfiguredLanJoin(),
+					"steam-host" => StartConfiguredSteamHost(),
 					"pause" => PauseConfiguredHost(),
 					"soak" => SoakStateHashProbe.Start(),
 					_ => DebugCommandOutcome.Fail(command, "unknown-command"),

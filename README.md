@@ -10,6 +10,7 @@ This repository is a personal development fork of [Lyraedan/Oxygen_Not_Included_
 - Frosty Planet Pack, Bionic Booster Pack, Prehistoric Planet Pack, Neutronium Cosmetics Pack, and Aquatic Planet Pack have dedicated synchronization code and compile in the release build.
 - Clients submit building, schedule, priority, skill, assignment, and DLC interaction requests to the host. The host validates each request, updates the colony, and broadcasts the resulting state.
 - Joining and reconnecting clients load a generation-bound full snapshot before reliable live updates resume.
+- Steam play uses friends-only lobbies over SteamNetworkingSockets. Players can join by lobby code or Steam invite without port forwarding, a public IP address, or a LAN tunnel.
 - LAN play uses Riptide UDP. Large saves use the adjacent TCP port, with chunked UDP transfer as a fallback.
 - The handshake compares the game build, protocol version, packet registry, mod version, main DLL SHA-256, DLC selection, and enabled-mod fingerprint.
 - The dedicated-server prototype remains in the repository but is not included in the Workshop release.
@@ -24,8 +25,10 @@ Do not enable a Workshop copy and a local source build at the same time. Every p
 
 1. Enable `Oxygen Not Included Together` for the active DLC on the Mods screen and restart the game.
 2. Open Multiplayer from the main menu.
-3. For Steam play, the host creates a lobby and the other players join it.
+3. For Steam play, the host creates a lobby and shares its code or sends a Steam invite. Each player runs the game from a separate Steam account.
 4. For LAN play, the host listens on UDP `8080` by default. Save transfer uses TCP `8081`.
+
+SteamNetworkingSockets handles NAT traversal and relay selection for Steam sessions. Steam play does not use the LAN address or require a port-forwarding rule. Tunnels are only relevant to the separate direct-LAN transport.
 
 ## Synchronization model
 
@@ -37,11 +40,13 @@ Entity lifecycle updates use monotonic revisions and tombstones. Failed identity
 
 ## Validation record
 
-On July 18, 2026, both test machines completed 539 in-game Debug checks: 513 passed, none failed, and 26 were skipped because the required runtime state was not present.
+On July 19, 2026, both test machines completed 545 in-game Debug checks: 519 passed, none failed, and 26 were skipped because the required runtime state was not present.
 
-The native two-machine soak ran for 21 segments and 37,800 ticks with ONI MCP Server disabled. All five post-keyframe domain hashes matched in every segment. The final record reported `postMismatchSeen=False`, `keyframeApplyFailureSeen=False`, and `postKeyframeEqual=True`; lifecycle missing, unexpected, tombstoned-live, and unassigned counts were all zero.
+The two-machine Steam friends soak used two Steam accounts and ran for 21 segments and 37,800 ticks with ONI MCP Server disabled. Time and all five post-keyframe domain hashes matched in every segment. The final record reported `postMismatchSeen=False`, `keyframeApplyFailureSeen=False`, and `postKeyframeEqual=True`; lifecycle missing, unexpected, tombstoned-live, and unassigned counts were all zero.
 
-Raw drift before a keyframe is a diagnostic signal. A post-keyframe mismatch is a release failure.
+The client was then closed, restarted through Steam, and joined the same lobby code. It reapplied all 1,040 world-baseline parts, entered `InGame`, and completed reconnect setup after Ready acknowledgement 2.
+
+Raw drift appeared in `grid`, `entity`, `world`, and `storage` at the first segment. This mod uses host-authoritative repair rather than deterministic lockstep. A post-keyframe mismatch is a release failure.
 
 ## Development
 

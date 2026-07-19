@@ -10,6 +10,7 @@ using ONI_Together.Networking.Packets.Handshake;
 using ONI_Together.Networking.Packets.World;
 using ONI_Together.Networking.States;
 using ONI_Together.Networking.Transport;
+using Steamworks;
 
 namespace ONI_Together.DebugTools.UnitTests
 {
@@ -53,6 +54,24 @@ namespace ONI_Together.DebugTools.UnitTests
 			       && channel.PendingFramesForTests(connection) == 62
 				? UnitTestResult.Pass("The first two pages use twelve fragments and the remaining burst stays bounded")
 				: UnitTestResult.Fail($"Expected 2 sent / 62 queued, got {sent.Count} / {channel.PendingFramesForTests(connection)}");
+		}
+
+		[UnitTest(name: "Steam reliable pages use transport-specific receive credit", category: "Networking")]
+		public static UnitTestResult SteamUsesLargerReliableWindow()
+		{
+			var sent = new List<ReliablePagePacket>();
+			var channel = ReliablePageChannel.CreateForTests(
+				(_, page) => { sent.Add(page); return true; });
+			object connection = new HSteamNetConnection { m_HSteamNetConnection = 7001 };
+			for (int index = 0; index < ReliablePageChannel.MaxSteamInFlightPages + 2; index++)
+				if (!channel.TryEnqueue(connection, new byte[512]))
+					return UnitTestResult.Fail("Steam frame was rejected before the bounded credit window");
+
+			return sent.Count == ReliablePageChannel.MaxSteamInFlightPages
+			       && channel.InFlightPagesForTests(connection) == ReliablePageChannel.MaxSteamInFlightPages
+				? UnitTestResult.Pass("Steam uses larger bounded credit without widening the Riptide window")
+				: UnitTestResult.Fail(
+					$"Expected {ReliablePageChannel.MaxSteamInFlightPages} Steam pages, got {sent.Count}");
 		}
 
 		[UnitTest(name: "Reliable page wrapper does not widen the pre-verification authority gate", category: "Networking")]

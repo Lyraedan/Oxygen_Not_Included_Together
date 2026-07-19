@@ -78,9 +78,16 @@ Start Oxygen Not Included, enable the development build in **Mods**, and accept 
 
 ## Steam and LAN play
 
-Steam play uses a lobby created by the host. Other players join from the Multiplayer screen.
+Steam play uses a friends-only lobby created by the host. Each participant must run the game from a separate Steam account.
 
-LAN defaults to:
+1. The host opens **Multiplayer**, selects Steam, and creates a lobby.
+2. The host shares the displayed lobby code or sends a Steam invite.
+3. The client opens **Multiplayer** and joins with that code or accepts the invite.
+4. The client downloads the host snapshot and enters the colony after the Ready acknowledgement.
+
+Steam sessions use SteamNetworkingSockets for NAT traversal and relay selection. They do not require a public IP address, router port forwarding, VPN, Tailscale, or another LAN tunnel. Both Steam clients must be online, and every peer must pass the game, DLC, Mod, and DLL fingerprint checks listed above.
+
+Direct LAN is a separate transport. It defaults to:
 
 - UDP `8080` for live traffic;
 - TCP `8081` for large save transfers.

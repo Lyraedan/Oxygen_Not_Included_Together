@@ -50,11 +50,11 @@ public partial class SpawnPrefabPacket : IPacket, IHostOnlyPacket
 	internal static SpawnPrefabPacket FromIdentity(
 		NetworkIdentity identity, bool requireExistingPersistentObject)
     {
-        if (identity == null || identity.gameObject.IsNullOrDestroyed() || identity.NetId == 0)
+        if (identity == null || identity.gameObject.IsNullOrDestroyed() || identity.NetId == 0
+            || !NetworkIdentity.TryGetLifecyclePrefabHash(identity.gameObject, out int prefabHash))
             return null;
 
         GameObject go = identity.gameObject;
-        int prefabHash = go.PrefabID().GetHashCode();
         Vector3 position = go.transform.position;
         SpawnPrefabPacket packet;
         if (go.TryGetComponent<PrimaryElement>(out var primary)

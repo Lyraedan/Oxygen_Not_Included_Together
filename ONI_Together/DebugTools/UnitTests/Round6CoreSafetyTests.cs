@@ -19,6 +19,21 @@ namespace ONI_Together.DebugTools.UnitTests;
 public static class Round6CoreSafetyTests
 {
 	private static long _requestTestGeneration;
+
+	[UnitTest(name: "Lifecycle registration rejects non-prefab objects", category: "Sync")]
+	public static UnitTestResult LifecycleRegistrationRequiresPrefabIdentity()
+	{
+		bool rejectedMissingPrefab = !NetworkIdentity.ShouldRegisterLifecycleObject(
+			hasPrefabIdentity: false, prefabHash: 0);
+		bool rejectedInvalidTag = !NetworkIdentity.ShouldRegisterLifecycleObject(
+			hasPrefabIdentity: true, prefabHash: 0);
+		bool acceptedPrefab = NetworkIdentity.ShouldRegisterLifecycleObject(
+			hasPrefabIdentity: true, prefabHash: 42);
+		return rejectedMissingPrefab && rejectedInvalidTag && acceptedPrefab
+			? UnitTestResult.Pass("Only prefab-backed objects can enter the lifecycle registry")
+			: UnitTestResult.Fail("A transient object can still enter the lifecycle registry");
+	}
+
 	[UnitTest(name: "Protocol gate: handshake, verified, and ready phases", category: "Networking")]
 	public static UnitTestResult ProtocolAndReadyPhases()
 	{
@@ -278,6 +293,24 @@ public static class Round6CoreSafetyTests
 		{
 			MultiplayerSession.ConnectedPlayers.Remove(playerId);
 		}
+	}
+
+	[UnitTest(name: "Steam lobby entry: running host session survives creator callback", category: "Networking")]
+	public static UnitTestResult SteamLobbyEntryPreservesRunningHostSession()
+	{
+		if (SteamLobby.ShouldClearSessionOnLobbyEntered(
+			    localIsHost: true, localInSession: true, ServerState.Started))
+			return UnitTestResult.Fail(
+				"The creator lobby-enter callback would clear the running Steam host session");
+		if (!SteamLobby.ShouldClearSessionOnLobbyEntered(
+			    localIsHost: false, localInSession: true, ServerState.Started)
+		    || !SteamLobby.ShouldClearSessionOnLobbyEntered(
+			    localIsHost: true, localInSession: false, ServerState.Started)
+		    || !SteamLobby.ShouldClearSessionOnLobbyEntered(
+			    localIsHost: true, localInSession: true, ServerState.Stopped))
+			return UnitTestResult.Fail("A non-running-host lobby entry retained stale session state");
+
+		return UnitTestResult.Pass("Only the running Steam host preserves its session on lobby entry");
 	}
 
 	[UnitTest(name: "Steam snapshot: chunk size leaves send-buffer headroom", category: "Networking")]
