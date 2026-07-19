@@ -1,5 +1,6 @@
 using HarmonyLib;
 using ONI_Together.Networking.OxySync.StateMachines;
+using Shared.Profiling;
 
 namespace ONI_Together.Patches.OxySync
 {
@@ -8,6 +9,8 @@ namespace ONI_Together.Patches.OxySync
     {
         public static void Postfix(Electrolyzer __instance)
         {
+            using var _ = Profiler.Scope();
+
             if (__instance.IsNullOrDestroyed())
                 return;
 
