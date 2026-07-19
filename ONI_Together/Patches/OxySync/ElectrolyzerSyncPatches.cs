@@ -1,5 +1,4 @@
 using HarmonyLib;
-using ONI_Together.Networking;
 using ONI_Together.Networking.OxySync.StateMachines;
 
 namespace ONI_Together.Patches.OxySync
