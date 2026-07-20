@@ -27,6 +27,7 @@ using ONI_Together.Networking.OxySync;
 using ONI_Together.Networking.OxySync.Components;
 using Shared.OxySync;
 using System.Linq;
+using Shared;
 
 namespace ONI_Together.DebugTools
 {
@@ -265,7 +266,7 @@ namespace ONI_Together.DebugTools
         {
             using var _ = Profiler.Scope();
 
-            if(MultiplayerSession.InSession)
+            if(MultiplayerSession.InActiveSession)
                 ImGui.TextColored(new Vector4(0.3f, 1f, 0.3f, 1f), "Multiplayer Active");
             else
                 ImGui.TextColored(new Vector4(1f, 0.3f, 0.3f, 1f), "Multiplayer Not Active");
@@ -338,7 +339,7 @@ namespace ONI_Together.DebugTools
             ImGui.Separator();
             DisplaySessionDetails();
 
-            if (MultiplayerSession.InSession)
+            if (MultiplayerSession.InActiveSession)
                 DrawPlayerList();
             else
                 ImGui.TextDisabled("Not in a multiplayer session.");
@@ -349,7 +350,7 @@ namespace ONI_Together.DebugTools
             using var _ = Profiler.Scope();
 
             DrawNetworkTransportDetails();
-            if (!MultiplayerSession.InSession)
+            if (!MultiplayerSession.InActiveSession)
             {
                 ImGui.TextDisabled("Not connected.");
                 return;
@@ -581,10 +582,10 @@ namespace ONI_Together.DebugTools
             using var _ = Profiler.Scope();
 
             ImGui.Text("Session details:");
-            ImGui.Text($"Connected clients: {(MultiplayerSession.InSession ? (MultiplayerSession.PlayerCursors.Count + 1) : 0)}");
+            ImGui.Text($"Connected clients: {(MultiplayerSession.InActiveSession ? (MultiplayerSession.PlayerCursors.Count + 1) : 0)}");
             ImGui.Text($"Is Host: {MultiplayerSession.IsHost}");
             ImGui.Text($"Is Client: {MultiplayerSession.IsClient}");
-            ImGui.Text($"In Session: {MultiplayerSession.InSession}");
+            ImGui.Text($"In Session: {MultiplayerSession.InActiveSession}");
             ImGui.Text($"Local ID: {MultiplayerSession.LocalUserID}");
             ImGui.Text($"Host ID: {MultiplayerSession.HostUserID}");
         }
@@ -718,7 +719,7 @@ namespace ONI_Together.DebugTools
         {
             using var _ = Profiler.Scope();
 
-            if(!MultiplayerSession.InSession)
+            if(!MultiplayerSession.InActiveSession)
                 return;
 
             ImGui.Separator();
@@ -943,7 +944,7 @@ namespace ONI_Together.DebugTools
 
                 ImGui.Separator();
                 ImGui.Text("Player Group Memberships:");
-                if (MultiplayerSession.InSession)
+                if (MultiplayerSession.InActiveSession)
                 {
                     foreach (var player in MultiplayerSession.ConnectedPlayers)
                     {
@@ -1220,7 +1221,7 @@ namespace ONI_Together.DebugTools
             int ig = behaviour.InterestGroup;
             ImGui.TextColored(new Vector4(0.3f, 1f, 1f, 1f),
                 ig == -1 ? "Interest Group: -1 (broadcast)" : $"Interest Group: {ig}");
-            if (ig != -1 && MultiplayerSession.InSession)
+            if (ig != -1 && MultiplayerSession.InActiveSession)
             {
                 ImGui.SameLine();
                 if (MultiplayerSession.IsHost)

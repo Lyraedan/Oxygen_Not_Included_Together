@@ -7,9 +7,9 @@ namespace ONI_Together.Networking.OxySync.Components
 {
     [SkipSaveFileSerialization]
     [FixedInterestGroup]
-    public class GameTimeSyncComponent : NetworkBehaviour
+    public class GameTimeSyncer : NetworkBehaviour
     {
-        public static GameTimeSyncComponent? Instance { get; private set; }
+        public static GameTimeSyncer? Instance { get; private set; }
 
         [SyncVar(Hook = nameof(OnCycleChanged))]
         private int _cycle;

@@ -16,7 +16,7 @@ namespace Shared.OxySync
             Int, Float, Bool, Byte, Long, Double, String,
             Vector2, Vector3, Color, Quaternion, ByteArray, ULong,
             Array, List, Dict, Short, UShort, UInt, SByte, Char, Decimal,
-            Nullable, HashSet, Queue, Stack
+            Nullable, HashSet, Queue, Stack, HashedString, KAnimHashedString
         }
 
         private static readonly Dictionary<Type, ArgType> TypeToTag = new()
@@ -40,6 +40,8 @@ namespace Shared.OxySync
             [typeof(sbyte)] = ArgType.SByte,
             [typeof(char)] = ArgType.Char,
             [typeof(decimal)] = ArgType.Decimal,
+            [typeof(HashedString)] = ArgType.HashedString,
+            [typeof(KAnimHashedString)] = ArgType.KAnimHashedString,
         };
 
         public static bool IsSupportedType(Type t)
@@ -222,6 +224,12 @@ namespace Shared.OxySync
                     writer.Write(ba.Length);
                     writer.Write(ba);
                     break;
+                case ArgType.HashedString:
+                    writer.Write(((HashedString)value).hash);
+                    break;
+                case ArgType.KAnimHashedString:
+                    writer.Write(((KAnimHashedString)value).hash);
+                    break;
             }
         }
 
@@ -334,6 +342,12 @@ namespace Shared.OxySync
                     if (!hasValue) return null;
                     return ReadArg(reader, Nullable.GetUnderlyingType(type));
                 }
+
+                case ArgType.HashedString:
+                    return new HashedString(reader.ReadInt32());
+
+                case ArgType.KAnimHashedString:
+                    return new KAnimHashedString(reader.ReadInt32());
 
                 default:
                     throw new InvalidDataException($"Unknown RPC arg type tag: {tag}");

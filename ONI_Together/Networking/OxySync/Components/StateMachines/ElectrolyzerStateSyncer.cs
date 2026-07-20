@@ -1,4 +1,5 @@
 using ONI_Together.Misc;
+using Shared.OxySync;
 using Shared.OxySync.Attributes;
 using UnityEngine;
 
@@ -8,7 +9,7 @@ namespace ONI_Together.Networking.OxySync.StateMachines
     /// Handles syncing for the bulk of Oxygen Diffuser's and Sublimator's function. (some of it is handled by the syncer for ElementConverters)
     /// </summary>
     [SkipSaveFileSerialization]
-    public class ElectrolyzerSyncer : StateMachineSyncer
+    public class ElectrolyzerStateSyncer : StateMachineSyncer
     {
         private Electrolyzer _electrolyzer;
         private Electrolyzer.StatesInstance _smi;

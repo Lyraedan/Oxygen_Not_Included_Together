@@ -5,7 +5,7 @@ using Shared.OxySync.Attributes;
 namespace ONI_Together.Networking.OxySync.Components
 {
     [SkipSaveFileSerialization]
-    public class GenericGeneratorSyncComponent : NetworkBehaviour
+    public class GenericGeneratorSyncer : NetworkBehaviour
     {
         private Generator _generator;
 
