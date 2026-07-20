@@ -2,7 +2,7 @@ using System;
 using Klei.AI;
 using UnityEngine;
 
-namespace ONI_Together.Networking.OxySync.StateMachines
+namespace Shared.OxySync
 {
     public static class SafeStateMachine
     {
