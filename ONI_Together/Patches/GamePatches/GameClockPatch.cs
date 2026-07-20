@@ -25,8 +25,8 @@ namespace ONI_Together.Patches.GamePatches
 			_lastCycle = __instance.GetCycle();
 
 			// Attach OxySync time sync component directly to GameClock
-			if (!__instance.TryGetComponent<GameTimeSyncComponent>(out var gtsc))
-				__instance.gameObject.AddComponent<GameTimeSyncComponent>();
+			if (!__instance.TryGetComponent<GameTimeSyncer>(out var gtsc))
+				__instance.gameObject.AddComponent<GameTimeSyncer>();
         }
 
 		[HarmonyPatch(nameof(GameClock.OnDeserialized))]
@@ -81,7 +81,7 @@ namespace ONI_Together.Patches.GamePatches
 				{
 					_lastSentTime = currentTime;
 
-					GameTimeSyncComponent.Instance?.BroadcastTime(
+					GameTimeSyncer.Instance?.BroadcastTime(
 						__instance.GetCycle(),
 						__instance.GetTimeSinceStartOfCycle());
 				}
