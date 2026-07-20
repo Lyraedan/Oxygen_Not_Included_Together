@@ -1,17 +1,18 @@
+using Shared.OxySync;
 using Shared.OxySync.Attributes;
 
 namespace ONI_Together.Networking.OxySync.StateMachines
 {
     [SkipSaveFileSerialization]
-    public class GraveSyncer : StateMachineSyncer
+    public class GraveStateSyncer : StateMachineSyncer
     {
         private Grave _grave;
         private Grave.StatesInstance _smi;
 
-        [SyncVar(SendMode = (int) PacketSendMode.ReliableImmediate)]
+        [SyncVar(SendMode = (int)PacketSendMode.ReliableImmediate)]
         private string _graveName;
 
-        [SyncVar(SendMode = (int) PacketSendMode.ReliableImmediate)]
+        [SyncVar(SendMode = (int)PacketSendMode.ReliableImmediate)]
         private string _graveAnim;
 
         [SyncVar]

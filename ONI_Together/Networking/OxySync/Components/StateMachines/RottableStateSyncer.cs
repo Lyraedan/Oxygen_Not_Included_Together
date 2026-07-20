@@ -1,4 +1,5 @@
 using KSerialization;
+using Shared.OxySync;
 using Shared.OxySync.Attributes;
 
 namespace ONI_Together.Networking.OxySync.StateMachines

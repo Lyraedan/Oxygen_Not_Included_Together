@@ -18,7 +18,7 @@ namespace ONI_Together.Patches.OxySync
         }
     }
 
-    [HarmonyPatch(typeof(StateMachine.Instance), "Error")]
+    [HarmonyPatch(typeof(StateMachine.Instance), nameof(StateMachine.Instance.Error))]
     public static class StateMachine_Error_Patch
     {
         public static void Postfix()

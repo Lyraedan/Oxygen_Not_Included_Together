@@ -19,7 +19,7 @@ namespace ONI_Together.Patches.OxySync
 
             // The grave doesn't have its own network identity, so we need to register one ourselves.
             __instance.gameObject.AddOrGet<NetworkIdentity>().RegisterIdentity();
-            __instance.gameObject.AddOrGet<GraveSyncer>();
+            __instance.gameObject.AddOrGet<GraveStateSyncer>();
         }
     }
 }
