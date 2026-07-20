@@ -13,9 +13,9 @@ namespace ONI_Together.Networking.OxySync.Components
 {
     [SkipSaveFileSerialization]
     [FixedInterestGroup]
-    public class PrintingPodSyncComponent : NetworkBehaviour
+    public class PrintingPodSyncer : NetworkBehaviour
     {
-        public static PrintingPodSyncComponent? Instance { get; private set; }
+        public static PrintingPodSyncer? Instance { get; private set; }
 
         private Telepad _telepad;
 

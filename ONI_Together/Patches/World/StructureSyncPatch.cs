@@ -16,7 +16,7 @@ namespace ONI_Together.Patches.World
         public static void Postfix(Battery __instance)
         {
             //BatteryStateSyncer syncer = __instance.gameObject.AddOrGet<BatteryStateSyncer>();
-            __instance.gameObject.AddOrGet<BatterySyncComponent>();
+            __instance.gameObject.AddOrGet<BatterySyncer>();
         }
     }
 
@@ -28,12 +28,12 @@ namespace ONI_Together.Patches.World
             if (__instance.gameObject.TryGetComponent<EnergyGenerator>(out _))
             {
                 //EnergyGeneratorSyncer egenSyncer = __instance.gameObject.AddOrGet<EnergyGeneratorSyncer>();
-                __instance.gameObject.AddOrGet<EnergyGeneratorSyncComponent>();
+                __instance.gameObject.AddOrGet<EnergyGeneratorSyncer>();
                 return;
             }
 
             //GenericGeneratorSyncer syncer = __instance.gameObject.AddOrGet<GenericGeneratorSyncer>();
-            __instance.gameObject.AddOrGet<GenericGeneratorSyncComponent>();
+            __instance.gameObject.AddOrGet<GenericGeneratorSyncer>();
         }
     }
 
@@ -44,7 +44,7 @@ namespace ONI_Together.Patches.World
         public static void Postfix(object __instance)
         {
             using var _ = Profiler.Scope();
-            ((KMonoBehaviour) __instance).gameObject.AddOrGet<StorageSyncComponent>();
+            ((KMonoBehaviour) __instance).gameObject.AddOrGet<StorageSyncer>();
         }
 
         [HarmonyTargetMethods]
@@ -109,7 +109,7 @@ namespace ONI_Together.Patches.World
         public static void Postfix(Growing __instance)
         {
             using var _ = Profiler.Scope();
-            __instance.gameObject.AddOrGet<PlantSyncComponent>();
+            __instance.gameObject.AddOrGet<PlantSyncer>();
         }
     }
 
@@ -119,7 +119,7 @@ namespace ONI_Together.Patches.World
         public static void Postfix(Telepad __instance)
         {
             using var _ = Profiler.Scope();
-            __instance.gameObject.AddOrGet<PrintingPodSyncComponent>();
+            __instance.gameObject.AddOrGet<PrintingPodSyncer>();
         }
     }
 }
