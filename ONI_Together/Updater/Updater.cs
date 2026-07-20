@@ -13,7 +13,7 @@ namespace ONI_Together.ModUpdater
 {
     public static class Updater
     {
-        private static readonly PublishedFileId_t WORKSHOP_ID = new PublishedFileId_t(3630759126);
+        private static readonly PublishedFileId_t WORKSHOP_ID = new PublishedFileId_t(3768243603);
         public static string CURRENT_VERSION { get; private set; }
         public static string WORKSHOP_VERSION { get; private set; }
 

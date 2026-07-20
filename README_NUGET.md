@@ -91,7 +91,7 @@ public void SendMyCoolPacket()
 ## Links
 
 - [GitHub](https://github.com/Ericbai06/Oxygen_Not_Included_Together)
-- [Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3630759126)
+- [Steam Workshop](https://steamcommunity.com/sharedfiles/filedetails/?id=3768243603)
 - [Discord](https://discord.gg/jpxveK6mmY)
 - [Trello Board](https://trello.com/b/kq7yVWyU/oxygen-not-included-together)
 - [Ko-fi](https://ko-fi.com/lyraedan)

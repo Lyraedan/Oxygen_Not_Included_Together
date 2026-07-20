@@ -50,20 +50,20 @@ Steamworks App Admin must enable ISteamUGC file transfer and configure Steam Clo
 ## AppID and Workshop item ID
 
 - Oxygen Not Included uses Steam AppID **457140**.
-- The current ONI Together item uses `PublishedFileId` **3630759126**: <https://steamcommunity.com/sharedfiles/filedetails/?id=3630759126>.
+- The current personal ONI Together item uses `PublishedFileId` **3768243603**: <https://steamcommunity.com/sharedfiles/filedetails/?id=3768243603>.
 - `CreateItem` must use consumer AppID `457140`, not the uploader's AppID. Save the new `PublishedFileId_t` when creating a replacement item and reuse it for later updates.
 
 An ISteamUGC update to the existing item uses:
 
 ```text
-StartItemUpdate(457140, 3630759126)
+StartItemUpdate(457140, 3768243603)
 SetItemContent(<content directory>)
 SetItemPreview(<preview image path>)
 SetItemTitle / SetItemDescription / SetItemTags / SetItemVisibility
 SubmitItemUpdate(<change note>)
 ```
 
-A SteamCMD VDF update must also set both `appid=457140` and `publishedfileid=3630759126`. A missing or zero `publishedfileid` creates a new item. Set only the metadata fields intended to change; omitted fields retain their existing values. An upload cannot be cancelled after submission.
+A SteamCMD VDF update must also set both `appid=457140` and `publishedfileid=3768243603`. A missing or zero `publishedfileid` creates a new item. Set only the metadata fields intended to change; omitted fields retain their existing values. An upload cannot be cancelled after submission.
 
 ## Pre-release checks
 
