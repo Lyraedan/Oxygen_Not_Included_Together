@@ -276,7 +276,7 @@ namespace ONI_Together.DebugTools.UnitTests
             return UnitTestResult.Pass("Null string serializes as empty");
         }
 
-        [UnitTest(name: "Variant all 9 types round-trip", category: "OxySync")]
+        [UnitTest(name: "Variant all 19 types round-trip", category: "OxySync")]
         public static UnitTestResult VariantAllTypesRoundTrip()
         {
             Variant[] inputs = {
@@ -291,6 +291,14 @@ namespace ONI_Together.DebugTools.UnitTests
                 (Variant)new Quaternion(0.1f, 0.2f, 0.3f, 0.4f),
                 (Variant)new HashedString(12345),
                 (Variant)new KAnimHashedString(67890),
+                (Variant)(short)-1234,
+                (Variant)(ushort)5678,
+                (Variant)(uint)4000000000,
+                (Variant)9999999999999L,
+                (Variant)3.14159265358979,
+                (Variant)(sbyte)-99,
+                (Variant)'Z',
+                (Variant)new Color(0.1f, 0.2f, 0.3f, 0.4f),
             };
 
             for (int i = 0; i < inputs.Length; i++)
@@ -352,13 +360,49 @@ namespace ONI_Together.DebugTools.UnitTests
                         if (output.Int != 67890)
                             return UnitTestResult.Fail($"KAnimHashedString variant {i} mismatch");
                         break;
+                    case Variant.TypeCode.Short:
+                        if (output.Int != -1234)
+                            return UnitTestResult.Fail($"Short variant {i} mismatch");
+                        break;
+                    case Variant.TypeCode.UShort:
+                        if (output.Int != 5678)
+                            return UnitTestResult.Fail($"UShort variant {i} mismatch");
+                        break;
+                    case Variant.TypeCode.UInt:
+                        if (output.Long != 4000000000)
+                            return UnitTestResult.Fail($"UInt variant {i} mismatch");
+                        break;
+                    case Variant.TypeCode.Long:
+                        if (output.Long != 9999999999999L)
+                            return UnitTestResult.Fail($"Long variant {i} mismatch");
+                        break;
+                    case Variant.TypeCode.Double:
+                        if (Math.Abs(output.Double - 3.14159265358979) > 0.0000000001)
+                            return UnitTestResult.Fail($"Double variant {i} mismatch");
+                        break;
+                    case Variant.TypeCode.SByte:
+                        if (output.Byte != (byte)-99)
+                            return UnitTestResult.Fail($"SByte variant {i} mismatch");
+                        break;
+                    case Variant.TypeCode.Char:
+                        if (output.Int != 'Z')
+                            return UnitTestResult.Fail($"Char variant {i} mismatch");
+                        break;
+                    case Variant.TypeCode.Color:
+                        var expectedCol = new Color(0.1f, 0.2f, 0.3f, 0.4f);
+                        if (Mathf.Abs(output.Color.r - expectedCol.r) > 0.001f ||
+                            Mathf.Abs(output.Color.g - expectedCol.g) > 0.001f ||
+                            Mathf.Abs(output.Color.b - expectedCol.b) > 0.001f ||
+                            Mathf.Abs(output.Color.a - expectedCol.a) > 0.001f)
+                            return UnitTestResult.Fail($"Color variant {i} mismatch");
+                        break;
                 }
             }
 
-            return UnitTestResult.Pass("All 11 Variant types round-trip correctly");
+            return UnitTestResult.Pass("All 19 Variant types round-trip correctly");
         }
 
-        [UnitTest(name: "SyncVarPacket VariantToObject supports all types", category: "OxySync")]
+        [UnitTest(name: "VariantToObject supports all types", category: "OxySync")]
         public static UnitTestResult VariantToObjectAllTypes()
         {
             var testCases = new (Variant V, Type TargetType, object Expected)[]
@@ -376,6 +420,14 @@ namespace ONI_Together.DebugTools.UnitTests
                 (new Variant { Type = Variant.TypeCode.KAnimHashedString, Int = 67890 }, typeof(KAnimHashedString), new KAnimHashedString(67890)),
                 (new Variant { Type = Variant.TypeCode.Int, Int = 2 }, typeof(System.StringComparison), System.StringComparison.InvariantCulture),
                 (new Variant { Type = Variant.TypeCode.Int, Int = 5 }, typeof(System.StringComparison), System.StringComparison.OrdinalIgnoreCase),
+                ((Variant)(short)-1234, typeof(short), (short)-1234),
+                ((Variant)(ushort)5678, typeof(ushort), (ushort)5678),
+                ((Variant)(uint)4000000000, typeof(uint), (uint)4000000000u),
+                ((Variant)9999999999999L, typeof(long), 9999999999999L),
+                ((Variant)3.14159265358979, typeof(double), 3.14159265358979),
+                ((Variant)(sbyte)-99, typeof(sbyte), (sbyte)-99),
+                ((Variant)'Z', typeof(char), 'Z'),
+                ((Variant)new Color(0.1f, 0.2f, 0.3f, 0.4f), typeof(Color), new Color(0.1f, 0.2f, 0.3f, 0.4f)),
             };
 
             foreach (var (v, type, expected) in testCases)
@@ -388,6 +440,11 @@ namespace ONI_Together.DebugTools.UnitTests
                 {
                     if (Mathf.Abs((float)result - (float)expected) > 0.001f)
                         return UnitTestResult.Fail($"Float conversion mismatch: {result} != {expected}");
+                }
+                else if (type == typeof(double))
+                {
+                    if (Math.Abs((double)result - (double)expected) > 0.0000000001)
+                        return UnitTestResult.Fail($"Double conversion mismatch: {result} != {expected}");
                 }
                 else if (type == typeof(Vector3))
                 {
@@ -424,7 +481,7 @@ namespace ONI_Together.DebugTools.UnitTests
                 }
             }
 
-            return UnitTestResult.Pass("VariantToObject converts all 13 supported types");
+            return UnitTestResult.Pass("VariantToObject converts all 21 supported types");
         }
 
         [UnitTest(name: "VariantToObject null string fallback", category: "OxySync")]

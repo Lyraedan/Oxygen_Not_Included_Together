@@ -18,6 +18,14 @@ namespace ONI_Together.Misc
             if (value is Quaternion q) return q;
             if (value is HashedString hs) return hs;
             if (value is KAnimHashedString khs) return khs;
+            if (value is short s) return s;
+            if (value is ushort us) return us;
+            if (value is uint ui) return ui;
+            if (value is long l) return l;
+            if (value is double d) return d;
+            if (value is sbyte sb) return sb;
+            if (value is char c) return c;
+            if (value is Color col) return col;
             if (value is Enum e) return Convert.ToInt32(e);
             return 0;
         }
@@ -35,6 +43,14 @@ namespace ONI_Together.Misc
             if (targetType == typeof(Quaternion)) return v.Quaternion;
             if (targetType == typeof(HashedString)) return new HashedString(v.Int);
             if (targetType == typeof(KAnimHashedString)) return new KAnimHashedString(v.Int);
+            if (targetType == typeof(short)) return (short)v.Int;
+            if (targetType == typeof(ushort)) return (ushort)v.Int;
+            if (targetType == typeof(uint)) return (uint)v.Long;
+            if (targetType == typeof(long)) return v.Long;
+            if (targetType == typeof(double)) return v.Double;
+            if (targetType == typeof(sbyte)) return (sbyte)v.Byte;
+            if (targetType == typeof(char)) return (char)v.Int;
+            if (targetType == typeof(Color)) return v.Color;
             if (targetType.IsEnum) return Enum.ToObject(targetType, v.Int);
             return v.String ?? string.Empty;
         }
@@ -55,6 +71,14 @@ namespace ONI_Together.Misc
                 Variant.TypeCode.Quaternion => Quaternion.Angle(a.Quaternion, b.Quaternion) > epsilon,
                 Variant.TypeCode.HashedString => a.Int != b.Int,
                 Variant.TypeCode.KAnimHashedString => a.Int != b.Int,
+                Variant.TypeCode.Short => a.Int != b.Int,
+                Variant.TypeCode.UShort => a.Int != b.Int,
+                Variant.TypeCode.UInt => a.Long != b.Long,
+                Variant.TypeCode.Long => a.Long != b.Long,
+                Variant.TypeCode.Double => Math.Abs(a.Double - b.Double) > epsilon,
+                Variant.TypeCode.SByte => a.Byte != b.Byte,
+                Variant.TypeCode.Char => a.Int != b.Int,
+                Variant.TypeCode.Color => Vector4.Distance(a.Color, b.Color) > epsilon,
                 _ => true,
             };
         }
