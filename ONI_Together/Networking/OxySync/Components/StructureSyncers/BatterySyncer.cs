@@ -11,7 +11,6 @@ namespace ONI_Together.Networking.OxySync.Components
     public class BatterySyncer : NetworkBehaviour
     {
         private Battery _battery;
-        private BatteryTracker _tracker;
 
         [SyncVar(Hook = nameof(OnJoulesChanged))]
         private float _joulesAvailable;
@@ -20,7 +19,6 @@ namespace ONI_Together.Networking.OxySync.Components
         {
             base.OnSpawn();
             _battery = GetComponent<Battery>();
-            _tracker = GetComponent<BatteryTracker>();
         }
 
         private void Update()
@@ -31,9 +29,9 @@ namespace ONI_Together.Networking.OxySync.Components
                 UpdateMeter(_joulesAvailable);
                 return;
             }
-            
+
             if (!isServer) return;
-            
+
             _joulesAvailable = _battery.JoulesAvailable;
         }
 
@@ -66,10 +64,11 @@ namespace ONI_Together.Networking.OxySync.Components
 
         private void RefreshBatteryTracker()
         {
-            if (_tracker == null) return;
+            var tracker = TrackerTool.Instance?.GetWorldTracker<BatteryTracker>(gameObject.GetMyWorldId());
+            if (tracker == null) return;
 
             using var allowClientRefresh = BatteryTrackerPatch.AllowClientRefresh();
-            _tracker.UpdateData();
+            tracker.UpdateData();
         }
     }
 }
