@@ -17,7 +17,7 @@ namespace ONI_Together.Patches.World
 			if (!MultiplayerSession.InSession) return;
 
 			// Find NetId
-			int netId = -1;
+			int netId = 0;
 			// Prioritizable is a component, usually on the same GameObject as NetworkIdentity
 			var identity = __instance.GetComponent<NetworkIdentity>();
 			if (identity != null)
@@ -25,7 +25,7 @@ namespace ONI_Together.Patches.World
 				netId = identity.NetId;
 			}
 
-			if (netId != -1)
+			if (netId != 0)
 			{
 				var packet = new PrioritizeStatePacket();
 				packet.Priorities.Add(new PrioritizeStatePacket.PriorityData
