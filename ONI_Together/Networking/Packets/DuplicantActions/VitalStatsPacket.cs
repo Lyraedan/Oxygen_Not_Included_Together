@@ -25,13 +25,13 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 			NetId = netId;
 			TargetDiseaseIdx = element.DiseaseIdx;
 			TargetDiseaseCount = element.DiseaseCount;
-            //	DebugConsole.Log("[VitalStatsPacket] Vital stat packet for " + element.GetProperName());
-            foreach (var amountInstance in amounts.ModifierList)
-            {
-                VitalAmounts[amountInstance.amount.Id] = amountInstance.value;
-            }
+			//	DebugConsole.Log("[VitalStatsPacket] Vital stat packet for " + element.GetProperName());
+			foreach (var amountInstance in amounts.ModifierList)
+			{
+				VitalAmounts[amountInstance.amount.Id] = amountInstance.value;
+			}
 
-        }
+		}
 
 		public void Serialize(BinaryWriter writer)
 		{
@@ -100,13 +100,25 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 			if (identity.TryGetComponent<PrimaryElement>(out var element))
 			{
 				int currentDiseaseCount = element.DiseaseCount;
-				int currentDiseaseIdx = element.DiseaseIdx;
-				if (currentDiseaseIdx != TargetDiseaseIdx)
+				byte currentDiseaseIdx = element.DiseaseIdx;
+
+				// The disease type stayed the same.
+				if (currentDiseaseIdx == TargetDiseaseIdx)
 				{
-					element.AddDisease(TargetDiseaseIdx, TargetDiseaseCount, "MP-Mod.SyncedDisease");
+					// We just update the count and call it a day.
+					if (currentDiseaseCount != TargetDiseaseCount)
+						element.ModifyDiseaseCount(TargetDiseaseCount - currentDiseaseCount, "MP-Mod.SyncedDisease");
 				}
-				else if (!Mathf.Approximately(currentDiseaseCount, TargetDiseaseCount))
-					element.ModifyDiseaseCount(TargetDiseaseCount - currentDiseaseCount, "MP-Mod.SyncedDisease");
+				// The disease type changed.
+				else
+				{
+					// `AddDisease` with a delta of 0 is a no-op in vanilla, so a cure must drain the current germ count.
+					if (currentDiseaseCount > 0)
+						element.ModifyDiseaseCount(-currentDiseaseCount, "MP-Mod.SyncedDisease");
+
+					if (TargetDiseaseCount > 0 && TargetDiseaseIdx != byte.MaxValue)
+						element.AddDisease(TargetDiseaseIdx, TargetDiseaseCount, "MP-Mod.SyncedDisease");
+				}
 			}
 		}
 	}
