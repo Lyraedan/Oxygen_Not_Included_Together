@@ -94,9 +94,21 @@ namespace Shared.OxySync
             base.OnCleanUp();
         }
 
+        private static IEnumerable<FieldInfo> GetFieldsIncludingBaseTypes(Type type)
+        {
+            var type_ = type;
+            while (type_ != null)
+            {
+                foreach (var field in type_.GetFields(FLAGS | BindingFlags.DeclaredOnly))
+                    yield return field;
+
+                type_ = type_.BaseType;
+            }
+        }
+
         private void DiscoverSyncVars()
         {
-            var fields = GetType().GetFields(FLAGS);
+            var fields = GetFieldsIncludingBaseTypes(GetType());
             var list = new List<SyncVarField>();
             int classDefaultGroup = GetType().GetCustomAttribute<InterestGroupAttribute>()?.Group ?? -1;
 
@@ -134,9 +146,21 @@ namespace Shared.OxySync
             _syncVarDirtyBits = 0;
         }
 
+        private static IEnumerable<MethodInfo> GetMethodsIncludingBaseTypes(Type type)
+        {
+            var type_ = type;
+            while (type_ != null)
+            {
+                foreach (var method in type_.GetMethods(FLAGS | BindingFlags.DeclaredOnly))
+                    yield return method;
+
+                type_ = type_.BaseType;
+            }
+        }
+
         private void DiscoverRpcs()
         {
-            var methods = GetType().GetMethods(FLAGS);
+            var methods = GetMethodsIncludingBaseTypes(GetType());
             int classDefaultGroup = GetType().GetCustomAttribute<InterestGroupAttribute>()?.Group ?? -1;
 
             foreach (var method in methods)
