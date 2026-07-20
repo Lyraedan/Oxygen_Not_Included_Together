@@ -24,10 +24,11 @@ namespace ONI_Together.Networking.Packets.World.Buildings
 			IsOperational = o.IsOperational;
 			IsFunctional = o.IsFunctional;
 			IsActive = o.IsActive;
+			IsPowered = o.GetFlag(EnergyConsumer.PoweredFlag);
 		}
 
 		public int NetId;
-		public bool IsActive, IsOperational, IsFunctional;
+		public bool IsOperational, IsFunctional, IsActive, IsPowered;
 		public void Deserialize(BinaryReader reader)
 		{
 			using var _ = Profiler.Scope();
@@ -36,6 +37,7 @@ namespace ONI_Together.Networking.Packets.World.Buildings
 			IsOperational = reader.ReadBoolean();
 			IsFunctional = reader.ReadBoolean();
 			IsActive = reader.ReadBoolean();
+			IsPowered = reader.ReadBoolean();
 		}
 
 		public void Serialize(BinaryWriter writer)
@@ -46,6 +48,7 @@ namespace ONI_Together.Networking.Packets.World.Buildings
 			writer.Write(IsOperational);
 			writer.Write(IsFunctional);
 			writer.Write(IsActive);
+			writer.Write(IsPowered);
 		}
 
 		public void OnDispatched()
@@ -60,9 +63,10 @@ namespace ONI_Together.Networking.Packets.World.Buildings
 			if (!entity.TryGetComponent<ClientReceiver_Operational>(out var client))
 				return;
 
-			client.IsFunctional = IsFunctional;
 			client.IsOperational = IsOperational;
+			client.IsFunctional = IsFunctional;
 			client.IsActive = IsActive;
+			client.IsPowered = IsPowered;
 		}
 	}
 }

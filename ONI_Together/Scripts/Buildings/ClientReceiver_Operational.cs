@@ -29,5 +29,7 @@ namespace ONI_Together.Scripts.Buildings
 		public bool IsOperational { get; set; } = true;
 
 		public bool IsActive { get; set; }
+
+		public bool IsPowered { get; set; } = true;
 	}
 }

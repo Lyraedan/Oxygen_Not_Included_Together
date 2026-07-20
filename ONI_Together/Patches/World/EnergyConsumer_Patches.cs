@@ -35,7 +35,7 @@ namespace ONI_Together.Patches.World
 
                 if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
                 {
-                    __result = wrap.IsOperational;
+                    __result = wrap.IsPowered;
                     return false;
                 }
                 return true;
@@ -55,7 +55,7 @@ namespace ONI_Together.Patches.World
 
                 if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
                 {
-                    __result = wrap.IsOperational;
+                    __result = wrap.IsPowered;
                     return false;
                 }
                 return true;
