@@ -13,7 +13,7 @@ namespace ONI_Together.Misc
     /// </summary>
     public struct Variant
     {
-        public enum TypeCode : byte { Float, Int, Byte, String, Boolean, Vector3, Vector2, ByteArray, Quaternion }
+        public enum TypeCode : byte { Float, Int, Byte, String, Boolean, Vector3, Vector2, ByteArray, Quaternion, HashedString, KAnimHashedString }
 
         public TypeCode Type;
         public float Float;
@@ -40,6 +40,8 @@ namespace ONI_Together.Misc
                 case TypeCode.Vector2: writer.Write(Vector2); break;
                 case TypeCode.ByteArray: writer.Write(ByteArray.Length); writer.Write(ByteArray); break;
                 case TypeCode.Quaternion: writer.Write(Quaternion.x); writer.Write(Quaternion.y); writer.Write(Quaternion.z); writer.Write(Quaternion.w); break;
+                case TypeCode.HashedString: writer.Write(Int); break;
+                case TypeCode.KAnimHashedString: writer.Write(Int); break;
             }
         }
 
@@ -57,6 +59,8 @@ namespace ONI_Together.Misc
                 case TypeCode.Vector2: v.Vector2 = reader.ReadVector2(); break;
                 case TypeCode.ByteArray: v.ByteArray = reader.ReadBytes(reader.ReadInt32()); break;
                 case TypeCode.Quaternion: v.Quaternion = new Quaternion(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()); break;
+                case TypeCode.HashedString: v.Int = reader.ReadInt32(); break;
+                case TypeCode.KAnimHashedString: v.Int = reader.ReadInt32(); break;
             }
             return v;
         }
@@ -70,6 +74,8 @@ namespace ONI_Together.Misc
         public static implicit operator Variant(Vector2 v) => new Variant { Type = TypeCode.Vector2, Vector2 = v };
         public static implicit operator Variant(byte[] b) => new Variant { Type = TypeCode.ByteArray, ByteArray = b };
         public static implicit operator Variant(Quaternion q) => new Variant { Type = TypeCode.Quaternion, Quaternion = q };
+        public static implicit operator Variant(HashedString h) => new Variant { Type = TypeCode.HashedString, Int = h.hash };
+        public static implicit operator Variant(KAnimHashedString h) => new Variant { Type = TypeCode.KAnimHashedString, Int = h.hash };
 
         public readonly override string ToString()
         {
@@ -84,6 +90,8 @@ namespace ONI_Together.Misc
                 TypeCode.Vector2 => Vector2.ToString(),
                 TypeCode.ByteArray => $"byte[{ByteArray?.Length ?? 0}]",
                 TypeCode.Quaternion => Quaternion.ToString(),
+                TypeCode.HashedString => $"HashedString(0x{Int:X8})",
+                TypeCode.KAnimHashedString => $"KAnimHashedString(0x{Int:X8})",
                 _ => "Unknown"
             };
         }

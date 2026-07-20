@@ -306,6 +306,8 @@ namespace ONI_Together.Networking.OxySync.Components
             if (value is Vector2 v2) return v2;
             if (value is byte[] ba) return ba;
             if (value is Quaternion q) return q;
+            if (value is HashedString hs) return hs;
+            if (value is KAnimHashedString khs) return khs;
             return 0;
         }
 
@@ -323,6 +325,8 @@ namespace ONI_Together.Networking.OxySync.Components
                 Variant.TypeCode.Vector2 => Vector2.Distance(a.Vector2, b.Vector2) > epsilon,
                 Variant.TypeCode.ByteArray => !ByteArraysEqual(a.ByteArray, b.ByteArray),
                 Variant.TypeCode.Quaternion => Quaternion.Angle(a.Quaternion, b.Quaternion) > epsilon,
+                Variant.TypeCode.HashedString => a.Int != b.Int,
+                Variant.TypeCode.KAnimHashedString => a.Int != b.Int,
                 _ => true,
             };
         }

@@ -189,6 +189,8 @@ namespace ONI_Together.DebugTools.UnitTests
                 new Color(0.1f, 0.2f, 0.3f, 0.4f),
                 new Quaternion(0f, 0f, 0f, 1f),
                 new byte[] { 0xAA, 0xBB, 0xCC },
+                new HashedString(55555),
+                new KAnimHashedString(66666),
             };
 
             Type[] types = {
@@ -196,6 +198,7 @@ namespace ONI_Together.DebugTools.UnitTests
                 typeof(long), typeof(double), typeof(string),
                 typeof(Vector2), typeof(Vector3), typeof(Color),
                 typeof(Quaternion), typeof(byte[]),
+                typeof(HashedString), typeof(KAnimHashedString),
             };
 
             var data = RpcSerializer.Serialize(args, types);
@@ -236,7 +239,15 @@ namespace ONI_Together.DebugTools.UnitTests
             if (ba.Length != 3 || ba[0] != 0xAA || ba[1] != 0xBB || ba[2] != 0xCC)
                 return UnitTestResult.Fail("byte[] mismatch");
 
-            return UnitTestResult.Pass("All 12 RPC types round-trip correctly");
+            var hs = (HashedString)result[12];
+            if (hs.hash != 55555)
+                return UnitTestResult.Fail("HashedString mismatch");
+
+            var khs = (KAnimHashedString)result[13];
+            if (khs.hash != 66666)
+                return UnitTestResult.Fail("KAnimHashedString mismatch");
+
+            return UnitTestResult.Pass("All 14 RPC types round-trip correctly");
         }
 
         [UnitTest(name: "RpcSerializer empty args", category: "OxySync")]
@@ -278,6 +289,8 @@ namespace ONI_Together.DebugTools.UnitTests
                 (Variant)new Vector2(4f, 5f),
                 (Variant)new byte[] { 0x01, 0x02 },
                 (Variant)new Quaternion(0.1f, 0.2f, 0.3f, 0.4f),
+                (Variant)new HashedString(12345),
+                (Variant)new KAnimHashedString(67890),
             };
 
             for (int i = 0; i < inputs.Length; i++)
@@ -331,10 +344,18 @@ namespace ONI_Together.DebugTools.UnitTests
                             Mathf.Abs(output.Quaternion.w - q.w) > 0.001f)
                             return UnitTestResult.Fail($"Quaternion variant {i} mismatch");
                         break;
+                    case Variant.TypeCode.HashedString:
+                        if (output.Int != 12345)
+                            return UnitTestResult.Fail($"HashedString variant {i} mismatch");
+                        break;
+                    case Variant.TypeCode.KAnimHashedString:
+                        if (output.Int != 67890)
+                            return UnitTestResult.Fail($"KAnimHashedString variant {i} mismatch");
+                        break;
                 }
             }
 
-            return UnitTestResult.Pass("All 9 Variant types round-trip correctly");
+            return UnitTestResult.Pass("All 11 Variant types round-trip correctly");
         }
 
         [UnitTest(name: "SyncVarPacket VariantToObject supports all types", category: "OxySync")]
@@ -351,6 +372,8 @@ namespace ONI_Together.DebugTools.UnitTests
                 ((Variant)new Vector2(4,5), typeof(Vector2), new Vector2(4,5)),
                 ((Variant)new byte[] { 0x01 }, typeof(byte[]), new byte[] { 0x01 }),
                 ((Variant)new Quaternion(0.1f, 0.2f, 0.3f, 0.4f), typeof(Quaternion), new Quaternion(0.1f, 0.2f, 0.3f, 0.4f)),
+                (new Variant { Type = Variant.TypeCode.HashedString, Int = 12345 }, typeof(HashedString), new HashedString(12345)),
+                (new Variant { Type = Variant.TypeCode.KAnimHashedString, Int = 67890 }, typeof(KAnimHashedString), new KAnimHashedString(67890)),
             };
 
             foreach (var (v, type, expected) in testCases)
@@ -399,7 +422,7 @@ namespace ONI_Together.DebugTools.UnitTests
                 }
             }
 
-            return UnitTestResult.Pass("VariantToObject converts all 9 supported types");
+            return UnitTestResult.Pass("VariantToObject converts all 11 supported types");
         }
 
         [UnitTest(name: "VariantToObject null string fallback", category: "OxySync")]
@@ -738,6 +761,7 @@ namespace ONI_Together.DebugTools.UnitTests
                 typeof(Quaternion), typeof(byte[]), typeof(ulong),
                 typeof(short), typeof(ushort), typeof(uint),
                 typeof(sbyte), typeof(char), typeof(decimal),
+                typeof(HashedString), typeof(KAnimHashedString),
                 typeof(int[]), typeof(string[]), typeof(Vector3[]),
                 typeof(List<int>), typeof(List<string>),
                 typeof(Dictionary<string, int>),

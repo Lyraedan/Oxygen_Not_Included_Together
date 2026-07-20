@@ -64,6 +64,8 @@ namespace ONI_Together.Networking.OxySync.Packets
             if (targetType == typeof(Vector2)) return v.Vector2;
             if (targetType == typeof(byte[])) return v.ByteArray ?? System.Array.Empty<byte>();
             if (targetType == typeof(Quaternion)) return v.Quaternion;
+            if (targetType == typeof(HashedString)) return new HashedString(v.Int);
+            if (targetType == typeof(KAnimHashedString)) return new KAnimHashedString(v.Int);
             return v.String ?? string.Empty;
         }
     }
