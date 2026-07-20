@@ -102,6 +102,24 @@ namespace ONI_Together.DebugTools.UnitTests
 			return UnitTestResult.Pass("Minnow carries lifecycle revision and balances generic-spawn suppression");
 		}
 
+		[UnitTest(name: "Completed building lifecycle follows build materialization", category: "Sync")]
+		public static UnitTestResult CompletedBuildingLifecycle()
+		{
+			MethodInfo prefix = Method(typeof(ConstructablePatch), "Prefix");
+			MethodInfo postfix = Method(typeof(ConstructablePatch), "Postfix");
+			MethodInfo finalizer = Method(typeof(ConstructablePatch), "Finalizer");
+			MethodInfo begin = Method(typeof(NetworkIdentity), nameof(NetworkIdentity.BeginManagedSpawn));
+			MethodInfo end = Method(typeof(NetworkIdentity), nameof(NetworkIdentity.EndManagedSpawn));
+			MethodInfo send = Method(typeof(PacketSender), nameof(PacketSender.SendToAllClients),
+				typeof(IPacket), typeof(PacketSendMode));
+			if (!Calls(prefix, begin) || Calls(prefix, send) ||
+			    !CallsBefore(postfix, end, send) || !Calls(finalizer, end))
+				return UnitTestResult.Fail(
+					"A completed building can publish before host success or materialize through generic lifecycle");
+			return UnitTestResult.Pass(
+				"Every completed building materializes before its bind-existing lifecycle is published");
+		}
+
 		private static bool Ordered(Type owner, string senderName, string captureName,
 			string ensureName, MethodInfo send)
 		{

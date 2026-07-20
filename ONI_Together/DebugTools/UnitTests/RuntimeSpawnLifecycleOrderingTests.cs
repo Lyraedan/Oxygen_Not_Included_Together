@@ -5,7 +5,9 @@ using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.Packets.DLC.SpacedOut;
 using ONI_Together.Patches.DLC.SpacedOut;
+using ONI_Together.Patches.World;
 using Shared.Interfaces.Networking;
+using UnityEngine;
 
 namespace ONI_Together.DebugTools.UnitTests
 {
@@ -45,6 +47,17 @@ namespace ONI_Together.DebugTools.UnitTests
 			if (!Calls(hepSpawn, delayedCleanup) || !Calls(applyComet, attachComet))
 				return UnitTestResult.Fail("A generic spawn can miss its client runtime markers");
 			return UnitTestResult.Pass("Domain state waits for generic lifecycle binding");
+		}
+
+		[UnitTest(name: "Cleanup paths never acquire network identity", category: "Sync")]
+		public static UnitTestResult CleanupUsesExistingIdentity()
+		{
+			MethodInfo acquireIdentity = typeof(Extensions).GetMethod(
+				nameof(Extensions.GetNetIdentity), new[] { typeof(GameObject) });
+			if (Calls(Method(typeof(LogicStateSyncer), nameof(LogicStateSyncer.Unregister)), acquireIdentity) ||
+			    Calls(Method(typeof(PickupablePatches.PickupableCleanedUpPatch), "Postfix"), acquireIdentity))
+				return UnitTestResult.Fail("A cleanup callback can add a NetworkIdentity while Unity destroys its object");
+			return UnitTestResult.Pass("Cleanup callbacks only inspect an existing NetworkIdentity");
 		}
 
 		[UnitTest(name: "Runtime pending state is latest bounded and resettable", category: "Sync")]

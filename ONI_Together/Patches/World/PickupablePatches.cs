@@ -91,7 +91,7 @@ namespace ONI_Together.Patches.World
                     if (!MultiplayerSession.IsHost || !MultiplayerSession.InSession)
                         return;
 
-                    var identity = __instance.GetNetIdentity();
+                    var identity = __instance.GetComponent<NetworkIdentity>();
                     if (identity == null || identity.NetId == 0)
                     {
                         long n = ++_skipCount;

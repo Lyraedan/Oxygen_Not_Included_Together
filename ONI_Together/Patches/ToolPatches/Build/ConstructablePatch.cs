@@ -74,15 +74,19 @@ public static class ConstructablePatch
 		};
 		__state = packet;
 
-		PacketSender.SendToAllClients(packet);
-		DebugConsole.Log($"[Host] Sent BuildCompletePacket for {def.PrefabID} at cell {cell}");
+		NetworkIdentity.BeginManagedSpawn();
 	}
 
-	public static void Postfix(BuildCompletePacket __state)
+	public static void Postfix(ref BuildCompletePacket __state)
 	{
-		if (__state == null || !MultiplayerSession.IsHostInSession)
+		BuildCompletePacket state = __state;
+		if (state == null)
 			return;
-		GameObject built = FindCompletedBuilding(__state);
+		NetworkIdentity.EndManagedSpawn();
+		__state = null;
+		if (!MultiplayerSession.IsHostInSession)
+			return;
+		GameObject built = FindCompletedBuilding(state);
 		if (built == null)
 			return;
 		NetworkIdentity identity = built.AddOrGet<NetworkIdentity>();
@@ -92,7 +96,17 @@ public static class ConstructablePatch
 		if (lifecycle == null)
 			return;
 		lifecycle.BindExistingOnly = true;
+		PacketSender.SendToAllClients(state);
+		DebugConsole.Log($"[Host] Sent BuildCompletePacket for {state.PrefabID} at cell {state.Cell}");
 		PacketSender.SendToAllClients(lifecycle, PacketSendMode.ReliableImmediate);
+	}
+
+	public static System.Exception Finalizer(
+		System.Exception __exception, BuildCompletePacket __state)
+	{
+		if (__state != null)
+			NetworkIdentity.EndManagedSpawn();
+		return __exception;
 	}
 
 	private static GameObject FindCompletedBuilding(BuildCompletePacket state)

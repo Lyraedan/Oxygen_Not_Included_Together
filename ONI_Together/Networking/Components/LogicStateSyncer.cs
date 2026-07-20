@@ -228,7 +228,7 @@ namespace ONI_Together.Networking.Components
         {
             if (go.IsNullOrDestroyed()) return;
 
-            var identity = go.GetNetIdentity();
+            var identity = go.GetComponent<NetworkIdentity>();
             if (identity == null) return;
 
             _tracked.Remove(identity.NetId);

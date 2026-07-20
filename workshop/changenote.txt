@@ -1,1 +1,1 @@
-Fixed the host waiting screen remaining open after a client had already entered the game.
+Fixed duplicate completed-building spawns on clients and cleanup errors when buildings or items were destroyed.
