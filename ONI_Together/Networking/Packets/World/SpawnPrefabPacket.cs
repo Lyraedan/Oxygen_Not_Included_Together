@@ -95,20 +95,6 @@ public partial class SpawnPrefabPacket : IPacket, IHostOnlyPacket
 		return packet;
     }
 
-	private static bool RequiresExistingSnapshotBinding(
-		NetworkIdentity identity, GameObject gameObject, bool requirePersistent)
-		=> RequiresExistingSnapshotBinding(
-			identity.RequiresExistingBinding,
-			gameObject.GetComponent<SaveLoadRoot>() != null,
-			requirePersistent,
-			ElementLoader.GetElement(gameObject.PrefabID()) != null);
-
-	internal static bool RequiresExistingSnapshotBinding(
-		bool identityRequiresExisting, bool hasSaveLoadRoot,
-		bool requirePersistent, bool hasElementData)
-		=> !hasElementData
-		   && (identityRequiresExisting || requirePersistent && hasSaveLoadRoot);
-    
     public void Serialize(BinaryWriter writer)
     {
         if (Revision == 0)

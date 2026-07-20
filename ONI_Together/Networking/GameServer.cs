@@ -65,6 +65,7 @@ namespace ONI_Together.Networking
 			//MultiplayerSession.InSession = false;
 			
 			DebugConsole.Log("[GameServer] Shutdown complete.");
+			DebugConsole.EndConnectionTrace("server-shutdown");
 		}
 
 		public static void Update()

@@ -115,6 +115,7 @@ namespace ONI_Together
                 public static LocString MOD_VERSION_MISMATCH = "Mod version mismatch. Host={0}, Peer={1}.";
                 public static LocString GAME_BUILD_MISMATCH = "Game build mismatch. Host={0}, Peer={1}.";
                 public static LocString MOD_BUILD_MISMATCH = "Mod DLL fingerprint mismatch. Install the exact same build on every peer.";
+				public static LocString DLC_MISMATCH = "Active DLC mismatch. Host={0}; Peer={1}. Enable the same DLCs on every peer.";
                 public static LocString INCOMPATIBLE = "Peer is running an incompatible build.";
 
 				public class VALIDATION
@@ -255,6 +256,7 @@ namespace ONI_Together
 				public static LocString ERR_ENTER_CODE = "Please enter a lobby code";
 				public static LocString ERR_INVALID_CODE = "Invalid lobby code format";
 				public static LocString ERR_PARSE_CODE_FAILED = "Could not parse lobby code";
+				public static LocString ERR_LOBBY_DATA_FAILED = "Could not read lobby data";
 
 				public static LocString CHECKING_LOBBY = "Checking lobby...";
 				public static LocString LOBBY_REQUIRES_PASSWORD = "This lobby requires a password";

@@ -176,24 +176,25 @@ namespace ONI_Together.Menus
             _pendingLobbyId = lobbyId;
             _statusText.text = STRINGS.UI.JOINBYDIALOGMENU.CHECKING_LOBBY;
 
-            // We need to join the lobby to get its metadata (including password status)
-            // But first, let's check if we can get the data by requesting lobby data
-            SteamMatchmaking.RequestLobbyData(lobbyId.AsCSteamID());
-
-            // Wait a moment for data to arrive, then check password
-            StartCoroutine(CheckLobbyPasswordAfterDelay(lobbyId));
+			SteamLobby.RequestLobbyMetadata(lobbyId.AsCSteamID(), (id, success) =>
+			{
+				if (_instance == this)
+					OnLobbyMetadataReceived(id, success);
+			});
         }
 
-        private System.Collections.IEnumerator CheckLobbyPasswordAfterDelay(ulong lobbyId)
+		private void OnLobbyMetadataReceived(CSteamID lobbyId, bool success)
         {
             using var _ = Profiler.Scope();
 
-            yield return new WaitForSeconds(0.5f);
+			if (!success || !SteamLobby.TryGetLobbyPasswordRequirement(lobbyId, out bool requiresPassword))
+			{
+				_statusText.text = "";
+				_errorText.text = STRINGS.UI.JOINBYDIALOGMENU.ERR_LOBBY_DATA_FAILED;
+				return;
+			}
 
-            // Check if lobby requires password
-            string hasPassword = SteamMatchmaking.GetLobbyData(lobbyId.AsCSteamID(), "has_password");
-
-            if (hasPassword == "1")
+			if (requiresPassword)
             {
                 // Show password input
                 _statusText.text = STRINGS.UI.JOINBYDIALOGMENU.LOBBY_REQUIRES_PASSWORD;
@@ -206,8 +207,7 @@ namespace ONI_Together.Menus
             }
             else
             {
-                // No password needed, join directly
-                JoinLobbyDirectly(lobbyId, null);
+				JoinLobbyDirectly(lobbyId.m_SteamID, null);
             }
         }
 

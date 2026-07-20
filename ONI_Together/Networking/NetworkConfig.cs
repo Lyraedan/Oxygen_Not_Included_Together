@@ -57,6 +57,11 @@ namespace ONI_Together.Networking
 				return;
 			}
 
+			string target = IsSteamConfig()
+				? "steam:lobby-pending"
+				: $"lan:{Configuration.Instance.Host.LanSettings.Ip}:{Configuration.Instance.Host.LanSettings.Port}";
+			DebugConsole.BeginConnectionTrace("host", target);
+
             SessionStateReset.Reset();
             switch(transport)
             {
@@ -116,6 +121,7 @@ namespace ONI_Together.Networking
             }
             SessionStateReset.Reset();
             Game.Instance?.Trigger(MP_HASHES.OnDisconnected);
+			DebugConsole.EndConnectionTrace("network-stop");
         }
 
         private static void StopSteamworks()

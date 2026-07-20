@@ -1,6 +1,6 @@
 # Oxygen Not Included Together
 
-Oxygen Not Included Together is a synchronized multiplayer mod for Oxygen Not Included. Version 1.0.0 targets game build `U59-740622-S` and uses network protocol version `9`.
+Oxygen Not Included Together is a synchronized multiplayer mod for Oxygen Not Included. Version 1.0.2 targets game build `U59-740622-S` and uses network protocol version `9`.
 
 This repository is a personal development fork of [Lyraedan/Oxygen_Not_Included_Together](https://github.com/Lyraedan/Oxygen_Not_Included_Together). The original repository is no longer maintained. This fork is independent and unofficial.
 
@@ -12,14 +12,14 @@ This repository is a personal development fork of [Lyraedan/Oxygen_Not_Included_
 - Joining and reconnecting clients load a generation-bound full snapshot before reliable live updates resume.
 - Steam play uses friends-only lobbies over SteamNetworkingSockets. Players can join by lobby code or Steam invite without port forwarding, a public IP address, or a LAN tunnel.
 - LAN play uses Riptide UDP. Large saves use the adjacent TCP port, with chunked UDP transfer as a fallback.
-- The handshake compares the game build, protocol version, packet registry, mod version, main DLL SHA-256, DLC selection, and enabled-mod fingerprint.
+- The handshake admits a peer when its `ONI_Together.dll` SHA-256 and active DLC set exactly match the host.
 - The dedicated-server prototype remains in the repository but is not included in the Workshop release.
 
 ## Installation
 
 See [INSTALL.md](INSTALL.md) for Steam Workshop installation, source builds, LAN ports, and release packaging.
 
-Do not enable a Workshop copy and a local source build at the same time. Every player must use the same game build, DLC selection, enabled mods, load order, configuration, and ONI Together DLL.
+Do not enable a Workshop copy and a local source build at the same time. Every player must use an `ONI_Together.dll` with the same SHA-256 and enable the same DLC set. A rejected client now sees the specific DLL or DLC mismatch instead of a generic connection-loss message. Other enabled Mods, load order, and configuration are not admission checks.
 
 ## Usage
 
@@ -40,7 +40,7 @@ Entity lifecycle updates use monotonic revisions and tombstones. Failed identity
 
 ## Validation record
 
-On July 19, 2026, both test machines completed 545 in-game Debug checks: 519 passed, none failed, and 26 were skipped because the required runtime state was not present.
+On July 19, 2026, the current build completed 548 in-game Debug checks: 522 passed, none failed, and 26 were skipped because the required runtime state was not present.
 
 The two-machine Steam friends soak used two Steam accounts and ran for 21 segments and 37,800 ticks with ONI MCP Server disabled. Time and all five post-keyframe domain hashes matched in every segment. The final record reported `postMismatchSeen=False`, `keyframeApplyFailureSeen=False`, and `postKeyframeEqual=True`; lifecycle missing, unexpected, tombstoned-live, and unassigned counts were all zero.
 

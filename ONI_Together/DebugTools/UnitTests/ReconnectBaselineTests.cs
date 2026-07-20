@@ -295,15 +295,15 @@ namespace ONI_Together.DebugTools.UnitTests
 				"Connection replacement invalidates the unfinished baseline atomically");
 		}
 
-		[UnitTest(name: "World baseline cut discards only pre-baseline reliable deltas", category: "Networking")]
+		[UnitTest(name: "World baseline journaling starts at the exact cut", category: "Networking")]
 		public static UnitTestResult WorldBaselineCutDoesNotFlushStaleDeltas()
 		{
 			using var fixture = new BaselineCutFixture();
 			if (!fixture.TryStart(out long generation)
 			    || ReliableSyncBacklog.TryBuffer(
 				    2, new WorldCyclePacket { Cycle = 1, CycleTime = 1f },
-				    PacketSendMode.Reliable) != SyncBacklogResult.Buffered)
-				return UnitTestResult.Fail("Could not arrange a pre-baseline reliable delta");
+				    PacketSendMode.Reliable) != SyncBacklogResult.NotBuffered)
+				return UnitTestResult.Fail("Pre-baseline traffic entered the delta journal");
 
 			if (!ReadyManager.TryBeginWorldBaseline(2, generation)
 			    || ReliableSyncBacklog.CountForTests(2) != 0

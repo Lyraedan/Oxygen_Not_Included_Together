@@ -15,7 +15,7 @@ using static STRINGS.GAMEPLAY_EVENTS;
 
 namespace ONI_Together.Networking.Transport.Steamworks
 {
-	public static class SteamLobby
+	public static partial class SteamLobby
 	{
 		private static Callback<LobbyCreated_t> _lobbyCreated;
 		private static Callback<GameLobbyJoinRequested_t> _lobbyJoinRequested;
@@ -59,6 +59,7 @@ namespace ONI_Together.Networking.Transport.Steamworks
 				_lobbyJoinRequested = Callback<GameLobbyJoinRequested_t>.Create(OnLobbyJoinRequested);
 				_lobbyEntered = Callback<LobbyEnter_t>.Create(OnLobbyEntered);
 				_lobbyChatUpdate = Callback<LobbyChatUpdate_t>.Create(OnLobbyChatUpdate);
+				InitializeLobbyDataCallback();
 
 				DebugConsole.Log("[SteamLobby] Callbacks registered.");
 			}
@@ -157,7 +158,7 @@ namespace ONI_Together.Networking.Transport.Steamworks
 
 				// Store lobby settings from config
 				var lobbySettings = Configuration.Instance.Host.Lobby;
-				bool hasPassword = lobbySettings.RequirePassword && PasswordHelper.HasPassword(lobbySettings.PasswordHash);
+				bool hasPassword = HasConfiguredPassword(lobbySettings);
 				SteamMatchmaking.SetLobbyData(CurrentLobby, "password_hash", string.Empty);
 				SteamMatchmaking.SetLobbyData(CurrentLobby, "auth_challenge", PasswordHelper.CreateChallenge());
 				SteamMatchmaking.SetLobbyData(CurrentLobby, "has_password", hasPassword ? "1" : "0");
@@ -183,40 +184,6 @@ namespace ONI_Together.Networking.Transport.Steamworks
 				_onLobbyCreatedSuccess = null;
 			}
 		}
-
-		private static void OnLobbyJoinRequested(GameLobbyJoinRequested_t callback)
-		{
-			using var _ = Profiler.Scope();
-
-			DebugConsole.Log($"[SteamLobby] Joining lobby invited by {callback.m_steamIDFriend}");
-			NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.STEAMWORKS); // We're joining through the steam invite system so force steam transport
-
-            CSteamID lobbyId = callback.m_steamIDLobby;
-
-            SteamMatchmaking.RequestLobbyData(lobbyId);
-            CoroutineRunner.RunOne(CheckLobbyPasswordAfterDelay(lobbyId));
-        }
-
-        private static System.Collections.IEnumerator CheckLobbyPasswordAfterDelay(CSteamID lobbyId)
-        {
-	        using var _ = Profiler.Scope();
-
-            yield return new WaitForSeconds(0.5f);
-
-            // Check if lobby requires password
-            string hasPassword = SteamMatchmaking.GetLobbyData(lobbyId, "has_password");
-
-            if (hasPassword == "1")
-            {
-				DebugConsole.Log("CheckLobbyPasswordAfterDelay - lobby requires password");
-                UnityPasswordInputDialogueUI.ShowPasswordDialogueFor(lobbyId.m_SteamID);
-            }
-            else
-            {
-                // No password needed, join directly
-                JoinLobby(lobbyId);
-            }
-        }
 
 		private static void OnLobbyEntered(LobbyEnter_t callback)
 		{
@@ -413,8 +380,8 @@ namespace ONI_Together.Networking.Transport.Steamworks
 		{
 			using var _ = Profiler.Scope();
 
-			string hasPassword = SteamMatchmaking.GetLobbyData(lobbyId, "has_password");
-			return hasPassword == "1";
+			return TryGetLobbyPasswordRequirement(lobbyId, out bool requiresPassword)
+			       && requiresPassword;
 		}
 
 		public static bool IsCurrentLobbyMember(ulong clientId)
@@ -449,7 +416,7 @@ namespace ONI_Together.Networking.Transport.Steamworks
 				return false;
 
 			LobbySettings settings = Configuration.Instance.Host.Lobby;
-			if (!settings.RequirePassword)
+			if (!HasConfiguredPassword(settings))
 				return proof == null || proof.Length == 0;
 
 			string challenge = SteamMatchmaking.GetLobbyData(CurrentLobby, "auth_challenge");

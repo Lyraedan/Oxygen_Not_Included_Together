@@ -190,8 +190,13 @@ namespace ONI_Together.Networking.Transport.Lan
 				host.EndConnection(host.Connection, host.ConnectionGeneration);
 			MultiplayerSession.ConnectedPlayers.Clear();
 
-            DisconnectReason disconnectReason = e.Reason;
+			DisconnectReason disconnectReason = e.Reason;
             var (reason, message) = GetDisconnectInfo(e);
+			if (!GameClient.ShouldTransitionToDisconnected(GameClient.State))
+			{
+				CleanupRiptide(connectionEpoch);
+				return;
+			}
             switch (disconnectReason) {
                 case DisconnectReason.Disconnected:
                     // Initiated by client do nothing

@@ -473,7 +473,12 @@ namespace ONI_Together.UI
 		{
 			using var _ = Profiler.Scope();
 
-			bool hasPassword = SteamMatchmaking.GetLobbyData(lobbyId.AsCSteamID(), "has_password") == "1";
+			if (!SteamLobby.TryGetLobbyPasswordRequirement(
+				    lobbyId.AsCSteamID(), out bool hasPassword))
+			{
+				DebugConsole.LogWarning($"[LobbyBrowser] Missing access metadata for lobby {lobbyId}");
+				return;
+			}
 
 			if (!hasPassword)
 				JoinSteamLobby(lobbyId);
@@ -856,5 +861,4 @@ namespace ONI_Together.UI
 		}
 	}
 }
-
 

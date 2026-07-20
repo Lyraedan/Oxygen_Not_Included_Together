@@ -9,14 +9,7 @@ Subscribe to the current ONI Together Workshop item, wait for Steam to finish do
 3. Accept the restart.
 4. Open **Multiplayer** from the main menu after the game restarts.
 
-Every player must use:
-
-- game build `U59-740622-S`;
-- the same DLC selection;
-- the same enabled mods, load order, and configuration;
-- the same ONI Together version.
-
-The connection is rejected when the game build, protocol, packet registry, mod version, DLL hash, DLC selection, or enabled-mod fingerprint differs.
+Every player must use an `ONI_Together.dll` with the same SHA-256 and enable the same DLC set. The handshake reports the exact DLL or DLC mismatch before world transfer. Game build metadata, protocol numbers, packet registry metadata, Mod version metadata, other enabled Mods, load order, and Mod configuration do not block admission.
 
 ## Install from source
 
@@ -74,7 +67,7 @@ With the sample configuration, the deployed directory is:
 %USERPROFILE%\Documents\Klei\OxygenNotIncluded\mods\dev\ONI_Together_dev
 ```
 
-Start Oxygen Not Included, enable the development build in **Mods**, and accept the restart. Disable any subscribed Workshop copy first. All multiplayer peers must build the same commit and use the same resulting `ONI_Together.dll`.
+Start Oxygen Not Included, enable the development build in **Mods**, and accept the restart. Disable any subscribed Workshop copy first. Copy the same resulting `ONI_Together.dll` to every multiplayer peer, then enable the same DLCs on every machine.
 
 ## Steam and LAN play
 
@@ -85,7 +78,7 @@ Steam play uses a friends-only lobby created by the host. Each participant must 
 3. The client opens **Multiplayer** and joins with that code or accepts the invite.
 4. The client downloads the host snapshot and enters the colony after the Ready acknowledgement.
 
-Steam sessions use SteamNetworkingSockets for NAT traversal and relay selection. They do not require a public IP address, router port forwarding, VPN, Tailscale, or another LAN tunnel. Both Steam clients must be online, and every peer must pass the game, DLC, Mod, and DLL fingerprint checks listed above.
+Steam sessions use SteamNetworkingSockets for NAT traversal and relay selection. They do not require a public IP address, router port forwarding, VPN, Tailscale, or another LAN tunnel. Both Steam clients must be online, and every peer must pass the DLL SHA-256 and active-DLC checks listed above.
 
 Direct LAN is a separate transport. It defaults to:
 

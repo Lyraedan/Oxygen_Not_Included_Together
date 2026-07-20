@@ -14,7 +14,6 @@ using Shared.Helpers;
 using Steamworks;
 using System;
 using System.Collections;
-using System.Linq;
 using System.Runtime.InteropServices;
 using UnityEngine;
 
@@ -33,7 +32,6 @@ namespace ONI_Together.Networking
 		private static CachedConnectionInfo? _cachedConnectionInfo = null;
 
 		public static bool IsHardSyncInProgress = false;
-		private static bool _modVerificationSent = false;
 		private static long _awaitingReadyGeneration;
 
 		// Auto-reconnect state
@@ -193,14 +191,19 @@ namespace ONI_Together.Networking
 
 			if (showLoadingScreen)
 			{
+				string target = NetworkConfig.IsSteamConfig()
+					? $"steam:{MultiplayerSession.HostUserID}"
+					: $"lan:{ip}:{port}";
+				DebugConsole.BeginConnectionTrace("client", target);
+			}
+
+			if (showLoadingScreen)
+			{
 				EndWorldLoadReconnect();
 				SessionStateReset.Reset();
 			}
 
             Init();
-
-            // Reset mod verification for new connection attempts
-            _modVerificationSent = false;
 
 			if (showLoadingScreen)
 			{
@@ -290,57 +293,6 @@ namespace ONI_Together.Networking
 				host.ProtocolVerified = true;
 			}
 
-			if (!SaveHelper.SavegameDlcListValid(packet.ActiveDlcIds, out var errorMsg))
-			{
-				DebugConsole.Log("invalid dlc config detected");
-				SaveHelper.ShowMessageAndReturnToMainMenu(errorMsg);
-				return;
-			}
-
-			if (!SaveHelper.SteamModListSynced(packet.ActiveModIds, out var notEnabled, out var notDisabled, out var missingMods))
-			{
-				string text = STRINGS.UI.MP_OVERLAY.SYNC.MODSYNC.TEXT + "\n\n";
-				if (notEnabled.Any())
-					text += string.Format(STRINGS.UI.MP_OVERLAY.SYNC.MODSYNC.TOENABLE, notEnabled.Count) +"\n";
-				if (notDisabled.Any())
-					text += string.Format(STRINGS.UI.MP_OVERLAY.SYNC.MODSYNC.TODISABLE, notDisabled.Count) + "\n";
-				if (missingMods.Any())
-					text += string.Format(STRINGS.UI.MP_OVERLAY.SYNC.MODSYNC.MISSING, missingMods.Count) + "\n";
-
-				// Ignore this if we're in game already
-				if (Utils.IsInMenu())
-				{
-					DialogUtil.CreateConfirmDialogFrontend(STRINGS.UI.MP_OVERLAY.SYNC.MODSYNC.TITLE, text,
-		   STRINGS.UI.MP_OVERLAY.SYNC.MODSYNC.CONFIRM_SYNC,
-					() => { SaveHelper.SyncModsAndRestart(notEnabled, notDisabled, missingMods); },
-					STRINGS.UI.MP_OVERLAY.SYNC.MODSYNC.CANCEL,
-					BackToMainMenu);
-					DebugConsole.Log("mods not synced!");
-				}
-				else if (ShouldTerminateConnectionValidation(inMenu: false))
-					FailConnectionValidation(STRINGS.UI.MP_OVERLAY.SYNC.MODSYNC.TITLE, text);
-				return;
-			}
-
-			if (!SaveHelper.ActiveModFingerprintsMatch(packet.ActiveModFingerprints, out var missingLocalVersions, out var extraLocalVersions))
-			{
-				string text = STRINGS.UI.MP_OVERLAY.SYNC.MODSYNC.VERSION_TEXT + "\n\n"
-					+ string.Format(STRINGS.UI.MP_OVERLAY.SYNC.MODSYNC.HOST_ONLY, missingLocalVersions.Count) + "\n"
-					+ string.Format(STRINGS.UI.MP_OVERLAY.SYNC.MODSYNC.CLIENT_ONLY, extraLocalVersions.Count);
-				DebugConsole.LogWarning($"[GameClient] Exact active-mod fingerprint mismatch: host-only={missingLocalVersions.Count}, client-only={extraLocalVersions.Count}");
-				if (Utils.IsInMenu())
-				{
-					DialogUtil.CreateConfirmDialogFrontend(
-						STRINGS.UI.MP_OVERLAY.SYNC.MODSYNC.TITLE,
-						text,
-						STRINGS.UI.MP_OVERLAY.SYNC.MODSYNC.CANCEL,
-						BackToMainMenu);
-				}
-				else if (ShouldTerminateConnectionValidation(inMenu: false))
-					FailConnectionValidation(STRINGS.UI.MP_OVERLAY.SYNC.MODSYNC.TITLE, text);
-				return;
-			}
-
 			ContinueConnectionFlow();
 		}
 
@@ -365,39 +317,11 @@ namespace ONI_Together.Networking
 				return false;
 			}
 
-			if (packet.ProtocolVersion != ProtocolCompatibility.CurrentProtocolVersion)
+			if (!ProtocolCompatibility.Matches(
+			    packet.ModBuildFingerprint, packet.ActiveDlcIds))
 			{
-				message = string.Format(STRINGS.UI.PROTOCOL.VALIDATION.PROTOCOL_MISMATCH, packet.ProtocolVersion, ProtocolCompatibility.CurrentProtocolVersion);
-				return false;
-			}
-
-			if (packet.PacketRegistryFingerprint != ProtocolCompatibility.PacketFingerprint)
-			{
-				message = string.Format(STRINGS.UI.PROTOCOL.VALIDATION.FINGERPRINT_MISMATCH, packet.PacketRegistryFingerprint, ProtocolCompatibility.PacketFingerprint);
-				return false;
-			}
-
-			if (!string.Equals(packet.ModVersion, ProtocolCompatibility.ModVersion, StringComparison.Ordinal))
-			{
-				message = string.Format(STRINGS.UI.PROTOCOL.MOD_VERSION_MISMATCH, packet.ModVersion, ProtocolCompatibility.ModVersion);
-				return false;
-			}
-
-			if (packet.GameBuild != ProtocolCompatibility.GameBuild)
-			{
-				message = string.Format(
-					STRINGS.UI.PROTOCOL.VALIDATION.GAME_BUILD_MISMATCH,
-					packet.GameBuild, ProtocolCompatibility.GameBuild);
-				return false;
-			}
-
-			if (ProtocolCompatibility.ModBuildFingerprint.Length != 64
-			    || !string.Equals(
-				    packet.ModBuildFingerprint,
-				    ProtocolCompatibility.ModBuildFingerprint,
-				    StringComparison.Ordinal))
-			{
-				message = STRINGS.UI.PROTOCOL.VALIDATION.MOD_BUILD_MISMATCH;
+				message = ProtocolCompatibility.BuildMismatchReason(
+					packet.ModBuildFingerprint, packet.ActiveDlcIds, true);
 				return false;
 			}
 

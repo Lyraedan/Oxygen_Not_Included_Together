@@ -18,6 +18,7 @@ using ONI_Together.Networking.Packets.Tools.Deconstruct;
 using ONI_Together.Networking.Packets.Tools.Dig;
 using ONI_Together.Networking.Packets.World;
 using ONI_Together.Networking.Packets.World.Buildings;
+using ONI_Together.Networking.States;
 using ONI_Together.Networking.Transport;
 using Shared;
 using Shared.Interfaces.Networking;
@@ -134,50 +135,44 @@ public static class ProtocolSafetyTests
         return UnitTestResult.Pass("Chunk assembly is isolated by sender and preserves context");
     }
 
-    [UnitTest(name: "Protocol compatibility: mod version required", category: "Networking")]
-    public static UnitTestResult ModVersionMismatchIsRejected()
-    {
-        if (!ProtocolCompatibility.Matches(
-                ProtocolCompatibility.CurrentProtocolVersion,
-                ProtocolCompatibility.PacketFingerprint,
-                ProtocolCompatibility.ModVersion,
-				ProtocolCompatibility.GameBuild,
-				ProtocolCompatibility.ModBuildFingerprint))
-            return UnitTestResult.Fail("Identical protocol metadata was rejected");
+	[UnitTest(name: "Protocol compatibility: DLL hash and DLC set are required", category: "Networking")]
+	public static UnitTestResult DllHashAndDlcSetAreRequired()
+	{
+		bool matches = ProtocolCompatibility.Matches(
+			ProtocolCompatibility.ModBuildFingerprint,
+			ProtocolCompatibility.ActiveDlcIds);
+		var mismatchedDlcIds = ProtocolCompatibility.ActiveDlcIds;
+		mismatchedDlcIds.Add("TEST_DLC_MISMATCH");
+		string mismatchReason = ProtocolCompatibility.BuildMismatchReason(
+			ProtocolCompatibility.ModBuildFingerprint, mismatchedDlcIds, true);
 
-        bool matches = ProtocolCompatibility.Matches(
-            ProtocolCompatibility.CurrentProtocolVersion,
-            ProtocolCompatibility.PacketFingerprint,
-            ProtocolCompatibility.ModVersion + "-different",
-			ProtocolCompatibility.GameBuild,
-			ProtocolCompatibility.ModBuildFingerprint);
+		return matches && !ProtocolCompatibility.Matches(
+			       ProtocolCompatibility.ModBuildFingerprint, mismatchedDlcIds)
+		       && mismatchReason.Contains("Active DLC mismatch", StringComparison.Ordinal)
+			? UnitTestResult.Pass("Handshake requires an identical DLL and exact active DLC set")
+			: UnitTestResult.Fail("DLL or DLC compatibility gate did not enforce exact equality");
+	}
 
-        return matches
-            ? UnitTestResult.Fail("Different mod versions were accepted")
-            : UnitTestResult.Pass("Different mod versions are rejected");
-    }
+	[UnitTest(name: "Protocol validation: specific error survives transport close", category: "Networking")]
+	public static UnitTestResult SpecificValidationErrorSurvivesTransportClose()
+	{
+		return !GameClient.ShouldTransitionToDisconnected(ClientState.Error)
+		       && !GameClient.ShouldTransitionToDisconnected(ClientState.LoadingWorld)
+		       && GameClient.ShouldTransitionToDisconnected(ClientState.Connected)
+			? UnitTestResult.Pass("Expected disconnects cannot overwrite a specific validation error")
+			: UnitTestResult.Fail("Transport close can overwrite a validation or world-load state");
+	}
 
-	[UnitTest(name: "Protocol compatibility: game and DLL builds required", category: "Networking")]
-	public static UnitTestResult GameAndDllBuildMismatchIsRejected()
+	[UnitTest(name: "Protocol compatibility: DLL hash mismatch is rejected", category: "Networking")]
+	public static UnitTestResult DllHashMismatchIsRejected()
 	{
 		if (ProtocolCompatibility.ModBuildFingerprint.Length != 64)
 			return UnitTestResult.Fail("Local mod DLL fingerprint is unavailable");
 		if (ProtocolCompatibility.Matches(
-			    ProtocolCompatibility.CurrentProtocolVersion,
-			    ProtocolCompatibility.PacketFingerprint,
-			    ProtocolCompatibility.ModVersion,
-			    ProtocolCompatibility.GameBuild + 1,
-			    ProtocolCompatibility.ModBuildFingerprint))
-			return UnitTestResult.Fail("Different ONI game builds were accepted");
-		if (ProtocolCompatibility.Matches(
-			    ProtocolCompatibility.CurrentProtocolVersion,
-			    ProtocolCompatibility.PacketFingerprint,
-			    ProtocolCompatibility.ModVersion,
-			    ProtocolCompatibility.GameBuild,
-			    new string('0', 64)))
+		    new string('0', 64), ProtocolCompatibility.ActiveDlcIds))
 			return UnitTestResult.Fail("Different mod DLL builds were accepted");
 
-		return UnitTestResult.Pass("Handshake requires exact game and mod DLL builds");
+		return UnitTestResult.Pass("Handshake rejects a different mod DLL hash");
 	}
 
 	[UnitTest(name: "Protocol compatibility: cannot be bypassed", category: "Networking")]
@@ -188,7 +183,7 @@ public static class ProtocolSafetyTests
 		if (typeof(NetworkSettings).GetProperty("BypassProtocolCompatibilityChecks") != null)
 			return UnitTestResult.Fail("Serialized protocol compatibility bypass is still accepted");
 
-		return UnitTestResult.Pass("Exact protocol compatibility checks cannot be disabled");
+		return UnitTestResult.Pass("DLL and DLC validation cannot be disabled");
 	}
 
 	[UnitTest(name: "Steam lobby access: proof is identity-bound", category: "Networking")]

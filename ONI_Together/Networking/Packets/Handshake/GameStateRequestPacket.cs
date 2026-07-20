@@ -1,11 +1,8 @@
 ﻿using ONI_Together.DebugTools;
 using ONI_Together.Networking.Packets.Architecture;
-using System.Collections;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
 using Shared.Profiling;
-using UnityEngine;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Transport.Steamworks;
 
@@ -304,18 +301,6 @@ namespace ONI_Together.Networking.Packets.Handshake
 				return packet;
 			}
 
-			packet.ActiveDlcIds = SaveLoader.Instance.GameInfo.dlcIds.ToHashSet();
-			packet.ActiveModIds.Clear();
-			packet.ActiveModFingerprints = SaveHelper.GetActiveModFingerprints();
-
-			KMod.Manager modManager = Global.Instance.modManager;
-			foreach (var mod in modManager.mods)
-			{
-				if (mod.IsEnabledForActiveDlc() && mod.label.distribution_platform == KMod.Label.DistributionPlatform.Steam && ulong.TryParse(mod.label.id, out var steamId))
-				{
-					packet.ActiveModIds.Add(steamId);
-				}
-			}
 			return packet;
 		}
 
@@ -330,6 +315,7 @@ namespace ONI_Together.Networking.Packets.Handshake
 		{
 			using var _ = Profiler.Scope();
 
+			ActiveDlcIds = ProtocolCompatibility.ActiveDlcIds;
 			ProtocolVersion = ProtocolCompatibility.CurrentProtocolVersion;
 			PacketRegistryFingerprint = ProtocolCompatibility.PacketFingerprint;
 			ModVersion = ProtocolCompatibility.ModVersion;
@@ -345,18 +331,14 @@ namespace ONI_Together.Networking.Packets.Handshake
 			if (!HasProtocolMetadata)
 			{
 				reason = ProtocolCompatibility.BuildMismatchReason(
-					ProtocolVersion, PacketRegistryFingerprint, ModVersion,
-					GameBuild, ModBuildFingerprint, false);
+					ModBuildFingerprint, ActiveDlcIds, false);
 				return false;
 			}
 
-			if (!ProtocolCompatibility.Matches(
-				    ProtocolVersion, PacketRegistryFingerprint, ModVersion,
-				    GameBuild, ModBuildFingerprint))
+			if (!ProtocolCompatibility.Matches(ModBuildFingerprint, ActiveDlcIds))
 			{
 				reason = ProtocolCompatibility.BuildMismatchReason(
-					ProtocolVersion, PacketRegistryFingerprint, ModVersion,
-					GameBuild, ModBuildFingerprint, true);
+					ModBuildFingerprint, ActiveDlcIds, true);
 				return false;
 			}
 
@@ -385,28 +367,18 @@ namespace ONI_Together.Networking.Packets.Handshake
 				player.ProtocolVerified = false;
 			}
 
-			if (HasProtocolMetadata)
+			if (HasProtocolMetadata && player?.Connection != null
+			    && PacketSender.SendReliableWithCompletion(
+				    player.Connection,
+				    AccumulateStateInfo(
+					    protocolAccepted: false,
+					    protocolFailureReason: reason),
+				    _ => NetworkConfig.TransportServer?.KickClient(ClientId)))
 			{
-				PacketSender.SendToPlayer(ClientId, AccumulateStateInfo(protocolAccepted: false, protocolFailureReason: reason), PacketSendMode.ReliableImmediate);
-			}
-
-			if (Game.Instance != null)
-			{
-				Game.Instance.StartCoroutine(DelayedKick(ClientId, HasProtocolMetadata ? 0.25f : 0f));
 				return;
 			}
 
 			NetworkConfig.TransportServer?.KickClient(ClientId);
-		}
-
-		private static IEnumerator DelayedKick(ulong clientId, float delay)
-		{
-			if (delay > 0f)
-			{
-				yield return new WaitForSecondsRealtime(delay);
-			}
-
-			NetworkConfig.TransportServer?.KickClient(clientId);
 		}
 	}
 }

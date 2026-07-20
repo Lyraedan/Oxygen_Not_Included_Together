@@ -268,7 +268,7 @@ namespace ONI_Together.Networking.Transport.Steam
             using var _ = Profiler.Scope();
 
             DebugConsole.LogWarning($"[GameClient] Connection closed or failed ({state}) for {remote}. Reason: {reason}");
-			bool loadingWorld = GameClient.State == ClientState.LoadingWorld;
+			bool reportDisconnect = GameClient.ShouldTransitionToDisconnected(GameClient.State);
 			TryEndHostConnection(connection);
 			Connection = null;
 			MultiplayerSession.InSession = false;
@@ -276,9 +276,9 @@ namespace ONI_Together.Networking.Transport.Steam
 
             // If we're intentionally disconnecting for world loading, don't show error or return to title
             // We will reconnect automatically after the world finishes loading via ReconnectFromCache()
-			if (loadingWorld)
+			if (!reportDisconnect)
             {
-                DebugConsole.Log("[GameClient] Ignoring disconnect callback - world is loading, will reconnect after.");
+				DebugConsole.Log("[GameClient] Ignoring disconnect callback for an intentional load or validation failure.");
                 return;
             }
 

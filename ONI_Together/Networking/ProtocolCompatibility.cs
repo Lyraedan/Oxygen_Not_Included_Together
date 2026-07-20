@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Globalization;
 using System.Linq;
@@ -48,61 +49,55 @@ namespace ONI_Together.Networking
 			}
 		}
 
+		public static HashSet<string> ActiveDlcIds
+			=> new(DlcManager.GetActiveDLCIds(), StringComparer.Ordinal);
+
 		public static bool Matches(
-			int protocolVersion,
-			int packetFingerprint,
-			string modVersion,
-			int gameBuild,
-			string modBuildFingerprint)
+			string modBuildFingerprint,
+			IEnumerable<string> activeDlcIds)
 		{
 			using var _ = Profiler.Scope();
 
-			return protocolVersion == CurrentProtocolVersion
-				&& packetFingerprint == PacketFingerprint
-				&& string.Equals(modVersion, ModVersion, StringComparison.Ordinal)
-				&& gameBuild == GameBuild
-				&& ModBuildFingerprint.Length == 64
-				&& string.Equals(modBuildFingerprint, ModBuildFingerprint, StringComparison.Ordinal);
+			return ModBuildFingerprint.Length == 64
+				&& string.Equals(modBuildFingerprint, ModBuildFingerprint, StringComparison.Ordinal)
+				&& ActiveDlcIds.SetEquals(activeDlcIds ?? Array.Empty<string>());
 		}
 
 		public static string BuildMismatchReason(
-			int remoteProtocolVersion,
-			int remotePacketFingerprint,
-			string remoteModVersion,
-			int remoteGameBuild,
 			string remoteModBuildFingerprint,
+			IEnumerable<string> remoteActiveDlcIds,
 			bool hasMetadata)
 		{
 			using var _ = Profiler.Scope();
 
-            if (!hasMetadata)
-            {
-                return STRINGS.UI.PROTOCOL.NO_METADATA;
-            }
-
-            if (remoteProtocolVersion != CurrentProtocolVersion)
-            {
-                return string.Format(STRINGS.UI.PROTOCOL.PROTOCOL_MISMATCH, CurrentProtocolVersion, remoteProtocolVersion);
-            }
-
-            if (remotePacketFingerprint != PacketFingerprint)
-            {
-                return string.Format(STRINGS.UI.PROTOCOL.PACKET_REGISTRY_MISMATCH, PacketFingerprint, remotePacketFingerprint);
-            }
-
-			if (!string.Equals(remoteModVersion, ModVersion, StringComparison.Ordinal))
-            {
-                return string.Format(STRINGS.UI.PROTOCOL.MOD_VERSION_MISMATCH, ModVersion, remoteModVersion);
+			if (!hasMetadata)
+			{
+				return STRINGS.UI.PROTOCOL.NO_METADATA;
 			}
-
-			if (remoteGameBuild != GameBuild)
-				return string.Format(STRINGS.UI.PROTOCOL.GAME_BUILD_MISMATCH, GameBuild, remoteGameBuild);
 
 			if (ModBuildFingerprint.Length != 64
 			    || !string.Equals(remoteModBuildFingerprint, ModBuildFingerprint, StringComparison.Ordinal))
 				return STRINGS.UI.PROTOCOL.MOD_BUILD_MISMATCH;
 
+			if (!ActiveDlcIds.SetEquals(remoteActiveDlcIds ?? Array.Empty<string>()))
+			{
+				return string.Format(
+					STRINGS.UI.PROTOCOL.DLC_MISMATCH,
+					FormatDlcIds(ActiveDlcIds),
+					FormatDlcIds(remoteActiveDlcIds));
+			}
+
 			return STRINGS.UI.PROTOCOL.INCOMPATIBLE;
+		}
+
+		internal static string FormatDlcIds(IEnumerable<string> dlcIds)
+		{
+			string[] ids = (dlcIds ?? Array.Empty<string>())
+				.Where(id => !string.IsNullOrEmpty(id))
+				.Distinct(StringComparer.Ordinal)
+				.OrderBy(id => id, StringComparer.Ordinal)
+				.ToArray();
+			return ids.Length == 0 ? "Base Game" : string.Join(", ", ids);
 		}
 
 		private static string ComputeAssemblyFingerprint()

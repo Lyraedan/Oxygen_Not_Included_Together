@@ -157,7 +157,7 @@ namespace ONI_Together.Networking
 			_reconnectAttempt = 0;
 			_autoReconnecting = false;
 
-            MultiplayerOverlay.Show(string.Format(STRINGS.UI.MP_OVERLAY.CLIENT.LOST_CONNECTION, reason, message));
+			MultiplayerOverlay.Show(string.IsNullOrEmpty(message) ? reason : reason + "\n" + message);
 			//SaveHelper.CaptureWorldSnapshot();
 			yield return new WaitForSecondsRealtime(3f);
 			//PauseScreen.TriggerQuitGame(); // Force exit to frontend, getting a crash here

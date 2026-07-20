@@ -4,6 +4,9 @@ using UnityEngine;
 using ImGuiNET;
 using System.Linq;
 using Shared.Profiling;
+using ONI_Together.Networking;
+using System.IO;
+using System.Reflection;
 
 namespace ONI_Together.DebugTools
 {
@@ -51,6 +54,53 @@ namespace ONI_Together.DebugTools
             _instance = new DebugConsole();
             return _instance;
         }
+
+		public static void BeginConnectionTrace(string role, string target)
+		{
+			var metadata = new Dictionary<string, string>
+			{
+				["machine_name"] = Environment.MachineName,
+				["player_log"] = GetUnityLogPath(),
+				["game_build"] = ReadMetadata(() => ProtocolCompatibility.GameBuild),
+				["mod_version"] = ReadMetadata(() => ProtocolCompatibility.ModVersion),
+				["mod_build_sha256"] = ReadMetadata(() => ProtocolCompatibility.ModBuildFingerprint),
+				["protocol"] = ProtocolCompatibility.CurrentProtocolVersion.ToString(),
+				["active_dlc_ids"] = ReadMetadata(() => string.Join(",", ProtocolCompatibility.ActiveDlcIds.OrderBy(id => id))),
+				["local_user_id"] = ReadMetadata(() => MultiplayerSession.LocalUserID),
+				["host_user_id"] = ReadMetadata(() => MultiplayerSession.HostUserID),
+			};
+			string tracePath = ConnectionTraceLog.Begin(new ConnectionTraceContext
+			{
+				DirectoryPath = Path.Combine(Application.persistentDataPath, "ONI_Together", "ConnectionLogs"),
+				Role = role,
+				Transport = NetworkConfig.transport.ToString(),
+				Target = target,
+				Metadata = metadata,
+			});
+			if (string.IsNullOrEmpty(tracePath))
+				LogWarning($"[ConnectionTrace] Storage unavailable for role={role} target={target}");
+			else
+				Log($"[ConnectionTrace] Started role={role} target={target} path={tracePath}");
+		}
+
+		public static void EndConnectionTrace(string reason) => ConnectionTraceLog.End(reason);
+
+		private static string ReadMetadata(Func<object> reader)
+		{
+			try { return Convert.ToString(reader()) ?? string.Empty; }
+			catch { return "unavailable"; }
+		}
+
+		private static string GetUnityLogPath()
+		{
+			try
+			{
+				PropertyInfo property = typeof(Application).GetProperty(
+					"consoleLogPath", BindingFlags.Public | BindingFlags.Static);
+				return Convert.ToString(property?.GetValue(null)) ?? string.Empty;
+			}
+			catch { return "unavailable"; }
+		}
 
         public static void Log(string message)
         {
@@ -134,6 +184,7 @@ namespace ONI_Together.DebugTools
         private void AddLog(string message, string stack, LogType type)
         {
             using var _ = Profiler.Scope();
+			ConnectionTraceLog.Append(type.ToString(), message, stack);
 
             lock (_lock)
             {

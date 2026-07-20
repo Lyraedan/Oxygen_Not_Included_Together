@@ -252,7 +252,6 @@ namespace ONI_Together.Networking
 				    speedControl?.IsPaused ?? false,
 				    pauseOwnedBySession: _ownsAutomaticPause))
 				return false;
-			ReliableSyncBacklog.Begin(clientId);
 			player.readyState = ClientReadyState.Unready;
 			if (speedControl != null && !speedControl.IsPaused)
 			{

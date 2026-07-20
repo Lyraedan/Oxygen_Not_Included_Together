@@ -1,6 +1,9 @@
+using System;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using ONI_Together.Networking;
+using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.Packets.World;
 using UnityEngine;
@@ -124,6 +127,36 @@ public static class LifecyclePacketTests
 				"An explicitly bound non-element object became freely creatable");
 		return UnitTestResult.Pass(
 			"Element resources can be rebuilt while persistent prefabs remain strict");
+	}
+
+	[UnitTest(
+		name: "Constructable lifecycle waits for build-state materialization",
+		category: "Networking")]
+	public static UnitTestResult ConstructableWaitsForBuildState()
+	{
+		if (!SpawnPrefabPacket.RequiresBuildStateMaterialization(hasConstructable: true)
+		    || SpawnPrefabPacket.RequiresBuildStateMaterialization(hasConstructable: false)
+		    || !BuildStatePolicyIsUsed())
+			return UnitTestResult.Fail(
+				"Generic lifecycle can activate a Constructable without material tags");
+		return UnitTestResult.Pass(
+			"Every Constructable binds only after BuildState initializes its materials");
+	}
+
+	private static bool BuildStatePolicyIsUsed()
+	{
+		const BindingFlags flags = BindingFlags.Static | BindingFlags.NonPublic;
+		MethodInfo binding = typeof(SpawnPrefabPacket).GetMethod(
+			"RequiresExistingSnapshotBinding", flags, null,
+			new[] { typeof(NetworkIdentity), typeof(GameObject), typeof(bool) }, null);
+		MethodInfo policy = typeof(SpawnPrefabPacket).GetMethod(
+			nameof(SpawnPrefabPacket.RequiresBuildStateMaterialization), flags);
+		byte[] il = binding?.GetMethodBody()?.GetILAsByteArray();
+		if (il == null || policy == null)
+			return false;
+		byte[] token = BitConverter.GetBytes(policy.MetadataToken);
+		return Enumerable.Range(0, il.Length - token.Length + 1).Any(index =>
+			il.Skip(index).Take(token.Length).SequenceEqual(token));
 	}
 
 	[UnitTest(

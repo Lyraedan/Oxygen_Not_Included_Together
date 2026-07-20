@@ -192,8 +192,12 @@ namespace ONI_Together.DebugTools.UnitTests
 				player.BeginConnection(new object());
 				player.ProtocolVerified = true;
 				MultiplayerSession.ConnectedPlayers.Add(2, player);
-				if (!ReadyManager.BeginSyncBarrier(2))
-					return UnitTestResult.Fail("Could not arrange loading barrier");
+				if (!ReadyManager.BeginSyncBarrier(2)
+				    || !ReadyManager.BeginSnapshotEpoch(2, out long generation)
+				    || !ReadyManager.SetPlayerReadyState(
+					    player, ClientReadyState.Loading, 99, generation)
+				    || !ReadyManager.TryBeginWorldBaseline(2, generation))
+					return UnitTestResult.Fail("Could not arrange active world baseline");
 
 				var invalid = new DeferredReliablePacket(System.Array.Empty<byte>());
 				PacketSender.SendToAllClients(invalid, PacketSendMode.Reliable);
