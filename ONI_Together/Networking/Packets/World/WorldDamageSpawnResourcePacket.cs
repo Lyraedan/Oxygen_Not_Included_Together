@@ -82,8 +82,7 @@ namespace ONI_Together.Networking.Packets.World
 			identity.OverrideNetId(NetId);
 			DebugConsole.Log("[WorldDamageSpawnResourcePacket] Synchronized Network ID");
 
-			// First check GroundItemPickedUp, then PickupItem then StoreItem, TODO: Rope into 1 list
-			if (GroundItemPickedUpPacket.TryConsumePending(NetId) || StorageItemPacket.TryConsumePending(NetId))
+			if (PendingPickupRegistry.TryConsume(NetId))
 			{
 				DebugConsole.Log($"[WorldDamageSpawnResourcePacket] Consumed pending ground-item pickup for NetId {NetId}");
 				Util.KDestroyGameObject(dropped);
