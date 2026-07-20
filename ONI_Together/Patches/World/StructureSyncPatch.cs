@@ -6,6 +6,7 @@ using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.OxySync.Components;
+using ONI_Together.Networking.OxySync.StateMachines;
 using Shared.Profiling;
 
 namespace ONI_Together.Patches.World
