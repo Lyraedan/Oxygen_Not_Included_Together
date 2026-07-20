@@ -1,13 +1,10 @@
-﻿using KSerialization;
-using ONI_Together.DebugTools;
+﻿using ONI_Together.DebugTools;
 using ONI_Together.Menus;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Packets.Core;
 using ONI_Together.Networking.States;
 using ONI_Together.Networking.Transport.Steamworks;
 using Steamworks;
-using System;
-using System.Collections.Generic;
 using Shared.Profiling;
 
 namespace ONI_Together.Networking
@@ -187,6 +184,9 @@ namespace ONI_Together.Networking
 			using var _ = Profiler.Scope();
 
 			if (!MultiplayerSession.InActiveSession)
+				return;
+
+			if (MultiplayerSession.IsQuitting)
 				return;
 
 			DebugConsole.Log("Refreshing ready state...");
