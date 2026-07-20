@@ -9,7 +9,7 @@ namespace ONI_Together.Networking.OxySync.StateMachines
     /// Handles syncing for the bulk of Algae Terrarium's functionality. (some of it is handled by the syncer for ElementConverters)
     /// </summary>
     [SkipSaveFileSerialization]
-    public class AlgaeHabitatSyncer : StateMachineSyncer
+    public class AlgaeHabitatStateSyncer : StateMachineSyncer
     {
         private AlgaeHabitat _algaeHabitat;
         private AlgaeHabitat.SMInstance _smi;

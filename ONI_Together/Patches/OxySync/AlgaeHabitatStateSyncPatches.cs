@@ -1,5 +1,4 @@
 using HarmonyLib;
-using ONI_Together.Networking;
 using ONI_Together.Networking.OxySync.StateMachines;
 using Shared.Profiling;
 
@@ -15,7 +14,7 @@ namespace ONI_Together.Patches.OxySync
             if (__instance.IsNullOrDestroyed())
                 return;
 
-            __instance.gameObject.AddOrGet<AlgaeHabitatSyncer>();
+            __instance.gameObject.AddOrGet<AlgaeHabitatStateSyncer>();
         }
     }
 }
