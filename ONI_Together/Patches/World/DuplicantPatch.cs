@@ -34,7 +34,7 @@ public static class DuplicantPatch
 		__result.AddOrGet<VitalStatsSyncer>();
 	}
 
-	public static void ToggleEffect(GameObject minion, string eventName, string context, bool enable)
+	public static void ToggleEffect(GameObject minion, string eventName, int contextHash, bool enable)
 	{
 		using var _ = Profiler.Scope();
 
@@ -51,7 +51,7 @@ public static class DuplicantPatch
 		{
 			NetId = net.NetId,
 			Enable = enable,
-			Context = context,
+			ContextHash = contextHash,
 			Event = eventName
 		};
 
