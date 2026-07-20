@@ -11,6 +11,8 @@ namespace ONI_Together.Networking.OxySync.StateMachines
         private Clinic _clinic;
         private Clinic.ClinicSM.Instance _smi;
 
+        protected override StateMachine.Instance GetStateMachineInstance() => _smi;
+
         public override void OnSpawn()
         {
             base.OnSpawn();

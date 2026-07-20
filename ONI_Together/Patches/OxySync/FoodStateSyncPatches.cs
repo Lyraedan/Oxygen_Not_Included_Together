@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace ONI_Together.Patches.OxySync
 {
-    [HarmonyPatch(typeof(Edible), nameof(Edible.StartConsuming))]
+    [HarmonyPatch(typeof(Edible), nameof(Edible.OnSpawn))]
     public static class Edible_Syncer_Patch
     {
         public static void Postfix(Edible __instance)

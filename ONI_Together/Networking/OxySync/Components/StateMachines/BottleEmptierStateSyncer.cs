@@ -22,6 +22,8 @@ namespace ONI_Together.Networking.OxySync.Components
 
         private byte[] _lastAppliedStorageBlob;
 
+        protected override StateMachine.Instance GetStateMachineInstance() => _smi;
+
         public override void OnSpawn()
         {
             base.OnSpawn();
@@ -32,6 +34,7 @@ namespace ONI_Together.Networking.OxySync.Components
 
             if (_storage != null)
                 _storage.OnStorageChange += OnLocalStorageChanged;
+
         }
 
         public override void OnCleanUp()

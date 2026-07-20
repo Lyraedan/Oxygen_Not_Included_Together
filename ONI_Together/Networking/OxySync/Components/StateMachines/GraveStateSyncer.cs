@@ -21,6 +21,8 @@ namespace ONI_Together.Networking.OxySync.StateMachines
         [SyncVar]
         private float _burialTime;
 
+        protected override StateMachine.Instance GetStateMachineInstance() => _smi;
+
         public override void OnSpawn()
         {
             base.OnSpawn();

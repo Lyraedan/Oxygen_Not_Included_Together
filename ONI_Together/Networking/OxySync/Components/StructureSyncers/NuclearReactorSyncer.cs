@@ -74,6 +74,8 @@ namespace ONI_Together.Networking.OxySync.Components
         [SyncVar(SendMode = (int) PacketSendMode.ReliableImmediate)]
         private byte[] _wasteStorageBlob;
 
+        protected override StateMachine.Instance GetStateMachineInstance() => _smi;
+
         public override void OnSpawn()
         {
             base.OnSpawn();

@@ -25,6 +25,8 @@ namespace ONI_Together.Networking.OxySync.StateMachines
         [SyncVar(SendMode = (int)PacketSendMode.ReliableImmediate)]
         private float _maxMass;
 
+        protected override StateMachine.Instance GetStateMachineInstance() => _smi;
+
         public override void OnSpawn()
         {
             base.OnSpawn();
@@ -39,6 +41,7 @@ namespace ONI_Together.Networking.OxySync.StateMachines
 
                 _storage.Subscribe((int)GameHashes.OnStorageChange, OnStorageChangedGameHash);
             }
+
         }
 
         public override void OnCleanUp()

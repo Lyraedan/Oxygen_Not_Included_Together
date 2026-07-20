@@ -9,6 +9,8 @@ namespace ONI_Together.Networking.OxySync.StateMachines
     {
         private Rottable.Instance _smi;
 
+        protected override StateMachine.Instance GetStateMachineInstance() => _smi;
+
         public override void OnSpawn()
         {
             base.OnSpawn();

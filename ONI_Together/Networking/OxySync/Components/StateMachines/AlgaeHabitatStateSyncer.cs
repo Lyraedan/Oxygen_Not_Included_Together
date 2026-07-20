@@ -37,6 +37,8 @@ namespace ONI_Together.Networking.OxySync.StateMachines
         [SyncVar(SendMode = (int)PacketSendMode.ReliableImmediate)]
         private float _lightBonusMultiplier;
 
+        protected override StateMachine.Instance GetStateMachineInstance() => _smi;
+
         public override void OnSpawn()
         {
             base.OnSpawn();
@@ -57,6 +59,7 @@ namespace ONI_Together.Networking.OxySync.StateMachines
                 _pollutedWaterStorage.OnStorageChange += OnPollutedWaterStorageChanged;
                 _pollutedWaterStorage.Subscribe((int)GameHashes.OnStorageChange, OnPollutedWaterStorageChangedGameHash);
             }
+
         }
 
         public override void OnCleanUp()
