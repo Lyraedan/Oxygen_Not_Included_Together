@@ -1,11 +1,12 @@
 using ONI_Together.Misc;
+using Shared.OxySync;
 using Shared.OxySync.Attributes;
 using UnityEngine;
 
 namespace ONI_Together.Networking.OxySync.StateMachines
 {
     [SkipSaveFileSerialization]
-    public class RustDeoxidizerSyncer : StateMachineSyncer
+    public class RustDeoxidizerStateSyncer : StateMachineSyncer
     {
         private RustDeoxidizer _rustDeoxidizer;
         private RustDeoxidizer.StatesInstance _smi;

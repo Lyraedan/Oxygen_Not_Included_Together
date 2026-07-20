@@ -5,6 +5,7 @@ using Shared.OxySync;
 using Shared.OxySync.Attributes;
 using Shared.Profiling;
 using System.Collections;
+using Shared.Helpers;
 using UnityEngine;
 
 namespace ONI_Together.Networking.OxySync.Components
@@ -29,9 +30,9 @@ namespace ONI_Together.Networking.OxySync.Components
 
     [SkipSaveFileSerialization]
     [FixedInterestGroup]
-    public class PlantLifecycleSyncComponent : NetworkBehaviour
+    public class PlantLifecycleSyncer : NetworkBehaviour
     {
-        public static PlantLifecycleSyncComponent Instance { get; private set; }
+        public static PlantLifecycleSyncer Instance { get; private set; }
 
         public static bool IsApplyingState = false;
 

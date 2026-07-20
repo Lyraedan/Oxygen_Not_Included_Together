@@ -19,14 +19,14 @@ namespace ONI_Together.Patches.World.Plants
 
 				if (!MultiplayerSession.IsHostInSession)
 					return;
-				if (!PlantLifecycleSyncComponent.CanBroadcast)
+				if (!PlantLifecycleSyncer.CanBroadcast)
 					return;
-				if (__result == null || PlantLifecycleSyncComponent.IsApplyingState)
+				if (__result == null || PlantLifecycleSyncer.IsApplyingState)
 					return;
 				if (!__result.TryGetComponent<Growing>(out var growing) || growing == null)
 					return;
 
-				PlantLifecycleSyncComponent.Instance?.BroadcastSpawn(growing, __instance);
+				PlantLifecycleSyncer.Instance?.BroadcastSpawn(growing, __instance);
 			}
 		}
 
@@ -39,14 +39,14 @@ namespace ONI_Together.Patches.World.Plants
 
 				if (!MultiplayerSession.IsHostInSession)
 					return;
-				if (!PlantLifecycleSyncComponent.CanBroadcast)
+				if (!PlantLifecycleSyncer.CanBroadcast)
 					return;
-				if (PlantLifecycleSyncComponent.IsApplyingState || __instance == null)
+				if (PlantLifecycleSyncer.IsApplyingState || __instance == null)
 					return;
 				if (!__instance.IsWildPlanted())
 					return;
 
-				PlantLifecycleSyncComponent.Instance?.BroadcastSpawn(__instance);
+				PlantLifecycleSyncer.Instance?.BroadcastSpawn(__instance);
 			}
 		}
 
@@ -59,16 +59,16 @@ namespace ONI_Together.Patches.World.Plants
 
 				if (!MultiplayerSession.IsHostInSession)
 					return;
-				if (!PlantLifecycleSyncComponent.CanBroadcast)
+				if (!PlantLifecycleSyncer.CanBroadcast)
 					return;
-				if (PlantLifecycleSyncComponent.IsApplyingState || __instance == null)
+				if (PlantLifecycleSyncer.IsApplyingState || __instance == null)
 					return;
 
 				var growing = __instance.GetComponent<Growing>();
 				if (growing == null)
 					return;
 
-				PlantLifecycleSyncComponent.Instance?.BroadcastRemove(growing);
+				PlantLifecycleSyncer.Instance?.BroadcastRemove(growing);
 			}
 		}
 	}

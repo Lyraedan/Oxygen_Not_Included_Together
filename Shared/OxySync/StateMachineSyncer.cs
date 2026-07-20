@@ -1,8 +1,9 @@
 using KSerialization;
+using ONI_Together.Networking;
 using Shared.OxySync;
 using Shared.OxySync.Attributes;
 
-namespace ONI_Together.Networking.OxySync.StateMachines
+namespace Shared.OxySync
 {
     [SkipSaveFileSerialization]
     public abstract class StateMachineSyncer : NetworkBehaviour

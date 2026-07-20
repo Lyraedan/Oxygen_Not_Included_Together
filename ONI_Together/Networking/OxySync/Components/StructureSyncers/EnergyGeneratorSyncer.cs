@@ -6,7 +6,7 @@ using UnityEngine;
 namespace ONI_Together.Networking.OxySync.Components
 {
     [SkipSaveFileSerialization]
-    public class EnergyGeneratorSyncComponent : NetworkBehaviour
+    public class EnergyGeneratorSyncer : NetworkBehaviour
     {
         private Generator _generator;
         private EnergyGenerator _energyGen;
