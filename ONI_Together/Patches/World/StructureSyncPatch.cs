@@ -45,7 +45,7 @@ namespace ONI_Together.Patches.World
         public static void Postfix(object __instance)
         {
             using var _ = Profiler.Scope();
-            ((KMonoBehaviour) __instance).gameObject.AddOrGet<StorageSyncer>();
+            ((KMonoBehaviour)__instance).gameObject.AddOrGet<StorageSyncer>();
         }
 
         [HarmonyTargetMethods]
@@ -93,7 +93,7 @@ namespace ONI_Together.Patches.World
             __instance.gameObject.AddOrGet<ToiletStructureSyncer>();
         }
     }
-    
+
     [HarmonyPatch(typeof(Reactor), nameof(Reactor.OnSpawn))]
     public static class ReactorSpawnPatch
     {
