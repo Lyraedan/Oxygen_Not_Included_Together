@@ -13,7 +13,7 @@ namespace ONI_Together.Misc
     /// </summary>
     public struct Variant
     {
-        public enum TypeCode : byte { Float, Int, Byte, String, Boolean, Vector3, Vector2, ByteArray, Quaternion, HashedString, KAnimHashedString, Short, UShort, UInt, Long, Double, SByte, Char, Color }
+        public enum TypeCode : byte { Float, Int, Byte, String, Boolean, Vector3, Vector2, ByteArray, Quaternion, HashedString, KAnimHashedString, Short, UShort, UInt, Long, Double, SByte, Char, Color, VariantArray, IntArray, FloatArray, DoubleArray }
 
         public TypeCode Type;
         public float Float;
@@ -28,6 +28,10 @@ namespace ONI_Together.Misc
         public long Long;
         public double Double;
         public Color Color;
+        public Variant[] VariantArray;
+        public int[] IntArray;
+        public float[] FloatArray;
+        public double[] DoubleArray;
 
         public void Write(BinaryWriter writer)
         {
@@ -53,6 +57,14 @@ namespace ONI_Together.Misc
                 case TypeCode.SByte: writer.Write((sbyte)Byte); break;
                 case TypeCode.Char: writer.Write((char)Int); break;
                 case TypeCode.Color: writer.Write(Color.r); writer.Write(Color.g); writer.Write(Color.b); writer.Write(Color.a); break;
+                case TypeCode.VariantArray:
+                    writer.Write(VariantArray.Length);
+                    for (int i = 0; i < VariantArray.Length; i++)
+                        VariantArray[i].Write(writer);
+                    break;
+                case TypeCode.IntArray: writer.Write(IntArray.Length); for (int i = 0; i < IntArray.Length; i++) writer.Write(IntArray[i]); break;
+                case TypeCode.FloatArray: writer.Write(FloatArray.Length); for (int i = 0; i < FloatArray.Length; i++) writer.Write(FloatArray[i]); break;
+                case TypeCode.DoubleArray: writer.Write(DoubleArray.Length); for (int i = 0; i < DoubleArray.Length; i++) writer.Write(DoubleArray[i]); break;
             }
         }
 
@@ -80,6 +92,27 @@ namespace ONI_Together.Misc
                 case TypeCode.SByte: v.Byte = (byte)reader.ReadSByte(); break;
                 case TypeCode.Char: v.Int = reader.ReadChar(); break;
                 case TypeCode.Color: v.Color = new Color(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()); break;
+                case TypeCode.VariantArray:
+                    var count = reader.ReadInt32();
+                    v.VariantArray = new Variant[count];
+                    for (int i = 0; i < count; i++)
+                        v.VariantArray[i] = Read(reader);
+                    break;
+                case TypeCode.IntArray:
+                    count = reader.ReadInt32();
+                    v.IntArray = new int[count];
+                    for (int i = 0; i < count; i++) v.IntArray[i] = reader.ReadInt32();
+                    break;
+                case TypeCode.FloatArray:
+                    count = reader.ReadInt32();
+                    v.FloatArray = new float[count];
+                    for (int i = 0; i < count; i++) v.FloatArray[i] = reader.ReadSingle();
+                    break;
+                case TypeCode.DoubleArray:
+                    count = reader.ReadInt32();
+                    v.DoubleArray = new double[count];
+                    for (int i = 0; i < count; i++) v.DoubleArray[i] = reader.ReadDouble();
+                    break;
             }
             return v;
         }
@@ -101,6 +134,9 @@ namespace ONI_Together.Misc
         public static implicit operator Variant(sbyte sb) => new Variant { Type = TypeCode.SByte, Byte = (byte)sb };
         public static implicit operator Variant(char c) => new Variant { Type = TypeCode.Char, Int = c };
         public static implicit operator Variant(Color c) => new Variant { Type = TypeCode.Color, Color = c };
+        public static implicit operator Variant(int[] arr) => new Variant { Type = TypeCode.IntArray, IntArray = arr };
+        public static implicit operator Variant(float[] arr) => new Variant { Type = TypeCode.FloatArray, FloatArray = arr };
+        public static implicit operator Variant(double[] arr) => new Variant { Type = TypeCode.DoubleArray, DoubleArray = arr };
         public static implicit operator Variant(HashedString h) => new Variant { Type = TypeCode.HashedString, Int = h.hash };
         public static implicit operator Variant(KAnimHashedString h) => new Variant { Type = TypeCode.KAnimHashedString, Int = h.hash };
 
@@ -127,6 +163,10 @@ namespace ONI_Together.Misc
                 TypeCode.SByte => ((sbyte)Byte).ToString(),
                 TypeCode.Char => ((char)Int).ToString(),
                 TypeCode.Color => Color.ToString(),
+                TypeCode.VariantArray => $"VariantArray[{VariantArray?.Length ?? 0}]",
+                TypeCode.IntArray => $"int[{IntArray?.Length ?? 0}]",
+                TypeCode.FloatArray => $"float[{FloatArray?.Length ?? 0}]",
+                TypeCode.DoubleArray => $"double[{DoubleArray?.Length ?? 0}]",
                 _ => "Unknown"
             };
         }

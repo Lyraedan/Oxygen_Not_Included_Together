@@ -276,7 +276,7 @@ namespace ONI_Together.DebugTools.UnitTests
             return UnitTestResult.Pass("Null string serializes as empty");
         }
 
-        [UnitTest(name: "Variant all 19 types round-trip", category: "OxySync")]
+        [UnitTest(name: "Variant all 23 types round-trip", category: "OxySync")]
         public static UnitTestResult VariantAllTypesRoundTrip()
         {
             Variant[] inputs = {
@@ -299,6 +299,10 @@ namespace ONI_Together.DebugTools.UnitTests
                 (Variant)(sbyte)-99,
                 (Variant)'Z',
                 (Variant)new Color(0.1f, 0.2f, 0.3f, 0.4f),
+                new Variant { Type = Variant.TypeCode.VariantArray, VariantArray = new Variant[] { (Variant)1, (Variant)2, (Variant)3 } },
+                (Variant)new int[] { 10, 20, 30 },
+                (Variant)new float[] { 1.5f, 2.5f },
+                (Variant)new double[] { 3.14, 2.71 },
             };
 
             for (int i = 0; i < inputs.Length; i++)
@@ -381,7 +385,7 @@ namespace ONI_Together.DebugTools.UnitTests
                             return UnitTestResult.Fail($"Double variant {i} mismatch");
                         break;
                     case Variant.TypeCode.SByte:
-                        if (output.Byte != (byte)-99)
+                        if ((sbyte)output.Byte != -99)
                             return UnitTestResult.Fail($"SByte variant {i} mismatch");
                         break;
                     case Variant.TypeCode.Char:
@@ -396,10 +400,29 @@ namespace ONI_Together.DebugTools.UnitTests
                             Mathf.Abs(output.Color.a - expectedCol.a) > 0.001f)
                             return UnitTestResult.Fail($"Color variant {i} mismatch");
                         break;
+                    case Variant.TypeCode.VariantArray:
+                        if (output.VariantArray.Length != 3 ||
+                            output.VariantArray[0].Int != 1 ||
+                            output.VariantArray[1].Int != 2 ||
+                            output.VariantArray[2].Int != 3)
+                            return UnitTestResult.Fail($"VariantArray variant {i} mismatch");
+                        break;
+                    case Variant.TypeCode.IntArray:
+                        if (output.IntArray.Length != 3 || output.IntArray[0] != 10 || output.IntArray[2] != 30)
+                            return UnitTestResult.Fail($"IntArray variant {i} mismatch");
+                        break;
+                    case Variant.TypeCode.FloatArray:
+                        if (output.FloatArray.Length != 2 || Mathf.Abs(output.FloatArray[0] - 1.5f) > 0.001f)
+                            return UnitTestResult.Fail($"FloatArray variant {i} mismatch");
+                        break;
+                    case Variant.TypeCode.DoubleArray:
+                        if (output.DoubleArray.Length != 2 || Math.Abs(output.DoubleArray[1] - 2.71) > 0.001)
+                            return UnitTestResult.Fail($"DoubleArray variant {i} mismatch");
+                        break;
                 }
             }
 
-            return UnitTestResult.Pass("All 19 Variant types round-trip correctly");
+            return UnitTestResult.Pass("All 23 Variant types round-trip correctly");
         }
 
         [UnitTest(name: "VariantToObject supports all types", category: "OxySync")]
@@ -428,6 +451,9 @@ namespace ONI_Together.DebugTools.UnitTests
                 ((Variant)(sbyte)-99, typeof(sbyte), (sbyte)-99),
                 ((Variant)'Z', typeof(char), 'Z'),
                 ((Variant)new Color(0.1f, 0.2f, 0.3f, 0.4f), typeof(Color), new Color(0.1f, 0.2f, 0.3f, 0.4f)),
+                ((Variant)new int[] { 10, 20, 30 }, typeof(int[]), new int[] { 10, 20, 30 }),
+                ((Variant)new float[] { 1.5f, 2.5f }, typeof(float[]), new float[] { 1.5f, 2.5f }),
+                ((Variant)new double[] { 3.14, 2.71 }, typeof(double[]), new double[] { 3.14, 2.71 }),
             };
 
             foreach (var (v, type, expected) in testCases)
@@ -467,6 +493,27 @@ namespace ONI_Together.DebugTools.UnitTests
                     if (r.Length != e.Length || r[0] != e[0])
                         return UnitTestResult.Fail($"byte[] conversion mismatch");
                 }
+                else if (type == typeof(int[]))
+                {
+                    var r = (int[])result;
+                    var e = (int[])expected;
+                    if (r.Length != e.Length || r[0] != e[0] || r[2] != e[2])
+                        return UnitTestResult.Fail($"int[] conversion mismatch");
+                }
+                else if (type == typeof(float[]))
+                {
+                    var r = (float[])result;
+                    var e = (float[])expected;
+                    if (r.Length != e.Length || Mathf.Abs(r[0] - e[0]) > 0.001f)
+                        return UnitTestResult.Fail($"float[] conversion mismatch");
+                }
+                else if (type == typeof(double[]))
+                {
+                    var r = (double[])result;
+                    var e = (double[])expected;
+                    if (r.Length != e.Length || Math.Abs(r[0] - e[0]) > 0.001)
+                        return UnitTestResult.Fail($"double[] conversion mismatch");
+                }
                 else if (type == typeof(Quaternion))
                 {
                     var r = (Quaternion)result;
@@ -481,7 +528,7 @@ namespace ONI_Together.DebugTools.UnitTests
                 }
             }
 
-            return UnitTestResult.Pass("VariantToObject converts all 21 supported types");
+            return UnitTestResult.Pass("VariantToObject converts all 24 supported types");
         }
 
         [UnitTest(name: "VariantToObject null string fallback", category: "OxySync")]
@@ -502,6 +549,48 @@ namespace ONI_Together.DebugTools.UnitTests
             if (result is not byte[] ba || ba.Length != 0)
                 return UnitTestResult.Fail("Null byte[] should become empty array");
             return UnitTestResult.Pass("Null byte[] falls back to empty");
+        }
+
+        [UnitTest(name: "VariantToObject collections round-trip", category: "OxySync")]
+        public static UnitTestResult VariantToObjectCollections()
+        {
+            var vArr = new Variant { Type = Variant.TypeCode.VariantArray, VariantArray = new Variant[] { (Variant)1, (Variant)2, (Variant)3 } };
+
+            var arr = (int[])VariantHelper.VariantToObject(vArr, typeof(int[]));
+            if (arr.Length != 3 || arr[0] != 1 || arr[1] != 2 || arr[2] != 3)
+                return UnitTestResult.Fail("int[] mismatch");
+
+            var list = (List<string>)VariantHelper.VariantToObject(
+                new Variant { Type = Variant.TypeCode.VariantArray, VariantArray = new Variant[] { (Variant)"a", (Variant)"b" } },
+                typeof(List<string>));
+            if (list.Count != 2 || list[0] != "a" || list[1] != "b")
+                return UnitTestResult.Fail("List<string> mismatch");
+
+            var hashSet = (HashSet<int>)VariantHelper.VariantToObject(
+                new Variant { Type = Variant.TypeCode.VariantArray, VariantArray = new Variant[] { (Variant)10, (Variant)20 } },
+                typeof(HashSet<int>));
+            if (hashSet.Count != 2 || !hashSet.Contains(10) || !hashSet.Contains(20))
+                return UnitTestResult.Fail("HashSet<int> mismatch");
+
+            var queue = (Queue<string>)VariantHelper.VariantToObject(
+                new Variant { Type = Variant.TypeCode.VariantArray, VariantArray = new Variant[] { (Variant)"x", (Variant)"y" } },
+                typeof(Queue<string>));
+            if (queue.Count != 2 || queue.Dequeue() != "x" || queue.Dequeue() != "y")
+                return UnitTestResult.Fail("Queue<string> mismatch");
+
+            var stack = (Stack<float>)VariantHelper.VariantToObject(
+                new Variant { Type = Variant.TypeCode.VariantArray, VariantArray = new Variant[] { (Variant)3f, (Variant)2f, (Variant)1f } },
+                typeof(Stack<float>));
+            if (stack.Count != 3 || Mathf.Abs(stack.Pop() - 1f) > 0.001f)
+                return UnitTestResult.Fail("Stack<float> mismatch");
+
+            var dict = (Dictionary<string, int>)VariantHelper.VariantToObject(
+                new Variant { Type = Variant.TypeCode.VariantArray, VariantArray = new Variant[] { (Variant)"k1", (Variant)1, (Variant)"k2", (Variant)2 } },
+                typeof(Dictionary<string, int>));
+            if (dict.Count != 2 || dict["k1"] != 1 || dict["k2"] != 2)
+                return UnitTestResult.Fail("Dictionary<string,int> mismatch");
+
+            return UnitTestResult.Pass("All 6 collection types round-trip correctly");
         }
 
         [UnitTest(name: "RpcSerializer new primitives round-trip", category: "OxySync")]
