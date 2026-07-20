@@ -374,11 +374,13 @@ namespace ONI_Together.DebugTools.UnitTests
                 ((Variant)new Quaternion(0.1f, 0.2f, 0.3f, 0.4f), typeof(Quaternion), new Quaternion(0.1f, 0.2f, 0.3f, 0.4f)),
                 (new Variant { Type = Variant.TypeCode.HashedString, Int = 12345 }, typeof(HashedString), new HashedString(12345)),
                 (new Variant { Type = Variant.TypeCode.KAnimHashedString, Int = 67890 }, typeof(KAnimHashedString), new KAnimHashedString(67890)),
+                (new Variant { Type = Variant.TypeCode.Int, Int = 2 }, typeof(System.StringComparison), System.StringComparison.InvariantCulture),
+                (new Variant { Type = Variant.TypeCode.Int, Int = 5 }, typeof(System.StringComparison), System.StringComparison.OrdinalIgnoreCase),
             };
 
             foreach (var (v, type, expected) in testCases)
             {
-                var result = SyncVarPacket.VariantToObject(v, type);
+                var result = VariantHelper.VariantToObject(v, type);
                 if (result == null)
                     return UnitTestResult.Fail($"VariantToObject returned null for {type.Name}");
 
@@ -422,14 +424,14 @@ namespace ONI_Together.DebugTools.UnitTests
                 }
             }
 
-            return UnitTestResult.Pass("VariantToObject converts all 11 supported types");
+            return UnitTestResult.Pass("VariantToObject converts all 13 supported types");
         }
 
         [UnitTest(name: "VariantToObject null string fallback", category: "OxySync")]
         public static UnitTestResult VariantToObjectNullString()
         {
             var v = new Variant { Type = Variant.TypeCode.String, String = null };
-            var result = SyncVarPacket.VariantToObject(v, typeof(string));
+            var result = VariantHelper.VariantToObject(v, typeof(string));
             if (result is not string s || s != string.Empty)
                 return UnitTestResult.Fail("Null string should become empty string");
             return UnitTestResult.Pass("Null string falls back to empty");
@@ -439,7 +441,7 @@ namespace ONI_Together.DebugTools.UnitTests
         public static UnitTestResult VariantToObjectNullByteArray()
         {
             var v = new Variant { Type = Variant.TypeCode.ByteArray, ByteArray = null };
-            var result = SyncVarPacket.VariantToObject(v, typeof(byte[]));
+            var result = VariantHelper.VariantToObject(v, typeof(byte[]));
             if (result is not byte[] ba || ba.Length != 0)
                 return UnitTestResult.Fail("Null byte[] should become empty array");
             return UnitTestResult.Pass("Null byte[] falls back to empty");
