@@ -24,7 +24,7 @@ namespace ONI_Together.Patches
 		{
 			using var _ = Profiler.Scope();
 
-			if (MultiplayerSession.InSession)
+			if (MultiplayerSession.InActiveSession)
 			{
 				NetworkConfig.Stop();
 				MultiplayerSession.Clear();
@@ -56,7 +56,7 @@ namespace ONI_Together.Patches
 				var buttonInfos = __instance.buttons;
 
                 // Only in multiplayer
-                if (!MultiplayerSession.InSession)
+                if (!MultiplayerSession.InActiveSession)
 				{
 					AddButton(__instance, STRINGS.UI.PAUSESCREEN.HOSTGAME.LABEL, () =>
 					{
@@ -140,7 +140,7 @@ namespace ONI_Together.Patches
 				using var _ = Profiler.Scope();
 
 				// Only pause if we arent in a multiplayer session
-				if (MultiplayerSession.InSession) return;
+				if (MultiplayerSession.InActiveSession) return;
 
 				SpeedControlScreen.Instance.Pause(playSound, isCrash);
 			}
@@ -150,7 +150,7 @@ namespace ONI_Together.Patches
 	            using var _ = Profiler.Scope();
 
 				// Only unpause if we arent in a multiplayer session
-				if (MultiplayerSession.InSession) return;
+				if (MultiplayerSession.InActiveSession) return;
 
 				SpeedControlScreen.Instance.Unpause(playSound);
             }

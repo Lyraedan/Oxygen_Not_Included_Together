@@ -356,10 +356,10 @@ namespace ONI_Together.UI
 		{
 			using var _ = Profiler.Scope();
 
-			header.SetActive(MultiplayerSession.InSession);
-			chatbox.SetActive(MultiplayerSession.InSession && expanded);
-			resizeHandles.SetActive(MultiplayerSession.InSession && expanded);
-			if (!MultiplayerSession.InSession)
+			header.SetActive(MultiplayerSession.InActiveSession);
+			chatbox.SetActive(MultiplayerSession.InActiveSession && expanded);
+			resizeHandles.SetActive(MultiplayerSession.InActiveSession && expanded);
+			if (!MultiplayerSession.InActiveSession)
 			{
 				return;
 			}

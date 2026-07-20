@@ -150,7 +150,7 @@ namespace ONI_Together.Patches.GamePatches
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 
 			DebugConsole.Log("[ImmigrantScreen] Initialize postfix triggered");
 
@@ -224,9 +224,9 @@ namespace ONI_Together.Patches.GamePatches
 				DebugConsole.Log($"[ImmigrantScreen] {role}: Broadcasting {options.Count} options (first-opener-wins)");
 
 				int worldIndex = __instance.Telepad.GetMyWorldId();
-				var blob = PrintingPodSyncComponent.SerializeOptionsBlob(options);
+				var blob = PrintingPodSyncer.SerializeOptionsBlob(options);
 
-				var component = PrintingPodSyncComponent.Instance;
+				var component = PrintingPodSyncer.Instance;
 				if (component != null)
 					component.RequestBroadcastOptions(blob, worldIndex);
 			}
@@ -244,7 +244,7 @@ namespace ONI_Together.Patches.GamePatches
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession) return true;
+			if (!MultiplayerSession.InActiveSession) return true;
 
 			if (__instance.Telepad == null) return true;
 
@@ -254,10 +254,10 @@ namespace ONI_Together.Patches.GamePatches
 			{
 				ITelepadDeliverable selected = __instance.selectedDeliverables[0];
 				var selectedOption = ImmigrantOptionEntry.FromGameDeliverable(selected);
-				var blob = PrintingPodSyncComponent.SerializeSelectionBlob(selectedOption);
+				var blob = PrintingPodSyncer.SerializeSelectionBlob(selectedOption);
 				int worldIndex = __instance.Telepad.GetMyWorldId();
 
-				PrintingPodSyncComponent.Instance?.RequestMakeSelection(blob, worldIndex);
+				PrintingPodSyncer.Instance?.RequestMakeSelection(blob, worldIndex);
 
 				ImmigrantScreenPatch.ClearOptionsLock();
 				__instance.Deactivate();
@@ -276,7 +276,7 @@ namespace ONI_Together.Patches.GamePatches
 			{
 				DebugConsole.Log("[ImmigrantScreen] Host: Selection made via screen, notifying clients to close");
 
-				PrintingPodSyncComponent.Instance?.BroadcastCloseScreen(0);
+				PrintingPodSyncer.Instance?.BroadcastCloseScreen(0);
 				ImmigrantScreenPatch.ClearOptionsLock();
 			}
 		}
@@ -292,7 +292,7 @@ namespace ONI_Together.Patches.GamePatches
 
             if (__instance.Telepad == null) return true;
 
-            if (!MultiplayerSession.InSession) return true;
+            if (!MultiplayerSession.InActiveSession) return true;
 
 			DebugConsole.Log("[ImmigrantScreen] Reject All clicked");
 
@@ -301,7 +301,7 @@ namespace ONI_Together.Patches.GamePatches
 				DebugConsole.Log("[ImmigrantScreen] Client: Sending Reject All to host");
 				int worldIndex = __instance.Telepad.GetMyWorldId();
 
-				PrintingPodSyncComponent.Instance?.RequestRejectAll(worldIndex);
+				PrintingPodSyncer.Instance?.RequestRejectAll(worldIndex);
 
 				ImmigrantScreenPatch.ClearOptionsLock();
 				if (ImmigrantScreen.instance != null)
@@ -318,13 +318,13 @@ namespace ONI_Together.Patches.GamePatches
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 
 			if (MultiplayerSession.IsHost)
 			{
 				DebugConsole.Log("[ImmigrantScreen] Host: Reject All, notifying clients");
 
-				PrintingPodSyncComponent.Instance?.BroadcastCloseScreen(-1);
+				PrintingPodSyncer.Instance?.BroadcastCloseScreen(-1);
 				ImmigrantScreenPatch.ClearOptionsLock();
 			}
 		}

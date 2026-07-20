@@ -20,7 +20,7 @@ namespace ONI_Together.Patches.World.Buildings
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.IsHost || !MultiplayerSession.InSession || __instance.IsNullOrDestroyed())
+				if (!MultiplayerSession.IsHost || !MultiplayerSession.InActiveSession || __instance.IsNullOrDestroyed())
 					return;
 
 				if (!__instance.TryGetComponent<ComplexFabricator>(out var fabricator) || fabricator == null || fabricator.IsNullOrDestroyed())
@@ -46,7 +46,7 @@ namespace ONI_Together.Patches.World.Buildings
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.IsHost || !MultiplayerSession.InSession || __instance.IsNullOrDestroyed())
+				if (!MultiplayerSession.IsHost || !MultiplayerSession.InActiveSession || __instance.IsNullOrDestroyed())
 					return;
 
 				PacketSender.SendToAllClients(WorkableProgressPacket.CreateComplexFabricator(__instance, showProgressBar: false), PacketSendMode.ReliableImmediate);
@@ -60,7 +60,7 @@ namespace ONI_Together.Patches.World.Buildings
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost)
+				if (!MultiplayerSession.InActiveSession || !MultiplayerSession.IsHost)
 					return;
 
 				PacketSender.SendToAllClients(WorkableProgressPacket.CreateComplexFabricator(__instance, showProgressBar: false), PacketSendMode.ReliableImmediate);

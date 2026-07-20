@@ -14,7 +14,7 @@ public static class PrioritizeToolPatch
 	{
 		using var _ = Profiler.Scope();
 
-		if (!MultiplayerSession.InSession)
+		if (!MultiplayerSession.InActiveSession)
 			return;
 
 		//prevent recursion

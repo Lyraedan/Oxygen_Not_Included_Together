@@ -81,7 +81,7 @@ namespace ONI_Together.Networking.OxySync.Packets
                 {
                     if (fields[j].Hash == hash)
                     {
-                        var obj = SyncVarPacket.VariantToObject(val, fields[j].Info.FieldType);
+                        var obj = VariantHelper.VariantToObject(val, fields[j].Info.FieldType);
                         behaviour.ApplySyncVar(hash, obj, Timestamp);
                         break;
                     }

@@ -17,7 +17,7 @@ namespace ONI_Together.Patches.World
                 using var _ = Profiler.Scope();
                 try
                 {
-                    if (!MultiplayerSession.IsHost || !MultiplayerSession.InSession)
+                    if (!MultiplayerSession.IsHost || !MultiplayerSession.InActiveSession)
                         return;
 
                     var identity = __instance.GetNetIdentity();
@@ -40,7 +40,7 @@ namespace ONI_Together.Patches.World
                 using var _ = Profiler.Scope();
                 try
                 {
-                    if (!MultiplayerSession.IsHost || !MultiplayerSession.InSession)
+                    if (!MultiplayerSession.IsHost || !MultiplayerSession.InActiveSession)
                         return;
 
                     var identity = __instance.GetNetIdentity();
@@ -68,7 +68,7 @@ namespace ONI_Together.Patches.World
                     if (__instance == null)
                         return;
 
-                    if (!MultiplayerSession.IsHost || !MultiplayerSession.InSession)
+                    if (!MultiplayerSession.IsHost || !MultiplayerSession.InActiveSession)
                         return;
 
                     var identity = __instance.GetNetIdentity();

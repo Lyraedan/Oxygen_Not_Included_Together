@@ -27,7 +27,7 @@ namespace ONI_Together.Patches.World.SideScreen
 	{
 		public static bool Prefix()
 		{
-			if (!MultiplayerSession.InSession) return true;
+			if (!MultiplayerSession.InActiveSession) return true;
 			if (MultiplayerSession.IsHost) return true;
 			return false; // Client: skip CreateOrder to prevent preview plant; Postfix still sends packet
 		}
@@ -37,7 +37,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			using var _ = Profiler.Scope();
 
             if (BuildingConfigPacket.IsApplyingPacket) return;
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 			if (__instance.IsNullOrDestroyed()) return;
 
             var identity = __instance.gameObject.GetComponent<NetworkIdentity>();
@@ -82,7 +82,7 @@ namespace ONI_Together.Patches.World.SideScreen
 	{
 		public static bool Prefix()
 		{
-			if (!MultiplayerSession.InSession) return true;
+			if (!MultiplayerSession.InActiveSession) return true;
 			if (MultiplayerSession.IsHost) return true;
 			return false; // Client: skip, let host handle it
 		}
@@ -92,7 +92,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			using var _ = Profiler.Scope();
 
 			if (BuildingConfigPacket.IsApplyingPacket) return;
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 			if (__instance.IsNullOrDestroyed()) return;
 
             var identity = __instance.gameObject.GetComponent<NetworkIdentity>();

@@ -14,6 +14,7 @@ using System.Collections;
 using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Networking.States;
 using ONI_Together.UI;
+using Shared;
 using Steamworks;
 using static ONI_Together.STRINGS.UI.MP_OVERLAY;
 
@@ -122,7 +123,7 @@ namespace ONI_Together.Networking.Transport.Lan
 
             OnClientConnected.Invoke();
             MultiplayerSession.SetHost(1); // Host's client is always 1
-            MultiplayerSession.InSession = true;
+            MultiplayerSession.InActiveSession = true;
             PacketHandler.readyToProcess = true;
 
             // The clients MultiplayerSession.ConnectedPlayers should only ever contain the host
@@ -527,7 +528,7 @@ namespace ONI_Together.Networking.Transport.Lan
             }
 
             MultiplayerSession.HostUserID = Utils.NilUlong();
-            MultiplayerSession.InSession = false;
+            MultiplayerSession.InActiveSession = false;
         }
 
         /*IEnumerator Handshake()

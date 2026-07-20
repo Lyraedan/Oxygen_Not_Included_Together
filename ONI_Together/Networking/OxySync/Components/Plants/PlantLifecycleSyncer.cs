@@ -5,6 +5,7 @@ using Shared.OxySync;
 using Shared.OxySync.Attributes;
 using Shared.Profiling;
 using System.Collections;
+using Shared.Helpers;
 using UnityEngine;
 
 namespace ONI_Together.Networking.OxySync.Components
@@ -29,9 +30,9 @@ namespace ONI_Together.Networking.OxySync.Components
 
     [SkipSaveFileSerialization]
     [FixedInterestGroup]
-    public class PlantLifecycleSyncComponent : NetworkBehaviour
+    public class PlantLifecycleSyncer : NetworkBehaviour
     {
-        public static PlantLifecycleSyncComponent Instance { get; private set; }
+        public static PlantLifecycleSyncer Instance { get; private set; }
 
         public static bool IsApplyingState = false;
 
@@ -44,7 +45,7 @@ namespace ONI_Together.Networking.OxySync.Components
             Instance != null &&
             Instance._initialized &&
             Time.unscaledTime - Instance._initializationTime >= LIVE_EVENT_DELAY &&
-            MultiplayerSession.InSession &&
+            MultiplayerSession.InActiveSession &&
             MultiplayerSession.IsHost &&
             MultiplayerSession.ConnectedPlayers.Count > 0 &&
             !GameServerHardSync.IsHardSyncInProgress;
@@ -160,7 +161,7 @@ namespace ONI_Together.Networking.OxySync.Components
             {
                 yield return null;
 
-                if (!MultiplayerSession.InSession || MultiplayerSession.IsHost)
+                if (!MultiplayerSession.InActiveSession || MultiplayerSession.IsHost)
                     yield break;
 
                 if (HandleSpawnPlant(data))
@@ -176,7 +177,7 @@ namespace ONI_Together.Networking.OxySync.Components
             {
                 yield return null;
 
-                if (!MultiplayerSession.InSession || MultiplayerSession.IsHost)
+                if (!MultiplayerSession.InActiveSession || MultiplayerSession.IsHost)
                     yield break;
 
                 if (HandleRemovePlant(data))

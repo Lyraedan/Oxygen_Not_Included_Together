@@ -6,7 +6,7 @@ using UnityEngine;
 namespace ONI_Together.Networking.OxySync.Components
 {
     [SkipSaveFileSerialization]
-    public class PlantSyncComponent : NetworkBehaviour
+    public class PlantSyncer : NetworkBehaviour
     {
         private Growing _growing;
         private WiltCondition _wilt;

@@ -9,6 +9,7 @@ using ONI_Together.UI;
 using Steamworks;
 using System;
 using System.Collections.Generic;
+using Shared;
 using Shared.Profiling;
 using UnityEngine;
 using static STRINGS.GAMEPLAY_EVENTS;

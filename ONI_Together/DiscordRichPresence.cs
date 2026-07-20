@@ -137,7 +137,7 @@ namespace ONI_Together
                 }
             }
 
-            if (MultiplayerSession.InSession)
+            if (MultiplayerSession.InActiveSession)
             {
                 int cycle = GameClock.Instance != null ? (GameClock.Instance.GetCycle() + 1) : 1;
                 int dupeCount = global::Components.LiveMinionIdentities?.Count ?? 0;

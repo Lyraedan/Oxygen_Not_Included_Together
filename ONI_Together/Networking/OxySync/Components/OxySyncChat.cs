@@ -14,6 +14,7 @@ using System.IO;
 using System.IO.Compression;
 using System.Text;
 using ONI_Together.DebugTools;
+using Shared;
 using UnityEngine;
 
 namespace ONI_Together.Networking.OxySync.Components;
@@ -28,6 +29,7 @@ public class OxySyncChat : NetworkBehaviour
     {
         public long timestamp;
         public string message;
+        public string colorHex;
     }
     
     public static OxySyncChat? Instance { get; private set; }
@@ -35,6 +37,8 @@ public class OxySyncChat : NetworkBehaviour
     private static List<PendingMessage> _chatHistory = new();
     private HashSet<ulong> _knownPlayers = new();
 
+    private List<long> _timestampCache = new ();
+    
     public static IReadOnlyList<PendingMessage> ChatHistory => _chatHistory;
 
     public override void OnSpawn()
@@ -53,10 +57,10 @@ public class OxySyncChat : NetworkBehaviour
         DebugConsole.Log("Spawned OxySync Chat!");
     }
 
-    public void Update()
-    {
-        UnityChatBoxUI.Instance?.Show(MultiplayerSession.InSession);
-    }
+    //public void Update()
+    //{
+    //    UnityChatBoxUI.Instance?.Show(MultiplayerSession.InSession);
+    //}
 
     public override void OnCleanUp()
     {
@@ -102,29 +106,25 @@ public class OxySyncChat : NetworkBehaviour
         Color playerColor = CursorManager.Instance.color;
         long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
-        string colorHex = ColorUtility.ToHtmlStringRGB(playerColor);
-        AddMessageToChatbox($"<color=#{colorHex}>{playerName}</color>", text, timestamp);
+        AddMessageToChatbox(playerName, text, timestamp, playerColor);
 
-        string compressed = CompressString(text);
-        CallCommand(nameof(ClientSendMessage), playerId, playerName, playerColor, compressed, timestamp);
+        CallCommand(nameof(ClientSendMessage), playerId, playerName, playerColor, text, timestamp);
     }
 
     [Command]
-    public void ClientSendMessage(ulong playerId, string playerName, Color playerColor, string compressed, long timestamp)
+    public void ClientSendMessage(ulong playerId, string playerName, Color playerColor, string message, long timestamp)
     {
-        if (string.IsNullOrEmpty(compressed)) return;
-
-        string? message = DecompressString(compressed);
         if (string.IsNullOrEmpty(message)) return;
 
         string colorHex = ColorUtility.ToHtmlStringRGB(playerColor);
-        string formatted = $"<color=#{colorHex}>{playerName}:</color> {message}";
+        string formatted = $"{playerName}: {message}";
 
         // Add it to the server chat history
         _chatHistory.Add(new PendingMessage
         {
             timestamp = timestamp,
-            message = formatted
+            message = formatted,
+            colorHex = colorHex            
         });
 
         // Add the message locally to the server's chat box. (because the server is also a client)
@@ -139,20 +139,17 @@ public class OxySyncChat : NetworkBehaviour
         // The command was called from the server and thus has already added the message to the chatbox
         if (playerId != MultiplayerSession.LocalUserID)
         {
-            AddMessageToChatbox($"<color=#{colorHex}>{senderName}</color>", message, timestamp);
+            AddMessageToChatbox(senderName, message, timestamp, playerColor);
         }
 
-        CallClientRpc(nameof(BroadcastMessage), playerId, playerName, playerColor, compressed, timestamp);
+        CallClientRpc(nameof(BroadcastMessage), playerId, playerName, playerColor, message, timestamp);
     }
 
     [ClientRpc]
-    public void BroadcastMessage(ulong playerId, string playerName, Color playerColor, string compressed, long timestamp)
+    public void BroadcastMessage(ulong playerId, string playerName, Color playerColor, string message, long timestamp)
     {
         if (playerId == MultiplayerSession.LocalUserID)
             return;
-
-        string? message = DecompressString(compressed);
-        if (string.IsNullOrEmpty(message)) return;
 
         string senderName = playerName;
         if (NetworkConfig.IsSteamConfig())
@@ -162,11 +159,10 @@ public class OxySyncChat : NetworkBehaviour
                 senderName = SteamFriends.GetFriendPersonaName(cSteamId);
         }
 
-        string colorHex = ColorUtility.ToHtmlStringRGB(playerColor);
-        AddMessageToChatbox($"<color=#{colorHex}>{senderName}</color>", message, timestamp);
+        AddMessageToChatbox(senderName, message, timestamp, playerColor);
     }
 
-    /* WIP
+	/* WIP
     private void SendHistoryToPlayer(ulong playerId)
     {
         if (_chatHistory.Count == 0) return;
@@ -190,61 +186,18 @@ public class OxySyncChat : NetworkBehaviour
         for (int i = 0; i < timestamps.Length; i++)
         {
             string ts = DateTimeOffset.FromUnixTimeMilliseconds(timestamps[i]).DateTime.ToString("HH:mm", CultureInfo.InvariantCulture);
-            UnityChatBoxUI.Instance?.SendNewNewMessage("System", ts, DecompressString(messages[i]));
+            UnityChatBoxUI.Instance?.SendNewNewMessage("System", ts, DecompressString(messages[i]),messages[i].colorhex.ToColor);
         }
     }*/
     
-    public static string CompressString(string text)
+    public void AddMessageToChatbox(string sender, string message, long timestamp, Color color)
     {
-        byte[] buffer = Encoding.UTF8.GetBytes(text);
-        var memoryStream = new MemoryStream();
-        using (var gZipStream = new GZipStream(memoryStream, CompressionMode.Compress, true))
+        // Only add messages to the chatbox if they don't already exist. Protects against retransmissions duplicating messages
+        if (!_timestampCache.Contains(timestamp))
         {
-            gZipStream.Write(buffer, 0, buffer.Length);
+            string timestampString = DateTimeOffset.FromUnixTimeMilliseconds(timestamp).DateTime.ToString("HH:mm", CultureInfo.InvariantCulture);
+            UnityChatBoxUI.Instance.SendNewChatMessage(sender, timestampString, message, color);
+            _timestampCache.Add(timestamp);
         }
-
-        memoryStream.Position = 0;
-
-        var compressedData = new byte[memoryStream.Length];
-        memoryStream.Read(compressedData, 0, compressedData.Length);
-
-        var gZipBuffer = new byte[compressedData.Length + 4];
-        Buffer.BlockCopy(compressedData, 0, gZipBuffer, 4, compressedData.Length);
-        Buffer.BlockCopy(BitConverter.GetBytes(buffer.Length), 0, gZipBuffer, 0, 4);
-        return Convert.ToBase64String(gZipBuffer);
-    }
-    
-    public static string DecompressString(string compressedText)
-    {
-        try
-        {
-            //return compressedText.Trim('`');
-            byte[] gZipBuffer = Convert.FromBase64String(compressedText);
-            using (var memoryStream = new MemoryStream())
-            {
-                int dataLength = BitConverter.ToInt32(gZipBuffer, 0);
-                memoryStream.Write(gZipBuffer, 4, gZipBuffer.Length - 4);
-
-                var buffer = new byte[dataLength];
-
-                memoryStream.Position = 0;
-                using (var gZipStream = new GZipStream(memoryStream, CompressionMode.Decompress))
-                {
-                    gZipStream.Read(buffer, 0, buffer.Length);
-                }
-
-                return Encoding.UTF8.GetString(buffer);
-            }
-        }
-        catch (Exception ex) 
-        {
-            return string.Empty;
-        }
-    }
-
-    public void AddMessageToChatbox(string sender, string message, long timestamp)
-    {
-        string timestampString = DateTimeOffset.FromUnixTimeMilliseconds(timestamp).DateTime.ToString("HH:mm", CultureInfo.InvariantCulture);
-        UnityChatBoxUI.Instance.SendNewNewMessage(sender, timestampString, message);
     }
 }

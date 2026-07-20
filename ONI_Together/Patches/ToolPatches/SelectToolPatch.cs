@@ -32,7 +32,7 @@ namespace ONI_Together.Patches.ToolPatches
 			}
 
 			// Use the multiplayer session cursor color or fallback to white
-			Color tint = MultiplayerSession.InSession
+			Color tint = MultiplayerSession.InActiveSession
 					? CursorManager.Instance?.color ?? Color.white
 					: Color.white;
 

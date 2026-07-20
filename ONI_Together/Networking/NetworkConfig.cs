@@ -16,6 +16,7 @@ using Shared.Profiling;
 using ONI_Together.Patches.ToolPatches;
 using UnityEngine;
 using System.Collections;
+using Shared;
 
 namespace ONI_Together.Networking
 {

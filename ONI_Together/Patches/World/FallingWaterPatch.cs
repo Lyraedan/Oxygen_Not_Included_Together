@@ -26,7 +26,7 @@ namespace ONI_Together.Patches.World
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession) return true;
+			if (!MultiplayerSession.InActiveSession) return true;
 
 			if (FallingObjectPacket.IsApplying) return true; // Allow packet application
 

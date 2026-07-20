@@ -47,7 +47,7 @@ namespace ONI_Together.DebugTools.UnitTests
             if (clients - 1 != cursors)
                 return UnitTestResult.Fail($"Number of player cursors ({cursors}) does not match number of clients ({clients})");
 
-            bool cursorSyncRunning = CursorManager.Instance != null && Utils.IsInGame() && MultiplayerSession.InSession && MultiplayerSession.LocalUserID.IsValid();
+            bool cursorSyncRunning = CursorManager.Instance != null && Utils.IsInGame() && MultiplayerSession.InActiveSession && MultiplayerSession.LocalUserID.IsValid();
             if(!cursorSyncRunning)
                 return UnitTestResult.Fail("Cursor synchronization does not appear to be running (CursorManager instance missing or not in game session)");
 

@@ -23,7 +23,7 @@ namespace ONI_Together.Patches.World.Buildings
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost)
+				if (!MultiplayerSession.InActiveSession || !MultiplayerSession.IsHost)
 					return;
 				if (__instance.IsNullOrDestroyed())
 					return;
@@ -37,7 +37,7 @@ namespace ONI_Together.Patches.World.Buildings
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost)
+				if (!MultiplayerSession.InActiveSession || !MultiplayerSession.IsHost)
 					return;
 				if (__instance.IsNullOrDestroyed())
 					return;
@@ -51,7 +51,7 @@ namespace ONI_Together.Patches.World.Buildings
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost)
+				if (!MultiplayerSession.InActiveSession || !MultiplayerSession.IsHost)
 					return;
 				if (__instance.IsNullOrDestroyed())
 					return;

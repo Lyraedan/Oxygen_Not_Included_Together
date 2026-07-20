@@ -5,7 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Shared;
 
-namespace ONI_Together
+namespace Shared
 {
     public static class MP_HASHES
     {
@@ -14,6 +14,7 @@ namespace ONI_Together
 
         public static readonly ModHashes OnConnected = new("MP_OnConnected");
         public static readonly ModHashes OnDisconnected = new("MP_OnDisconnected");
+        public static readonly ModHashes OnInSessionChanged = new("MP_OnSessionChanged");
         
         public static readonly ModHashes GameClient_OnConnectedInGame = new("MP_OnConnectedInGame");
 

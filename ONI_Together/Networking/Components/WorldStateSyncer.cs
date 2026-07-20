@@ -177,7 +177,7 @@ namespace ONI_Together.Networking.Components
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost)
+			if (!MultiplayerSession.InActiveSession || !MultiplayerSession.IsHost)
 				return;
 
 			// Update game info even when no clients connected (for lobby browser)

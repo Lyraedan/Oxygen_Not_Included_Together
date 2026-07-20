@@ -77,9 +77,9 @@ namespace ONI_Together.Networking.Packets.Social
 				// Update the sender name to what we have them named as on our friends list
                 senderName = SteamFriends.GetFriendPersonaName(SenderId.AsCSteamID());
             }
-			string colorHex = ColorUtility.ToHtmlStringRGB(PlayerColor);
+			//string colorHex = ColorUtility.ToHtmlStringRGB(PlayerColor);
 			string timestampString = DateTimeOffset.FromUnixTimeMilliseconds(Timestamp).DateTime.ToString("HH:mm", CultureInfo.InvariantCulture);
-			UnityChatBoxUI.Instance?.SendNewNewMessage($"<color=#{colorHex}>{senderName}</color>", timestampString, Message);
+			UnityChatBoxUI.Instance?.SendNewChatMessage(senderName, timestampString, Message, PlayerColor);
 
 			if (MultiplayerSession.IsHost)
 			{

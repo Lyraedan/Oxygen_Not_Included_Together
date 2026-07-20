@@ -14,7 +14,7 @@ namespace ONI_Together.Patches.ToolPatches.Move
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession || MultiplayerSession.IsHost) return true; // Run like normal
+			if (!MultiplayerSession.InActiveSession || MultiplayerSession.IsHost) return true; // Run like normal
 
 			var nav = __instance.targetNavigator;
 			var movable = __instance.targetMovable;

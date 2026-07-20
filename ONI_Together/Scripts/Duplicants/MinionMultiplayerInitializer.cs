@@ -24,7 +24,7 @@ namespace ONI_Together.Scripts.Duplicants
 
 		IEnumerator WaitForSessionAndInit()
 		{
-			yield return new WaitUntil((() => MultiplayerSession.InSession));
+			yield return new WaitUntil((() => MultiplayerSession.InActiveSession));
 			InitializeMP();
 		}
 
@@ -69,15 +69,15 @@ namespace ONI_Together.Scripts.Duplicants
 				if (smc != null) smc.enabled = false;
 
 			go.AddOrGet<ClientReceiver_ChoreErrands>();
-			var statusSync = go.AddOrGet<StatusItemsSyncComponent>();
-			statusSync.recieverType = StatusItemsSyncComponent.StatusRecieverType.DUPLICANT;
+			var statusSync = go.AddOrGet<StatusItemsSyncer>();
+			statusSync.recieverType = StatusItemsSyncer.StatusRecieverType.DUPLICANT;
 		}
 
 		void InitializeHost(GameObject go)
 		{
 			go.AddOrGet<DuplicantStateSender>();
 			go.AddOrGet<DuplicantChoreBroadcaster>();
-			go.AddOrGet<StatusItemsSyncComponent>();
+			go.AddOrGet<StatusItemsSyncer>();
 		}
 	}
 }

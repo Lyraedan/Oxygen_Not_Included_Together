@@ -116,7 +116,7 @@ namespace ONI_Together.Menus
         {
             using var _ = Profiler.Scope();
 
-            if (!MultiplayerSession.InSession)
+            if (!MultiplayerSession.InActiveSession)
                 return;
 
             if (indicators == null)
@@ -162,7 +162,7 @@ namespace ONI_Together.Menus
         {
             using var _ = Profiler.Scope();
 
-            if (!MultiplayerSession.InSession)
+            if (!MultiplayerSession.InActiveSession)
                 return NetworkState.GOOD;
 
             if (MultiplayerSession.IsHost)
@@ -175,7 +175,7 @@ namespace ONI_Together.Menus
         {
             using var _ = Profiler.Scope();
 
-            if (!MultiplayerSession.InSession)
+            if (!MultiplayerSession.InActiveSession)
                 return NetworkState.GOOD;
 
             if (MultiplayerSession.IsHost)
@@ -188,7 +188,7 @@ namespace ONI_Together.Menus
         {
             using var _ = Profiler.Scope();
 
-            if (!MultiplayerSession.InSession)
+            if (!MultiplayerSession.InActiveSession)
                 return NetworkState.GOOD;
 
             if (MultiplayerSession.IsHost)
@@ -201,7 +201,7 @@ namespace ONI_Together.Menus
         {
             using var _ = Profiler.Scope();
 
-            if (!MultiplayerSession.InSession)
+            if (!MultiplayerSession.InActiveSession)
                 return NetworkState.GOOD;
 
             if (MultiplayerSession.IsHost)

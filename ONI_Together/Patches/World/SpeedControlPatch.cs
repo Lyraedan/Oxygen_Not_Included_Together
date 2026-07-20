@@ -16,8 +16,8 @@ namespace ONI_Together.Patches
 		[HarmonyPostfix]
 		public static void OnPrefabInit_Postfix(SpeedControlScreen __instance)
 		{
-			if (!__instance.TryGetComponent<GameSpeedSyncComponent>(out _))
-				__instance.gameObject.AddComponent<GameSpeedSyncComponent>();
+			if (!__instance.TryGetComponent<GameSpeedSyncer>(out _))
+				__instance.gameObject.AddComponent<GameSpeedSyncer>();
 		}
 
 		[HarmonyPatch("SetSpeed")]
@@ -29,9 +29,9 @@ namespace ONI_Together.Patches
 			try
 			{
 				if (IsSyncing) return;
-				if (!MultiplayerSession.InSession) return;
+				if (!MultiplayerSession.InActiveSession) return;
 
-				GameSpeedSyncComponent.Instance?.RequestSetSpeed(Speed);
+				GameSpeedSyncer.Instance?.RequestSetSpeed(Speed);
 			}
 			catch (Exception ex)
 			{
@@ -48,14 +48,14 @@ namespace ONI_Together.Patches
 			try
 			{
 				if (IsSyncing) return;
-				if (!MultiplayerSession.InSession) return;
+				if (!MultiplayerSession.InActiveSession) return;
 
 				// Original TogglePause has already run. Determine the resulting state.
 				var newState = SpeedControlScreen.Instance.IsPaused
-					? (int)GameSpeedSyncComponent.SpeedState.Paused
+					? (int)GameSpeedSyncer.SpeedState.Paused
 					: SpeedControlScreen.Instance.GetSpeed();
 
-				GameSpeedSyncComponent.Instance?.RequestSetSpeed(newState);
+				GameSpeedSyncer.Instance?.RequestSetSpeed(newState);
 			}
 			catch (Exception ex)
 			{

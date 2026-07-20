@@ -257,7 +257,7 @@ namespace ONI_Together.DebugTools
 
         private void DrawContent()
         {
-            if (!MultiplayerSession.InSession)
+            if (!MultiplayerSession.InActiveSession)
             {
                 if (_incomingCount > 0 || _outgoingCount > 0)
                     Clear();

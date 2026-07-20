@@ -9,6 +9,7 @@ using ONI_Together.Networking.Transfer;
 using System.Collections.Generic;
 using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.UI;
+using Shared;
 using Steamworks;
 using static ResearchTypes;
 using UnityEngine;
@@ -113,7 +114,7 @@ namespace ONI_Together.Networking.Transport.Lan
             //AddClientToList(CLIENT_ID);
             DebugConsole.Log("[RiptideServer] Host client connected to server!");
             MultiplayerSession.SetHost(GetClientID());
-            MultiplayerSession.InSession = true;
+            MultiplayerSession.InActiveSession = true;
 
             string hostName = Utils.GetLocalPlayerName();
             OxySyncChat.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, hostName));
@@ -127,7 +128,7 @@ namespace ONI_Together.Networking.Transport.Lan
             //RemoveClientFromList(CLIENT_ID);
             DebugConsole.Log("[RiptideServer] Host client disconnected from server!");
             MultiplayerSession.HostUserID = Utils.NilUlong();
-            MultiplayerSession.InSession = false;
+            MultiplayerSession.InActiveSession = false;
         }
 
         private void ServerOnClientConnected(object sender, ServerConnectedEventArgs e)

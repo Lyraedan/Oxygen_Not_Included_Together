@@ -1,12 +1,12 @@
 using ONI_Together.Misc;
-using ONI_Together.Networking.OxySync.StateMachines;
+using Shared.OxySync;
 using Shared.OxySync.Attributes;
 using UnityEngine;
 
 namespace ONI_Together.Networking.OxySync.Components
 {
     [SkipSaveFileSerialization]
-    public class BottleEmptierSyncer : StateMachineSyncer
+    public class BottleEmptierStateSyncer : StateMachineSyncer
     {
         private BottleEmptier _bottleEmptier;
         private BottleEmptier.StatesInstance _smi;

@@ -1,6 +1,7 @@
 using HarmonyLib;
 using ONI_Together.Networking;
 using ONI_Together.Networking.OxySync.StateMachines;
+using Shared.OxySync;
 using UnityEngine;
 
 namespace ONI_Together.Patches.OxySync
@@ -10,7 +11,7 @@ namespace ONI_Together.Patches.OxySync
     {
         public static void Postfix(Edible __instance)
         {
-            if (!MultiplayerSession.InSession)
+            if (!MultiplayerSession.InActiveSession)
                 return;
             if (__instance.IsNullOrDestroyed())
                 return;
@@ -39,7 +40,7 @@ namespace ONI_Together.Patches.OxySync
         }
     }
 
-    [HarmonyPatch(typeof(StateMachineController), "OnTargetDestroyed")]
+    [HarmonyPatch(typeof(StateMachineController), nameof(StateMachineController.OnTargetDestroyed))]
     public static class StateMachineController_Cleanup_Patch
     {
         public static void Prefix()

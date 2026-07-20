@@ -46,7 +46,7 @@ namespace ONI_Together.Networking.Components
 			if (this.GetNetId() == 0)
 				return;
 
-			if (!MultiplayerSession.InSession)
+			if (!MultiplayerSession.InActiveSession)
 				return;
 
             if (MultiplayerSession.IsClient)

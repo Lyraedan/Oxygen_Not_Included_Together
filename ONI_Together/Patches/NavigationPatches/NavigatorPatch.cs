@@ -12,7 +12,7 @@ namespace ONI_Together.Patches.Navigation
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession)
+			if (!MultiplayerSession.InActiveSession)
 				return true;
 
 			if (!__instance.TryGetComponent<NetworkIdentity>(out var ni))
@@ -34,7 +34,7 @@ namespace ONI_Together.Patches.Navigation
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession)
+			if (!MultiplayerSession.InActiveSession)
 				return true;
 
 			if (__instance.TryGetComponent<NetworkIdentity>(out var netIdentity))

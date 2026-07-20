@@ -6,6 +6,7 @@ using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.OxySync.Packets;
+using Shared.Helpers;
 using Shared.OxySync;
 using Shared.OxySync.Attributes;
 using Shared.Profiling;
@@ -61,7 +62,7 @@ namespace ONI_Together.Networking.OxySync.Components
 
             NetworkBehaviour.IsHostQuery = () => MultiplayerSession.IsHost;
             NetworkBehaviour.IsClientQuery = () => MultiplayerSession.IsClient;
-            NetworkBehaviour.InSessionQuery = () => MultiplayerSession.InSession;
+            NetworkBehaviour.InSessionQuery = () => MultiplayerSession.InActiveSession;
 
             NetworkBehaviour.SendCommandToHost = (netId, methodHash, args, sendType) =>
             {
@@ -196,14 +197,14 @@ namespace ONI_Together.Networking.OxySync.Components
                     Variant currentVariant;
                     if (isManuallyDirty)
                     {
-                        currentVariant = ObjectToVariant(field.Info.GetValue(behaviour));
+                        currentVariant = VariantHelper.ObjectToVariant(field.Info.GetValue(behaviour));
                     }
                     else
                     {
                         var currentValue = field.Info.GetValue(behaviour);
-                        currentVariant = ObjectToVariant(currentValue);
-                        var lastVariant = ObjectToVariant(field.LastSentValue);
-                        if (!ValuesDiffer(currentVariant, lastVariant, field.Epsilon))
+                        currentVariant = VariantHelper.ObjectToVariant(currentValue);
+                        var lastVariant = VariantHelper.ObjectToVariant(field.LastSentValue);
+                        if (!VariantHelper.ValuesDiffer(currentVariant, lastVariant, field.Epsilon))
                             continue;
                     }
 
@@ -295,48 +296,6 @@ namespace ONI_Together.Networking.OxySync.Components
             }
         }
 
-        private static Variant ObjectToVariant(object? value)
-        {
-            if (value is int i) return i;
-            if (value is float f) return f;
-            if (value is byte b) return b;
-            if (value is string s) return (Variant)s;
-            if (value is bool bv) return bv;
-            if (value is Vector3 v3) return v3;
-            if (value is Vector2 v2) return v2;
-            if (value is byte[] ba) return ba;
-            if (value is Quaternion q) return q;
-            return 0;
-        }
-
-        private static bool ValuesDiffer(Variant a, Variant b, float epsilon)
-        {
-            if (a.Type != b.Type) return true;
-            return a.Type switch
-            {
-                Variant.TypeCode.Float => Mathf.Abs(a.Float - b.Float) > epsilon,
-                Variant.TypeCode.Int => a.Int != b.Int,
-                Variant.TypeCode.Byte => a.Byte != b.Byte,
-                Variant.TypeCode.String => a.String != b.String,
-                Variant.TypeCode.Boolean => a.Boolean != b.Boolean,
-                Variant.TypeCode.Vector3 => Vector3.Distance(a.Vector3, b.Vector3) > epsilon,
-                Variant.TypeCode.Vector2 => Vector2.Distance(a.Vector2, b.Vector2) > epsilon,
-                Variant.TypeCode.ByteArray => !ByteArraysEqual(a.ByteArray, b.ByteArray),
-                Variant.TypeCode.Quaternion => Quaternion.Angle(a.Quaternion, b.Quaternion) > epsilon,
-                _ => true,
-            };
-        }
-
-        private static bool ByteArraysEqual(byte[]? a, byte[]? b)
-        {
-            if (a == b) return true;
-            if (a == null || b == null) return false;
-            if (a.Length != b.Length) return false;
-            for (int i = 0; i < a.Length; i++)
-                if (a[i] != b[i]) return false;
-            return true;
-        }
-
         private void IndexBehaviour(NetworkBehaviour behaviour)
         {
             var fields = behaviour.SyncVarFields;
@@ -401,7 +360,7 @@ namespace ONI_Together.Networking.OxySync.Components
                     if (fieldGroup == -1) fieldGroup = behaviour.InterestGroup;
                     if (fieldGroup != groupId) continue;
 
-                    updates.Add((field.Hash, ObjectToVariant(field.Info.GetValue(behaviour))));
+                    updates.Add((field.Hash, VariantHelper.ObjectToVariant(field.Info.GetValue(behaviour))));
                 }
 
                 if (updates.Count == 0) continue;

@@ -15,7 +15,7 @@ namespace ONI_Together.Patches.Duplicant
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 
 			// Check if we are currently applying a packet to avoid loops
 			if (DuplicantPriorityPacket.IsApplying) return;

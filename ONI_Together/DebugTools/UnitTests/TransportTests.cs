@@ -83,7 +83,7 @@ namespace ONI_Together.DebugTools.UnitTests
 		[UnitTest(name: "Connection stable", category: "Transport")]
 		public static UnitTestResult ConnectionStable()
 		{
-			if (!MultiplayerSession.InSession)
+			if (!MultiplayerSession.InActiveSession)
 				return UnitTestResult.Fail("Not in a multiplayer session");
 
 			if (!NetworkConfig.IsLanConfig())

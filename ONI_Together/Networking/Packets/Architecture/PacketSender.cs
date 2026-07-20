@@ -413,7 +413,7 @@ namespace ONI_Together.Networking
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession)
+			if (!MultiplayerSession.InActiveSession)
 			{
 				DebugConsole.LogWarning("[PacketSender] Not in a multiplayer session, cannot send to other peers");
 				return;
@@ -455,7 +455,7 @@ namespace ONI_Together.Networking
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession)
+			if (!MultiplayerSession.InActiveSession)
 			{
 				DebugConsole.LogWarning("[PacketSender] Not in a multiplayer session, cannot send to other peers");
 				return;

@@ -15,7 +15,7 @@ namespace ONI_Together.Patches.OxySync
             if (__instance.IsNullOrDestroyed())
                 return;
 
-            __instance.gameObject.AddOrGet<BottleEmptierSyncer>();
+            __instance.gameObject.AddOrGet<BottleEmptierStateSyncer>();
         }
     }
 }

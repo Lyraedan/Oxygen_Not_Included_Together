@@ -77,7 +77,7 @@ namespace ONI_Together.Networking.Transport.Steam
 
             _connectionStatusChangedCallback = Callback<SteamNetConnectionStatusChangedCallback_t>.Create(OnConnectionStatusChanged);
 
-            MultiplayerSession.InSession = true;
+            MultiplayerSession.InActiveSession = true;
         }
 
         public override void Stop()
@@ -92,7 +92,7 @@ namespace ONI_Together.Networking.Transport.Steam
             if (ListenSocket.m_HSteamListenSocket != 0)
                 SteamNetworkingSockets.CloseListenSocket(ListenSocket);
 
-            MultiplayerSession.InSession = false;
+            MultiplayerSession.InActiveSession = false;
         }
 
         public override void CloseConnections()

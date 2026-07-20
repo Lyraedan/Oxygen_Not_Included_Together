@@ -16,7 +16,7 @@ namespace ONI_Together.Patches.World
 
 			if (PrioritizeStatePacket.IsApplying) return;
 			if (DragToolPacket.ProcessingIncoming) return;
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 
 			// Find NetId
 			int netId = -1;

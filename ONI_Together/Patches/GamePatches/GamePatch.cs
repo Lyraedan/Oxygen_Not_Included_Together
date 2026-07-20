@@ -5,10 +5,24 @@ using ONI_Together.Misc.World;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.States;
+using ONI_Together.UI;
 using Shared.Profiling;
 
 namespace ONI_Together.Patches.GamePatches
 {
+
+    /// <summary>
+    /// General cleanup patch
+    /// </summary>
+    [HarmonyPatch(typeof(Game), nameof(Game.OnLoadLevel))]
+    public class Game_OnLoadLevel_Patch
+    {
+        public static void Postfix()
+        {
+            UnityChatBoxUI.DestroyInstance();
+		}
+    }
+
   /// <summary>
   /// Patch Game.Update to run the two batchers if host
   /// </summary>

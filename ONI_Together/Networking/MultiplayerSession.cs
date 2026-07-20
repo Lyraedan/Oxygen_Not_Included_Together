@@ -1,10 +1,13 @@
-﻿using ONI_Together.DebugTools;
+﻿using System;
+using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking.States;
 using Shared.Profiling;
 using System.Collections.Generic;
+using Shared;
 using UnityEngine;
 using YamlDotNet.Core;
+using Object = UnityEngine.Object;
 
 namespace ONI_Together.Networking
 {
@@ -33,18 +36,30 @@ namespace ONI_Together.Networking
 		public static string ServerIp { get; set; } = "127.0.0.1";
 		public static int ServerPort { get; set; } = 7777;
 
-		[API_Method]
-		public static bool InSession = false;
-		public static bool SessionHasPlayers => InSession && ConnectedPlayers.Count > 1;
-		public static bool NotInSession => !InSession;
+		private static bool _inActiveSession = false;
+		public static bool InActiveSession
+		{
+			get => _inActiveSession;
+			set
+			{
+				_inActiveSession = value;
+				InSession = value;
+				Game.Instance?.Trigger(MP_HASHES.OnInSessionChanged, value ? BoxedBools.True : BoxedBools.False);
+			}
+		}
+		//[Obsolete] 
+		[API_Method] private static bool InSession = false;
+		
+		public static bool SessionHasPlayers => InActiveSession && ConnectedPlayers.Count > 1;
+		public static bool NotInSession => !InActiveSession;
 
 		[API_Method]
 		public static bool IsHost { get; set; } //HostUserID == LocalUserID;
 
 		[API_Method]
-		public static bool IsClient => InSession && !IsHost;
+		public static bool IsClient => InActiveSession && !IsHost;
 
-		public static bool IsHostInSession => IsHost && InSession;
+		public static bool IsHostInSession => IsHost && InActiveSession;
 
 		public static readonly Dictionary<ulong, PlayerCursor> PlayerCursors = new Dictionary<ulong, PlayerCursor>();
 
