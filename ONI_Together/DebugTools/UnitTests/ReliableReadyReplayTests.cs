@@ -1,6 +1,8 @@
 #if DEBUG
+using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.Packets.Core;
@@ -43,6 +45,46 @@ namespace ONI_Together.DebugTools.UnitTests
 		[UnitTest(name: "Rejected replay inner withholds ACK and aborts pending Ready", category: "Networking")]
 		public static UnitTestResult RejectedReplayWithholdsAckAndReady()
 			=> Run(throwSecond: true);
+
+		[UnitTest(name: "Ready replay completion refreshes the host barrier", category: "Networking")]
+		public static UnitTestResult ReadyReplayCompletionRefreshesHostBarrier()
+		{
+			const BindingFlags flags = BindingFlags.Static
+			                           | BindingFlags.Public
+			                           | BindingFlags.NonPublic;
+			MethodInfo completion = typeof(ReadyManager).GetMethod(
+				"CompleteReadyAfterReplay", flags);
+			MethodInfo completeBarrier = typeof(ReadyManager).GetMethod(
+				"CompleteSyncBarrier", flags);
+			MethodInfo refreshScreen = typeof(ReadyManager).GetMethod(
+				nameof(ReadyManager.RefreshScreen), flags);
+			MethodInfo refreshReady = typeof(ReadyManager).GetMethod(
+				"RefreshReadyState", flags);
+			byte[] il = completion?.GetMethodBody()?.GetILAsByteArray();
+			if (il == null || completeBarrier == null || refreshScreen == null || refreshReady == null)
+				return UnitTestResult.Fail("Ready completion refresh methods could not be resolved");
+
+			int barrierIndex = FindMethodToken(il, completeBarrier);
+			int screenIndex = FindMethodToken(il, refreshScreen);
+			int readyIndex = FindMethodToken(il, refreshReady);
+			return barrierIndex >= 0 && screenIndex > barrierIndex && readyIndex > screenIndex
+				? UnitTestResult.Pass("Committed Ready refreshes the overlay and all-ready signal")
+				: UnitTestResult.Fail("Async Ready commit can leave the host waiting overlay stale");
+		}
+
+		private static int FindMethodToken(byte[] il, MethodInfo method)
+		{
+			byte[] token = BitConverter.GetBytes(method.MetadataToken);
+			for (int index = 0; index <= il.Length - token.Length; index++)
+			{
+				if (il[index] == token[0]
+				    && il[index + 1] == token[1]
+				    && il[index + 2] == token[2]
+				    && il[index + 3] == token[3])
+					return index;
+			}
+			return -1;
+		}
 
 		private static UnitTestResult Run(bool throwSecond)
 		{

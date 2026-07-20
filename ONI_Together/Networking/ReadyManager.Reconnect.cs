@@ -147,6 +147,8 @@ namespace ONI_Together.Networking
 			player.CompleteSaveTransfer();
 			player.readyState = States.ClientReadyState.Ready;
 			CompleteSyncBarrier(player.PlayerId);
+			RefreshScreen();
+			RefreshReadyState();
 		}
 
 		internal static void CancelPendingReadyCommit(ulong clientId)

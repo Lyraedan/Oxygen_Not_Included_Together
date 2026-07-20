@@ -22,7 +22,7 @@ for platform in windows mac linux; do
 	test -s "$STAGE/assets/$platform/oni_mp_ui_assets" || { echo "Missing $platform asset bundle" >&2; exit 1; }
 done
 grep -qx 'staticID: ONI_Together' "$STAGE/mod.yaml"
-grep -qx 'version: 1.0.2' "$STAGE/mod_info.yaml"
+grep -qx 'version: 1.0.3' "$STAGE/mod_info.yaml"
 grep -qx 'APIVersion: 2' "$STAGE/mod_info.yaml"
 test "$(od -An -t x1 -N3 "$STAGE/mod_info.yaml" | tr -d ' ')" != efbbbf
 test "$(find "$STAGE" -type f \( -name '*.pdb' -o -name '*.zip' \) -print -quit)" = ""
