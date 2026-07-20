@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace ONI_Together.Networking.OxySync.Components
 {
-    public class VitalStatsSyncComponent : NetworkBehaviour
+    public class VitalStatsSyncer : NetworkBehaviour
     {
         [MyCmpReq]
         private NetworkIdentity _identity;
