@@ -1,6 +1,6 @@
 # Oxygen Not Included Together
 
-Oxygen Not Included Together is a synchronized multiplayer mod for Oxygen Not Included. Version 1.0.4 targets game build `U59-740622-S` and uses network protocol version `9`.
+Oxygen Not Included Together is a synchronized multiplayer mod for Oxygen Not Included. Version 1.0.5 targets game build `U59-740622-S` and uses network protocol version `9`.
 
 This repository is a personal development fork of [Lyraedan/Oxygen_Not_Included_Together](https://github.com/Lyraedan/Oxygen_Not_Included_Together). The original repository is no longer maintained. This fork is independent and unofficial.
 
@@ -40,7 +40,7 @@ Entity lifecycle updates use monotonic revisions and tombstones. Failed identity
 
 ## Validation record
 
-On July 19, 2026, the current build completed 548 in-game Debug checks: 522 passed, none failed, and 26 were skipped because the required runtime state was not present.
+On July 20, 2026, the v1.0.5 code candidate completed 554 in-game Debug checks on both the macOS host and an Alienware Windows client: 528 passed, none failed, and 26 were skipped because the required runtime state was not present. The Windows client then downloaded the host save, applied all 874 world-baseline parts, and entered `InGame` after Ready acknowledgement 1.
 
 The two-machine Steam friends soak used two Steam accounts and ran for 21 segments and 37,800 ticks with ONI MCP Server disabled. Time and all five post-keyframe domain hashes matched in every segment. The final record reported `postMismatchSeen=False`, `keyframeApplyFailureSeen=False`, and `postKeyframeEqual=True`; lifecycle missing, unexpected, tombstoned-live, and unassigned counts were all zero.
 

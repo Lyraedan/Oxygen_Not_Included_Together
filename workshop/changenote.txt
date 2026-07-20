@@ -1,1 +1,1 @@
-Fixed duplicate completed-building spawns on clients and cleanup errors when buildings or items were destroyed.
+Fixed TileComplete and other completed buildings activating before their materials were initialized on clients.

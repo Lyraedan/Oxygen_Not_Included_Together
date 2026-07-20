@@ -12,6 +12,14 @@ namespace ONI_Together.Patches.World.Buildings
 {
 	internal class BuildingComplete_Patches
 	{
+		[HarmonyPatch(typeof(Assets), nameof(Assets.AddBuildingDef))]
+		public class Assets_AddBuildingDef_Patch
+		{
+			public static void Postfix(BuildingDef def)
+			{
+				NetworkIdentity.EnsurePersistentPrefabIdentity(def?.BuildingComplete);
+			}
+		}
 
         [HarmonyPatch(typeof(BuildingComplete), nameof(BuildingComplete.OnPrefabInit))]
         public class BuildingComplete_OnPrefabInit_Patch

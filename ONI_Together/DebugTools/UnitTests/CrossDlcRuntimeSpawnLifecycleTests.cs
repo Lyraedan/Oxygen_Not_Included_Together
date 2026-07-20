@@ -9,6 +9,7 @@ using ONI_Together.Networking.Packets.DLC.Aquatic;
 using ONI_Together.Networking.Packets.DLC.Frosty;
 using ONI_Together.Networking.Packets.DLC.Prehistoric;
 using ONI_Together.Networking.Packets.Social;
+using ONI_Together.Networking.Packets.World;
 using ONI_Together.Patches.DLC.Aquatic;
 using ONI_Together.Patches.DLC.Frosty;
 using ONI_Together.Patches.DLC.Prehistoric;
@@ -118,6 +119,50 @@ namespace ONI_Together.DebugTools.UnitTests
 					"A completed building can publish before host success or materialize through generic lifecycle");
 			return UnitTestResult.Pass(
 				"Every completed building materializes before its bind-existing lifecycle is published");
+		}
+
+		[UnitTest(
+			name: "Every completed building lifecycle binds an initialized object",
+			category: "Sync")]
+		public static UnitTestResult CompletedBuildingDescriptorsBindExisting()
+		{
+			if (Assets.BuildingDefs == null || Assets.BuildingDefs.Count == 0)
+				return UnitTestResult.Fail("No building definitions were loaded");
+			var violations = new List<string>();
+			int checkedDefinitions = 0;
+			foreach (BuildingDef def in Assets.BuildingDefs)
+			{
+				GameObject prefab = def?.BuildingComplete;
+				if (prefab == null)
+					continue;
+				NetworkIdentity identity = prefab.GetComponent<NetworkIdentity>();
+				if (identity == null)
+				{
+					violations.Add($"{def.PrefabID}: missing persistent NetworkIdentity");
+					continue;
+				}
+				NetworkIdentity.BindingState previous = identity.CaptureBindingState();
+				try
+				{
+					identity.NetId = -(checkedDefinitions + 1);
+					identity.LifecycleRevision = 1;
+					SpawnPrefabPacket descriptor = SpawnPrefabPacket.FromIdentity(identity);
+					if (descriptor == null || !descriptor.BindExistingOnly)
+						violations.Add(
+							$"{def.PrefabID}: can raw-instantiate {prefab.PrefabID()} before PrimaryElement initialization");
+					checkedDefinitions++;
+				}
+				finally
+				{
+					identity.RestoreBindingState(previous);
+				}
+			}
+			if (checkedDefinitions == 0)
+				return UnitTestResult.Fail("No completed building definitions were checked");
+			if (violations.Count != 0)
+				return UnitTestResult.Fail(string.Join("; ", violations));
+			return UnitTestResult.Pass(
+				$"All {checkedDefinitions} completed building definitions require existing-object binding");
 		}
 
 		private static bool Ordered(Type owner, string senderName, string captureName,

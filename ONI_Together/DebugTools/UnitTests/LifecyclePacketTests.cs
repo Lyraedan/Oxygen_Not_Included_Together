@@ -130,17 +130,21 @@ public static class LifecyclePacketTests
 	}
 
 	[UnitTest(
-		name: "Constructable lifecycle waits for build-state materialization",
+		name: "Building lifecycle waits for build-state materialization",
 		category: "Networking")]
-	public static UnitTestResult ConstructableWaitsForBuildState()
+	public static UnitTestResult BuildingsWaitForBuildState()
 	{
-		if (!SpawnPrefabPacket.RequiresBuildStateMaterialization(hasConstructable: true)
-		    || SpawnPrefabPacket.RequiresBuildStateMaterialization(hasConstructable: false)
+		if (!SpawnPrefabPacket.RequiresBuildStateMaterialization(
+			    hasConstructable: true, hasCompletedBuilding: false)
+		    || !SpawnPrefabPacket.RequiresBuildStateMaterialization(
+			    hasConstructable: false, hasCompletedBuilding: true)
+		    || SpawnPrefabPacket.RequiresBuildStateMaterialization(
+			    hasConstructable: false, hasCompletedBuilding: false)
 		    || !BuildStatePolicyIsUsed())
 			return UnitTestResult.Fail(
-				"Generic lifecycle can activate a Constructable without material tags");
+				"Generic lifecycle can activate a building without initialized materials");
 		return UnitTestResult.Pass(
-			"Every Constructable binds only after BuildState initializes its materials");
+			"Constructable and completed-building lifecycles wait for BuildState initialization");
 	}
 
 	private static bool BuildStatePolicyIsUsed()

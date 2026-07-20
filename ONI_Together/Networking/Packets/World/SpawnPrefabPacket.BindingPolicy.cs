@@ -8,15 +8,17 @@ namespace ONI_Together.Networking.Packets.World
 		private static bool RequiresExistingSnapshotBinding(
 			NetworkIdentity identity, GameObject gameObject, bool requirePersistent)
 			=> RequiresBuildStateMaterialization(
-				gameObject.GetComponent<Constructable>() != null)
+				gameObject.GetComponent<Constructable>() != null,
+				gameObject.GetComponent<BuildingComplete>() != null)
 			   || RequiresExistingSnapshotBinding(
 				identity.RequiresExistingBinding,
 				gameObject.GetComponent<SaveLoadRoot>() != null,
 				requirePersistent,
 				ElementLoader.GetElement(gameObject.PrefabID()) != null);
 
-		internal static bool RequiresBuildStateMaterialization(bool hasConstructable)
-			=> hasConstructable;
+		internal static bool RequiresBuildStateMaterialization(
+			bool hasConstructable, bool hasCompletedBuilding)
+			=> hasConstructable || hasCompletedBuilding;
 
 		internal static bool RequiresExistingSnapshotBinding(
 			bool identityRequiresExisting, bool hasSaveLoadRoot,
