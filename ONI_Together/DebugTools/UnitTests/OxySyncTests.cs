@@ -189,6 +189,8 @@ namespace ONI_Together.DebugTools.UnitTests
                 new Color(0.1f, 0.2f, 0.3f, 0.4f),
                 new Quaternion(0f, 0f, 0f, 1f),
                 new byte[] { 0xAA, 0xBB, 0xCC },
+                new HashedString(55555),
+                new KAnimHashedString(66666),
             };
 
             Type[] types = {
@@ -196,6 +198,7 @@ namespace ONI_Together.DebugTools.UnitTests
                 typeof(long), typeof(double), typeof(string),
                 typeof(Vector2), typeof(Vector3), typeof(Color),
                 typeof(Quaternion), typeof(byte[]),
+                typeof(HashedString), typeof(KAnimHashedString),
             };
 
             var data = RpcSerializer.Serialize(args, types);
@@ -236,7 +239,15 @@ namespace ONI_Together.DebugTools.UnitTests
             if (ba.Length != 3 || ba[0] != 0xAA || ba[1] != 0xBB || ba[2] != 0xCC)
                 return UnitTestResult.Fail("byte[] mismatch");
 
-            return UnitTestResult.Pass("All 12 RPC types round-trip correctly");
+            var hs = (HashedString)result[12];
+            if (hs.hash != 55555)
+                return UnitTestResult.Fail("HashedString mismatch");
+
+            var khs = (KAnimHashedString)result[13];
+            if (khs.hash != 66666)
+                return UnitTestResult.Fail("KAnimHashedString mismatch");
+
+            return UnitTestResult.Pass("All 14 RPC types round-trip correctly");
         }
 
         [UnitTest(name: "RpcSerializer empty args", category: "OxySync")]
@@ -265,7 +276,7 @@ namespace ONI_Together.DebugTools.UnitTests
             return UnitTestResult.Pass("Null string serializes as empty");
         }
 
-        [UnitTest(name: "Variant all 9 types round-trip", category: "OxySync")]
+        [UnitTest(name: "Variant all 23 types round-trip", category: "OxySync")]
         public static UnitTestResult VariantAllTypesRoundTrip()
         {
             Variant[] inputs = {
@@ -278,6 +289,20 @@ namespace ONI_Together.DebugTools.UnitTests
                 (Variant)new Vector2(4f, 5f),
                 (Variant)new byte[] { 0x01, 0x02 },
                 (Variant)new Quaternion(0.1f, 0.2f, 0.3f, 0.4f),
+                (Variant)new HashedString(12345),
+                (Variant)new KAnimHashedString(67890),
+                (Variant)(short)-1234,
+                (Variant)(ushort)5678,
+                (Variant)(uint)4000000000,
+                (Variant)9999999999999L,
+                (Variant)3.14159265358979,
+                (Variant)(sbyte)-99,
+                (Variant)'Z',
+                (Variant)new Color(0.1f, 0.2f, 0.3f, 0.4f),
+                new Variant { Type = Variant.TypeCode.VariantArray, VariantArray = new Variant[] { (Variant)1, (Variant)2, (Variant)3 } },
+                (Variant)new int[] { 10, 20, 30 },
+                (Variant)new float[] { 1.5f, 2.5f },
+                (Variant)new double[] { 3.14, 2.71 },
             };
 
             for (int i = 0; i < inputs.Length; i++)
@@ -331,13 +356,76 @@ namespace ONI_Together.DebugTools.UnitTests
                             Mathf.Abs(output.Quaternion.w - q.w) > 0.001f)
                             return UnitTestResult.Fail($"Quaternion variant {i} mismatch");
                         break;
+                    case Variant.TypeCode.HashedString:
+                        if (output.Int != 12345)
+                            return UnitTestResult.Fail($"HashedString variant {i} mismatch");
+                        break;
+                    case Variant.TypeCode.KAnimHashedString:
+                        if (output.Int != 67890)
+                            return UnitTestResult.Fail($"KAnimHashedString variant {i} mismatch");
+                        break;
+                    case Variant.TypeCode.Short:
+                        if (output.Int != -1234)
+                            return UnitTestResult.Fail($"Short variant {i} mismatch");
+                        break;
+                    case Variant.TypeCode.UShort:
+                        if (output.Int != 5678)
+                            return UnitTestResult.Fail($"UShort variant {i} mismatch");
+                        break;
+                    case Variant.TypeCode.UInt:
+                        if (output.Long != 4000000000)
+                            return UnitTestResult.Fail($"UInt variant {i} mismatch");
+                        break;
+                    case Variant.TypeCode.Long:
+                        if (output.Long != 9999999999999L)
+                            return UnitTestResult.Fail($"Long variant {i} mismatch");
+                        break;
+                    case Variant.TypeCode.Double:
+                        if (Math.Abs(output.Double - 3.14159265358979) > 0.0000000001)
+                            return UnitTestResult.Fail($"Double variant {i} mismatch");
+                        break;
+                    case Variant.TypeCode.SByte:
+                        if ((sbyte)output.Byte != -99)
+                            return UnitTestResult.Fail($"SByte variant {i} mismatch");
+                        break;
+                    case Variant.TypeCode.Char:
+                        if (output.Int != 'Z')
+                            return UnitTestResult.Fail($"Char variant {i} mismatch");
+                        break;
+                    case Variant.TypeCode.Color:
+                        var expectedCol = new Color(0.1f, 0.2f, 0.3f, 0.4f);
+                        if (Mathf.Abs(output.Color.r - expectedCol.r) > 0.001f ||
+                            Mathf.Abs(output.Color.g - expectedCol.g) > 0.001f ||
+                            Mathf.Abs(output.Color.b - expectedCol.b) > 0.001f ||
+                            Mathf.Abs(output.Color.a - expectedCol.a) > 0.001f)
+                            return UnitTestResult.Fail($"Color variant {i} mismatch");
+                        break;
+                    case Variant.TypeCode.VariantArray:
+                        if (output.VariantArray.Length != 3 ||
+                            output.VariantArray[0].Int != 1 ||
+                            output.VariantArray[1].Int != 2 ||
+                            output.VariantArray[2].Int != 3)
+                            return UnitTestResult.Fail($"VariantArray variant {i} mismatch");
+                        break;
+                    case Variant.TypeCode.IntArray:
+                        if (output.IntArray.Length != 3 || output.IntArray[0] != 10 || output.IntArray[2] != 30)
+                            return UnitTestResult.Fail($"IntArray variant {i} mismatch");
+                        break;
+                    case Variant.TypeCode.FloatArray:
+                        if (output.FloatArray.Length != 2 || Mathf.Abs(output.FloatArray[0] - 1.5f) > 0.001f)
+                            return UnitTestResult.Fail($"FloatArray variant {i} mismatch");
+                        break;
+                    case Variant.TypeCode.DoubleArray:
+                        if (output.DoubleArray.Length != 2 || Math.Abs(output.DoubleArray[1] - 2.71) > 0.001)
+                            return UnitTestResult.Fail($"DoubleArray variant {i} mismatch");
+                        break;
                 }
             }
 
-            return UnitTestResult.Pass("All 9 Variant types round-trip correctly");
+            return UnitTestResult.Pass("All 23 Variant types round-trip correctly");
         }
 
-        [UnitTest(name: "SyncVarPacket VariantToObject supports all types", category: "OxySync")]
+        [UnitTest(name: "VariantToObject supports all types", category: "OxySync")]
         public static UnitTestResult VariantToObjectAllTypes()
         {
             var testCases = new (Variant V, Type TargetType, object Expected)[]
@@ -351,11 +439,26 @@ namespace ONI_Together.DebugTools.UnitTests
                 ((Variant)new Vector2(4,5), typeof(Vector2), new Vector2(4,5)),
                 ((Variant)new byte[] { 0x01 }, typeof(byte[]), new byte[] { 0x01 }),
                 ((Variant)new Quaternion(0.1f, 0.2f, 0.3f, 0.4f), typeof(Quaternion), new Quaternion(0.1f, 0.2f, 0.3f, 0.4f)),
+                (new Variant { Type = Variant.TypeCode.HashedString, Int = 12345 }, typeof(HashedString), new HashedString(12345)),
+                (new Variant { Type = Variant.TypeCode.KAnimHashedString, Int = 67890 }, typeof(KAnimHashedString), new KAnimHashedString(67890)),
+                (new Variant { Type = Variant.TypeCode.Int, Int = 2 }, typeof(System.StringComparison), System.StringComparison.InvariantCulture),
+                (new Variant { Type = Variant.TypeCode.Int, Int = 5 }, typeof(System.StringComparison), System.StringComparison.OrdinalIgnoreCase),
+                ((Variant)(short)-1234, typeof(short), (short)-1234),
+                ((Variant)(ushort)5678, typeof(ushort), (ushort)5678),
+                ((Variant)(uint)4000000000, typeof(uint), (uint)4000000000u),
+                ((Variant)9999999999999L, typeof(long), 9999999999999L),
+                ((Variant)3.14159265358979, typeof(double), 3.14159265358979),
+                ((Variant)(sbyte)-99, typeof(sbyte), (sbyte)-99),
+                ((Variant)'Z', typeof(char), 'Z'),
+                ((Variant)new Color(0.1f, 0.2f, 0.3f, 0.4f), typeof(Color), new Color(0.1f, 0.2f, 0.3f, 0.4f)),
+                ((Variant)new int[] { 10, 20, 30 }, typeof(int[]), new int[] { 10, 20, 30 }),
+                ((Variant)new float[] { 1.5f, 2.5f }, typeof(float[]), new float[] { 1.5f, 2.5f }),
+                ((Variant)new double[] { 3.14, 2.71 }, typeof(double[]), new double[] { 3.14, 2.71 }),
             };
 
             foreach (var (v, type, expected) in testCases)
             {
-                var result = SyncVarPacket.VariantToObject(v, type);
+                var result = VariantHelper.VariantToObject(v, type);
                 if (result == null)
                     return UnitTestResult.Fail($"VariantToObject returned null for {type.Name}");
 
@@ -363,6 +466,11 @@ namespace ONI_Together.DebugTools.UnitTests
                 {
                     if (Mathf.Abs((float)result - (float)expected) > 0.001f)
                         return UnitTestResult.Fail($"Float conversion mismatch: {result} != {expected}");
+                }
+                else if (type == typeof(double))
+                {
+                    if (Math.Abs((double)result - (double)expected) > 0.0000000001)
+                        return UnitTestResult.Fail($"Double conversion mismatch: {result} != {expected}");
                 }
                 else if (type == typeof(Vector3))
                 {
@@ -385,6 +493,27 @@ namespace ONI_Together.DebugTools.UnitTests
                     if (r.Length != e.Length || r[0] != e[0])
                         return UnitTestResult.Fail($"byte[] conversion mismatch");
                 }
+                else if (type == typeof(int[]))
+                {
+                    var r = (int[])result;
+                    var e = (int[])expected;
+                    if (r.Length != e.Length || r[0] != e[0] || r[2] != e[2])
+                        return UnitTestResult.Fail($"int[] conversion mismatch");
+                }
+                else if (type == typeof(float[]))
+                {
+                    var r = (float[])result;
+                    var e = (float[])expected;
+                    if (r.Length != e.Length || Mathf.Abs(r[0] - e[0]) > 0.001f)
+                        return UnitTestResult.Fail($"float[] conversion mismatch");
+                }
+                else if (type == typeof(double[]))
+                {
+                    var r = (double[])result;
+                    var e = (double[])expected;
+                    if (r.Length != e.Length || Math.Abs(r[0] - e[0]) > 0.001)
+                        return UnitTestResult.Fail($"double[] conversion mismatch");
+                }
                 else if (type == typeof(Quaternion))
                 {
                     var r = (Quaternion)result;
@@ -399,14 +528,14 @@ namespace ONI_Together.DebugTools.UnitTests
                 }
             }
 
-            return UnitTestResult.Pass("VariantToObject converts all 9 supported types");
+            return UnitTestResult.Pass("VariantToObject converts all 24 supported types");
         }
 
         [UnitTest(name: "VariantToObject null string fallback", category: "OxySync")]
         public static UnitTestResult VariantToObjectNullString()
         {
             var v = new Variant { Type = Variant.TypeCode.String, String = null };
-            var result = SyncVarPacket.VariantToObject(v, typeof(string));
+            var result = VariantHelper.VariantToObject(v, typeof(string));
             if (result is not string s || s != string.Empty)
                 return UnitTestResult.Fail("Null string should become empty string");
             return UnitTestResult.Pass("Null string falls back to empty");
@@ -416,10 +545,52 @@ namespace ONI_Together.DebugTools.UnitTests
         public static UnitTestResult VariantToObjectNullByteArray()
         {
             var v = new Variant { Type = Variant.TypeCode.ByteArray, ByteArray = null };
-            var result = SyncVarPacket.VariantToObject(v, typeof(byte[]));
+            var result = VariantHelper.VariantToObject(v, typeof(byte[]));
             if (result is not byte[] ba || ba.Length != 0)
                 return UnitTestResult.Fail("Null byte[] should become empty array");
             return UnitTestResult.Pass("Null byte[] falls back to empty");
+        }
+
+        [UnitTest(name: "VariantToObject collections round-trip", category: "OxySync")]
+        public static UnitTestResult VariantToObjectCollections()
+        {
+            var vArr = new Variant { Type = Variant.TypeCode.VariantArray, VariantArray = new Variant[] { (Variant)1, (Variant)2, (Variant)3 } };
+
+            var arr = (int[])VariantHelper.VariantToObject(vArr, typeof(int[]));
+            if (arr.Length != 3 || arr[0] != 1 || arr[1] != 2 || arr[2] != 3)
+                return UnitTestResult.Fail("int[] mismatch");
+
+            var list = (List<string>)VariantHelper.VariantToObject(
+                new Variant { Type = Variant.TypeCode.VariantArray, VariantArray = new Variant[] { (Variant)"a", (Variant)"b" } },
+                typeof(List<string>));
+            if (list.Count != 2 || list[0] != "a" || list[1] != "b")
+                return UnitTestResult.Fail("List<string> mismatch");
+
+            var hashSet = (HashSet<int>)VariantHelper.VariantToObject(
+                new Variant { Type = Variant.TypeCode.VariantArray, VariantArray = new Variant[] { (Variant)10, (Variant)20 } },
+                typeof(HashSet<int>));
+            if (hashSet.Count != 2 || !hashSet.Contains(10) || !hashSet.Contains(20))
+                return UnitTestResult.Fail("HashSet<int> mismatch");
+
+            var queue = (Queue<string>)VariantHelper.VariantToObject(
+                new Variant { Type = Variant.TypeCode.VariantArray, VariantArray = new Variant[] { (Variant)"x", (Variant)"y" } },
+                typeof(Queue<string>));
+            if (queue.Count != 2 || queue.Dequeue() != "x" || queue.Dequeue() != "y")
+                return UnitTestResult.Fail("Queue<string> mismatch");
+
+            var stack = (Stack<float>)VariantHelper.VariantToObject(
+                new Variant { Type = Variant.TypeCode.VariantArray, VariantArray = new Variant[] { (Variant)3f, (Variant)2f, (Variant)1f } },
+                typeof(Stack<float>));
+            if (stack.Count != 3 || Mathf.Abs(stack.Pop() - 1f) > 0.001f)
+                return UnitTestResult.Fail("Stack<float> mismatch");
+
+            var dict = (Dictionary<string, int>)VariantHelper.VariantToObject(
+                new Variant { Type = Variant.TypeCode.VariantArray, VariantArray = new Variant[] { (Variant)"k1", (Variant)1, (Variant)"k2", (Variant)2 } },
+                typeof(Dictionary<string, int>));
+            if (dict.Count != 2 || dict["k1"] != 1 || dict["k2"] != 2)
+                return UnitTestResult.Fail("Dictionary<string,int> mismatch");
+
+            return UnitTestResult.Pass("All 6 collection types round-trip correctly");
         }
 
         [UnitTest(name: "RpcSerializer new primitives round-trip", category: "OxySync")]
@@ -738,6 +909,7 @@ namespace ONI_Together.DebugTools.UnitTests
                 typeof(Quaternion), typeof(byte[]), typeof(ulong),
                 typeof(short), typeof(ushort), typeof(uint),
                 typeof(sbyte), typeof(char), typeof(decimal),
+                typeof(HashedString), typeof(KAnimHashedString),
                 typeof(int[]), typeof(string[]), typeof(Vector3[]),
                 typeof(List<int>), typeof(List<string>),
                 typeof(Dictionary<string, int>),

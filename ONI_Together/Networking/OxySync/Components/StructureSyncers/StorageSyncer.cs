@@ -7,7 +7,7 @@ using UnityEngine;
 namespace ONI_Together.Networking.OxySync.Components
 {
     [SkipSaveFileSerialization]
-    public class StorageSyncComponent : NetworkBehaviour
+    public class StorageSyncer : NetworkBehaviour
     {
         private Storage _storage;
         private bool _storageDirty;

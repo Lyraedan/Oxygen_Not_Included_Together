@@ -1,4 +1,5 @@
 using KSerialization;
+using Shared.OxySync;
 using Shared.OxySync.Attributes;
 using UnityEngine;
 
