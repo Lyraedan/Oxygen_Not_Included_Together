@@ -44,8 +44,13 @@
 		<PrehistoricRelease>674504</PrehistoricRelease>
 		<QOL2025NovBeta>699556</QOL2025NovBeta>
 		<QOL2025NovRelease>700386</QOL2025NovRelease>
+		<QOL2026MarchRelease>722606</QOL2026MarchRelease>
+		<BeachedDlcBeta>731233</BeachedDlcBeta>
+		<BeachedDlcRelease>736649</BeachedDlcRelease>
+		<BeacheedDlcHotfix1>737790</BeacheedDlcHotfix1>
 		<!--Latest-->
-		<TargetGameVersion>$(QOL2025NovRelease)</TargetGameVersion>
+		<TargetGameVersion>$(BeachedDlcRelease)</TargetGameVersion>
+		
 	</PropertyGroup>
 
 

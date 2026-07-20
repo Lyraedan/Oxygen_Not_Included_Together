@@ -8,7 +8,7 @@ namespace ONI_Together.Networking.OxySync.Components
 {
     [SkipSaveFileSerialization]
     [FixedInterestGroup]
-    public class GameSpeedSyncComponent : NetworkBehaviour
+    public class GameSpeedSyncer : NetworkBehaviour
     {
         public enum SpeedState
         {
@@ -18,7 +18,7 @@ namespace ONI_Together.Networking.OxySync.Components
             Triple = 2
         }
 
-        public static GameSpeedSyncComponent? Instance { get; private set; }
+        public static GameSpeedSyncer? Instance { get; private set; }
 
         private SpeedState _currentState;
         private float _lastForceSyncTime;

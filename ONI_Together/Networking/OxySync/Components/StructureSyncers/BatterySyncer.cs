@@ -8,7 +8,7 @@ using UnityEngine;
 namespace ONI_Together.Networking.OxySync.Components
 {
     [SkipSaveFileSerialization]
-    public class BatterySyncComponent : NetworkBehaviour
+    public class BatterySyncer : NetworkBehaviour
     {
         private Battery _battery;
 

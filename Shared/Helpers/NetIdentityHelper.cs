@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace Shared.OxySync
+namespace Shared.Helpers
 {
     public static class NetIdentityHelper
     {
