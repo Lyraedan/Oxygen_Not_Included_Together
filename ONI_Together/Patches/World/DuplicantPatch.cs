@@ -32,6 +32,11 @@ public static class DuplicantPatch
 		__result.AddOrGet<OxySyncEntityPositionHandler>();
 		//__result.AddOrGet<VitalStatsSyncer>();
 		__result.AddOrGet<VitalStatsSyncer>();
+
+		if (__result.HasTag(GameTags.Minions.Models.Bionic))
+		{
+			// Bionic specific syncers
+		}
 	}
 
 	public static void ToggleEffect(GameObject minion, string eventName, int contextHash, bool enable)
