@@ -9,6 +9,7 @@ using ONI_Together.Scripts.Duplicants;
 using System.Collections;
 using Shared.Profiling;
 using UnityEngine;
+using VitalStatsSyncer = ONI_Together.Networking.OxySync.Components.VitalStatsSyncer;
 
 [HarmonyPatch(typeof(BaseMinionConfig), nameof(BaseMinionConfig.BaseMinion))]
 public static class DuplicantPatch
@@ -30,7 +31,7 @@ public static class DuplicantPatch
 
 		__result.AddOrGet<OxySyncEntityPositionHandler>();
 		//__result.AddOrGet<VitalStatsSyncer>();
-		__result.AddOrGet<VitalStatsSyncComponent>();
+		__result.AddOrGet<VitalStatsSyncer>();
 	}
 
 	public static void ToggleEffect(GameObject minion, string eventName, int contextHash, bool enable)

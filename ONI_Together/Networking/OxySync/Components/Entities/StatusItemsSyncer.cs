@@ -12,7 +12,7 @@ using UnityEngine;
 namespace ONI_Together.Networking.OxySync.Components
 {
     [SkipSaveFileSerialization]
-    public class StatusItemsSyncComponent : NetworkBehaviour
+    public class StatusItemsSyncer : NetworkBehaviour
     {
         public enum StatusRecieverType
         {
