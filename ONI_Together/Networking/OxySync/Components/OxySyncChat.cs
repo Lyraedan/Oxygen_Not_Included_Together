@@ -46,9 +46,7 @@ public class OxySyncChat : NetworkBehaviour
         Instance = this;
         NetId = nameof(OxySyncChat).GetHashCode();
         InterestGroup = -1;
-
-        _knownPlayers = new HashSet<ulong>(MultiplayerSession.ConnectedPlayers.Keys);
-
+        
         if (Game.Instance != null)
         {
             Game.Instance.Subscribe(MP_HASHES.OnPlayerJoined, OnPlayerJoined);
