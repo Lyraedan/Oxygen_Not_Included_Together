@@ -2,7 +2,11 @@
 
 Oxygen Not Included Together is a synchronized multiplayer mod for Oxygen Not Included. Version 1.0.5 targets game build `U59-740622-S` and uses network protocol version `9`.
 
-This repository is a personal development fork of [Lyraedan/Oxygen_Not_Included_Together](https://github.com/Lyraedan/Oxygen_Not_Included_Together). The original repository is no longer maintained. This fork is independent and unofficial.
+This repository is a personal development fork of [Lyraedan/Oxygen_Not_Included_Together](https://github.com/Lyraedan/Oxygen_Not_Included_Together). The original repository is still very much maintained.
+
+This fork relies on AI to make alot of its changes and is independent and unofficial.
+
+It is recommended for the best experience to use the official repo.
 
 ## Status
 
