@@ -126,26 +126,11 @@ public class OxySyncChat : NetworkBehaviour
             message = formatted,
             colorHex = colorHex            
         });
-
-        // Add the message locally to the server's chat box. (because the server is also a client)
-        string senderName = playerName;
-        if (NetworkConfig.IsSteamConfig())
-        {
-            CSteamID cSteamId = playerId.AsCSteamID();
-            if (SteamFriends.HasFriend(cSteamId, EFriendFlags.k_EFriendFlagImmediate))
-                senderName = SteamFriends.GetFriendPersonaName(cSteamId);
-        }
-
-        // The command was called from the server and thus has already added the message to the chatbox
-        if (playerId != MultiplayerSession.LocalUserID)
-        {
-            AddMessageToChatbox(senderName, message, timestamp, playerColor);
-        }
-
+        
         CallClientRpc(nameof(BroadcastMessage), playerId, playerName, playerColor, message, timestamp);
     }
 
-    [ClientRpc]
+    [ClientRpc(IncludeHost = true)]
     public void BroadcastMessage(ulong playerId, string playerName, Color playerColor, string message, long timestamp)
     {
         if (playerId == MultiplayerSession.LocalUserID)
