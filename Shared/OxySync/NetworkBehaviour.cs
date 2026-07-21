@@ -78,6 +78,7 @@ namespace Shared.OxySync
             public Type[] ArgTypes;
             public int InterestGroup;
             public int SendMode;
+            public bool IncludeHost;
         }
 
         public override void OnSpawn()
@@ -204,6 +205,7 @@ namespace Shared.OxySync
                 ArgTypes = method.GetParameters().Select(p => p.ParameterType).ToArray(),
                 InterestGroup = attr.InterestGroup != -1 ? attr.InterestGroup : classDefaultGroup,
                 SendMode = attr.SendMode,
+                IncludeHost = attr.IncludeHost,
             };
         }
 
@@ -252,6 +254,9 @@ namespace Shared.OxySync
                 SendClientRpcToAll?.Invoke(NetId, hash, serialized, sendMode);
             else
                 SendClientRpcToGroup?.Invoke(group, NetId, hash, serialized, sendMode);
+
+            if (GetClientRpcIncludeHost(hash))
+                InvokeClientRpc(hash, serialized);
         }
 
         protected void CallClientRpc(int interestGroup, string methodName, params object[] args)
@@ -267,6 +272,9 @@ namespace Shared.OxySync
                 SendClientRpcToAll?.Invoke(NetId, hash, serialized, sendMode);
             else
                 SendClientRpcToGroup?.Invoke(interestGroup, NetId, hash, serialized, sendMode);
+
+            if (GetClientRpcIncludeHost(hash))
+                InvokeClientRpc(hash, serialized);
         }
 
         protected void CallTargetRpc(ulong targetPlayer, string methodName, params object[] args)
@@ -373,6 +381,13 @@ namespace Shared.OxySync
             if (_clientRpcMethods != null && _clientRpcMethods.TryGetValue(hash, out var m))
                 return m.InterestGroup;
             return -1;
+        }
+
+        private bool GetClientRpcIncludeHost(int hash)
+        {
+            if (_clientRpcMethods != null && _clientRpcMethods.TryGetValue(hash, out var m))
+                return m.IncludeHost;
+            return false;
         }
 
         private int GetCommandSendMode(int hash)
