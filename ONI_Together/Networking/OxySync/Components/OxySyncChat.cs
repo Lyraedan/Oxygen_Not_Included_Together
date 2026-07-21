@@ -27,9 +27,10 @@ public class OxySyncChat : NetworkBehaviour
 
     public struct PendingMessage
     {
+        public string sender;
         public long timestamp;
         public string message;
-        public string colorHex;
+        public Color color;
     }
     
     public static OxySyncChat? Instance { get; private set; }
@@ -78,15 +79,8 @@ public class OxySyncChat : NetworkBehaviour
     {
         if (!isServer) return;
 
-        /*
-        foreach (var kvp in MultiplayerSession.ConnectedPlayers)
-        {
-            if (!_knownPlayers.Contains(kvp.Key))
-            {
-                _knownPlayers.Add(kvp.Key);
-                SendHistoryToPlayer(kvp.Key);
-            }
-        }*/
+        ulong playerId = Boxed<ulong>.Unbox(obj);
+        SendHistoryToPlayer(playerId);
     }
 
     public static void AddSystemMessage(string message)
@@ -107,7 +101,6 @@ public class OxySyncChat : NetworkBehaviour
         long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         AddMessageToChatbox(playerName, text, timestamp, playerColor);
-
         CallCommand(nameof(ClientSendMessage), playerId, playerName, playerColor, text, timestamp);
     }
 
@@ -122,9 +115,10 @@ public class OxySyncChat : NetworkBehaviour
         // Add it to the server chat history
         _chatHistory.Add(new PendingMessage
         {
+            sender = playerName,
             timestamp = timestamp,
             message = formatted,
-            colorHex = colorHex            
+            color = playerColor            
         });
         
         CallClientRpc(nameof(BroadcastMessage), playerId, playerName, playerColor, message, timestamp);
@@ -147,33 +141,44 @@ public class OxySyncChat : NetworkBehaviour
         AddMessageToChatbox(senderName, message, timestamp, playerColor);
     }
 
-	/* WIP
-    private void SendHistoryToPlayer(ulong playerId)
+    private void SendHistoryToPlayer(ulong playerId, int maxMessages = 10)
     {
         if (_chatHistory.Count == 0) return;
 
-        long[] timestamps = new long[_chatHistory.Count];
-        string[] messages = new string[_chatHistory.Count];
-        for (int i = 0; i < _chatHistory.Count; i++)
+        int count = Math.Min(maxMessages, _chatHistory.Count);
+        int startIndex = _chatHistory.Count - count;
+
+        using var ms = new MemoryStream();
+        using var writer = new BinaryWriter(ms);
+        writer.Write(count);
+        for (int i = startIndex; i < _chatHistory.Count; i++)
         {
-            timestamps[i] = _chatHistory[i].timestamp;
-            messages[i] = CompressString(_chatHistory[i].message);
+            var msg = _chatHistory[i];
+            writer.Write(msg.sender);
+            writer.Write(msg.timestamp);
+            writer.Write(msg.message);
+            writer.Write(msg.color);
         }
 
-        CallTargetRpc(playerId, nameof(TargetRpcReceiveHistory), timestamps, messages);
+        CallTargetRpc(playerId, nameof(TargetRpcReceiveHistory), ms.ToArray());
     }
 
     [TargetRpc]
-    public void TargetRpcReceiveHistory(long[] timestamps, string[] messages)
+    public void TargetRpcReceiveHistory(byte[] data)
     {
         AddSystemMessage(STRINGS.UI.MP_CHATWINDOW.CHAT_INITIALIZED);
 
-        for (int i = 0; i < timestamps.Length; i++)
+        using var reader = new BinaryReader(new MemoryStream(data));
+        int count = reader.ReadInt32();
+        for (int i = 0; i < count; i++)
         {
-            string ts = DateTimeOffset.FromUnixTimeMilliseconds(timestamps[i]).DateTime.ToString("HH:mm", CultureInfo.InvariantCulture);
-            UnityChatBoxUI.Instance?.SendNewNewMessage("System", ts, DecompressString(messages[i]),messages[i].colorhex.ToColor);
+            string sender = reader.ReadString();
+            long timestamp = reader.ReadInt64();
+            string message = reader.ReadString();
+            Color color = reader.ReadColor();
+            AddMessageToChatbox(sender, message, timestamp, color);
         }
-    }*/
+    }
     
     public void AddMessageToChatbox(string sender, string message, long timestamp, Color color)
     {
