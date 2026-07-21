@@ -36,8 +36,6 @@ public class OxySyncChat : NetworkBehaviour
     public static OxySyncChat? Instance { get; private set; }
 
     private static List<PendingMessage> _chatHistory = new();
-    private HashSet<ulong> _knownPlayers = new();
-
     private List<long> _timestampCache = new ();
     
     public static IReadOnlyList<PendingMessage> ChatHistory => _chatHistory;
