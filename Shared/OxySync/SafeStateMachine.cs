@@ -41,7 +41,7 @@ namespace Shared.OxySync
 
             try
             {
-                smi.GoTo(target);
+                smi.GoTo(target.name);
                 return true;
             }
             catch (Exception ex)
