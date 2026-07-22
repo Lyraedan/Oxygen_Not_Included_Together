@@ -97,11 +97,11 @@ public class OxySyncChat : NetworkBehaviour
         long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         AddMessageToChatbox(playerName, text, timestamp, playerColor);
-        CallCommand(nameof(ClientSendMessage), playerId, playerName, playerColor, text, timestamp);
+        CallCommand(nameof(CmdSendMessage), playerId, playerName, playerColor, text, timestamp);
     }
 
     [Command]
-    public void ClientSendMessage(ulong playerId, string playerName, Color playerColor, string message, long timestamp)
+    public void CmdSendMessage(ulong playerId, string playerName, Color playerColor, string message, long timestamp)
     {
         if (string.IsNullOrEmpty(message)) return;
 
@@ -150,9 +150,9 @@ public class OxySyncChat : NetworkBehaviour
         for (int i = startIndex; i < _chatHistory.Count; i++)
         {
             var msg = _chatHistory[i];
-            writer.Write(msg.sender);
+            writer.Write(Utils.CompressString(msg.sender));
             writer.Write(msg.timestamp);
-            writer.Write(msg.message);
+            writer.Write(Utils.CompressString(msg.message));
             writer.Write(msg.color);
         }
 
@@ -168,9 +168,9 @@ public class OxySyncChat : NetworkBehaviour
         int count = reader.ReadInt32();
         for (int i = 0; i < count; i++)
         {
-            string sender = reader.ReadString();
+            string sender = Utils.DecompressString(reader.ReadString());
             long timestamp = reader.ReadInt64();
-            string message = reader.ReadString();
+            string message = Utils.DecompressString(reader.ReadString());
             Color color = reader.ReadColor();
             AddMessageToChatbox(sender, message, timestamp, color);
         }
