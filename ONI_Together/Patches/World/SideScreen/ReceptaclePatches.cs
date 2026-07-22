@@ -80,13 +80,6 @@ namespace ONI_Together.Patches.World.SideScreen
 	[HarmonyPatch(typeof(SingleEntityReceptacle), nameof(SingleEntityReceptacle.CancelActiveRequest))]
 	public static class SingleEntityReceptacle_CancelActiveRequest_Patch
 	{
-		public static bool Prefix()
-		{
-			if (!MultiplayerSession.InActiveSession) return true;
-			if (MultiplayerSession.IsHost) return true;
-			return false; // Client: skip, let host handle it
-		}
-
 		public static void Postfix(SingleEntityReceptacle __instance)
 		{
 			using var _ = Profiler.Scope();
