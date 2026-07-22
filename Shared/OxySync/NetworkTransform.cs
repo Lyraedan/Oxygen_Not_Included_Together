@@ -328,12 +328,12 @@ namespace Shared.OxySync
 
         protected virtual void OnServerPositionRequest(ulong requesterId)
         {
-            CallTargetRpc(requesterId, nameof(RpcReceivePosition),
+            CallTargetRpc(requesterId, nameof(TargetReceivePosition),
                 target.position, target.rotation, target.localScale);
         }
 
         [TargetRpc]
-        protected void RpcReceivePosition(Vector3 position, Quaternion rotation, Vector3 scale)
+        protected void TargetReceivePosition(Vector3 position, Quaternion rotation, Vector3 scale)
         {
             _netPosition = position;
             _netRotation = rotation;

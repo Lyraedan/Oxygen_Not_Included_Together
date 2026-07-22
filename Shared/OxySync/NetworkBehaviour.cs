@@ -170,18 +170,32 @@ namespace Shared.OxySync
                 var cmdAttr = method.GetCustomAttribute<CommandAttribute>();
                 if (cmdAttr != null)
                 {
+                    ValidateMethodPrefix(method, "Cmd", "Command");
                     (_commandMethods ??= new())[method.Name.GetHashCode()] = MakeCachedMethod(method, cmdAttr);
                 }
                 var rpcAttr = method.GetCustomAttribute<ClientRpcAttribute>();
                 if (rpcAttr != null)
                 {
+                    ValidateMethodPrefix(method, "Rpc", "ClientRpc");
                     (_clientRpcMethods ??= new())[method.Name.GetHashCode()] = MakeCachedMethod(method, rpcAttr, classDefaultGroup);
                 }
                 var tgtAttr = method.GetCustomAttribute<TargetRpcAttribute>();
                 if (tgtAttr != null)
                 {
+                    ValidateMethodPrefix(method, "Target", "TargetRpc");
                     (_targetRpcMethods ??= new())[method.Name.GetHashCode()] = MakeCachedMethod(method, tgtAttr);
                 }
+            }
+        }
+
+        private static void ValidateMethodPrefix(MethodInfo method, string expectedPrefix, string attributeName)
+        {
+            if (!method.Name.StartsWith(expectedPrefix, StringComparison.Ordinal))
+            {
+                LogWarning?.Invoke(
+                    $"[OxySync] Method '{method.Name}' has [{attributeName}] but name doesn't start with '{expectedPrefix}'. " +
+                    $"Rename to '{expectedPrefix}{method.Name}' to follow convention."
+                );
             }
         }
 

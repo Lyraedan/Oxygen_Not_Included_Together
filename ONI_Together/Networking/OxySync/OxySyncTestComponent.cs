@@ -27,21 +27,21 @@ namespace ONI_Together.Networking.OxySync
         public bool IsActive => _isActive;
 
         [Command]
-        public void SetCounter(int value)
+        public void CmdSetCounter(int value)
         {
             _counter = value;
             CallClientRpc(nameof(RpcOnCounterUpdated), value);
         }
 
         [Command]
-        public void IncrementCounter()
+        public void CmdIncrementCounter()
         {
             _counter++;
             CallClientRpc(nameof(RpcOnCounterUpdated), _counter);
         }
 
         [Command(RequiresHost = true)]
-        public void Reset()
+        public void CmdReset()
         {
             _counter = 0;
             _temperature = 25f;
@@ -50,19 +50,19 @@ namespace ONI_Together.Networking.OxySync
         }
 
         [Command(SendMode = 0)] // Unreliable
-        public void SetTemperature(float value)
+        public void CmdSetTemperature(float value)
         {
             _temperature = value;
         }
 
         [Command]
-        public void SetLabel(string value)
+        public void CmdSetLabel(string value)
         {
             _label = value;
         }
 
         [Command]
-        public void ToggleActive()
+        public void CmdToggleActive()
         {
             _isActive = !_isActive;
         }
@@ -80,7 +80,7 @@ namespace ONI_Together.Networking.OxySync
         }
 
         [TargetRpc(SendMode = 0)] // Unreliable
-        private void SendDirectMessage(string message)
+        private void TargetSendDirectMessage(string message)
         {
             DebugConsole.Log($"[OxySyncTest] Direct message: {message}");
         }
