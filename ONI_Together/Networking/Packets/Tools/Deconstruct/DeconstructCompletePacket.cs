@@ -37,10 +37,18 @@ namespace ONI_Together.Networking.Packets.Tools.Deconstruct
 			if (go == null)
 				return;
 
-			if (go.TryGetComponent<Deconstructable>(out var deconstructable) && !deconstructable.HasBeenDestroyed)
+			if (!go.TryGetComponent<Deconstructable>(out var deconstructable) || deconstructable.HasBeenDestroyed)
+				return;
+
+			DebugConsole.Log($"[DeconstructCompletePacket] Completing deconstruct at cell {Cell} on objectlayer {ObjectLayer} on client.");
+
+			try
 			{
-				DebugConsole.Log($"[DeconstructCompletePacket] Forcing deconstruct at cell {Cell} on objectlayer {ObjectLayer} on client.");
-				deconstructable.ForceDestroyAndGetMaterials();
+				deconstructable.OnCompleteWork(null);
+			}
+			catch (System.Exception ex)
+			{
+				DebugConsole.LogError($"[DeconstructCompletePacket] Error completing deconstruct at cell {Cell} on objectlayer {ObjectLayer}: {ex}");
 			}
 		}
 	}
