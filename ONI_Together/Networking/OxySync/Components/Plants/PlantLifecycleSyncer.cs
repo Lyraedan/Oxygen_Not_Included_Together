@@ -55,8 +55,14 @@ namespace ONI_Together.Networking.OxySync.Components
             base.OnSpawn();
             Instance = this;
             InterestGroup = -1;
+            SetNetworkIdentity();
             _initializationTime = Time.unscaledTime;
             _initialized = true;
+        }
+
+        public void SetNetworkIdentity()
+        {
+            NetId = nameof(PlantLifecycleSyncer).GetHashCode();
         }
 
         public override void OnCleanUp()
