@@ -61,6 +61,8 @@ namespace ONI_Together.Networking.Components
 		/// </summary>
 		private readonly Dictionary<ulong, RectInt> _clientViewports = new Dictionary<ulong, RectInt>();
 
+		public IReadOnlyDictionary<ulong, RectInt> ClientViewports => _clientViewports;
+
 		private void Awake()
 		{
 			using var _ = Profiler.Scope();
@@ -175,7 +177,7 @@ namespace ONI_Together.Networking.Components
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost)
+			if (!MultiplayerSession.InActiveSession || !MultiplayerSession.IsHost)
 				return;
 
 			// Update game info even when no clients connected (for lobby browser)

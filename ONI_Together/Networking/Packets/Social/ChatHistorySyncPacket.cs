@@ -1,5 +1,8 @@
+using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.UI;
+using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using ONI_Together.Networking.Packets.Architecture;
 using Shared.Profiling;
@@ -8,13 +11,13 @@ namespace ONI_Together.Networking.Packets.Social
 {
 	public class ChatHistorySyncPacket : IPacket
 	{
-		public List<ChatScreen.PendingMessage> Messages = new List<ChatScreen.PendingMessage>();
+		public List<OxySyncChat.PendingMessage> Messages = new List<OxySyncChat.PendingMessage>();
 
 		public ChatHistorySyncPacket()
 		{
 		}
 
-		public ChatHistorySyncPacket(List<ChatScreen.PendingMessage> messages)
+		public ChatHistorySyncPacket(List<OxySyncChat.PendingMessage> messages)
 		{
 			using var _ = Profiler.Scope();
 
@@ -38,10 +41,10 @@ namespace ONI_Together.Networking.Packets.Social
 			using var _ = Profiler.Scope();
 
 			int count = reader.ReadInt32();
-			Messages = new List<ChatScreen.PendingMessage>(count);
+			Messages = new List<OxySyncChat.PendingMessage>(count);
 			for (int i = 0; i < count; i++)
 			{
-				Messages.Add(new ChatScreen.PendingMessage
+				Messages.Add(new OxySyncChat.PendingMessage
 				{
 					timestamp = reader.ReadInt64(),
 					message = reader.ReadString()
@@ -53,14 +56,17 @@ namespace ONI_Together.Networking.Packets.Social
 		{
 			using var _ = Profiler.Scope();
 
-			if (ChatScreen.Instance != null)
-				ChatScreen.Instance.ClearMessages();
-
-			var initMsg = ChatScreen.GeneratePendingMessage(STRINGS.UI.MP_CHATWINDOW.CHAT_INITIALIZED);
-			ChatScreen.QueueMessage(initMsg);
+			if (UnityChatBoxUI.Instance != null)
+			{
+				var ts = DateTimeOffset.FromUnixTimeMilliseconds(0).DateTime.ToString("HH:mm", CultureInfo.InvariantCulture);
+				UnityChatBoxUI.Instance.SendNewChatMessage("System", ts, STRINGS.UI.MP_CHATWINDOW.CHAT_INITIALIZED);
+			}
 
 			foreach (var msg in Messages)
-				ChatScreen.QueueMessage(msg);
+			{
+				string ts = DateTimeOffset.FromUnixTimeMilliseconds(msg.timestamp).DateTime.ToString("HH:mm", CultureInfo.InvariantCulture);
+				UnityChatBoxUI.Instance?.SendNewChatMessage("System", ts, msg.message);
+			}
 		}
 	}
 }

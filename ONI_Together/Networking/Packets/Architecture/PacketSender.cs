@@ -15,6 +15,8 @@ using System.Runtime.InteropServices;
 using Shared.Profiling;
 using UnityEngine;
 using ONI_Together.Networking.Components;
+using ONI_Together.Networking.OxySync;
+using ONI_Together.Networking.Overlay;
 
 namespace ONI_Together.Networking
 {
@@ -157,6 +159,15 @@ namespace ONI_Together.Networking
 				pendingPackets = bulkPacketWaitingData[packetId];
 			}
 			var serialized = packet.SerializeToByteArray();
+
+			var tracker = NetIdActivityTracker.Instance;
+			if (tracker != null)
+			{
+				int netId = NetIdActivityTracker.GetNetIdFromPacket(packet);
+				if (netId > 0)
+					tracker.RecordActivity(netId, serialized.Length + 4);
+			}
+
 			pendingPackets.Add(serialized);
 
 			if (!WaitingBulkPacketBytes.TryGetValue(conn, out var byteTotals))
@@ -207,6 +218,17 @@ namespace ONI_Together.Networking
 			{
 				AppendPendingBulkPacket(conn, packet, bp);
 				return true;
+			}
+
+			var tracker = NetIdActivityTracker.Instance;
+			if (tracker != null)
+			{
+				int netId = NetIdActivityTracker.GetNetIdFromPacket(packet);
+				if (netId > 0)
+				{
+					byte[] serialized = SerializePacketForSending(packet);
+					tracker.RecordActivity(netId, serialized.Length);
+				}
 			}
 
 			return NetworkConfig.TransportPacketSender.SendToConnection(conn, packet, sendType);
@@ -315,7 +337,32 @@ namespace ONI_Together.Networking
 			}
 		}
 
-		public static void SendToAllClients(IPacket packet, PacketSendMode sendType = PacketSendMode.Reliable)
+        public static void SendToGroup(int groupId, IPacket packet, PacketSendMode sendType = PacketSendMode.Reliable)
+        {
+            using var _ = Profiler.Scope();
+
+            if (!MultiplayerSession.IsHost)
+            {
+                DebugConsole.LogWarning("[PacketSender] Only the host can send to groups. Tried sending: " + packet.GetType());
+                return;
+            }
+
+            if (groupId == -1)
+            {
+                SendToAll(packet, MultiplayerSession.HostUserID, sendType);
+                return;
+            }
+
+            foreach (var playerId in InterestGroupManager.GetGroupMemberIds(groupId))
+            {
+                if (playerId == MultiplayerSession.HostUserID) continue;
+                if (!MultiplayerSession.ConnectedPlayers.TryGetValue(playerId, out var player)) continue;
+                if (!CanBroadcastTo(player)) continue;
+                TrySendToConnection(player, packet, sendType);
+            }
+        }
+
+        public static void SendToAllClients(IPacket packet, PacketSendMode sendType = PacketSendMode.Reliable)
 		{
 			using var _ = Profiler.Scope();
 
@@ -366,7 +413,7 @@ namespace ONI_Together.Networking
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession)
+			if (!MultiplayerSession.InActiveSession)
 			{
 				DebugConsole.LogWarning("[PacketSender] Not in a multiplayer session, cannot send to other peers");
 				return;
@@ -408,7 +455,7 @@ namespace ONI_Together.Networking
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession)
+			if (!MultiplayerSession.InActiveSession)
 			{
 				DebugConsole.LogWarning("[PacketSender] Not in a multiplayer session, cannot send to other peers");
 				return;

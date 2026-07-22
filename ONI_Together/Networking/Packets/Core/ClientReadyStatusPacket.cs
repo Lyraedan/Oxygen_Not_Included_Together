@@ -3,6 +3,7 @@ using ONI_Together.Misc;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.States;
 using ONI_Together.Networking.Transport.Lan;
+using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.UI;
 using Steamworks;
 using System.IO;
@@ -73,9 +74,8 @@ namespace ONI_Together.Networking.Packets.Core
 					}
 					else
 					{
-						var pending = ChatScreen.GeneratePendingMessage(
-							string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, PlayerName));
-						ChatScreen.QueueMessage(pending);
+					OxySyncChat.AddSystemMessage(
+						string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, PlayerName));
 					}
 				}
 				return;
@@ -113,9 +113,8 @@ namespace ONI_Together.Networking.Packets.Core
 
 				if (!isLoadingReconnect)
 				{
-					var pending = ChatScreen.GeneratePendingMessage(
+					OxySyncChat.AddSystemMessage(
 						string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, player.PlayerName));
-					ChatScreen.QueueMessage(pending);
 				}
 
 				PacketSender.SendToAllClients(new ClientReadyStatusPacket

@@ -2,6 +2,7 @@
 using System.IO;
 using ONI_Together.DebugTools;
 using ONI_Together.Networking;
+using ONI_Together.Networking.Overlay;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -66,6 +67,14 @@ namespace ONI_Together.Networking.Packets.Architecture
 						packet = packet,
 						size = data.Length
                     });
+
+					var tracker = NetIdActivityTracker.Instance;
+					if (tracker != null)
+					{
+						int netId = NetIdActivityTracker.GetNetIdFromPacket(packet);
+						if (netId > 0)
+							tracker.RecordActivity(netId, data.Length);
+					}
                 }
 			}
 		}

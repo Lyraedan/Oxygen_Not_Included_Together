@@ -35,7 +35,7 @@ namespace ONI_Together.DebugTools.UnitTests
         [UnitTest(name: "Client init disables AI components", category: "Duplicant")]
         public static UnitTestResult ClientInitDisablesAI()
         {
-            if (!MultiplayerSession.InSession)
+            if (!MultiplayerSession.InActiveSession)
                 return UnitTestResult.Fail("Not in a multiplayer session");
             if (!MultiplayerSession.IsClient)
                 return UnitTestResult.Fail("Not a client");
@@ -63,7 +63,7 @@ namespace ONI_Together.DebugTools.UnitTests
         [UnitTest(name: "Host init adds sync components", category: "Duplicant")]
         public static UnitTestResult HostInitAddsSyncComponents()
         {
-            if (!MultiplayerSession.InSession)
+            if (!MultiplayerSession.InActiveSession)
                 return UnitTestResult.Fail("Not in a multiplayer session");
             if (!MultiplayerSession.IsHost)
                 return UnitTestResult.Fail("Not the host");

@@ -23,7 +23,7 @@ namespace ONI_Together.Patches.World.Buildings
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost)
+				if (!MultiplayerSession.InActiveSession || !MultiplayerSession.IsHost)
 					return;
 				if (__instance.IsNullOrDestroyed())
 					return;
@@ -37,7 +37,7 @@ namespace ONI_Together.Patches.World.Buildings
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost)
+				if (!MultiplayerSession.InActiveSession || !MultiplayerSession.IsHost)
 					return;
 				if (__instance.IsNullOrDestroyed())
 					return;
@@ -51,7 +51,7 @@ namespace ONI_Together.Patches.World.Buildings
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost)
+				if (!MultiplayerSession.InActiveSession || !MultiplayerSession.IsHost)
 					return;
 				if (__instance.IsNullOrDestroyed())
 					return;
@@ -66,12 +66,18 @@ namespace ONI_Together.Patches.World.Buildings
 		/// </summary>
 		///
 
-		[HarmonyPatch(typeof(Operational), nameof(Operational.IsOperational), MethodType.Getter)]
+        [HarmonyPatch(typeof(Operational), nameof(Operational.IsOperational), MethodType.Getter)]
         public class Operational_IsOperational_Patch
         {
             public static bool Prefix(Operational __instance, ref bool __result)
             {
 	            using var _ = Profiler.Scope();
+
+                if (__instance.IsNullOrDestroyed())
+                {
+                    __result = false;
+                    return false;
+                }
 
                 if (!MultiplayerSession.IsClient)
                     return true;
@@ -93,6 +99,12 @@ namespace ONI_Together.Patches.World.Buildings
 			{
 				using var _ = Profiler.Scope();
 
+                if (__instance.IsNullOrDestroyed())
+                {
+                    __result = false;
+                    return false;
+                }
+
 				if (!MultiplayerSession.IsClient)
 					return true;
 
@@ -104,12 +116,18 @@ namespace ONI_Together.Patches.World.Buildings
 				return true;
 			}
 		}
-		[HarmonyPatch(typeof(Operational), nameof(Operational.IsFunctional), MethodType.Getter)]
+        [HarmonyPatch(typeof(Operational), nameof(Operational.IsFunctional), MethodType.Getter)]
 		public class Operational_IsFunctional_Patch
 		{
 			public static bool Prefix(Operational __instance, ref bool __result)
 			{
 				using var _ = Profiler.Scope();
+
+                if (__instance.IsNullOrDestroyed())
+                {
+                    __result = false;
+                    return false;
+                }
 
 				if (!MultiplayerSession.IsClient)
 					return true;

@@ -3,11 +3,13 @@ using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
+using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Networking.Synchronization;
 using ONI_Together.Scripts.Duplicants;
 using System.Collections;
 using Shared.Profiling;
 using UnityEngine;
+using VitalStatsSyncer = ONI_Together.Networking.OxySync.Components.VitalStatsSyncer;
 
 [HarmonyPatch(typeof(BaseMinionConfig), nameof(BaseMinionConfig.BaseMinion))]
 public static class DuplicantPatch
@@ -27,15 +29,21 @@ public static class DuplicantPatch
 			DebugConsole.Log("[NetworkIdentity] Injected into Duplicant");
 		}
 
-		__result.AddOrGet<EntityPositionHandler>();
+		__result.AddOrGet<OxySyncEntityPositionHandler>();
+		//__result.AddOrGet<VitalStatsSyncer>();
 		__result.AddOrGet<VitalStatsSyncer>();
+
+		if (__result.HasTag(GameTags.Minions.Models.Bionic))
+		{
+			// Bionic specific syncers
+		}
 	}
 
-	public static void ToggleEffect(GameObject minion, string eventName, string context, bool enable)
+	public static void ToggleEffect(GameObject minion, string eventName, int contextHash, bool enable)
 	{
 		using var _ = Profiler.Scope();
 
-		if (!MultiplayerSession.InSession || MultiplayerSession.IsClient)
+		if (!MultiplayerSession.InActiveSession || MultiplayerSession.IsClient)
 			return;
 
 		if (!minion.TryGetComponent(out NetworkIdentity net))
@@ -48,7 +56,7 @@ public static class DuplicantPatch
 		{
 			NetId = net.NetId,
 			Enable = enable,
-			Context = context,
+			ContextHash = contextHash,
 			Event = eventName
 		};
 

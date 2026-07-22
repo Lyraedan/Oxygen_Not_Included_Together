@@ -155,7 +155,7 @@ namespace ONI_Together.DebugTools.UnitTests
         [UnitTest(name: "All expected clients connected", category: "Networking")]
         public static UnitTestResult AllClientsConnected()
         {
-            if (!MultiplayerSession.InSession)
+            if (!MultiplayerSession.InActiveSession)
                 return UnitTestResult.Fail("Not in a multiplayer session");
 
             var transportClients = NetworkConfig.GetConnectedClients();
@@ -178,7 +178,7 @@ namespace ONI_Together.DebugTools.UnitTests
         [UnitTest(name: "Packet routing: host never sends to itself", category: "Networking")]
         public static UnitTestResult PacketRouting()
         {
-            if (!MultiplayerSession.InSession)
+            if (!MultiplayerSession.InActiveSession)
                 return UnitTestResult.Fail("Not in a multiplayer session");
 
             if (!MultiplayerSession.HostUserID.IsValid())

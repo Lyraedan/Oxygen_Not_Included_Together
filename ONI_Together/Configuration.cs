@@ -62,6 +62,14 @@ namespace ONI_Together
             set => Host.Server.PauseSimOnPlayerDisconnect = value;
         }
 
+        [Option("STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.SERVER_TICK_RATE", "STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.SERVER_SETTINGS.SERVER_TICK_RATE", "STRINGS.UI.CONFIGURATION.HEADERS.A_HOST_SETTINGS")]
+        [JsonIgnore]
+        public ServerTickRate ServerTickRate
+        {
+            get => Host.Server.TickRate;
+            set => Host.Server.TickRate = value;
+        }
+
         [Option("STRINGS.UI.CONFIGURATION.TITLES.CLIENT_SETTINGS.MAX_MESSAGES_PER_POLL", "STRINGS.UI.CONFIGURATION.TOOLTIPS.CLIENT_SETTINGS.MAX_MESSAGES_PER_POLL", "STRINGS.UI.CONFIGURATION.HEADERS.B_CLIENT_SETTINGS")]
         [JsonIgnore]
         public int ClientMaxMessagesPerPoll
@@ -132,6 +140,14 @@ namespace ONI_Together
         {
             get => Client.UseCustomLoadingScreenColor;
             set => Client.UseCustomLoadingScreenColor = value;
+        }
+
+        [Option("STRINGS.UI.CONFIGURATION.TITLES.MISC_SETTINGS.USE_DISCORD_RICH_PRESENCE", "STRINGS.UI.CONFIGURATION.TOOLTIPS.MISC_SETTINGS.USE_DISCORD_RICH_PRESENCE", "STRINGS.UI.CONFIGURATION.HEADERS.E_MISC_SETTINGS")]
+        [JsonIgnore]
+        public bool UseDiscordRichPresence
+        {
+            get => Client.Discord.UseDiscordRichPresence;
+            set => Client.Discord.UseDiscordRichPresence = value;
         }
 
         public static T GetHostProperty<T>(string propertyName)
@@ -226,9 +242,18 @@ namespace ONI_Together
         [JsonProperty] public bool ChatWindowPositionSaved { get; set; } = false;
         [JsonProperty] public float ChatPositionX { get; set; } = 0;
         [JsonProperty] public float ChatPositionY { get; set; } = 250;
-        [JsonProperty] public float ChatWidth { get; set; } = 400;
+		[JsonProperty] public bool ChatWindowDimensionsSaved { get; set; } = false;
+		[JsonProperty] public float ChatWidth { get; set; } = 400;
         [JsonProperty] public float ChatHeight { get; set; } = 230;
         [JsonProperty] public bool ChatWindowExpanded { get; set; } = true;
+
+        [JsonProperty] public DiscordSettings Discord { get; set; } = new DiscordSettings();
+    }
+
+    [Serializable]
+    public class DiscordSettings
+    {
+        [JsonProperty] public bool UseDiscordRichPresence { get; set; } = true;
     }
 
     [Serializable]
@@ -236,6 +261,17 @@ namespace ONI_Together
     {
         [JsonProperty] public bool HardSyncAtCycleStart { get; set; } = false;
         [JsonProperty] public bool PauseSimOnPlayerDisconnect { get; set; } = false;
+        [JsonProperty] public ServerTickRate TickRate { get; set; } = ServerTickRate.TPS_60;
+    }
+
+    public enum ServerTickRate
+    {
+        TPS_20 = 0,
+        TPS_30 = 1,
+        TPS_60 = 2,
+        TPS_90 = 3,
+        TPS_120 = 4,
+        TPS_128 = 5,
     }
 
     [Serializable]

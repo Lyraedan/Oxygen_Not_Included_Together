@@ -18,7 +18,7 @@ namespace ONI_Together.Patches.World
             {
                 using var _ = Profiler.Scope();
 
-                if (!MultiplayerSession.IsHost || !MultiplayerSession.InSession) return;
+                if (!MultiplayerSession.IsHost || !MultiplayerSession.InActiveSession) return;
                 if (__instance == null || go == null) return;
 
                 var storageIdentity = __instance.GetNetIdentity();
@@ -63,7 +63,7 @@ namespace ONI_Together.Patches.World
             {
                 using var _ = Profiler.Scope();
 
-                if (!MultiplayerSession.IsHost || !MultiplayerSession.InSession) return;
+                if (!MultiplayerSession.IsHost || !MultiplayerSession.InActiveSession) return;
                 if (__instance == null || __instance.worker == null) return;
 
                 var dupeStorage = __instance.worker.GetComponent<Storage>();
@@ -95,7 +95,7 @@ namespace ONI_Together.Patches.World
                 using var _ = Profiler.Scope();
                 try
                 {
-                    if (!MultiplayerSession.IsHost || !MultiplayerSession.InSession)
+                    if (!MultiplayerSession.IsHost || !MultiplayerSession.InActiveSession)
                         return;
                     if (go == null)
                         return;

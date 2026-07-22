@@ -23,6 +23,7 @@ using System.Threading.Tasks;
 using UI.lib.UI.FUI;
 using UI.lib.UIcmp;
 using UnityEngine;
+using UnityEngine.UI;
 using static ONI_Together.STRINGS.UI;
 using static ONI_Together.STRINGS.UI.MP_SCREEN.HOSTMENU;
 using static ONI_Together.STRINGS.UI.MP_SCREEN.HOSTMENU.LOBBYSIZE;
@@ -328,6 +329,8 @@ namespace ONI_Together.UI
 			if (!int.TryParse(LobbySize.Text, out int lobbySize))
 				lobbySize = NetworkConfig.LOBBY_SIZE_DEFAULT;
 
+			LobbySize.inputField.ForceLabelUpdate();
+
 			IncreaseSize.SetInteractable(lobbySize < NetworkConfig.LOBBY_SIZE_MAX);
 			DecreaseSize.SetInteractable(lobbySize > NetworkConfig.LOBBY_SIZE_MIN);
 		}
@@ -372,6 +375,12 @@ namespace ONI_Together.UI
 			Instance.ConsumeMouseScroll = true;
 			Instance.transform.SetAsLastSibling();
 		}
+		public override void OnSpawn()
+		{
+			base.OnSpawn();
+			RefreshLobbySizeButtons();
+		}
+
 		public override void OnShow(bool show)
 		{
 			using var _ = Profiler.Scope();
@@ -383,6 +392,15 @@ namespace ONI_Together.UI
 			else
 				StopCoroutine(LobbyRefresh);
 		}
+		public override void OnKeyDown(KButtonEvent e)
+		{
+			if (e.TryConsume(Action.Escape) || e.TryConsume(Action.MouseRight))
+			{
+				this.Show(false);
+			}
+			base.OnKeyDown(e);
+		}
+
 
 		public static void OpenFromMainMenu()
 		{
@@ -637,7 +655,20 @@ namespace ONI_Together.UI
 				STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.SERVER_SETTINGS.PAUSE_SIM_ON_PLAYER_DISCONNECT)
 				.SetOnFromCode(Configuration.Instance.Host.Server.PauseSimOnPlayerDisconnect);
 
-			//AddOrGetLobbySettingsEntry_NumInput("TestNumInput", (i) => Debug.Log("writtenNumber: " + i), "Test Number input", "Test", "e",42);
+			var tickRateOptions = new List<FCycle.Option>
+			{
+				new("TPS_20", "20 TPS", ""),
+				new("TPS_30", "30 TPS", ""),
+				new("TPS_60", "60 TPS", ""),
+				new("TPS_90", "90 TPS", ""),
+				new("TPS_120", "120 TPS", ""),
+				new("TPS_128", "128 TPS", ""),
+			};
+
+			AddOrGetLobbySettingsEntry_Cycle("ServerTickRate", tickRateOptions, OnTickRateChanged,
+				STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.SERVER_TICK_RATE,
+				STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.SERVER_SETTINGS.SERVER_TICK_RATE)
+				.SetValueById(Configuration.Instance.Host.Server.TickRate.ToString());
 		}
 
 		void ToggleHardSyncSetting(bool hardSyncEnabled)
@@ -652,6 +683,19 @@ namespace ONI_Together.UI
 			var config = Configuration.Instance;
 			config.Host.Server.PauseSimOnPlayerDisconnect = enabled;
 			config.Save();
+		}
+
+		void OnTickRateChanged(FCycle.Option option)
+		{
+			if (Enum.TryParse<ServerTickRate>(option.id, out var rate))
+			{
+				var config = Configuration.Instance;
+				config.Host.Server.TickRate = rate;
+				config.Save();
+
+				if (MultiplayerSession.IsHost)
+					ONI_Together.Networking.GameServer.RefreshTickRate();
+			}
 		}
 
 		public FToggle AddOrGetLobbySettingsEntry_Toggle(string id, System.Action<bool> onToggleChange, string label, string tooltip = "")

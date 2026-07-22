@@ -7,9 +7,12 @@ using ONI_Together.Networking.Packets.Architecture;
 using Shared.Profiling;
 using ONI_Together.Networking.Transfer;
 using System.Collections.Generic;
+using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.UI;
+using Shared;
 using Steamworks;
 using static ResearchTypes;
+using UnityEngine;
 
 namespace ONI_Together.Networking.Transport.Lan
 {
@@ -38,6 +41,13 @@ namespace ONI_Together.Networking.Transport.Lan
 
         public static ulong CLIENT_ID { get; private set; }
 
+        // Bandwidth tracking via server-side Connection.Metrics
+        private long _srvLastBytesIn, _srvLastBytesOut;
+        private int _srvLastMsgIn, _srvLastMsgOut;
+        private float _srvInBw, _srvOutBw;
+        private int _srvInPps, _srvOutPps;
+        private float _srvLastBwPollTime;
+
         public override void Prepare()
         {
             using var _ = Profiler.Scope();
@@ -52,12 +62,12 @@ namespace ONI_Together.Networking.Transport.Lan
             if (_server != null)
                 return;
 
-            ChatScreen.PendingMessage pending = ChatScreen.GeneratePendingMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_SERVER_STARTED, $"LAN"));
-            ChatScreen.QueueMessage(pending);
+            OxySyncChat.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_SERVER_STARTED, "LAN"));
 
             string ip = Configuration.Instance.Host.LanSettings.Ip;
             int port = Configuration.Instance.Host.LanSettings.Port;
             int maxClients = Configuration.Instance.Host.MaxLobbySize;
+            RiptideClient.MaxServerCapacity = maxClients;
 
             _server = new Server("Lan/Riptide");
             _server.TimeoutTime = Configuration.Instance.Host.TimeoutSeconds * 1000;
@@ -93,8 +103,7 @@ namespace ONI_Together.Networking.Transport.Lan
 
             int id = e.Client.Id;
             DebugConsole.Log("[RiptideServer] A client failed to connect to the server.");
-            ChatScreen.PendingMessage pending = ChatScreen.GeneratePendingMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_FAILED, "A client"));
-            ChatScreen.QueueMessage(pending);
+            OxySyncChat.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_FAILED, "A client"));
         }
 
         private void OnLocalClientConnected(object sender, EventArgs e)
@@ -105,12 +114,10 @@ namespace ONI_Together.Networking.Transport.Lan
             //AddClientToList(CLIENT_ID);
             DebugConsole.Log("[RiptideServer] Host client connected to server!");
             MultiplayerSession.SetHost(GetClientID());
-            MultiplayerSession.InSession = true;
+            MultiplayerSession.InActiveSession = true;
 
             string hostName = Utils.GetLocalPlayerName();
-            ChatScreen.PendingMessage pending = ChatScreen.GeneratePendingMessage(
-                string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, hostName));
-            ChatScreen.QueueMessage(pending);
+            OxySyncChat.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, hostName));
         }
 
         private void OnLocalClientDisconnected(object sender, DisconnectedEventArgs e)
@@ -121,7 +128,7 @@ namespace ONI_Together.Networking.Transport.Lan
             //RemoveClientFromList(CLIENT_ID);
             DebugConsole.Log("[RiptideServer] Host client disconnected from server!");
             MultiplayerSession.HostUserID = Utils.NilUlong();
-            MultiplayerSession.InSession = false;
+            MultiplayerSession.InActiveSession = false;
         }
 
         private void ServerOnClientConnected(object sender, ServerConnectedEventArgs e)
@@ -204,6 +211,55 @@ namespace ONI_Together.Networking.Transport.Lan
             scope.End(1, size);
         }
 
+        private void UpdateServerBandwidth()
+        {
+            if (_server == null || !_server.IsRunning)
+            {
+                _srvInBw = 0f;
+                _srvOutBw = 0f;
+                _srvInPps = 0;
+                _srvOutPps = 0;
+                return;
+            }
+
+            float now = Time.realtimeSinceStartup;
+            float dt = now - _srvLastBwPollTime;
+            if (dt < 1f) return;
+
+            long totalIn = 0, totalOut = 0;
+            int totalMsgIn = 0, totalMsgOut = 0;
+
+            foreach (Connection client in _server.Clients)
+            {
+                if (client == null || client.IsNotConnected) continue;
+                if (client.Id == CLIENT_ID) continue; // exclude loopback client
+
+                var m = client.Metrics;
+                if (m == null) continue;
+
+                totalIn += m.BytesIn;
+                totalOut += m.BytesOut;
+                totalMsgIn += (int)m.MessagesIn;
+                totalMsgOut += (int)m.MessagesOut;
+            }
+
+            _srvInBw = (totalIn - _srvLastBytesIn) / dt;
+            _srvOutBw = (totalOut - _srvLastBytesOut) / dt;
+            _srvInPps = (int)((totalMsgIn - _srvLastMsgIn) / dt);
+            _srvOutPps = (int)((totalMsgOut - _srvLastMsgOut) / dt);
+
+            _srvLastBytesIn = totalIn;
+            _srvLastBytesOut = totalOut;
+            _srvLastMsgIn = totalMsgIn;
+            _srvLastMsgOut = totalMsgOut;
+            _srvLastBwPollTime = now;
+        }
+
+        public override float IncomingBandwidth => _srvInBw;
+        public override float OutgoingBandwidth => _srvOutBw;
+        public override int IncomingPps => _srvInPps;
+        public override int OutgoingPps => _srvOutPps;
+
         public override void Stop()
         {
             using var _ = Profiler.Scope();
@@ -214,8 +270,7 @@ namespace ONI_Together.Networking.Transport.Lan
             if (!_server.IsRunning)
                 return;
 
-            ChatScreen.PendingMessage pending = ChatScreen.GeneratePendingMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_SERVER_STOPPED, $"LAN"));
-            ChatScreen.QueueMessage(pending);
+            OxySyncChat.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_SERVER_STOPPED, "LAN"));
 
             if (!_client.IsNotConnected)
             {
@@ -263,6 +318,7 @@ namespace ONI_Together.Networking.Transport.Lan
 
             _server?.Update();
             _client?.Update();
+            UpdateServerBandwidth();
 
             if (_loadingClients.Count > 0)
             {
@@ -308,8 +364,10 @@ namespace ONI_Together.Networking.Transport.Lan
                 enumerator.MoveNext();
                 _loadingClients.Remove(enumerator.Current.Key);
                 _reconnectedFromLoad.Add(id);
-            }
-            Game.Instance?.Trigger(MP_HASHES.OnPlayerJoined);
+			}
+			var boxedId = Boxed<ulong>.Get(id);
+			Game.Instance?.Trigger(MP_HASHES.OnPlayerJoined,boxedId);
+            boxedId.Release();
         }
 
         public void RemoveClientFromList(ulong id)
@@ -324,11 +382,12 @@ namespace ONI_Together.Networking.Transport.Lan
             if (!_loadingClients.ContainsKey(id))
             {
                 string name = MultiplayerSession.GetPlayer(id)?.PlayerName ?? $"Player {id}";
-                ChatScreen.PendingMessage pending = ChatScreen.GeneratePendingMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_LEFT, name));
-                ChatScreen.QueueMessage(pending);
+                OxySyncChat.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_LEFT, name));
                 Utils.PauseSimOnPlayerLeft();
-            }
-            Game.Instance?.Trigger(MP_HASHES.OnPlayerLeft);
+			}
+			var boxedId = Boxed<ulong>.Get(id);
+			Game.Instance?.Trigger(MP_HASHES.OnPlayerLeft, boxedId);
+            boxedId.Release();
         }
         public ulong GetClientID()
         {

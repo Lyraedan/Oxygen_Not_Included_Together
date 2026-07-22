@@ -16,6 +16,7 @@ using Shared.Profiling;
 using ONI_Together.Patches.ToolPatches;
 using UnityEngine;
 using System.Collections;
+using Shared;
 
 namespace ONI_Together.Networking
 {
@@ -98,6 +99,7 @@ namespace ONI_Together.Networking
         /// </summary>
         public static void Stop()
         {
+            GameClient.IsHardSyncInProgress = false;
             switch(transport)
             {
                 case NetworkTransport.STEAMWORKS:
@@ -220,6 +222,24 @@ namespace ONI_Together.Networking
             using var _ = Profiler.Scope();
 
             return transport.Equals(NetworkTransport.RIPTIDE);
+        }
+
+        public static int GetMaxServerCapacity()
+        {
+            switch (transport)
+            {
+                case NetworkTransport.STEAMWORKS:
+                    if (SteamLobby.InLobby)
+                        return SteamMatchmaking.GetLobbyMemberLimit(SteamLobby.CurrentLobby);
+                    break;
+                case NetworkTransport.RIPTIDE:
+                    if (RiptideServer.ServerInstance != null)
+                        return RiptideServer.ServerInstance.MaxClientCount;
+                    if (RiptideClient.MaxServerCapacity > 0)
+                        return RiptideClient.MaxServerCapacity;
+                    break;
+            }
+            return Configuration.Instance.Host.MaxLobbySize;
         }
 
         public static List<ulong> GetConnectedClients()

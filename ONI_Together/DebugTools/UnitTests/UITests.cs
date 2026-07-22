@@ -4,6 +4,7 @@ using System.Text;
 using ONI_Together.Misc;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
+using ONI_Together.UI;
 using UnityEngine;
 
 namespace ONI_Together.DebugTools.UnitTests
@@ -13,14 +14,13 @@ namespace ONI_Together.DebugTools.UnitTests
         [UnitTest(name: "Chat window exists and is active", category: "UI")]
         public static UnitTestResult ChatWindowExistsAndActive()
         {
-            GameObject chatScreen = GameObject.Find("ChatScreen");
-            if(chatScreen == null)
-                return UnitTestResult.Fail("ChatScreen object not found in scene");
+            if (UnityChatBoxUI.Instance == null)
+                return UnitTestResult.Fail("UnityChatBoxUI instance is null");
 
-            bool isActive = chatScreen.activeSelf;
+            bool isActive = UnityChatBoxUI.Instance.gameObject.activeSelf;
             if (!isActive)
-                return UnitTestResult.Fail("ChatScreen object is not active");
-            return UnitTestResult.Pass("ChatScreen object exists and is active");
+                return UnitTestResult.Fail("UnityChatBoxUI is not active");
+            return UnitTestResult.Pass("UnityChatBoxUI exists and is active");
         }
 
         [UnitTest(name: "Ping & Trail Initialized", category: "UI")]
@@ -47,7 +47,7 @@ namespace ONI_Together.DebugTools.UnitTests
             if (clients - 1 != cursors)
                 return UnitTestResult.Fail($"Number of player cursors ({cursors}) does not match number of clients ({clients})");
 
-            bool cursorSyncRunning = CursorManager.Instance != null && Utils.IsInGame() && MultiplayerSession.InSession && MultiplayerSession.LocalUserID.IsValid();
+            bool cursorSyncRunning = CursorManager.Instance != null && Utils.IsInGame() && MultiplayerSession.InActiveSession && MultiplayerSession.LocalUserID.IsValid();
             if(!cursorSyncRunning)
                 return UnitTestResult.Fail("Cursor synchronization does not appear to be running (CursorManager instance missing or not in game session)");
 

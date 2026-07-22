@@ -51,6 +51,7 @@ namespace ONI_Together.UI
 		FButton EndSession;
 		GameObject CopyIconReg, CopyIconConfirmed;
 		LocText HardSyncText;
+		GameObject LobbyCodeContainer, LobbyCodeTitle;
 
 		bool init = false;
 		static string lastScene = string.Empty;
@@ -64,7 +65,9 @@ namespace ONI_Together.UI
 			Debug.Log("Initializing UnityLobbyStateDialogueUI");
 			Close = transform.Find("TopBar/CloseButton").gameObject.AddOrGet<FButton>();
 			Close.OnClick += () => Show(false);
-			LobbyCode = transform.Find("LobbyCode").FindOrAddComponent<FInputField2>();
+			LobbyCodeTitle = transform.Find("LobbyCodeTitle").gameObject;
+			LobbyCodeContainer = transform.Find("LobbyCode").gameObject;
+			LobbyCode = LobbyCodeContainer.AddOrGet<FInputField2>();
 			CopyLobbyCode = transform.Find("LobbyCode/CopyLobbyCodeButton").gameObject.AddOrGet<FButton>();
 			CopyLobbyCode.OnClick += CopyLobbyCodeToClipboard;
 			PlayerCountInfo = transform.Find("ConnectedPlayersState").gameObject.GetComponent<LocText>();
@@ -149,8 +152,18 @@ namespace ONI_Together.UI
 		{
 			using var _ = Profiler.Scope();
 
-			LobbyCode.SetTextFromData((SteamLobby.CurrentLobbyCode));
-			SetLobbyCodeConfirmationIcon(false);
+			bool inSteamLobby = SteamLobby.InLobby;
+
+			LobbyCodeTitle.SetActive(inSteamLobby);
+			LobbyCodeContainer.SetActive(inSteamLobby);
+			InviteFriends.gameObject.SetActive(inSteamLobby);
+
+			if (inSteamLobby)
+			{
+				LobbyCode.SetTextFromData((SteamLobby.CurrentLobbyCode));
+				SetLobbyCodeConfirmationIcon(false);
+			}
+
 			RefreshHardSyncLabel();
 			PlayerCountInfo.SetText(string.Format(SERVERBROWSER.CONNECTED_PLAYERS, MultiplayerSession.ConnectedPlayers.Count + 1));
 		}

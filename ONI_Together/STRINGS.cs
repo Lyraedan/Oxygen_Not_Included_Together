@@ -33,6 +33,7 @@ namespace ONI_Together
 							public static LocString HARD_SYNC_AT_CYCLE_START = "Hard Sync On Cycle Start";
 							public static LocString TIMEOUT_SECONDS = "Connection Timeout (seconds)";
 							public static LocString PAUSE_SIM_ON_PLAYER_DISCONNECT = "Pause Simulation On Player Disconnect";
+							public static LocString SERVER_TICK_RATE = "Server Tick Rate";
 						}
                     }
 
@@ -59,6 +60,7 @@ namespace ONI_Together
                     {
                         public static LocString PUFT_LOADINGSCREEN = "Use Puft Loading Icon";
                         public static LocString LOADINGSCREEN_COLOR = "Use Custom Loading Screen Color";
+                        public static LocString USE_DISCORD_RICH_PRESENCE = "Use Discord Rich Presence";
                     }
                 }
 
@@ -74,6 +76,7 @@ namespace ONI_Together
                             public static LocString HARD_SYNC_AT_CYCLE_START = "Perform a hard sync at the start of every new cycle\n\nDoes not use up your one hard sync per cycle";
                             public static LocString TIMEOUT_SECONDS = "How long the server waits (in seconds) for a response from a connecting or loading client before timing out.\nIncrease this if your friends take a long time to load into the game.\n\nMinimum: 30. (default: 30)";
                             public static LocString PAUSE_SIM_ON_PLAYER_DISCONNECT = "Automatically pauses the simulation when a player disconnects from the server.";
+                            public static LocString SERVER_TICK_RATE = "How many times per second the server processes incoming network messages.\nHigher values reduce latency but increase CPU and bandwidth usage.\n\nRange: 20–128 TPS (default: 60)";
                         }
                     }
 
@@ -101,12 +104,11 @@ namespace ONI_Together
                     {
 						public static LocString PUFT_LOADINGSCREEN = "Override the loading icon with a Puft.";
 						public static LocString LOADINGSCREEN_COLOR = "Override the purple background of the loading screen with turquoise.";
+						public static LocString USE_DISCORD_RICH_PRESENCE = "Enables Discord Rich Presence integration, showing your current game state (colony name, cycle, asteroid) on your Discord profile.";
                     }
                 }
             }
-
-            
-
+			
             public class PROTOCOL
             {
                 public static LocString NO_METADATA = "Peer is running a build without protocol metadata.";
@@ -323,14 +325,14 @@ namespace ONI_Together
 			}
 			public class MP_CHATWINDOW
 			{
-				public static LocString CHAT_INITIALIZED = "<color=yellow>[System]</color> Chat initialized.";
-				public static LocString CHAT_CLIENT_REJECTED = "<color=red>[System]</color> {0} was rejected due to mod incompatibility: {1}";
-				public static LocString CHAT_CLIENT_JOINED = "<color=yellow>[System]</color> <b>{0}</b> joined the game.";
-				public static LocString CHAT_CLIENT_LEFT = "<color=yellow>[System]</color> <b>{0}</b> left the game.";
-				public static LocString CHAT_CLIENT_FAILED = "<color=red>[System]</color>{0} failed to connect to the server.";
+				public static LocString CHAT_INITIALIZED = "Chat initialized.";
+				public static LocString CHAT_CLIENT_REJECTED = "<color=red>{0} was rejected due to mod incompatibility: {1}</color>";
+				public static LocString CHAT_CLIENT_JOINED = "<b>{0}</b> joined the game.";
+				public static LocString CHAT_CLIENT_LEFT = "<b>{0}</b> left the game.";
+				public static LocString CHAT_CLIENT_FAILED = "<color=red>{0} failed to connect to the server.</color>";
 
-                public static LocString CHAT_SERVER_STARTED = "<color=yellow>[System]</color><color=green> Started server over {0}</color>";
-				public static LocString CHAT_SERVER_STOPPED = "<color=yellow>[System]</color><color=green> Stopped {0} server</color>";
+                public static LocString CHAT_SERVER_STARTED = "Started server over <b>{0}</b>";
+				public static LocString CHAT_SERVER_STOPPED = "Stopped <b>{0}</b> server";
 
                 public class RESIZE
 				{
@@ -473,6 +475,48 @@ namespace ONI_Together
 				public static LocString LOBBY_VISIBILITY_PUBLIC = "Public";
 				public static LocString LOBBY_VISIBILITY_FRIENDSONLY = "Friends Only";
 			}
+
+			public class MP_CHATBOX
+			{
+				public class LINK_IN_CHAT
+				{
+					public static LocString TEXT = "Link in Chat";
+					public static LocString TOOLTIP = "Links this object in the multiplayer chat window.";
+				}
+				public class TEXTINPUT
+				{
+					public class INPUT
+					{
+						public class TEXTAREA
+						{
+							public static LocString PLACEHOLDER = "Enter Text...";
+						}
+					}
+				}
+				public class TOPBAR
+				{
+					public static LocString LABEL = "Chat";
+					public static LocString TOOLTIP = "Toggle the ONI-Together chat window.";
+					public class FILTERBUTTON
+					{
+						public static LocString TEXT = "Settings";
+						public class DROPDOWNCONTENT
+						{
+							public class RESETPOS
+							{
+								public static LocString LABEL = "Reset Position";
+							}
+							public class RESETSIZE
+							{
+								public static LocString LABEL = "Reset Size";
+							}
+						}
+					}
+				}
+			}
+
+
+
 
 			public class MP_SCREEN
 			{
@@ -746,6 +790,70 @@ namespace ONI_Together
 				public class ENDSESSION
 				{
 					public static LocString TEXT = "End Session";
+				}
+			}
+			
+			public class TOOLS
+			{
+				public class FILTERLAYERS
+				{
+					public class OBJECTS
+					{
+						public static LocString NAME = "Objects";
+						public static LocString TOOLTIP = "Show/hide all objects with network activity";
+					}
+
+					public class GASSYNC
+					{
+						public static LocString NAME = "Gas Sync";
+						public static LocString TOOLTIP = "Show/hide gas sync network activity";
+					}
+
+					public class LIQUIDSYNC
+					{
+						public static LocString NAME = "Liquid Sync";
+						public static LocString TOOLTIP = "Show/hide liquid sync network activity";
+					}
+
+					public class ANIMSYNC
+					{
+						public static LocString NAME = "Anim Sync";
+						public static LocString TOOLTIP = "Show/hide animation sync indicators";
+					}
+
+					public class VIEWPORTS
+					{
+						public static LocString NAME = "Viewports";
+						public static LocString TOOLTIP = "Show/hide other players\u0027 camera viewports";
+					}
+
+					public class GROUPS
+					{
+						public static LocString NAME = "Interest Groups";
+						public static LocString TOOLTIP = "Show/hide network interest group regions";
+					}
+				}
+			}
+
+			public class OVERLAYS
+			{
+				public class NETWORKACTIVITY
+				{
+					public static LocString NAME = "Network Activity";
+					public static LocString DESCRIPTION = "Shows real-time network sync activity per object";
+					public static LocString BUTTON = "Network";
+					public static LocString TOOLTIP = "Displays network activity per object";
+					public static LocString HOVER_TOOLTIP = "Usage: {0}\nNet ID: {1}\nSync Mode: {2}\nLast synced: {3}";
+					public static LocString HOVER_HIGH = "High ({0}/s)";
+					public static LocString HOVER_MEDIUM = "Medium ({0}/s)";
+					public static LocString HOVER_LOW = "Low ({0}/s)";
+					public static LocString HOVER_IDLE = "Idle (No activity)";
+					public static LocString SYNC_MODE_OXYSYNC = "OxySync";
+					public static LocString SYNC_MODE_ADHOC = "Ad-hoc";
+					public static LocString LAST_SYNCED_NOW = "just now";
+					public static LocString LAST_SYNCED_SECS = "{0}s ago";
+					public static LocString LAST_SYNCED_MINS = "{0}m ago";
+					public static LocString LAST_SYNCED_NEVER = "never";
 				}
 			}
 		}

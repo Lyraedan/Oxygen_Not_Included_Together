@@ -43,13 +43,13 @@ namespace ONI_Together.Components
 				tooltipTextStyle = styleField?.GetValue(SpeedControlScreen.Instance) as TextStyleSetting;
 			}
 
-			bool allowPause = !MultiplayerSession.InSession;
+			bool allowPause = !MultiplayerSession.InActiveSession;
 
 			pauseButton.interactable = allowPause;
 
 			pauseTooltip.ClearMultiStringTooltip();
 
-			if (MultiplayerSession.InSession)
+			if (MultiplayerSession.InActiveSession)
 			{
 				// Show custom multiplayer-disabled tooltip
 				pauseTooltip.AddMultiStringTooltip("<color=#F44A4A>Can't pause in Multiplayer</color>", tooltipTextStyle);

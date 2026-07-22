@@ -28,6 +28,7 @@ namespace ONI_Together.Networking
 
 		System.Action OnCursorStateChanged;
 
+		public Color PlayerColor => playerColor;
 		private Color playerColor = Color.white;
 		private Shader playerCursorShader = null;
 		private Material playerCursorMaterial = null;
@@ -36,6 +37,10 @@ namespace ONI_Together.Networking
 		public PlayerBuildingVisualizer buildingVisualiser = new PlayerBuildingVisualizer();
 		public PlayerAreaVisualizer areaVisualizer = new PlayerAreaVisualizer();
 		public PlayerUtilityVisualizer utilityVisualizer = new PlayerUtilityVisualizer();
+
+		public int InterestGroup = -1;
+		public int ViewMinX, ViewMinY, ViewMaxX, ViewMaxY;
+		public HashSet<int> SubscribedChunks = new HashSet<int>();
 
         private readonly Dictionary<CursorState, float> cursorActionThresholds = new Dictionary<CursorState, float>()
 				{
@@ -204,6 +209,8 @@ namespace ONI_Together.Networking
 
 			return textComponent;
 		}
+
+		public Color CursorColor => playerColor;
 
 		public void SetColor(Color col)
 		{

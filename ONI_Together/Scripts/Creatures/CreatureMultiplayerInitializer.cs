@@ -1,6 +1,7 @@
 using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
+using ONI_Together.Networking.OxySync.Components;
 using System.Collections;
 using Shared.Profiling;
 using UnityEngine;
@@ -23,7 +24,7 @@ namespace ONI_Together.Scripts.Creatures
 
 		IEnumerator WaitForSessionAndInit()
 		{
-			yield return new WaitUntil((() => MultiplayerSession.InSession));
+			yield return new WaitUntil((() => MultiplayerSession.InActiveSession));
 			InitializeMP();
 		}
 
@@ -63,7 +64,7 @@ namespace ONI_Together.Scripts.Creatures
 
 		void InitializeHost(GameObject go)
 		{
-			go.AddOrGet<StatusBroadcaster>();
+			go.AddOrGet<StatusItemsSyncer>();
 		}
 
 		void InitializeClient(GameObject go)
@@ -74,9 +75,9 @@ namespace ONI_Together.Scripts.Creatures
 			var stateMachineControllers = go.GetComponents<StateMachineController>();
 			foreach (var smc in stateMachineControllers)
 				if (smc != null) smc.enabled = false;
-			
-			var statusReceiver = go.AddOrGet<ClientReceiver_StatusItems>();
-			statusReceiver.recieverType = ClientReceiver_StatusItems.StatusRecieverType.CREATURE;
+
+			var statusSync = go.AddOrGet<StatusItemsSyncer>();
+			statusSync.recieverType = StatusItemsSyncer.StatusRecieverType.CREATURE;
 		}
 	}
 }

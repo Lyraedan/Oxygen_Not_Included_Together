@@ -14,7 +14,7 @@ namespace ONI_Together.DebugTools.UnitTests
 		[UnitTest(name: "Duplicant positions in sync with host", category: "Sync")]
 		public static UnitTestResult DuplicantPositionsInSync()
 		{
-			if (!MultiplayerSession.InSession)
+			if (!MultiplayerSession.InActiveSession)
 				return UnitTestResult.Fail("Not in a multiplayer session");
 
 			const float MaxCellDelta = 2f;
@@ -95,7 +95,7 @@ namespace ONI_Together.DebugTools.UnitTests
 			if (GameServerHardSync.IsHardSyncInProgress)
 				return UnitTestResult.Fail("Hard sync is currently in progress, rerun the test once it completes");
 
-			if (GameServerHardSync.hardSyncDoneThisCycle && !MultiplayerSession.InSession)
+			if (GameServerHardSync.hardSyncDoneThisCycle && !MultiplayerSession.InActiveSession)
 				return UnitTestResult.Fail("hardSyncDoneThisCycle is set but session is not active");
 
 			string state = GameServerHardSync.hardSyncDoneThisCycle ? "completed this cycle" : "idle";

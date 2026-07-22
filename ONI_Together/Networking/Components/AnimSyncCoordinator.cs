@@ -95,7 +95,7 @@ namespace ONI_Together.Networking.Components
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.IsHost || !MultiplayerSession.InSession)
+			if (!MultiplayerSession.IsHost || !MultiplayerSession.InActiveSession)
 				return;
 
 			if (!MultiplayerSession.ConnectedPlayers.TryGetValue(requesterId, out var player) || player.Connection == null)
@@ -118,7 +118,7 @@ namespace ONI_Together.Networking.Components
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost)
+			if (!MultiplayerSession.InActiveSession || !MultiplayerSession.IsHost)
 				return;
 
 			if (MultiplayerSession.ConnectedPlayers.Count == 0)
