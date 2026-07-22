@@ -8,6 +8,7 @@ using Shared.OxySync;
 using Shared.OxySync.Attributes;
 using Steamworks;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
@@ -51,7 +52,6 @@ public class OxySyncChat : NetworkBehaviour
         {
             Game.Instance.Subscribe(MP_HASHES.OnPlayerJoined, OnPlayerJoined);
         }
-        DebugConsole.Log("Spawned OxySync Chat!");
     }
 
     //public void Update()
@@ -76,7 +76,8 @@ public class OxySyncChat : NetworkBehaviour
         if (!isServer) return;
 
         ulong playerId = Boxed<ulong>.Unbox(obj);
-        SendHistoryToPlayer(playerId);
+        //SendHistoryToPlayer(playerId);
+        StartCoroutine(DelayedSendChatHistory(playerId));
     }
 
     public static void AddSystemMessage(string message)
@@ -97,7 +98,7 @@ public class OxySyncChat : NetworkBehaviour
         long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
         AddMessageToChatbox(playerName, text, timestamp, playerColor);
-        CallCommand(nameof(CmdSendMessage), playerId, playerName, playerColor, text, timestamp);
+        CallCommand(CmdSendMessage, playerId, playerName, playerColor, text, timestamp);
     }
 
     [Command]
@@ -117,11 +118,11 @@ public class OxySyncChat : NetworkBehaviour
             color = playerColor            
         });
         
-        CallClientRpc(nameof(BroadcastMessage), playerId, playerName, playerColor, message, timestamp);
+        CallClientRpc(RpcBroadcastMessage, playerId, playerName, playerColor, message, timestamp);
     }
 
     [ClientRpc(IncludeHost = true)]
-    public void BroadcastMessage(ulong playerId, string playerName, Color playerColor, string message, long timestamp)
+    public void RpcBroadcastMessage(ulong playerId, string playerName, Color playerColor, string message, long timestamp)
     {
         if (playerId == MultiplayerSession.LocalUserID)
             return;
@@ -156,12 +157,15 @@ public class OxySyncChat : NetworkBehaviour
             writer.Write(msg.color);
         }
 
+        DebugConsole.Log($"Sending chat history: {count} messages to {playerId}");
         CallTargetRpc(playerId, nameof(TargetRpcReceiveHistory), ms.ToArray());
     }
 
     [TargetRpc]
     public void TargetRpcReceiveHistory(byte[] data)
     {
+        DebugConsole.Log("Chat history: Target RPC triggered!");
+        // Really what we should do is add a history list to UnityChatBox and process it after Init
         AddSystemMessage(STRINGS.UI.MP_CHATWINDOW.CHAT_INITIALIZED);
 
         using var reader = new BinaryReader(new MemoryStream(data));
@@ -175,6 +179,12 @@ public class OxySyncChat : NetworkBehaviour
             AddMessageToChatbox(sender, message, timestamp, color);
         }
     }
+
+    IEnumerator DelayedSendChatHistory(ulong playerId)
+    {
+        yield return new WaitForSecondsRealtime(3f);
+        SendHistoryToPlayer(playerId);
+    }
     
     public void AddMessageToChatbox(string sender, string message, long timestamp, Color color)
     {
@@ -185,5 +195,16 @@ public class OxySyncChat : NetworkBehaviour
             UnityChatBoxUI.Instance.SendNewChatMessage(sender, timestampString, message, color);
             _timestampCache.Add(timestamp);
         }
+    }
+
+    public void RequestChatHistory()
+    {
+        CallCommand(CmdRequestChatHistory, MultiplayerSession.LocalUserID);
+    }
+    
+    [Command]
+    public void CmdRequestChatHistory(ulong playerId)
+    {
+        SendHistoryToPlayer(playerId);
     }
 }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Linq.Expressions;
 using Shared.OxySync.Attributes;
 
 namespace Shared.OxySync
@@ -239,6 +240,33 @@ namespace Shared.OxySync
             SendCommandToHost?.Invoke(NetId, hash, serialized, sendMode);
         }
 
+        protected void CallCommand(Expression<Action> expr)
+        {
+            if (expr.Body is MethodCallExpression mce)
+                CallCommand(mce.Method.Name, ExtractArgs(expr));
+        }
+
+        protected void CallCommand(Delegate method, params object[] args)
+        {
+            CallCommand(method.Method.Name, args);
+        }
+
+        private static object?[] ExtractArgs(Expression<Action> expr)
+        {
+            if (expr.Body is not MethodCallExpression mce)
+                throw new ArgumentException("Expression must be a method call.");
+            return mce.Arguments.Select(a => EvaluateExpression(a)).ToArray();
+        }
+
+        private static object? EvaluateExpression(System.Linq.Expressions.Expression expression)
+        {
+            if (expression is ConstantExpression constant)
+                return constant.Value;
+            return System.Linq.Expressions.Expression.Lambda<Func<object?>>(
+                System.Linq.Expressions.Expression.Convert(expression, typeof(object))
+            ).Compile()();
+        }
+
         protected void CallClientRpc(string methodName, params object[] args)
         {
             if (!inSession || !isServer) return;
@@ -259,6 +287,17 @@ namespace Shared.OxySync
                 InvokeClientRpc(hash, serialized);
         }
 
+        protected void CallClientRpc(Expression<Action> expr)
+        {
+            if (expr.Body is MethodCallExpression mce)
+                CallClientRpc(mce.Method.Name, ExtractArgs(expr));
+        }
+
+        protected void CallClientRpc(Delegate method, params object[] args)
+        {
+            CallClientRpc(method.Method.Name, args);
+        }
+
         protected void CallClientRpc(int interestGroup, string methodName, params object[] args)
         {
             if (!inSession || !isServer) return;
@@ -277,6 +316,17 @@ namespace Shared.OxySync
                 InvokeClientRpc(hash, serialized);
         }
 
+        protected void CallClientRpc(int interestGroup, Expression<Action> expr)
+        {
+            if (expr.Body is MethodCallExpression mce)
+                CallClientRpc(interestGroup, mce.Method.Name, ExtractArgs(expr));
+        }
+
+        protected void CallClientRpc(int interestGroup, Delegate method, params object[] args)
+        {
+            CallClientRpc(interestGroup, method.Method.Name, args);
+        }
+
         protected void CallTargetRpc(ulong targetPlayer, string methodName, params object[] args)
         {
             if (!inSession || !isServer) return;
@@ -287,6 +337,17 @@ namespace Shared.OxySync
 
             var sendMode = GetTargetRpcSendMode(hash);
             SendTargetRpcToPlayer?.Invoke(targetPlayer, NetId, hash, serialized, sendMode);
+        }
+
+        protected void CallTargetRpc(ulong targetPlayer, Expression<Action> expr)
+        {
+            if (expr.Body is MethodCallExpression mce)
+                CallTargetRpc(targetPlayer, mce.Method.Name, ExtractArgs(expr));
+        }
+
+        protected void CallTargetRpc(ulong targetPlayer, Delegate method, params object[] args)
+        {
+            CallTargetRpc(targetPlayer, method.Method.Name, args);
         }
 
         public virtual void ApplySyncVar(int fieldHash, object value, long timestamp = 0)

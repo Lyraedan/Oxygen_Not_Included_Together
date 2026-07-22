@@ -49,7 +49,7 @@ namespace ONI_Together.UI
 
 		List<ChatMessageContainer> ChatMessages = [];
 		static List<string> _pendingSystemMessages = [];
-
+		
 		public static void InitToggle()
 		{
 			ChatToggle?.onClick = () => OnToggleClicked();
