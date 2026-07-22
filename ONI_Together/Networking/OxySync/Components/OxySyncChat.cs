@@ -77,7 +77,7 @@ public class OxySyncChat : NetworkBehaviour
 
         ulong playerId = Boxed<ulong>.Unbox(obj);
         //SendHistoryToPlayer(playerId);
-        StartCoroutine(DelayedSendChatHistory(playerId));
+        //StartCoroutine(DelayedSendChatHistory(playerId));
     }
 
     public static void AddSystemMessage(string message)

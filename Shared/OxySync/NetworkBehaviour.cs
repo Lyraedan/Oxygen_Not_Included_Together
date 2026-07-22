@@ -241,6 +241,13 @@ namespace Shared.OxySync
             if (!inSession) return;
 
             var hash = methodName.GetHashCode();
+
+            if (_commandMethods == null || !_commandMethods.ContainsKey(hash))
+            {
+                LogWarning?.Invoke($"[OxySync] '{methodName}' is not a registered Command on {GetType().Name}.");
+                return;
+            }
+
             var argTypes = GetCommandArgTypes(hash);
             var serialized = RpcSerializer.Serialize(args, argTypes);
 
@@ -286,6 +293,13 @@ namespace Shared.OxySync
             if (!inSession || !isServer) return;
 
             var hash = methodName.GetHashCode();
+
+            if (_clientRpcMethods == null || !_clientRpcMethods.ContainsKey(hash))
+            {
+                LogWarning?.Invoke($"[OxySync] '{methodName}' is not a registered ClientRpc on {GetType().Name}.");
+                return;
+            }
+
             var argTypes = GetClientRpcArgTypes(hash);
             var serialized = RpcSerializer.Serialize(args, argTypes);
 
@@ -317,6 +331,13 @@ namespace Shared.OxySync
             if (!inSession || !isServer) return;
 
             var hash = methodName.GetHashCode();
+
+            if (_clientRpcMethods == null || !_clientRpcMethods.ContainsKey(hash))
+            {
+                LogWarning?.Invoke($"[OxySync] '{methodName}' is not a registered ClientRpc on {GetType().Name}.");
+                return;
+            }
+
             var argTypes = GetClientRpcArgTypes(hash);
             var serialized = RpcSerializer.Serialize(args, argTypes);
 
@@ -346,6 +367,13 @@ namespace Shared.OxySync
             if (!inSession || !isServer) return;
 
             var hash = methodName.GetHashCode();
+
+            if (_targetRpcMethods == null || !_targetRpcMethods.ContainsKey(hash))
+            {
+                LogWarning?.Invoke($"[OxySync] '{methodName}' is not a registered TargetRpc on {GetType().Name}.");
+                return;
+            }
+
             var argTypes = GetTargetRpcArgTypes(hash);
             var serialized = RpcSerializer.Serialize(args, argTypes);
 
