@@ -55,6 +55,8 @@ namespace ONI_Together.Networking
 		public static bool SessionHasPlayers => InActiveSession && ConnectedPlayers.Count > 1;
 		public static bool NotInSession => !InActiveSession;
 
+		public static int PlayerCount => IsHost ? ConnectedPlayers.Count : ConnectedPlayers.Count + 1;
+
 		[API_Method]
 		public static bool IsHost { get; set; } //HostUserID == LocalUserID;
 
