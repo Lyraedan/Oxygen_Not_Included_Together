@@ -165,7 +165,7 @@ namespace ONI_Together.UI
 			}
 
 			RefreshHardSyncLabel();
-			PlayerCountInfo.SetText(string.Format(SERVERBROWSER.CONNECTED_PLAYERS, MultiplayerSession.ConnectedPlayers.Count + 1));
+			PlayerCountInfo.SetText(string.Format(SERVERBROWSER.CONNECTED_PLAYERS, MultiplayerSession.PlayerCount));
 		}
 
 		static void ShowWindow()
