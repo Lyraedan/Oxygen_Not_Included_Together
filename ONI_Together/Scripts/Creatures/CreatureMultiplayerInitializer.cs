@@ -47,7 +47,9 @@ namespace ONI_Together.Scripts.Creatures
 			if (HasInit) return;
 
 			var go = gameObject;
-			if (!kpref?.HasTag(GameTags.Creature) ?? false) return;
+			bool isCreature = kpref?.HasTag(GameTags.Creature) ?? false;
+			bool isRover = go.GetComponent<RoverModifiers>() != null;
+			if (!isCreature && !isRover) return;
 			if (kpref?.HasTag(GameTags.BaseMinion) ?? false) return;
 
 			if (MultiplayerSession.IsClient)
