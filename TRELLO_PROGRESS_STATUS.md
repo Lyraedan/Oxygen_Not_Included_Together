@@ -68,7 +68,8 @@
   > ‌
   > See my discussion with the Riptide dev here: [https://github.com/RiptideNetworking/Riptide/issues/179](https://github.com/RiptideNetworking/Riptide/issues/179 "‌")
 
-- [ ] **Dragtool: Visual Display Sync**
+- [x] **Dragtool: Visual Display Sync** `Code fix` `Runtime QA pending`
+  > Local and remote players now see box/line drag areas, their width × height text, and brush footprints. This includes Brush, Sprinkle, Heat, Stress, Destroy, Reveal, Clear Floor, Critter Removal, Priority, Mop, Harvest, Disinfect, Empty Pipe, and Disconnect. The local multiplayer visualizer updates every frame; drag start and final extent are sent immediately to peers so short operations remain visible. Remote drag endpoints follow the interpolated cursor, and the Move To cursor mapping now uses the correct game tool class.
 
 - [ ] **Profile low performance when hosting**
 

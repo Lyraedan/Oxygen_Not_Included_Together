@@ -78,7 +78,7 @@ namespace ONI_Together.Patches
 				case "ClearFloorTool":
 					CursorManager.Instance.cursorState = CursorState.CLEAR_FLOOR;
 					break;
-				case "MoveToTool":
+				case "MoveToLocationTool":
 					CursorManager.Instance.cursorState = CursorState.MOVE_TO;
 					break;
 				case "DisconnectTool":
