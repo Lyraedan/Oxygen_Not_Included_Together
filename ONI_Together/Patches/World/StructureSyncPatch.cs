@@ -54,6 +54,7 @@ namespace ONI_Together.Patches.World
             const string name = nameof(KMonoBehaviour.OnSpawn);
             yield return AccessTools.Method(typeof(StorageLocker), name);
             yield return AccessTools.Method(typeof(RationBox), name);
+			yield return AccessTools.Method(typeof(Refrigerator), name);
             yield return AccessTools.Method(typeof(CargoBay), name);
             yield return AccessTools.Method(typeof(CargoBayCluster), name);
             //yield return AccessTools.Method(typeof(LiquidReservoir), name); // LiquidReservoir needs its actual class setting here
@@ -110,6 +111,10 @@ namespace ONI_Together.Patches.World
         public static void Postfix(Growing __instance)
         {
             using var _ = Profiler.Scope();
+
+			var identity = __instance.gameObject.AddOrGet<NetworkIdentity>();
+			identity.RegisterIdentity();
+			__instance.gameObject.AddOrGet<AnimStateSyncer>();
             __instance.gameObject.AddOrGet<PlantSyncer>();
         }
     }

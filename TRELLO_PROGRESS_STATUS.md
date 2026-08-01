@@ -1,7 +1,7 @@
 # 📊 Trello Progress Status: Oxygen Not Included Together
 
 > **Quelle:** [Trello Board - Oxygen Not Included Together](https://trello.com/b/kq7yVWyU/oxygen-not-included-together)
-> **Stand:** Letzte Aktivität: 2026-07-31
+> **Stand:** Letzte Aktivität: 2026-08-01
 
 ---
 ## 📈 Übersicht & Zusammenfassung
@@ -44,15 +44,20 @@
 
 ## 📋 List: To Do Syncronization (5)
 
-- [ ] **Status Item Groups Sync**
+- [x] **Status Item Groups Sync** `Code fix` `Runtime QA pending`
+  > Status groups now use one reliable OxySync snapshot with support for up to 64 entries. The syncer is attached to every networked selectable entity and resolves duplicant, creature, robot, building, plant, and miscellaneous status items on clients.
 
-- [ ] **plant animation and stats sync**
+- [x] **plant animation and stats sync** `Code fix` `Runtime QA pending`
+  > Plants now participate in animation synchronization. Growth age, maturity, wilting, harvest readiness, automatic harvesting, and marked-for-harvest state are replicated from the host.
 
-- [ ] **gas/liquid in pipe animation sync**
+- [x] **gas/liquid in pipe animation sync** `Code fix` `Runtime QA pending`
+  > Gas and liquid pipe updates now include the visual flow direction, moving element, and moving mass. Clients rebuild the conduit flow information used by the pipe visualizer in addition to applying the authoritative contents.
 
-- [ ] **electricity and food storage correct amount**
+- [x] **electricity and food storage correct amount** `Code fix` `Runtime QA pending`
+  > Host-authoritative battery charge and storage snapshots were verified. Refrigerators are now included in storage synchronization, and every storage syncer sends its existing contents immediately after spawning instead of waiting for the first inventory change.
 
-- [ ] **improve sync experience in 3x speed, by advancing cync logic to reduce screen freeze and lag.**
+- [x] **improve sync experience in 3x speed, by advancing sync logic to reduce screen freeze and lag.** `Code fix` `Runtime QA pending`
+  > OxySync processing now uses a fair rotating cursor, a per-tick component cap, and a smaller frame-time budget at triple speed. Large colonies therefore spread serialization work across frames instead of processing every network behaviour in one frame.
 
 ---
 

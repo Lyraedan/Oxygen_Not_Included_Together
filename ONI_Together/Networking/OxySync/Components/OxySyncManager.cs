@@ -24,6 +24,14 @@ namespace ONI_Together.Networking.OxySync.Components
         private readonly Dictionary<int, HashSet<NetworkBehaviour>> _behavioursByGroup = new();
 
         private float _tickAccumulator;
+		private int _syncCursor;
+
+		// Keep network serialization from monopolizing a frame. At triple speed the
+		// game simulation already has substantially more work to do, so use a
+		// smaller slice and continue from the previous position on the next tick.
+		private const int MaxBehavioursPerTick = 256;
+		private const double NormalSyncBudgetMilliseconds = 4.0;
+		private const double TripleSpeedSyncBudgetMilliseconds = 2.0;
 
         public int RegisteredCount => _behaviours.Count;
         public IReadOnlyList<NetworkBehaviour> AllBehaviours => _behaviours;
@@ -170,14 +178,29 @@ namespace ONI_Together.Networking.OxySync.Components
             var sw = Stopwatch.StartNew();
             int totalChanges = 0;
 
-            for (int i = _behaviours.Count - 1; i >= 0; i--)
+            int behavioursAtStart = _behaviours.Count;
+			int visited = 0;
+			double workBudget = GetSyncWorkBudgetMilliseconds(
+				SpeedControlScreen.Instance != null ? SpeedControlScreen.Instance.GetSpeed() : 0);
+
+			while (_behaviours.Count > 0
+				&& visited < behavioursAtStart
+				&& visited < MaxBehavioursPerTick
+				&& sw.Elapsed.TotalMilliseconds < workBudget)
             {
-                var behaviour = _behaviours[i];
+				if (_syncCursor >= _behaviours.Count)
+					_syncCursor = 0;
+
+				var behaviour = _behaviours[_syncCursor];
                 if (behaviour.IsNullOrDestroyed())
                 {
-                    _behaviours.RemoveAt(i);
+					_behaviours.RemoveAt(_syncCursor);
+					behavioursAtStart--;
                     continue;
                 }
+
+				_syncCursor++;
+				visited++;
 
                 if (Time.unscaledTime - behaviour._lastSyncTime < behaviour.SyncInterval)
                     continue;
@@ -295,6 +318,13 @@ namespace ONI_Together.Networking.OxySync.Components
                 SyncStats.RecordSync(SyncStats.OxySync, totalChanges, totalChanges * 16, sw.ElapsedMilliseconds);
             }
         }
+
+		internal static double GetSyncWorkBudgetMilliseconds(int gameSpeed)
+		{
+			return gameSpeed >= 2
+				? TripleSpeedSyncBudgetMilliseconds
+				: NormalSyncBudgetMilliseconds;
+		}
 
         private void IndexBehaviour(NetworkBehaviour behaviour)
         {

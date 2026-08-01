@@ -23,7 +23,12 @@ namespace ONI_Together.Networking.OxySync.Components
             _storage = GetComponent<Storage>();
 
             if (_storage != null)
+			{
                 _storage.OnStorageChange += OnLocalStorageChanged;
+				// Populate the first authoritative snapshot even when the storage was
+				// already filled before the multiplayer session became active.
+				_storageDirty = true;
+			}
         }
 
         public override void OnCleanUp()
