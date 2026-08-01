@@ -45,10 +45,10 @@
 ## 📋 List: To Do Syncronization (5)
 
 - [x] **Status Item Groups Sync** `Code fix` `Runtime QA pending`
-  > Status groups now use one reliable OxySync snapshot with support for up to 64 entries. The syncer is attached to every networked selectable entity and resolves duplicant, creature, robot, building, plant, and miscellaneous status items on clients.
+  > Status groups now use one reliable OxySync snapshot with support for up to 64 entries. The syncer is attached to every networked, prefab-backed selectable entity and resolves duplicant, creature, robot, building, plant, and miscellaneous status items on clients. Helper objects without a `KPrefabID`, such as `WorldSelectionCollider`, are ignored safely.
 
 - [x] **plant animation and stats sync** `Code fix` `Runtime QA pending`
-  > Plants now participate in animation synchronization. Growth age, maturity, wilting, harvest readiness, automatic harvesting, and marked-for-harvest state are replicated from the host.
+  > Plants now participate in animation synchronization. Growth age, maturity, wilting, harvest readiness, automatic harvesting, and marked-for-harvest state are replicated from the host. Planted crops explicitly register their animation syncer after spawning, and host Play/Queue transitions for plants and animated buildings are coalesced into viewport-aware event snapshots. This also synchronizes the Microbe Musher's working and idle animation transitions.
 
 - [x] **gas/liquid in pipe animation sync** `Code fix` `Runtime QA pending`
   > Gas and liquid pipe updates now include the visual flow direction, moving element, and moving mass. Clients rebuild the conduit flow information used by the pipe visualizer in addition to applying the authoritative contents.
@@ -57,7 +57,7 @@
   > Host-authoritative battery charge and storage snapshots were verified. Refrigerators are now included in storage synchronization, and every storage syncer sends its existing contents immediately after spawning instead of waiting for the first inventory change.
 
 - [x] **improve sync experience in 3x speed, by advancing sync logic to reduce screen freeze and lag.** `Code fix` `Runtime QA pending`
-  > OxySync processing now uses a fair rotating cursor, a per-tick component cap, and a smaller frame-time budget at triple speed. Large colonies therefore spread serialization work across frames instead of processing every network behaviour in one frame.
+  > OxySync processing now uses a fair rotating cursor, a per-tick component cap, and a smaller frame-time budget at triple speed. Real-time transforms for duplicants, critters, and other moving entities are processed first at every network tick and use a no-delay path that cannot get stuck behind the optional packet queue. Client interpolation now measures actual snapshot arrival jitter and adapts its buffer between 150 and 350 ms, while lower-priority state serialization remains spread across frames.
 
 ---
 

@@ -19,6 +19,7 @@ namespace ONI_Together.Networking.OxySync.Components
         public static OxySyncManager? Instance { get; private set; }
 
         private readonly List<NetworkBehaviour> _behaviours = new();
+		private readonly List<NetworkTransform> _realtimeTransforms = new();
         private readonly Dictionary<(int Group, PacketSendMode Mode), List<(int Hash, Variant Value)>> _changedByGroup = new();
         private readonly HashSet<Type> _explicitGroupTypes = new();
         private readonly Dictionary<int, HashSet<NetworkBehaviour>> _behavioursByGroup = new();
@@ -135,6 +136,8 @@ namespace ONI_Together.Networking.OxySync.Components
 		{
 			if (!_behaviours.Contains(behaviour))
 				_behaviours.Add(behaviour);
+			if (behaviour is NetworkTransform transform && !_realtimeTransforms.Contains(transform))
+				_realtimeTransforms.Add(transform);
 
 			if (behaviour.GetType().GetCustomAttribute<FixedInterestGroupAttribute>() != null)
 				_explicitGroupTypes.Add(behaviour.GetType());
@@ -153,6 +156,8 @@ namespace ONI_Together.Networking.OxySync.Components
         private void Unregister(NetworkBehaviour behaviour)
         {
             _behaviours.Remove(behaviour);
+			if (behaviour is NetworkTransform transform)
+				_realtimeTransforms.Remove(transform);
 
             RemoveBehaviourFromGroupIndex(behaviour, behaviour.InterestGroup);
             var fields = behaviour.SyncVarFields;
@@ -178,6 +183,21 @@ namespace ONI_Together.Networking.OxySync.Components
             var sw = Stopwatch.StartNew();
             int totalChanges = 0;
 
+			// Moving entities need a stable 20 Hz stream for snapshot interpolation.
+			// Process them before the general budget so status/building work can never
+			// make duplicants or critters run out of interpolation snapshots.
+			for (int i = _realtimeTransforms.Count - 1; i >= 0; i--)
+			{
+				var transform = _realtimeTransforms[i];
+				if (transform.IsNullOrDestroyed())
+				{
+					_realtimeTransforms.RemoveAt(i);
+					continue;
+				}
+
+				ProcessBehaviour(transform, ref totalChanges);
+			}
+
             int behavioursAtStart = _behaviours.Count;
 			int visited = 0;
 			double workBudget = GetSyncWorkBudgetMilliseconds(
@@ -202,114 +222,10 @@ namespace ONI_Together.Networking.OxySync.Components
 				_syncCursor++;
 				visited++;
 
-                if (Time.unscaledTime - behaviour._lastSyncTime < behaviour.SyncInterval)
-                    continue;
+				if (behaviour is NetworkTransform)
+					continue;
 
-                behaviour._lastSyncTime = Time.unscaledTime;
-
-                uint manualDirty = behaviour.GetAndClearDirtyBits();
-
-                _changedByGroup.Clear();
-                var fields = behaviour.SyncVarFields;
-
-                for (int j = 0; j < fields.Count; j++)
-                {
-                    var field = fields[j];
-                    bool isManuallyDirty = (manualDirty & (1u << j)) != 0;
-
-                    Variant currentVariant;
-                    if (isManuallyDirty)
-                    {
-                        currentVariant = VariantHelper.ObjectToVariant(field.Info.GetValue(behaviour));
-                    }
-                    else
-                    {
-                        var currentValue = field.Info.GetValue(behaviour);
-                        currentVariant = VariantHelper.ObjectToVariant(currentValue);
-                        var lastVariant = VariantHelper.ObjectToVariant(field.LastSentValue);
-                        if (!VariantHelper.ValuesDiffer(currentVariant, lastVariant, field.Epsilon))
-                            continue;
-                    }
-
-                    int group = field.InterestGroup;
-                    if (group == -1) group = behaviour.InterestGroup;
-                    var key = (group, (PacketSendMode)field.SendMode);
-                    if (!_changedByGroup.TryGetValue(key, out var list))
-                    {
-                        list = new List<(int Hash, Variant Value)>();
-                        _changedByGroup[key] = list;
-                    }
-                    list.Add((field.Hash, currentVariant));
-                }
-
-                if (_changedByGroup.Count == 0) continue;
-
-                var identity = behaviour.GetComponent<NetworkIdentity>();
-                if (identity == null || identity.NetId == 0)
-                    continue;
-
-                int netId = identity.NetId;
-                long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-
-                foreach (var kvp in _changedByGroup)
-                {
-                    int groupId = kvp.Key.Group;
-                    var sendMode = kvp.Key.Mode;
-                    var updates = kvp.Value;
-                    totalChanges += updates.Count;
-
-                    if (updates.Count == 1)
-                    {
-                        var update = updates[0];
-                        PacketSender.SendToGroup(groupId, new SyncVarPacket
-                        {
-                            NetId = netId,
-                            FieldHash = update.Hash,
-                            Value = update.Value,
-                            Timestamp = timestamp,
-                        }, sendMode);
-                    }
-                    else
-                    {
-                        var batch = new SyncVarBatchPacket(netId, updates)
-                        {
-                            Timestamp = timestamp,
-                        };
-                        PacketSender.SendToGroup(groupId, batch, sendMode);
-                    }
-                }
-
-                bool hasSubscribers = false;
-                foreach (var key in _changedByGroup.Keys)
-                {
-                    if (InterestGroupManager.GetPlayersInGroup(key.Group).Count > 0)
-                    {
-                        hasSubscribers = true;
-                        break;
-                    }
-                }
-
-                if (hasSubscribers)
-                    behaviour._lastActiveSyncTime = Time.unscaledTime;
-
-                behaviour.SyncLastSentValues();
-
-				if (!_explicitGroupTypes.Contains(behaviour.GetType()))
-				{
-					int currentWorld = behaviour.GetMyWorldId();
-					if (currentWorld >= 0)
-					{
-						int newGroup = WorldChunkHelper.GetGroupId(currentWorld,
-							Grid.PosToCell(behaviour.transform.position));
-						if (newGroup != behaviour.InterestGroup)
-							{
-								RemoveBehaviourFromGroupIndex(behaviour, behaviour.InterestGroup);
-								behaviour.InterestGroup = newGroup;
-								AddBehaviourToGroupIndex(behaviour, newGroup);
-								behaviour.MarkAllDirty();
-							}
-					}
-				}
+				ProcessBehaviour(behaviour, ref totalChanges);
             }
 
             if (totalChanges > 0)
@@ -318,6 +234,109 @@ namespace ONI_Together.Networking.OxySync.Components
                 SyncStats.RecordSync(SyncStats.OxySync, totalChanges, totalChanges * 16, sw.ElapsedMilliseconds);
             }
         }
+
+		private void ProcessBehaviour(NetworkBehaviour behaviour, ref int totalChanges)
+		{
+			if (Time.unscaledTime - behaviour._lastSyncTime < behaviour.SyncInterval)
+				return;
+
+			behaviour._lastSyncTime = Time.unscaledTime;
+			uint manualDirty = behaviour.GetAndClearDirtyBits();
+			_changedByGroup.Clear();
+			var fields = behaviour.SyncVarFields;
+
+			for (int j = 0; j < fields.Count; j++)
+			{
+				var field = fields[j];
+				bool isManuallyDirty = (manualDirty & (1u << j)) != 0;
+				Variant currentVariant;
+				if (isManuallyDirty)
+				{
+					currentVariant = VariantHelper.ObjectToVariant(field.Info.GetValue(behaviour));
+				}
+				else
+				{
+					currentVariant = VariantHelper.ObjectToVariant(field.Info.GetValue(behaviour));
+					var lastVariant = VariantHelper.ObjectToVariant(field.LastSentValue);
+					if (!VariantHelper.ValuesDiffer(currentVariant, lastVariant, field.Epsilon))
+						continue;
+				}
+
+				int group = field.InterestGroup == -1 ? behaviour.InterestGroup : field.InterestGroup;
+				var sendMode = (PacketSendMode)field.SendMode;
+				if (behaviour is NetworkTransform && sendMode == PacketSendMode.Unreliable)
+					sendMode = PacketSendMode.UnreliableNoDelay;
+				var key = (group, sendMode);
+				if (!_changedByGroup.TryGetValue(key, out var list))
+				{
+					list = new List<(int Hash, Variant Value)>();
+					_changedByGroup[key] = list;
+				}
+				list.Add((field.Hash, currentVariant));
+			}
+
+			if (_changedByGroup.Count == 0)
+				return;
+
+			var identity = behaviour.GetComponent<NetworkIdentity>();
+			if (identity == null || identity.NetId == 0)
+				return;
+
+			int netId = identity.NetId;
+			long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+			foreach (var kvp in _changedByGroup)
+			{
+				int groupId = kvp.Key.Group;
+				var sendMode = kvp.Key.Mode;
+				var updates = kvp.Value;
+				totalChanges += updates.Count;
+				if (updates.Count == 1)
+				{
+					var update = updates[0];
+					PacketSender.SendToGroup(groupId, new SyncVarPacket
+					{
+						NetId = netId,
+						FieldHash = update.Hash,
+						Value = update.Value,
+						Timestamp = timestamp,
+					}, sendMode);
+				}
+				else
+				{
+					PacketSender.SendToGroup(groupId, new SyncVarBatchPacket(netId, updates)
+					{
+						Timestamp = timestamp,
+					}, sendMode);
+				}
+			}
+
+			foreach (var key in _changedByGroup.Keys)
+			{
+				if (InterestGroupManager.GetPlayersInGroup(key.Group).Count > 0)
+				{
+					behaviour._lastActiveSyncTime = Time.unscaledTime;
+					break;
+				}
+			}
+
+			behaviour.SyncLastSentValues();
+			if (_explicitGroupTypes.Contains(behaviour.GetType()))
+				return;
+
+			int currentWorld = behaviour.GetMyWorldId();
+			if (currentWorld < 0)
+				return;
+
+			int newGroup = WorldChunkHelper.GetGroupId(currentWorld,
+				Grid.PosToCell(behaviour.transform.position));
+			if (newGroup == behaviour.InterestGroup)
+				return;
+
+			RemoveBehaviourFromGroupIndex(behaviour, behaviour.InterestGroup);
+			behaviour.InterestGroup = newGroup;
+			AddBehaviourToGroupIndex(behaviour, newGroup);
+			behaviour.MarkAllDirty();
+		}
 
 		internal static double GetSyncWorkBudgetMilliseconds(int gameSpeed)
 		{

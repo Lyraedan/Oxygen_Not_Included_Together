@@ -37,8 +37,18 @@ namespace ONI_Together.Patches.KleiPatches
 			if (__instance.gameObject.IsNullOrDestroyed() || !__instance.gameObject.TryGetComponent<KPrefabID>(out var id))
 				return;
 
-			if (!id.HasTag(GameTags.BaseMinion) && !id.HasTag(GameTags.Creature)) // Allow BaseMinion and Creature
+			if (!id.HasTag(GameTags.BaseMinion) && !id.HasTag(GameTags.Creature))
+			{
+				// Buildings and plants use the viewport-aware coordinator. Queueing a
+				// dirty notification here captures short Play/Queue transitions while
+				// coalescing repeated state-machine calls into one snapshot per tick.
+				if (AnimSyncEligibility.IsAnimatedNonMinion(__instance.gameObject)
+					&& __instance.TryGetComponent<AnimStateSyncer>(out var syncer))
+				{
+					AnimSyncCoordinator.NotifyAnimationChanged(syncer);
+				}
 				return;
+			}
 
 			int netId = __instance.GetNetId();
 			if(netId == 0)

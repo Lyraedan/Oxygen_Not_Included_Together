@@ -37,6 +37,7 @@ namespace Shared.OxySync
 
         public bool useSnapshotInterpolation;
         public double bufferTimeMultiplier = 2.0;
+		public double maxAdaptiveBufferMilliseconds = 350.0;
 
         private struct SnapshotEntry
         {
@@ -272,7 +273,9 @@ namespace Shared.OxySync
             }
 
             double now = SnapshotTimeline.MonotonicMilliseconds;
-            double bufferMs = SyncInterval * bufferTimeMultiplier * 1000.0;
+			double baseBufferMs = SyncInterval * bufferTimeMultiplier * 1000.0;
+			double bufferMs = _snapshotTimeline.GetAdaptiveBufferMilliseconds(
+				baseBufferMs, maxAdaptiveBufferMilliseconds);
             double playbackTime = now - bufferMs;
 
             int index = -1;

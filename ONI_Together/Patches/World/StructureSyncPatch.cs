@@ -114,7 +114,7 @@ namespace ONI_Together.Patches.World
 
 			var identity = __instance.gameObject.AddOrGet<NetworkIdentity>();
 			identity.RegisterIdentity();
-			__instance.gameObject.AddOrGet<AnimStateSyncer>();
+			__instance.gameObject.AddOrGet<AnimStateSyncer>().EnsureRegistered();
             __instance.gameObject.AddOrGet<PlantSyncer>();
         }
     }

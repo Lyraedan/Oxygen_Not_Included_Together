@@ -59,7 +59,7 @@ namespace ONI_Together.Networking.OxySync.Components
 
         private void OnStatusItemsChanged(byte[] oldValue, byte[] newValue)
         {
-            if (_selectable.IsNullOrDestroyed() || newValue == null)
+			if (_selectable == null || _selectable.IsNullOrDestroyed() || newValue == null)
                 return;
 
             Apply(Decode(newValue));

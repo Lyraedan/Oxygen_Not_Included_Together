@@ -8,6 +8,8 @@ using ONI_Together.Networking.Components;
 using ONI_Together.Patches.Critters;
 using ONI_Together.Patches.World;
 using ONI_Together.Patches.World.Buildings;
+using ONI_Together.Patches.OxySync;
+using ONI_Together.Networking.OxySync.Components;
 
 namespace ONI_Together.DebugTools.UnitTests
 {
@@ -105,6 +107,15 @@ namespace ONI_Together.DebugTools.UnitTests
 			if (runRocket || rocketResult || runTemperature || runFabricator || fabricatorResult)
 				return UnitTestResult.Fail("At least one null crash guard would still run unsafe game code");
 			return UnitTestResult.Pass("Rocket, creature-temperature and fabricator null guards are safe");
+		}
+
+		[UnitTest(name: "Known issues: status receiver tolerates helper objects", category: "KnownIssues")]
+		public static UnitTestResult StatusReceiverHelperObjectGuard()
+		{
+			var receiver = StatusItemGroupSyncPatch.ResolveReceiverType(null);
+			if (receiver != StatusItemsSyncer.StatusRecieverType.MISC)
+				return UnitTestResult.Fail("A helper object without KPrefabID was not classified safely");
+			return UnitTestResult.Pass("Status receiver classification tolerates objects without KPrefabID");
 		}
 	}
 }

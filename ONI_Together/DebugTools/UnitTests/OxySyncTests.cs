@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using ONI_Together.Misc;
+using ONI_Together.Networking;
 using ONI_Together.Networking.OxySync.Packets;
 using Shared.OxySync;
 using UnityEngine;
@@ -29,6 +30,38 @@ namespace ONI_Together.DebugTools.UnitTests
 
             return UnitTestResult.Pass("Remote snapshots use a stable local monotonic timeline");
         }
+
+		[UnitTest(name: "Snapshot timeline adapts its buffer to arrival jitter", category: "OxySync")]
+		public static UnitTestResult SnapshotTimelineAdaptsToJitter()
+		{
+			var timeline = new SnapshotTimeline();
+			timeline.ToLocalTime(1_000L, 1_000.0);
+			timeline.ToLocalTime(1_050L, 1_140.0);
+			timeline.ToLocalTime(1_100L, 1_160.0);
+
+			double adaptive = timeline.GetAdaptiveBufferMilliseconds(150.0, 350.0);
+			if (adaptive <= 150.0 || adaptive > 350.0)
+				return UnitTestResult.Fail($"Adaptive buffer out of range: {adaptive}");
+
+			timeline.Reset();
+			if (timeline.EstimatedJitterMilliseconds != 0.0)
+				return UnitTestResult.Fail("Reset did not clear estimated jitter");
+
+			return UnitTestResult.Pass("Arrival jitter increases the interpolation buffer within its cap");
+		}
+
+		[UnitTest(name: "Realtime snapshots bypass the optional packet queue", category: "OxySync")]
+		public static UnitTestResult RealtimeSnapshotsBypassPacketQueue()
+		{
+			if (!Networking.Transport.TransportPacketSender.IsLatencySensitive(PacketSendMode.UnreliableNoDelay))
+				return UnitTestResult.Fail("UnreliableNoDelay should bypass the queue");
+			if (Networking.Transport.TransportPacketSender.IsLatencySensitive(PacketSendMode.Unreliable))
+				return UnitTestResult.Fail("Regular unreliable traffic should retain configured queue behavior");
+			if (Networking.Transport.TransportPacketSender.IsLatencySensitive(PacketSendMode.ReliableImmediate))
+				return UnitTestResult.Fail("Reliable traffic must retain ordering through the queue");
+
+			return UnitTestResult.Pass("Only latency-sensitive unreliable snapshots bypass the queue");
+		}
 
         [UnitTest(name: "SyncVarPacket round-trip", category: "OxySync")]
         public static UnitTestResult SyncVarPacketRoundTrip()
