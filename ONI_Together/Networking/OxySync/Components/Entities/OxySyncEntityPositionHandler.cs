@@ -35,6 +35,7 @@ namespace ONI_Together.Networking.OxySync.Components
             syncRotation = false;
             syncScale = false;
             useSnapshotInterpolation = true;
+            bufferTimeMultiplier = 3.0;
             _lastHeartbeatTime = Time.unscaledTime;
             _lastPosition = transform.position;
         }

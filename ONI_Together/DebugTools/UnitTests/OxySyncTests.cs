@@ -11,6 +11,25 @@ namespace ONI_Together.DebugTools.UnitTests
 {
     public static class OxySyncTests
     {
+        [UnitTest(name: "Snapshot timeline ignores clock skew and arrival jitter", category: "OxySync")]
+        public static UnitTestResult SnapshotTimelineNormalizesRemoteTime()
+        {
+            var timeline = new SnapshotTimeline();
+
+            double first = timeline.ToLocalTime(1_700_000_000_000L, 1_000.0);
+            double second = timeline.ToLocalTime(1_700_000_000_050L, 1_135.0);
+            double third = timeline.ToLocalTime(1_700_000_000_100L, 1_155.0);
+
+            if (Math.Abs(first - 1_000.0) > 0.001)
+                return UnitTestResult.Fail($"Initial local anchor mismatch: {first}");
+            if (Math.Abs(second - 1_050.0) > 0.001)
+                return UnitTestResult.Fail($"Remote cadence was changed by arrival jitter: {second}");
+            if (Math.Abs(third - 1_100.0) > 0.001)
+                return UnitTestResult.Fail($"Remote cadence was changed by clock skew: {third}");
+
+            return UnitTestResult.Pass("Remote snapshots use a stable local monotonic timeline");
+        }
+
         [UnitTest(name: "SyncVarPacket round-trip", category: "OxySync")]
         public static UnitTestResult SyncVarPacketRoundTrip()
         {
