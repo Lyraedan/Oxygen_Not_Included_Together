@@ -54,7 +54,7 @@ namespace ONI_Together.Patches.World
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.InSession || BuildingConfigPacket.IsApplyingPacket || workable == null)
+				if (!MultiplayerSession.InActiveSession || BuildingConfigPacket.IsApplyingPacket || workable == null)
 					return;
 
 				var identity = workable.gameObject.AddOrGet<NetworkIdentity>();

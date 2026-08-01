@@ -64,11 +64,11 @@ namespace ONI_Together.DebugTools.UnitTests
 		[UnitTest(name: "Known issues: client WorldDamage is suppressed", category: "KnownIssues")]
 		public static UnitTestResult ClientWorldDamageSuppressed()
 		{
-			bool oldInSession = MultiplayerSession.InSession;
+			bool oldInSession = MultiplayerSession.InActiveSession;
 			bool oldIsHost = MultiplayerSession.IsHost;
 			try
 			{
-				MultiplayerSession.InSession = true;
+				MultiplayerSession.InActiveSession = true;
 				MultiplayerSession.IsHost = false;
 				bool runOriginal = WorldDamagePatch.Prefix(0, 1f, 293.15f, 0, 0, 0);
 				return runOriginal
@@ -77,7 +77,7 @@ namespace ONI_Together.DebugTools.UnitTests
 			}
 			finally
 			{
-				MultiplayerSession.InSession = oldInSession;
+				MultiplayerSession.InActiveSession = oldInSession;
 				MultiplayerSession.IsHost = oldIsHost;
 			}
 		}
