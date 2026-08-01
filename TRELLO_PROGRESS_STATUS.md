@@ -48,16 +48,16 @@
   > Status groups now use one reliable OxySync snapshot with support for up to 64 entries. The syncer is attached to every networked, prefab-backed selectable entity and resolves duplicant, creature, robot, building, plant, and miscellaneous status items on clients. Helper objects without a `KPrefabID`, such as `WorldSelectionCollider`, are ignored safely.
 
 - [x] **plant animation and stats sync** `Code fix` `Runtime QA pending`
-  > Plants now participate in animation synchronization. Growth age, maturity, wilting, harvest readiness, automatic harvesting, and marked-for-harvest state are replicated from the host. Planted crops explicitly register their animation syncer after spawning, and host Play/Queue transitions for plants and animated buildings are coalesced into viewport-aware event snapshots. This also synchronizes the Microbe Musher's working and idle animation transitions.
+  > Plants now participate in animation synchronization. Growth age, maturity, wilting, harvest readiness, automatic harvesting, and marked-for-harvest state are replicated from the host. Planted crops explicitly register their animation syncer after spawning, while animated buildings use viewport-aware state snapshots. Synchronized buildings, including the Microbe Musher, additionally replicate their exact ordered Play/Queue events so working intro, loop, and idle transitions cannot be lost when snapshots are coalesced. Client-side state machines can no longer overwrite host-authoritative animations on synchronized entities.
 
 - [x] **gas/liquid in pipe animation sync** `Code fix` `Runtime QA pending`
   > Gas and liquid pipe updates now include the visual flow direction, moving element, and moving mass. Clients rebuild the conduit flow information used by the pipe visualizer in addition to applying the authoritative contents.
 
 - [x] **electricity and food storage correct amount** `Code fix` `Runtime QA pending`
-  > Host-authoritative battery charge and storage snapshots were verified. Refrigerators are now included in storage synchronization, and every storage syncer sends its existing contents immediately after spawning instead of waiting for the first inventory change.
+  > Host-authoritative battery charge and storage snapshots were verified. OxySync now resolves incoming fields against every network behaviour on an entity instead of silently dropping fields that are not owned by the first component, restoring client battery meters. Coal and other fueled generators now publish their authoritative fuel mass through OxySync, and client simulation no longer overwrites the received meter with empty local storage. Refrigerators remain included in storage synchronization, and every storage syncer sends its existing contents immediately after spawning instead of waiting for the first inventory change.
 
 - [x] **improve sync experience in 3x speed, by advancing sync logic to reduce screen freeze and lag.** `Code fix` `Runtime QA pending`
-  > OxySync processing now uses a fair rotating cursor, a per-tick component cap, and a smaller frame-time budget at triple speed. Real-time transforms for duplicants, critters, and other moving entities are processed first at every network tick and use a no-delay path that cannot get stuck behind the optional packet queue. Client interpolation now measures actual snapshot arrival jitter and adapts its buffer between 150 and 350 ms, while lower-priority state serialization remains spread across frames.
+  > OxySync processing now uses a fair rotating cursor, a per-tick component cap, and a smaller frame-time budget at triple speed. Real-time transforms for duplicants, critters, and other moving entities are processed first at every network tick and use a no-delay path that cannot get stuck behind the optional packet queue. Client interpolation measures actual snapshot arrival jitter and adapts its buffer between 150 and 350 ms, while lower-priority state serialization remains spread across frames. The experimental duplicant navigation-transition replay was removed after runtime testing showed that it competed with OxySync transform snapshots and repeatedly pulled duplicants back to older path positions. OxySync is again the single authority for remote duplicant positioning.
 
 ---
 
@@ -196,15 +196,60 @@
 - [x] **Discord Rich Presence** `Next Update`
 
 - [x] **OxySync framework upgrades** `Next Update` `Internal Testing`
-  > **OxySync** is a host-authoritative state-synchronization framework built on top of ONI's `KMonoBehaviour`, modelled after the [Mirror](https://mirror-networking.com/ "‌") networking framework for Unity. It extends the existing ad-hoc packet-based sync system with an attribute-driven pattern that is cleaner, more maintainable, and much easier to extend.What's new
+  > **OxySync** is a host-authoritative state-synchronization framework built on top of ONI's `KMonoBehaviour`, modelled after the [Mirror](https://mirror-networking.com/ "‌") networking framework for Unity. It extends the existing ad-hoc packet-based sync system with an attribute-driven pattern that is cleaner, more maintainable, and easier to extend.
+  >
+  > **What's new**
   > `NetworkBehaviour` — A new base class extending `KMonoBehaviour` that any networked component can inherit from. Handles SyncVar discovery, RPC registration, and dispatch automatically via reflection on `OnSpawn()`.
-  > `[SyncVar]` — Mark any field for automatic host→client replication. uses a dirty bit flag similar to [Mirror](https://mirror-networking.com/ "‌"), set on write, swept on sync interval, and broadcast on change. Supports:
-  > - `Hook = "MethodName"` — A callback invoked on the client when the value changes: `void OnFieldChanged(OldType old, NewType val)`
+  > `[SyncVar]` — Marks a field for automatic host→client replication. OxySync samples the field on its configured sync interval, compares it with the last transmitted value, and batches changed fields by interest group and delivery mode. A dirty bit can additionally force a field or the complete component to be resent; ordinary field assignments do not require a generated setter. Supports:
+  > - `Hook = "MethodName"` — A callback invoked on the client when the value changes: `void OnFieldChanged(FieldType oldValue, FieldType newValue)`. Invalid hook signatures are reported during discovery and disabled instead of failing during packet dispatch.
   > - `Epsilon = 0.01f` — Minimum magnitude change for floats/vectors to avoid noise
-  > `[Command]` — Client→host RPC. Call via `CallCommand(nameof(Method), args...)`. Optional `RequiresHost = true` restricts to the host only.
-  > `[ClientRpc]` — Host→all-clients broadcast RPC. Call via `CallClientRpc(nameof(Method), args...)`.
+  > - `InterestGroup = id` — Overrides the component's group for this field
+  > - `SendMode = mode` — Selects unreliable, reliable, immediate, or no-delay delivery
+  > `[Command]` — Client→host RPC. Call via `CallCommand(nameof(Method), args...)`. Optional `RequiresHost = true` makes the command host-local: clients cannot send it, and the host dispatcher rejects it if it arrives through the remote command packet path.
+  > `[ClientRpc]` — Host→all-clients broadcast RPC. Call via `CallClientRpc(nameof(Method), args...)`. `IncludeHost = true` also executes the RPC locally on the host, and `InterestGroup` limits the recipients.
   > `[TargetRpc]` — Host→specific-client RPC. Call via `CallTargetRpc(playerId, nameof(Method), args...)`.
-  > `[Server]` **/** `[Client]` — Documentation/enforcement attributes for methods that should only run on one side.
+  > `[Server]` **/** `[Client]` — Enforced for methods invoked through OxySync RPC dispatch. Unity lifecycle methods such as `Update()` still require an explicit `if (!isServer) return;` or `if (!isClient) return;` guard.
+  >
+  > **Dispatch and authority model**
+  > - The host is authoritative for simulation state. Clients apply replicated state and do not independently advance synchronized building or duplicant state machines.
+  > - A single `NetworkIdentity` may own multiple `NetworkBehaviour` components. Incoming SyncVars, Commands, ClientRpcs, and TargetRpcs are resolved against the component that actually declares the field or method; component order no longer causes unrelated updates to be dropped.
+  > - SyncVars are intended for persistent state such as battery charge, generator fuel, storage contents, plant statistics, and current state-machine state. RPCs are intended for ordered actions or one-shot events.
+  > - Every SyncVar update carries the host timestamp. Clients track it independently per field and reject duplicate or older unreliable packets, preventing a late packet from rolling a battery meter, machine state, or entity property backwards.
+  > - Last-sent values are stored as independent serialized snapshots. In-place mutations of arrays and collections are therefore detected instead of being hidden by a shared object reference.
+  > - Position, rotation, and scale fields received in one batch share a timestamp. The interpolation buffer merges those fields into one complete snapshot instead of retaining a partially applied transform.
+  > - Real-time transforms use timestamped snapshot interpolation and an adaptive jitter buffer. Duplicant positioning deliberately uses this single OxySync path; a second navigation-transition replay path caused conflicting corrections and was removed after runtime testing.
+  > - Commands marked `RequiresHost`, RPC direction attributes, method return types, by-reference parameters, supported argument types, SyncVar hooks, and hash collisions are validated before dispatch. Invalid definitions are skipped with an OxySync warning.
+  > - Field, RPC-method, and global OxySync identifiers use a deterministic protocol hash instead of runtime-dependent `string.GetHashCode()`, so identifiers remain identical across processes and operating systems.
+  > - These identifier and framing changes are handshake protocol version 2. Version 1 peers are rejected before joining instead of connecting with incompatible OxySync IDs.
+  > - TargetRpc packets have a dedicated target-method resolver and are also executed directly when the selected target is the local host; they are no longer mistaken for broadcast ClientRpc methods.
+  > - RPC payloads are length-framed and bounded to 8 MiB. Truncated payloads, oversized collections, invalid Variant arrays, and incomplete compressed-string reads are rejected rather than partially applied.
+  >
+  > **Supported values and lifecycle**
+  > - RPCs support null reference arguments, numeric primitives, booleans, strings, enums with any integral backing type, vectors, colors, quaternions, byte arrays, hashed strings, nullable values, arrays, and nested `List`, `Dictionary`, `HashSet`, `Queue`, and `Stack` collections made from supported types.
+  > - Current SyncVars use OxySync `Variant` values: null references, numeric primitives (including `ulong` and `decimal`), booleans, strings, enums with any integral backing type, vectors, colors, quaternions, byte arrays, hashed strings, and supported arrays/collections. Unsupported values now fail explicitly instead of silently becoming integer zero.
+  > - Call `base.OnSpawn()` so discovery and manager registration run, and call `base.OnCleanUp()` so the behaviour is removed from the sync and interest-group indexes.
+  > - Every synchronized GameObject needs one registered `NetworkIdentity`. Multiple OxySync behaviours may safely share that identity.
+  >
+  > **Example**
+  > ```csharp
+  > public sealed class ExampleSyncer : NetworkBehaviour
+  > {
+  >     [SyncVar(Hook = nameof(OnValueChanged), Epsilon = 0.01f)]
+  >     private float value;
+  >
+  >     [Command]
+  >     private void CmdSetValue(float requested)
+  >     {
+  >         value = requested; // executed by the authoritative host
+  >     }
+  >
+  >     [ClientRpc]
+  >     private void RpcPlayEffect(string effectId) { }
+  >
+  >     private void OnValueChanged(float oldValue, float newValue) { }
+  > }
+  > ```
+  > Persistent fields are sampled on their configured `SyncInterval`; latency-sensitive movement uses the no-delay unreliable channel, while final stop states and state-machine changes use reliable delivery. Manual dirty tracking is now dynamically sized, so components are not limited to 32 explicitly dirtied SyncVars; the legacy 32-bit accessor remains available for API compatibility.
 
 - [x] **Network Overlay [SHIFT + F5]** `Next Update`
   > ![image.webp](https://trello.com/1/cards/6a4680c184cad11423bf070b/attachments/6a46880f06374b026789a70f/previews/6a46881106374b026789a720/download/image.webp)

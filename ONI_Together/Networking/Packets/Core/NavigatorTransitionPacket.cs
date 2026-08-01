@@ -11,6 +11,7 @@ namespace ONI_Together.Networking.Packets.Core
 	public class NavigatorTransitionPacket : IPacket
 	{
 		public int NetId;
+		public uint Sequence;
 		public bool IsStop;
 
 		public Vector3 SourcePosition;
@@ -29,10 +30,12 @@ namespace ONI_Together.Networking.Packets.Core
 			using var _ = Profiler.Scope();
 
 			writer.Write(NetId);
+			writer.Write(Sequence);
 			writer.Write(IsStop);
 
 			if (IsStop)
 			{
+				writer.Write(SourcePosition);
 				writer.Write(EndNavType);
 				return;
 			}
@@ -54,10 +57,12 @@ namespace ONI_Together.Networking.Packets.Core
 			using var _ = Profiler.Scope();
 
 			NetId = reader.ReadInt32();
+			Sequence = reader.ReadUInt32();
 			IsStop = reader.ReadBoolean();
 
 			if (IsStop)
 			{
+				SourcePosition = reader.ReadVector3();
 				EndNavType = reader.ReadByte();
 				return;
 			}
@@ -90,7 +95,7 @@ namespace ONI_Together.Networking.Packets.Core
 
 			if (IsStop)
 			{
-				clientController.OnStopReceived((NavType)EndNavType);
+				clientController.OnStopReceived((NavType)EndNavType, SourcePosition, Sequence);
 			}
 			else
 			{

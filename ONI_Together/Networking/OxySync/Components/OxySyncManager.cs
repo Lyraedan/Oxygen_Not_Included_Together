@@ -129,7 +129,26 @@ namespace ONI_Together.Networking.OxySync.Components
             NetworkBehaviour.OnBehaviourCleanUp -= Unregister;
 
             if (Instance == this)
+            {
                 Instance = null;
+
+                NetworkBehaviour.NetIdQuery = null;
+                NetworkBehaviour.NetIdSetter = null;
+                NetworkBehaviour.LogWarning = null;
+                NetworkBehaviour.IsHostQuery = null;
+                NetworkBehaviour.IsClientQuery = null;
+                NetworkBehaviour.InSessionQuery = null;
+                NetworkBehaviour.SendCommandToHost = null;
+                NetworkBehaviour.SendClientRpcToAll = null;
+                NetworkBehaviour.SendClientRpcToGroup = null;
+                NetworkBehaviour.SendTargetRpcToPlayer = null;
+                NetworkBehaviour.LocalUserIdQuery = null;
+            }
+
+            _behaviours.Clear();
+            _realtimeTransforms.Clear();
+            _behavioursByGroup.Clear();
+            _explicitGroupTypes.Clear();
         }
 
 		private void Register(NetworkBehaviour behaviour)
@@ -241,14 +260,14 @@ namespace ONI_Together.Networking.OxySync.Components
 				return;
 
 			behaviour._lastSyncTime = Time.unscaledTime;
-			uint manualDirty = behaviour.GetAndClearDirtyBits();
+			var manualDirty = behaviour.GetAndClearDirtyIndices();
 			_changedByGroup.Clear();
 			var fields = behaviour.SyncVarFields;
 
 			for (int j = 0; j < fields.Count; j++)
 			{
 				var field = fields[j];
-				bool isManuallyDirty = (manualDirty & (1u << j)) != 0;
+				bool isManuallyDirty = manualDirty?.Contains(j) == true;
 				Variant currentVariant;
 				if (isManuallyDirty)
 				{

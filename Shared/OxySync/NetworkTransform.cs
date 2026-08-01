@@ -51,7 +51,6 @@ namespace Shared.OxySync
         private int _netPositionHash;
         private int _netRotationHash;
         private int _netScaleHash;
-        private Dictionary<int, long> _lastTransformTimestamps;
         private SnapshotTimeline _snapshotTimeline;
         private Vector3 _interpolatedPosition;
         private Quaternion _interpolatedRotation;
@@ -69,45 +68,57 @@ namespace Shared.OxySync
             _netScale = target.localScale;
             SyncInterval = 0.05f;
             _snapshots = new List<SnapshotEntry>(16);
-            _lastTransformTimestamps = new Dictionary<int, long>(3);
             _snapshotTimeline = new SnapshotTimeline();
-            _netPositionHash = nameof(_netPosition).GetHashCode();
-            _netRotationHash = nameof(_netRotation).GetHashCode();
-            _netScaleHash = nameof(_netScale).GetHashCode();
+            _netPositionHash = OxySyncHash.Compute(nameof(_netPosition));
+            _netRotationHash = OxySyncHash.Compute(nameof(_netRotation));
+            _netScaleHash = OxySyncHash.Compute(nameof(_netScale));
         }
 
-        public override void ApplySyncVar(int fieldHash, object value, long timestamp)
+        public override bool ApplySyncVar(int fieldHash, object value, long timestamp)
         {
             bool isTransformField = fieldHash == _netPositionHash ||
                                     fieldHash == _netRotationHash ||
                                     fieldHash == _netScaleHash;
 
-            if (isTransformField && timestamp > 0 &&
-                _lastTransformTimestamps.TryGetValue(fieldHash, out long lastTimestamp) &&
-                timestamp < lastTimestamp)
-            {
-                return;
-            }
-
-            base.ApplySyncVar(fieldHash, value, timestamp);
+            if (!base.ApplySyncVar(fieldHash, value, timestamp))
+                return false;
 
             if (!isTransformField || timestamp == 0)
-                return;
+                return true;
 
-            _lastTransformTimestamps[fieldHash] = timestamp;
             if (!useSnapshotInterpolation)
-                return;
+                return true;
 
             double localTimestamp = _snapshotTimeline.ToLocalTime(
                 timestamp,
                 SnapshotTimeline.MonotonicMilliseconds);
             AddSnapshot(localTimestamp);
+            return true;
         }
 
         private void AddSnapshot(double timestamp)
         {
-            if (_snapshots.Count > 0 && timestamp <= _snapshots[_snapshots.Count - 1].timestamp)
-                return;
+            if (_snapshots.Count > 0)
+            {
+                int lastIndex = _snapshots.Count - 1;
+                if (timestamp < _snapshots[lastIndex].timestamp)
+                    return;
+
+                // A batch gives position, rotation, and scale the same timestamp.
+                // Replace the pending snapshot so it contains the complete batch,
+                // rather than retaining only the first field that was applied.
+                if (timestamp == _snapshots[lastIndex].timestamp)
+                {
+                    _snapshots[lastIndex] = new SnapshotEntry
+                    {
+                        timestamp = timestamp,
+                        position = _netPosition,
+                        rotation = _netRotation,
+                        scale = _netScale,
+                    };
+                    return;
+                }
+            }
 
             _snapshots.Add(new SnapshotEntry
             {
