@@ -67,10 +67,12 @@ namespace ONI_Together.Networking.OxySync.Components
             }
         }
 
-        public override void ApplySyncVar(int fieldHash, object value, long timestamp)
+        public override bool ApplySyncVar(int fieldHash, object value, long timestamp)
         {
-            base.ApplySyncVar(fieldHash, value, timestamp);
-            _lastSyncReceivedTime = Time.unscaledTime;
+            bool applied = base.ApplySyncVar(fieldHash, value, timestamp);
+            if (applied)
+                _lastSyncReceivedTime = Time.unscaledTime;
+            return applied;
         }
 
         [Client]

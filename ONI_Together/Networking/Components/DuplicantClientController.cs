@@ -2,6 +2,7 @@
 
 using ONI_Together.Networking.Packets.Core;
 using ONI_Together.Networking.Packets.DuplicantActions;
+using ONI_Together.Patches.KleiPatches;
 using Shared.Profiling;
 using System.Collections.Generic;
 using UnityEngine;
@@ -15,6 +16,7 @@ namespace ONI_Together.Networking.Components
 		[MyCmpGet] private Facing facing;
 
 		public bool IsMoving { get; private set; }
+		public bool OwnsPosition => isTransitioning || buffer.Count > 0;
 
 		private readonly Queue<NavigatorTransitionPacket> buffer = new Queue<NavigatorTransitionPacket>(16);
 		private const int MaxBufferSize = 16;
@@ -31,21 +33,23 @@ namespace ONI_Together.Networking.Components
 		private bool isTransitioning;
 		private Vector3 moveStart;
 		private Vector3 moveTarget;
-		private float moveSpeed;
 		private bool isLooping;
 		private byte endNavType;
-		private Vector3 moveDirection;
-		private float moveTotalDist;
 		private int animCompleteHandle = -1;
 		private bool animFinished;
 		private Vector3 controlledPosition;
+		private uint lastSequence;
+		private float transitionStartedAt;
+		private float transitionDuration;
+		private const float MinimumTransitionDuration = 0.05f;
+		private const float MaximumTransitionDuration = 2.5f;
 
 		public override void OnSpawn()
 		{
 			using var _ = Profiler.Scope();
 			base.OnSpawn();
 
-			if (!MultiplayerSession.InSession || MultiplayerSession.IsHost)
+			if (!MultiplayerSession.InActiveSession || MultiplayerSession.IsHost)
 			{
 				enabled = false;
 				return;
@@ -66,7 +70,7 @@ namespace ONI_Together.Networking.Components
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession || MultiplayerSession.IsHost)
+			if (!MultiplayerSession.InActiveSession || MultiplayerSession.IsHost)
 				return;
 
 			if (isTransitioning)
@@ -79,26 +83,13 @@ namespace ONI_Together.Networking.Components
 		{
 			using var _ = Profiler.Scope();
 
-			if (isLooping)
-			{
-				Vector3 pos = controlledPosition + moveDirection * moveSpeed * Time.deltaTime;
-				float traveled = Vector3.Distance(moveStart, pos);
+			float elapsed = Time.unscaledTime - transitionStartedAt;
+			float progress = Mathf.Clamp01(elapsed / transitionDuration);
+			controlledPosition = Vector3.Lerp(moveStart, moveTarget, progress);
+			transform.SetPosition(controlledPosition);
 
-				if (traveled >= moveTotalDist)
-				{
-					FinishTransition();
-				}
-				else
-				{
-					controlledPosition = pos;
-					transform.SetPosition(controlledPosition);
-				}
-			}
-			else
-			{
-				if (animFinished)
-					FinishTransition();
-			}
+			if (progress >= 1f || (!isLooping && animFinished && progress >= 0.8f))
+				FinishTransition();
 		}
 
 		private void FinishTransition()
@@ -126,8 +117,10 @@ namespace ONI_Together.Networking.Components
 		{
 			using var _ = Profiler.Scope();
 
-			if (navigator == null || animController == null)
+			if (navigator == null || animController == null || !IsNewerSequence(packet.Sequence, lastSequence))
 				return;
+
+			lastSequence = packet.Sequence;
 
 			pendingStop = false;
 			IsMoving = true;
@@ -142,11 +135,10 @@ namespace ONI_Together.Networking.Components
 			{
 				buffer.Clear();
 				playbackStarted = true;
-				controlledPosition = packet.SourcePosition + new Vector3(packet.TransitionX, packet.TransitionY, 0f);
+				controlledPosition = packet.SourcePosition;
 				transform.SetPosition(controlledPosition);
-				navigator.SetCurrentNavType((NavType)packet.EndNavType);
+				navigator.SetCurrentNavType((NavType)packet.StartNavType);
 				isTransitioning = false;
-				return;
 			}
 
 			buffer.Enqueue(packet);
@@ -172,16 +164,6 @@ namespace ONI_Together.Networking.Components
 				playbackStarted = true;
 			}
 
-			if (buffer.Count > 3)
-			{
-				while (buffer.Count > 1)
-				{
-					var skip = buffer.Dequeue();
-					controlledPosition = skip.SourcePosition + new Vector3(skip.TransitionX, skip.TransitionY, 0f);
-				}
-				transform.SetPosition(controlledPosition);
-			}
-
 			PlayTransition(buffer.Dequeue());
 		}
 
@@ -201,9 +183,12 @@ namespace ONI_Together.Networking.Components
 			moveStart = controlledPosition;
 			var delta = new Vector3(packet.TransitionX, packet.TransitionY, 0f);
 			moveTarget = moveStart + delta;
-			moveTotalDist = delta.magnitude;
-			moveDirection = delta / moveTotalDist;
-			moveSpeed = packet.Speed > 0f ? packet.Speed : FallbackMoveSpeed;
+			float moveTotalDist = delta.magnitude;
+			float moveSpeed = packet.Speed > 0f ? packet.Speed : FallbackMoveSpeed;
+			float catchUpMultiplier = 1f + Mathf.Min(buffer.Count, 4) * 0.2f;
+			transitionDuration = Mathf.Clamp(moveTotalDist / Mathf.Max(moveSpeed * catchUpMultiplier, 0.01f),
+				MinimumTransitionDuration, MaximumTransitionDuration);
+			transitionStartedAt = Time.unscaledTime;
 			isLooping = packet.IsLooping;
 			endNavType = packet.EndNavType;
 			animFinished = false;
@@ -218,8 +203,11 @@ namespace ONI_Together.Networking.Components
 				HashedString anim = packet.Anim;
 				if (anim.IsValid)
 				{
-					animController.PlaySpeedMultiplier = packet.AnimSpeed;
-					animController.Play(anim, KAnim.PlayMode.Loop);
+					PlayAuthoritativeAnimation(() =>
+					{
+						animController.PlaySpeedMultiplier = packet.AnimSpeed;
+						animController.Play(anim, KAnim.PlayMode.Loop);
+					});
 				}
 			}
 			else
@@ -227,18 +215,21 @@ namespace ONI_Together.Networking.Components
 				HashedString preAnim = packet.PreAnim;
 				HashedString anim = packet.Anim;
 
-				if (preAnim.IsValid)
+				PlayAuthoritativeAnimation(() =>
 				{
-					animController.Play(preAnim, KAnim.PlayMode.Once);
-					if (anim.IsValid)
-						animController.Queue(anim, KAnim.PlayMode.Once);
-				}
-				else if (anim.IsValid)
-				{
-					animController.Play(anim, KAnim.PlayMode.Once);
-				}
+					if (preAnim.IsValid)
+					{
+						animController.Play(preAnim, KAnim.PlayMode.Once);
+						if (anim.IsValid)
+							animController.Queue(anim, KAnim.PlayMode.Once);
+					}
+					else if (anim.IsValid)
+					{
+						animController.Play(anim, KAnim.PlayMode.Once);
+					}
 
-				animController.PlaySpeedMultiplier = packet.AnimSpeed;
+					animController.PlaySpeedMultiplier = packet.AnimSpeed;
+				});
 				animCompleteHandle = animController.gameObject.Subscribe((int)GameHashes.AnimQueueComplete, OnAnimComplete);
 			}
 
@@ -251,16 +242,20 @@ namespace ONI_Together.Networking.Components
 			animFinished = true;
 		}
 
-		public void OnStopReceived(NavType navType)
+		public void OnStopReceived(NavType navType, Vector3 serverPosition, uint sequence)
 		{
 			using var _ = Profiler.Scope();
 
-			if (navigator == null)
+			if (navigator == null || !IsNewerSequence(sequence, lastSequence))
 				return;
+
+			lastSequence = sequence;
 
 			pendingStop = true;
 			stopNavType = navType;
 			buffer.Clear();
+			controlledPosition = serverPosition;
+			transform.SetPosition(serverPosition);
 
 			if (!isTransitioning)
 				ApplyStop();
@@ -283,8 +278,11 @@ namespace ONI_Together.Networking.Components
 			navigator.SetCurrentNavType(stopNavType);
 
 			HashedString idleAnim = navigator.NavGrid.GetIdleAnim(stopNavType);
-			animController.PlaySpeedMultiplier = 1f;
-			animController.Play(idleAnim, KAnim.PlayMode.Loop);
+			PlayAuthoritativeAnimation(() =>
+			{
+				animController.PlaySpeedMultiplier = 1f;
+				animController.Play(idleAnim, KAnim.PlayMode.Loop);
+			});
 		}
 
 		public void OnPositionCorrection(Vector3 serverPosition)
@@ -302,6 +300,11 @@ namespace ONI_Together.Networking.Components
 			}
 		}
 
+		internal static bool IsNewerSequence(uint incoming, uint current)
+		{
+			return incoming != current && unchecked(incoming - current) < 0x80000000u;
+		}
+
 		public void OnStateReceived(DuplicantActionState state, int targetCell, string animName, float animElapsedTime, bool isWorking)
 		{
 			using var _ = Profiler.Scope();
@@ -311,7 +314,21 @@ namespace ONI_Together.Networking.Components
 
 			if (isWorking && !string.IsNullOrEmpty(animName) && animController != null)
 			{
-				animController.Play(new HashedString(animName), KAnim.PlayMode.Loop);
+				PlayAuthoritativeAnimation(() =>
+					animController.Play(new HashedString(animName), KAnim.PlayMode.Loop));
+			}
+		}
+
+		private static void PlayAuthoritativeAnimation(System.Action action)
+		{
+			KAnimControllerBase_Patches.AllowAnims();
+			try
+			{
+				action();
+			}
+			finally
+			{
+				KAnimControllerBase_Patches.ForbidAnims();
 			}
 		}
 	}

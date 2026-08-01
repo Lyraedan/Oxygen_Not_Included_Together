@@ -53,7 +53,7 @@ namespace ONI_Together.Patches.Navigation
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost)
+			if (!MultiplayerSession.InActiveSession || !MultiplayerSession.IsHost)
 				return;
 
 			if (MultiplayerSession.ConnectedPlayers.Count == 0)
@@ -72,6 +72,7 @@ namespace ONI_Together.Patches.Navigation
 			var packet = new NavigatorTransitionPacket
 			{
 				NetId = identity.NetId,
+				Sequence = NavigationSequence.Next(identity.NetId),
 				IsStop = false,
 				SourcePosition = __instance.transform.GetPosition(),
 				TransitionX = (sbyte)transition.x,
@@ -85,7 +86,7 @@ namespace ONI_Together.Patches.Navigation
 				EndNavType = (byte)transition.end
 			};
 
-			PacketSender.SendToAllClients(packet, sendType: PacketSendMode.Unreliable);
+			PacketSender.SendToAllClients(packet, sendType: PacketSendMode.UnreliableNoDelay);
 		}
 	}
 
@@ -96,7 +97,7 @@ namespace ONI_Together.Patches.Navigation
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost)
+			if (!MultiplayerSession.InActiveSession || !MultiplayerSession.IsHost)
 				return;
 
 			if (MultiplayerSession.ConnectedPlayers.Count == 0)
@@ -114,11 +115,27 @@ namespace ONI_Together.Patches.Navigation
 			var packet = new NavigatorTransitionPacket
 			{
 				NetId = identity.NetId,
+				Sequence = NavigationSequence.Next(identity.NetId),
 				IsStop = true,
+				SourcePosition = __instance.transform.GetPosition(),
 				EndNavType = (byte)__instance.CurrentNavType
 			};
 
 			PacketSender.SendToAllClients(packet, sendType: PacketSendMode.Reliable);
+		}
+	}
+
+	internal static class NavigationSequence
+	{
+		private static readonly System.Collections.Generic.Dictionary<int, uint> Sequences =
+			new System.Collections.Generic.Dictionary<int, uint>();
+
+		internal static uint Next(int netId)
+		{
+			Sequences.TryGetValue(netId, out uint sequence);
+			sequence++;
+			Sequences[netId] = sequence;
+			return sequence;
 		}
 	}
 

@@ -30,6 +30,9 @@ namespace ONI_Together.Patches.World
             {
                 //EnergyGeneratorSyncer egenSyncer = __instance.gameObject.AddOrGet<EnergyGeneratorSyncer>();
                 __instance.gameObject.AddOrGet<EnergyGeneratorSyncer>();
+				// Fuel is real Storage state, not only a visual percentage. Replicating the
+				// storage also fixes the amount shown by generator details side screens.
+				__instance.gameObject.AddOrGet<StorageSyncer>();
                 return;
             }
 

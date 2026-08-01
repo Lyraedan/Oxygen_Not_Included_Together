@@ -21,7 +21,25 @@ namespace ONI_Together.Patches.KleiPatches
 		static bool _allowedToPlayAnims = false;
 		public static void AllowAnims() => _allowedToPlayAnims = true;
 		public static void ForbidAnims() => _allowedToPlayAnims = false;
-		public static bool CanPlayAnims => true;// (MultiplayerSession.InSession && MultiplayerSession.IsClient) ? _allowedToPlayAnims : true;
+
+		internal static bool CanPlayAnim(KAnimControllerBase controller)
+		{
+			if (!MultiplayerSession.InActiveSession || !MultiplayerSession.IsClient || _allowedToPlayAnims)
+				return true;
+			if (controller == null || controller.gameObject.IsNullOrDestroyed())
+				return true;
+
+			// Only suppress local state-machine animation writes for entities whose
+			// visual state is authoritative on the host. UI and unrelated local
+			// animations must continue to run normally on clients.
+			if (controller.TryGetComponent<KPrefabID>(out var prefabId)
+				&& (prefabId.HasTag(GameTags.BaseMinion) || prefabId.HasTag(GameTags.Creature)))
+			{
+				return false;
+			}
+
+			return !controller.TryGetComponent<AnimStateSyncer>(out _);
+		}
 
 
 
@@ -39,15 +57,19 @@ namespace ONI_Together.Patches.KleiPatches
 
 			if (!id.HasTag(GameTags.BaseMinion) && !id.HasTag(GameTags.Creature))
 			{
-				// Buildings and plants use the viewport-aware coordinator. Queueing a
-				// dirty notification here captures short Play/Queue transitions while
-				// coalescing repeated state-machine calls into one snapshot per tick.
-				if (AnimSyncEligibility.IsAnimatedNonMinion(__instance.gameObject)
+				// Buildings and plants use the viewport-aware coordinator for periodic
+				// reconciliation. They also need the original ordered Play/Queue events:
+				// an intro -> loop sequence cannot be represented by one current-animation
+				// snapshot after multiple state-machine calls have been coalesced.
+				bool isSyncEligible = AnimSyncEligibility.IsAnimatedNonMinion(__instance.gameObject);
+				if (isSyncEligible
 					&& __instance.TryGetComponent<AnimStateSyncer>(out var syncer))
 				{
 					AnimSyncCoordinator.NotifyAnimationChanged(syncer);
 				}
-				return;
+
+				if (!isSyncEligible)
+					return;
 			}
 
 			int netId = __instance.GetNetId();
@@ -75,11 +97,11 @@ namespace ONI_Together.Patches.KleiPatches
 				{
 					if (!MultiplayerSession.InActiveSession)
 						return true;
-					if (__instance.IsNullOrDestroyed() || !__instance.enabled) return CanPlayAnims;
+					if (__instance.IsNullOrDestroyed() || !__instance.enabled) return CanPlayAnim(__instance);
 
 					if(MultiplayerSession.IsHost)
 						SendAnimPacketToClients(__instance, false, [anim_name],mode,speed,time_offset);
-					return CanPlayAnims;
+					return CanPlayAnim(__instance);
 				}
 				catch (Exception ex)
 				{
@@ -102,10 +124,10 @@ namespace ONI_Together.Patches.KleiPatches
 				{
 					if (!MultiplayerSession.InActiveSession)
 						return true;
-					if (__instance.IsNullOrDestroyed() || !__instance.enabled) return CanPlayAnims;
+					if (__instance.IsNullOrDestroyed() || !__instance.enabled) return CanPlayAnim(__instance);
 					if (MultiplayerSession.IsHost)
 						SendAnimPacketToClients(__instance, false, anim_names, mode);
-					return CanPlayAnims;
+					return CanPlayAnim(__instance);
 				}
 				catch (Exception ex)
 				{
@@ -128,10 +150,10 @@ namespace ONI_Together.Patches.KleiPatches
 				{
 					if (!MultiplayerSession.InActiveSession)
 						return true;
-					if (__instance.IsNullOrDestroyed() || !__instance.enabled) return CanPlayAnims;
+					if (__instance.IsNullOrDestroyed() || !__instance.enabled) return CanPlayAnim(__instance);
 					if (MultiplayerSession.IsHost)
 						SendAnimPacketToClients(__instance, true, [anim_name], mode, speed, time_offset);
-					return CanPlayAnims;
+					return CanPlayAnim(__instance);
 				}
 				catch (Exception ex)
 				{
