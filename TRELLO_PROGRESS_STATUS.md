@@ -89,18 +89,43 @@
 
 ## 📋 List: Known issues (15)
 
-- [x] **Rovers are not synchronized** `Issue`
+> **Local development status (2026-08-01):** A code fix is implemented for all 15 entries. The complete solution builds with 0 errors, 6/6 known-issue regression tests pass against the installed ONI assemblies, and all 11 reorganized Harmony target methods were found with matching signatures in game build 700386. The checkboxes document implementation status, not completed multiplayer runtime verification. Real host/client QA in ONI is still required for all 15 entries.
 
-- [x] **WorldDamage objects (drops) are duplicating** `Issue`
+<details>
+<summary>Implementation evidence for the 15 code fixes</summary>
+
+| # | Known Issue | Implementation path |
+|---:|---|---|
+| 1 | Rovers | `Patches/Critters/RoverPatches.cs`, `Scripts/Creatures/CreatureMultiplayerInitializer.cs` |
+| 2 | WorldDamage-Duplikate | `Patches/World/WorldDamagePatch.cs`, `Networking/Packets/World/WorldDamageSpawnResourcePacket.cs` |
+| 3 | Storage-Deliver-FX | `Patches/World/StoragePatches.cs`, `Networking/Packets/World/StorageItemPacket.cs` |
+| 4 | Loading a save during a live session | `Patches/LoadScreenPatch.cs`, `Patches/World/SaveLoaderPatch.cs` |
+| 5 | Bottle Emptier | `Patches/World/SideScreen/MiscBuildingPatches.cs`, `Networking/Packets/World/Handlers/MiscBuildingHandler.cs` – synchronizes the setting and recreates the `FetchChore` with updated source tags |
+| 6 | Rockets | `Patches/World/RocketPatches.cs` |
+| 7 | Bionics without oil | `Patches/Bionics/BionicPatches.cs` |
+| 8 | Alert Notifications | `Patches/Events/NotificationScreenPatch.cs`, `Networking/Packets/Events/NotificationPacket.cs` |
+| 9 | Pipe Emptying | `Patches/World/BuildingStatePatches.cs`, `Networking/Packets/World/Handlers/AuthoritativeStateHandler.cs` |
+| 10 | Story-trait buildings | `Patches/StateMachines/StateMachineSyncPatches.cs`, `Networking/Components/StateMachineStateSyncer.cs` |
+| 11 | Building damage caused by angry duplicants | `Patches/World/BuildingStatePatches.cs`, `Networking/Packets/World/Handlers/AuthoritativeStateHandler.cs` |
+| 12 | Creature moods | `Patches/StateMachines/StateMachineSyncPatches.cs`, `Networking/Components/StateMachineStateSyncer.cs` |
+| 13 | Coat-Rack-Deconstruction | `Networking/Packets/Tools/Deconstruct/DeconstructCompletePacket.cs` |
+| 14 | Complex Fabricator | `Patches/World/Buildings/ComplexFabricator_Patches.cs` |
+| 15 | CreatureSimTemperatureTransfer | `Patches/Critters/CreatureTemperaturePatches.cs` |
+
+</details>
+
+- [x] **Rovers are not synchronized** `Issue` `Code fix` `Runtime QA pending`
+
+- [x] **WorldDamage objects (drops) are duplicating** `Issue` `Code fix` `Runtime QA pending`
   > When a tile is destroyed for example, the tile drops a material but also spawns a material from the server
 
-- [x] **Storage deliverables FX on clients says "Picked up 0x <element>" instead of "Delivered"** `Issue`
+- [x] **Storage deliverables FX on clients says "Picked up 0x <element>" instead of "Delivered"** `Issue` `Code fix` `Runtime QA pending`
 
-- [x] **Loading a save whilst in game crashes the server** `Issue`
+- [x] **Loading a save whilst in game crashes the server** `Issue` `Code fix` `Runtime QA pending`
 
-- [x] **Bottle emptier not synchronized** `Issue`
+- [x] **Bottle emptier not synchronized** `Issue` `Code fix` `Runtime QA pending`
 
-- [x] **Rockets crash** `Issue`
+- [x] **Rockets crash** `Issue` `Code fix` `Runtime QA pending`
   > `Exception in: (HabitatModuleSmall).LaunchableRocketCluster+States.root.grounded. `
   > `System.NullReferenceException: Object reference not set to an instance of an object`
   > `  at LaunchableRocketCluster+StatesInstance.IsNotGroundBound () [0x00015] in <81e516d9c2bc49608bcac24a555d88de>:0 `
@@ -132,24 +157,24 @@
   > `  at KMonoBehaviour.Start () [0x00000] in <f216bcfdd6e24a84ab7fdf9f59adc3af>:0 `
   > `Build: U58-722606-SCR`
 
-- [x] **Bionics crash when running out of oil on clients** `Issue`
+- [x] **Bionics crash when running out of oil on clients** `Issue` `Code fix` `Runtime QA pending`
 
-- [x] **Alert notifications that play on the host will play their sounds on clients but don't appear in their notification list** `Issue`
+- [x] **Alert notifications that play on the host will play their sounds on clients but don't appear in their notification list** `Issue` `Code fix` `Runtime QA pending`
 
-- [x] **Pipe emptying chore not synchronized (anymore)** `Issue`
+- [x] **Pipe emptying chore not synchronized (anymore)** `Issue` `Code fix` `Runtime QA pending`
 
-- [x] **Story trait buildings not synced** `Issue`
+- [x] **Story trait buildings not synced** `Issue` `Code fix` `Runtime QA pending`
 
-- [x] **Angry dupes breaking things does not Sync** `Issue`
+- [x] **Angry dupes breaking things does not Sync** `Issue` `Code fix` `Runtime QA pending`
 
-- [x] **Animal moods are not synchronized** `Issue`
+- [x] **Animal moods are not synchronized** `Issue` `Code fix` `Runtime QA pending`
 
-- [x] **Crash when deconstructing coat rack** `Issue`
+- [x] **Crash when deconstructing coat rack** `Issue` `Code fix` `Runtime QA pending`
 
-- [x] **Complex fabricator null reference exception with recipes** `Issue`
+- [x] **Complex fabricator null reference exception with recipes** `Issue` `Code fix` `Runtime QA pending`
   > NullReferenceException: Object reference not set to an instance of an object ComplexFabricatorSideScreen.HasAllRecipeRequirements (ComplexRecipe recipe) (at <f2341479ee8a413585265ff8b813e609>:0) ComplexFabricatorSideScreen.<RefreshIngredientAvailabilityVis>b\_\_52_0 (ComplexRecipe match) (at <f2341479ee8a413585265ff8b813e609>:0) System.Collections.Generic.List`1[T].Find (System.Predicate`1[T] match) (at <1eb9db207454431c84a47bcd81e79c37>:0) ComplexFabricatorSideScreen.RefreshIngredientAvailabilityVis () (at <f2341479ee8a413585265ff8b813e609>:0) ComplexFabricatorSideScreen.Update () (at <f2341479ee8a413585265ff8b813e609>:0) UnityEngine.DebugLogHandler:LogException(Exception, Object) LogCatcher:UnityEngine.ILogHandler.LogException(Exception, Object) UnityEngine.Debug:CallOverridenDebugHandler(Exception, Object) Build: U59-737195-S\
 
-- [x] **CreatureSimTemperatureTransfer Crash** `Issue`
+- [x] **CreatureSimTemperatureTransfer Crash** `Issue` `Code fix` `Runtime QA pending`
   > NullReferenceException: Object reference not set to an instance of an object CreatureSimTemperatureTransfer.unsafeUpdateAverageKiloWattsExchanged (System.Single dt) (at <f2341479ee8a413585265ff8b813e609>:0) CreatureSimTemperatureTransfer.Update () (at <f2341479ee8a413585265ff8b813e609>:0) UnityEngine.DebugLogHandler:LogException(Exception, Object) LogCatcher:UnityEngine.ILogHandler.LogException(Exception, Object) LogCatcher:UnityEngine.ILogHandler.LogException(Exception, Object) UnityEngine.Debug:CallOverridenDebugHandler(Exception, Object) Build: U59-737195-SCRPAN
 
 ---

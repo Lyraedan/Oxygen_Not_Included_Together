@@ -46,7 +46,7 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 			RegisterHandler(new CometDetectorHandler());
 			RegisterHandler(new ToggleableHandler());
 			RegisterHandler(new UprootHandler());
-			RegisterHandler(new KnownIssueStateHandler());
+			RegisterHandler(new AuthoritativeStateHandler());
 
 			DebugConsole.Log($"[BuildingConfigHandlerRegistry] Initialized with {_allHandlers.Count} handlers, {_handlersByHash.Count} hash mappings");
 		}
