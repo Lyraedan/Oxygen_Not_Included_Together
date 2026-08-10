@@ -13,7 +13,8 @@ namespace ONI_Together.Networking.Transport
         {
 			// Never put latency-sensitive snapshots behind reliable state traffic.
 			// Old movement data has no value and causes visible catch-up/teleports.
-			if (!Configuration.Instance.EnablePacketQueue || IsLatencySensitive(sendType))
+			if (!Configuration.Instance.EnablePacketQueue || IsLatencySensitive(sendType)
+				|| packet is ILatencySensitivePacket)
                 return SendPacket(conn, packet, sendType);
             // queue it
             if (!_pendingQueues.TryGetValue(conn, out var queue))

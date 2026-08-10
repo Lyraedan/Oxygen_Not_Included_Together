@@ -7,6 +7,7 @@ using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Animation;
 using ONI_Together.Networking.Packets.Core;
 using ONI_Together.Networking.Packets.DuplicantActions;
+using ONI_Together.Patches.Navigation;
 using System;
 using System.Linq;
 using Shared.Profiling;
@@ -54,6 +55,13 @@ namespace ONI_Together.Patches.KleiPatches
 				return;
 			if (__instance.gameObject.IsNullOrDestroyed() || !__instance.gameObject.TryGetComponent<KPrefabID>(out var id))
 				return;
+			if (id.HasTag(GameTags.BaseMinion)
+				&& NavigationAnimationScope.Suppresses(__instance.gameObject))
+			{
+				// NavigatorTransitionPacket replays this animation through ONI's
+				// transition driver on the same buffered movement timeline.
+				return;
+			}
 
 			if (!id.HasTag(GameTags.BaseMinion) && !id.HasTag(GameTags.Creature))
 			{
@@ -83,7 +91,9 @@ namespace ONI_Together.Patches.KleiPatches
 				return;
 
 			LockAnimSending = true;
-			PacketSender.SendToAllClients(new PlayAnimPacket(netId, anims, queueing,mode,speed,time_offset));
+			PacketSender.SendToAllClients(
+				new PlayAnimPacket(netId, anims, queueing, mode, speed, time_offset),
+				PacketSendMode.ReliableImmediate);
 		}
 
 		[HarmonyPatch(typeof(KAnimControllerBase), nameof(KAnimControllerBase.Play), [typeof(HashedString), typeof(KAnim.PlayMode), typeof(float), typeof(float)])]

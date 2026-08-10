@@ -1,6 +1,7 @@
 ﻿using ONI_Together.DebugTools;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.World;
+using ONI_Together.Patches.Navigation;
 using System;
 using System.Collections.Generic;
 using Shared.Profiling;
@@ -37,6 +38,8 @@ namespace ONI_Together.Networking
 			using var _ = Profiler.Scope();
 
 			identities.Remove(netId);
+			PlayAnimPacket.ForgetNetId(netId);
+			NavigationSequence.Forget(netId);
 		}
 
 
@@ -131,6 +134,7 @@ namespace ONI_Together.Networking
 			StorageItemPacket.ClearPending();
 
 			PlayAnimPacket.ClearState();
+			NavigationSequence.Clear();
 		}
 
 		public static IEnumerable<NetworkIdentity> AllIdentities => identities.Values;

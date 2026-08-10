@@ -3,6 +3,7 @@ using System.Linq;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Animation;
+using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.Packets.Core;
 using Shared.Interfaces.Networking;
 
@@ -124,6 +125,8 @@ namespace ONI_Together.DebugTools.UnitTests
 
 			if (!copy.IsQueue || copy.NetId != 42 || copy.AnimHashes.Length != 1)
 				return UnitTestResult.Fail("Queued animation metadata did not roundtrip");
+			if (copy.Sequence != packet.Sequence || copy.TimeStamp != packet.TimeStamp)
+				return UnitTestResult.Fail("Animation ordering metadata did not roundtrip");
 			if (copy.AnimHashes[0] != new HashedString("working_loop")
 				|| copy.Mode != KAnim.PlayMode.Loop
 				|| copy.Speed != 1.25f
@@ -142,8 +145,10 @@ namespace ONI_Together.DebugTools.UnitTests
 			bool playAnimBulk = typeof(IBulkablePacket).IsAssignableFrom(typeof(PlayAnimPacket));
 			if (animSyncBulk || playAnimBulk)
 				return UnitTestResult.Fail("Animation packets still route through the bulk queue");
+			if (!typeof(ILatencySensitivePacket).IsAssignableFrom(typeof(PlayAnimPacket)))
+				return UnitTestResult.Fail("Ordered animation events can still wait behind the optional rate queue");
 
-			return UnitTestResult.Pass("AnimSyncPacket and PlayAnimPacket send directly");
+			return UnitTestResult.Pass("Animation events bypass bulk and optional rate queues");
 		}
 
 		[UnitTest(name: "Anim sync: non-minion snapshots use coordinator", category: "Animation")]

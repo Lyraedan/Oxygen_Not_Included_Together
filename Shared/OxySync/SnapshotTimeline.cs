@@ -31,11 +31,11 @@ namespace Shared.OxySync
 				_lastRemoteTimestampMs = remoteTimestampMs;
 				_lastLocalArrivalMs = localArrivalTimeMs;
 			}
-			else
+			else if (remoteTimestampMs > _lastRemoteTimestampMs)
 			{
 				double remoteDelta = remoteTimestampMs - _lastRemoteTimestampMs;
 				double arrivalDelta = localArrivalTimeMs - _lastLocalArrivalMs;
-				if (remoteDelta > 0.0 && arrivalDelta >= 0.0)
+				if (arrivalDelta >= 0.0)
 				{
 					double deviation = System.Math.Abs(arrivalDelta - remoteDelta);
 					// A responsive EWMA adapts within a few snapshots, while avoiding
@@ -46,6 +46,10 @@ namespace Shared.OxySync
 				_lastRemoteTimestampMs = remoteTimestampMs;
 				_lastLocalArrivalMs = localArrivalTimeMs;
             }
+			// Reliable and unreliable channels may be delivered out of order. An
+			// older packet still maps correctly through the original anchor, but it
+			// must not move the jitter estimator backwards and poison the following
+			// sample's arrival delta.
 
             return _localAnchorMs + (remoteTimestampMs - _remoteAnchorMs);
         }

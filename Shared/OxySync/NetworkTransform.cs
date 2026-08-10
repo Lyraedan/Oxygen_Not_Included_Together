@@ -186,12 +186,14 @@ namespace Shared.OxySync
         [Client]
         protected virtual void ClientUpdate()
         {
-            if (useSnapshotInterpolation)
+            bool applyClientState = ShouldApplyClientState();
+
+            if (useSnapshotInterpolation && applyClientState)
             {
                 UpdateInterpolation();
             }
 
-            if (syncPosition)
+            if (applyClientState && syncPosition)
             {
                 Vector3 desired = useSnapshotInterpolation ? _interpolatedPosition : _netPosition;
                 Vector3 currentPos = coordinateSpace == CoordinateSpace.Local
@@ -225,7 +227,7 @@ namespace Shared.OxySync
                 }
             }
 
-            if (syncRotation)
+            if (applyClientState && syncRotation)
             {
                 Quaternion desired = useSnapshotInterpolation ? _interpolatedRotation : _netRotation;
                 if (interpolateRotation && !useSnapshotInterpolation)
@@ -249,7 +251,7 @@ namespace Shared.OxySync
                 }
             }
 
-            if (syncScale)
+            if (applyClientState && syncScale)
             {
                 Vector3 desired = useSnapshotInterpolation ? _interpolatedScale : _netScale;
                 if (interpolateScale && !useSnapshotInterpolation)
@@ -269,6 +271,16 @@ namespace Shared.OxySync
 
             TryRequestPosition();
         }
+
+		/// <summary>
+		/// Allows a specialized client-side playback component to remain the sole
+		/// writer of a transform while retaining OxySync's stale-state request path.
+		/// Generic network transforms continue to use the normal implementation.
+		/// </summary>
+		protected virtual bool ShouldApplyClientState()
+		{
+			return true;
+		}
 
         [Client]
         private void UpdateInterpolation()

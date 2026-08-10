@@ -56,8 +56,10 @@ namespace ONI_Together.DebugTools.UnitTests
                 return UnitTestResult.Fail("Sensors is still enabled");
             if (!selected.TryGetComponent<ClientReceiver_ChoreErrands>(out _))
                 return UnitTestResult.Fail("ClientReceiver_ChoreErrands not found");
+			if (!selected.TryGetComponent<DuplicantClientController>(out var playback) || !playback.IsPlaybackActive)
+				return UnitTestResult.Fail("Navigation-aware duplicant playback controller is not active");
 
-            return UnitTestResult.Pass("AI disabled, ClientReceiver_ChoreErrands present");
+			return UnitTestResult.Pass("AI disabled; one navigation-aware visual playback controller is active");
         }
 
         [UnitTest(name: "Host init adds sync components", category: "Duplicant")]

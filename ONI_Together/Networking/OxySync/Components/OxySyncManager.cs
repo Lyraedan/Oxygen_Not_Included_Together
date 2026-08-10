@@ -6,6 +6,7 @@ using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.OxySync.Packets;
+using ONI_Together.Networking.Packets.DuplicantActions;
 using Shared.Helpers;
 using Shared.OxySync;
 using Shared.OxySync.Attributes;
@@ -20,6 +21,8 @@ namespace ONI_Together.Networking.OxySync.Components
 
         private readonly List<NetworkBehaviour> _behaviours = new();
 		private readonly List<NetworkTransform> _realtimeTransforms = new();
+		private readonly List<OxySyncEntityPositionHandler> _duplicantTransforms = new();
+		private readonly Dictionary<int, List<DuplicantVisualSnapshot>> _duplicantSnapshotsByGroup = new();
         private readonly Dictionary<(int Group, PacketSendMode Mode), List<(int Hash, Variant Value)>> _changedByGroup = new();
         private readonly HashSet<Type> _explicitGroupTypes = new();
         private readonly Dictionary<int, HashSet<NetworkBehaviour>> _behavioursByGroup = new();
@@ -147,6 +150,8 @@ namespace ONI_Together.Networking.OxySync.Components
 
             _behaviours.Clear();
             _realtimeTransforms.Clear();
+			_duplicantTransforms.Clear();
+			_duplicantSnapshotsByGroup.Clear();
             _behavioursByGroup.Clear();
             _explicitGroupTypes.Clear();
         }
@@ -157,6 +162,12 @@ namespace ONI_Together.Networking.OxySync.Components
 				_behaviours.Add(behaviour);
 			if (behaviour is NetworkTransform transform && !_realtimeTransforms.Contains(transform))
 				_realtimeTransforms.Add(transform);
+			if (behaviour is OxySyncEntityPositionHandler entityTransform
+				&& entityTransform.IsDuplicant
+				&& !_duplicantTransforms.Contains(entityTransform))
+			{
+				_duplicantTransforms.Add(entityTransform);
+			}
 
 			if (behaviour.GetType().GetCustomAttribute<FixedInterestGroupAttribute>() != null)
 				_explicitGroupTypes.Add(behaviour.GetType());
@@ -177,6 +188,8 @@ namespace ONI_Together.Networking.OxySync.Components
             _behaviours.Remove(behaviour);
 			if (behaviour is NetworkTransform transform)
 				_realtimeTransforms.Remove(transform);
+			if (behaviour is OxySyncEntityPositionHandler entityTransform)
+				_duplicantTransforms.Remove(entityTransform);
 
             RemoveBehaviourFromGroupIndex(behaviour, behaviour.InterestGroup);
             var fields = behaviour.SyncVarFields;
@@ -202,6 +215,11 @@ namespace ONI_Together.Networking.OxySync.Components
             var sw = Stopwatch.StartNew();
             int totalChanges = 0;
 
+			// Duplicants share one compact packet timestamp per interest group.
+			// Their navigation-aware client controller is the only transform writer,
+			// so they must not also receive independent SyncVar transform packets.
+			ProcessDuplicantTransformBatches(ref totalChanges);
+
 			// Moving entities need a stable 20 Hz stream for snapshot interpolation.
 			// Process them before the general budget so status/building work can never
 			// make duplicants or critters run out of interpolation snapshots.
@@ -213,6 +231,8 @@ namespace ONI_Together.Networking.OxySync.Components
 					_realtimeTransforms.RemoveAt(i);
 					continue;
 				}
+				if (transform is OxySyncEntityPositionHandler entityTransform && entityTransform.IsDuplicant)
+					continue;
 
 				ProcessBehaviour(transform, ref totalChanges);
 			}
@@ -253,6 +273,79 @@ namespace ONI_Together.Networking.OxySync.Components
                 SyncStats.RecordSync(SyncStats.OxySync, totalChanges, totalChanges * 16, sw.ElapsedMilliseconds);
             }
         }
+
+		private void ProcessDuplicantTransformBatches(ref int totalChanges)
+		{
+			_duplicantSnapshotsByGroup.Clear();
+			long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+
+			for (int i = _duplicantTransforms.Count - 1; i >= 0; i--)
+			{
+				var transform = _duplicantTransforms[i];
+				if (transform.IsNullOrDestroyed())
+				{
+					_duplicantTransforms.RemoveAt(i);
+					continue;
+				}
+
+				if (Time.unscaledTime - transform._lastSyncTime < transform.SyncInterval)
+					continue;
+
+				transform._lastSyncTime = Time.unscaledTime;
+				RefreshDuplicantInterestGroup(transform);
+
+				if (!transform.TryCaptureVisualSnapshot(false, false, out var snapshot))
+					continue;
+
+				int group = transform.InterestGroup;
+				if (!_duplicantSnapshotsByGroup.TryGetValue(group, out var snapshots))
+				{
+					snapshots = new List<DuplicantVisualSnapshot>();
+					_duplicantSnapshotsByGroup[group] = snapshots;
+				}
+
+				snapshots.Add(snapshot);
+				if (InterestGroupManager.GetPlayersInGroup(group).Count > 0)
+					transform._lastActiveSyncTime = Time.unscaledTime;
+			}
+
+			foreach (var groupSnapshots in _duplicantSnapshotsByGroup)
+			{
+				var snapshots = groupSnapshots.Value;
+				for (int offset = 0; offset < snapshots.Count; offset += DuplicantVisualSnapshotBatchPacket.MaxEntries)
+				{
+					int count = Math.Min(DuplicantVisualSnapshotBatchPacket.MaxEntries, snapshots.Count - offset);
+					var packet = new DuplicantVisualSnapshotBatchPacket
+					{
+						ServerTimestamp = timestamp,
+						Snapshots = new List<DuplicantVisualSnapshot>(count),
+					};
+					for (int i = 0; i < count; i++)
+						packet.Snapshots.Add(snapshots[offset + i]);
+
+					PacketSender.SendToGroup(groupSnapshots.Key, packet, PacketSendMode.UnreliableNoDelay);
+					totalChanges += count;
+				}
+			}
+		}
+
+		private void RefreshDuplicantInterestGroup(OxySyncEntityPositionHandler transform)
+		{
+			if (_explicitGroupTypes.Contains(transform.GetType()))
+				return;
+
+			int worldId = transform.GetMyWorldId();
+			if (worldId < 0)
+				return;
+
+			int newGroup = WorldChunkHelper.GetGroupId(worldId, Grid.PosToCell(transform.transform.position));
+			if (newGroup == transform.InterestGroup)
+				return;
+
+			RemoveBehaviourFromGroupIndex(transform, transform.InterestGroup);
+			transform.InterestGroup = newGroup;
+			AddBehaviourToGroupIndex(transform, newGroup);
+		}
 
 		private void ProcessBehaviour(NetworkBehaviour behaviour, ref int totalChanges)
 		{
@@ -416,6 +509,18 @@ namespace ONI_Together.Networking.OxySync.Components
 
                 int netId = behaviour.NetId;
                 if (netId == 0) continue;
+
+				if (behaviour is OxySyncEntityPositionHandler duplicantTransform
+					&& duplicantTransform.IsDuplicant
+					&& duplicantTransform.TryCaptureVisualSnapshot(true, true, out var visualSnapshot))
+				{
+					PacketSender.SendToPlayer(playerId, new DuplicantVisualSnapshotBatchPacket
+					{
+						ServerTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+						Snapshots = new List<DuplicantVisualSnapshot> { visualSnapshot },
+					}, PacketSendMode.ReliableImmediate);
+					continue;
+				}
 
                 var fields = behaviour.SyncVarFields;
                 if (fields.Count == 0) continue;

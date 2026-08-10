@@ -75,6 +75,23 @@ namespace ONI_Together.DebugTools.UnitTests
 			return UnitTestResult.Pass("Arrival jitter increases the interpolation buffer within its cap");
 		}
 
+		[UnitTest(name: "Snapshot timeline ignores reordered arrivals", category: "OxySync")]
+		public static UnitTestResult SnapshotTimelineIgnoresReorderedArrivalForJitter()
+		{
+			var timeline = new SnapshotTimeline();
+			timeline.ToLocalTime(1_000L, 1_000.0);
+			timeline.ToLocalTime(1_100L, 1_100.0);
+			double olderMapped = timeline.ToLocalTime(1_050L, 1_150.0);
+			timeline.ToLocalTime(1_150L, 1_150.0);
+
+			if (Math.Abs(olderMapped - 1_050.0) > 0.001)
+				return UnitTestResult.Fail("Reordered packet did not retain the anchor mapping");
+			if (timeline.EstimatedJitterMilliseconds > 0.001)
+				return UnitTestResult.Fail($"Reordered packet poisoned jitter estimate: {timeline.EstimatedJitterMilliseconds}");
+
+			return UnitTestResult.Pass("Reordered channels do not inflate the adaptive buffer");
+		}
+
 		[UnitTest(name: "SyncVars reject stale and duplicate timestamps", category: "OxySync")]
 		public static UnitTestResult SyncVarTimestampOrdering()
 		{
