@@ -1,4 +1,4 @@
-using ONI_Together.DebugTools;
+﻿using ONI_Together.DebugTools;
 using ONI_Together.Networking.Packets.World;
 using ONI_Together.Networking.Transport.Steamworks;
 using Shared.Profiling;
@@ -173,8 +173,25 @@ namespace ONI_Together.Networking.Components
 
 				// Visibility gate (invariant #1) — only allocate scratch use
 				// once per pipe cell, after the Grid.Objects rejection.
-				ws.GetClientsViewingCell(cell, _recipientScratch);
-				if (_recipientScratch.Count == 0) continue;
+				//
+				// Lifted on the force-refresh tick, and only there. The gate is right for
+				// deltas: a pipe changing off-screen is not worth a packet every 200ms.
+				// As the only path it meant an off-screen pipe was never replicated at
+				// all — the client kept whatever its own simulation produced and nothing
+				// corrected it, because the delta and the refresh both skipped it.
+				//
+				// That is not only cosmetic. A client's buildings draw from those pipes
+				// whether or not anybody is looking, so an aquatuner can be fed on one
+				// peer and dry on the other with nothing on screen to explain it.
+				//
+				// Cost is bounded by construction: one full sweep every
+				// FORCE_REFRESH_INTERVAL rather than every tick, and MaybeQueueCell still
+				// skips cells with no contents, so an empty pipe network costs nothing.
+				if (!forceRefresh)
+				{
+					ws.GetClientsViewingCell(cell, _recipientScratch);
+					if (_recipientScratch.Count == 0) continue;
+				}
 				pipeCellsVisible++;
 
 				if (hasGas)
