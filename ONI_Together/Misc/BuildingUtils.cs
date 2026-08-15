@@ -46,6 +46,7 @@ namespace ONI_Together.Misc
                 var pe = go.GetComponent<PrimaryElement>();
                 if (pe == null || pe.Mass <= 0f) continue;
                 if (!go.TryGetComponent<KPrefabID>(out _)) continue;
+                if (IsEntityNotContents(go)) continue;
                 validItems.Add(go);
             }
 
@@ -137,11 +138,40 @@ namespace ONI_Together.Misc
             }
         }
         
+        /// <summary>
+        /// Something with a life of its own, rather than bulk contents.
+        ///
+        /// This blob describes a container as a list of prefab, mass and temperature,
+        /// and it is applied by emptying the container and rebuilding it. That is right
+        /// for a pile of dirt and destructive for anything carrying state the blob has
+        /// no room for.
+        ///
+        /// An atmo suit in a locker has an owner, a durability and its own oxygen. A
+        /// critter in a trap has an age, a calorie count and a fertility. Rebuilt from a
+        /// prefab they come back as different objects with all of that reset - and the
+        /// original was deleted to make room for them.
+        ///
+        /// Assignable covers suits and anything else a duplicant is assigned to;
+        /// GameTags.Creature covers live animals.
+        /// </summary>
+        private static bool IsEntityNotContents(GameObject go)
+        {
+            if (go == null) return false;
+            return go.GetComponent<Assignable>() != null || go.HasTag(GameTags.Creature);
+        }
+
         private static void ClearStorage(Storage storage)
         {
             for (int i = storage.items.Count - 1; i >= 0; i--)
+            {
+                // Left where it is. Skipping these on the sending side is not enough on
+                // its own - the receiver empties the container before rebuilding it, so
+                // without this the suit or the animal is deleted here and simply never
+                // comes back.
+                if (IsEntityNotContents(storage.items[i])) continue;
                 storage.items[i].DeleteObject();
-            storage.items.Clear();
+            }
+            storage.items.RemoveAll(item => item == null || item.IsNullOrDestroyed());
         }
         
         // UP = Utility Path
