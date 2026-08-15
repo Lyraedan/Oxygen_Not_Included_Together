@@ -1,4 +1,4 @@
-using ONI_Together.Networking.Packets.Architecture;
+﻿using ONI_Together.Networking.Packets.Architecture;
 using Shared.Profiling;
 
 namespace ONI_Together.Networking
@@ -30,9 +30,28 @@ namespace ONI_Together.Networking
 			}
 		}
 
-		public static bool Matches(int protocolVersion, int packetFingerprint)
+		public static bool Matches(int protocolVersion, int packetFingerprint, string modVersion)
 		{
 			using var _ = Profiler.Scope();
+
+			// The mod version is part of the decision, not just the explanation.
+			//
+			// BuildMismatchReason below already compares mod versions, but it is only
+			// called to explain a rejection this method has made - and this method looked
+			// at the protocol version and the packet fingerprint alone. Two peers on
+			// different mod versions with the same packet registry were accepted, so
+			// MOD_VERSION_MISMATCH was unreachable and the "Bypass Protocol Checks"
+			// tooltip, which promises mod version mismatches are checked, was not
+			// accurate.
+			//
+			// Such a pair connects and then disagrees about the world in ways that look
+			// exactly like a sync bug, which makes it expensive to diagnose.
+			//
+			// An empty version means a peer too old to send one; those already fail the
+			// metadata check, so treating a blank as a mismatch would only change which
+			// message they get.
+			if (!string.IsNullOrEmpty(modVersion) && modVersion != ModVersion)
+				return false;
 
 			return protocolVersion == CurrentProtocolVersion
 				&& packetFingerprint == PacketFingerprint;
