@@ -1,4 +1,4 @@
-using System.IO;
+﻿using System.IO;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Architecture;
 using UnityEngine;
@@ -17,6 +17,19 @@ public class SpawnPrefabPacket : IPacket
     public float Temperature;
     public byte DiseaseIndex;
     public int DiseaseCount;
+
+    /// <summary>
+    /// Required by the receiver, and missing.
+    ///
+    /// PacketRegistry.Create builds every incoming packet with
+    /// Activator.CreateInstance and then deserialises into it, so a type whose only
+    /// constructors take arguments cannot be received at all - each one throws
+    /// "Default constructor not found" before Deserialize is reached.
+    ///
+    /// SpawnUtils.KNetInstantiate sends this packet on both of its overloads, so the
+    /// host announces prefab and element spawns that no client can apply.
+    /// </summary>
+    public SpawnPrefabPacket() { }
 
     public SpawnPrefabPacket(int netId, int hash, Vector3 position)
     {
