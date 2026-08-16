@@ -45,6 +45,48 @@ namespace ONI_Together.Networking
 			return identity != null;
 		}
 
+		/// <summary>
+		/// The identity this object already has, or null. Never attaches one.
+		///
+		/// GetNetIdentity above ends in AddComponent, which is right when the caller is
+		/// about to address the object and wrong when it is only asking. Five places in
+		/// the mod already need the asking version and spell it out by hand as
+		/// GetComponent&lt;NetworkIdentity&gt;() - both overlay draw paths, both overlay
+		/// hover paths, and the cell fallback in BuildingConfigPacket - so they lose the
+		/// null check and the profiler scope the helpers have.
+		///
+		/// The overlay is the clearest case: drawing a network overlay should not attach
+		/// a NetworkIdentity to whatever the cursor passes over.
+		/// </summary>
+		public static NetworkIdentity GetExistingNetIdentity(this GameObject go)
+		{
+			using var _ = Profiler.Scope();
+
+			if (go.IsNullOrDestroyed())
+				return null;
+
+			return go.TryGetComponent<NetworkIdentity>(out var identity) ? identity : null;
+		}
+
+		/// <summary>Same, from a component - the overload GetNetIdentity already has.</summary>
+		public static NetworkIdentity GetExistingNetIdentity(this MonoBehaviour behaviour)
+		{
+			using var _ = Profiler.Scope();
+
+			if (behaviour.IsNullOrDestroyed())
+				return null;
+
+			return behaviour.gameObject.GetExistingNetIdentity();
+		}
+
+		/// <summary>The asking form of TryGetNetIdentity: reports what is there, adds nothing.</summary>
+		public static bool TryGetExistingNetIdentity(this GameObject go, out NetworkIdentity identity)
+		{
+			using var _ = Profiler.Scope();
+			identity = GetExistingNetIdentity(go);
+			return identity != null;
+		}
+
 		public static int GetNetId(this MonoBehaviour behaviour)
 		{
 			using var _ = Profiler.Scope();
