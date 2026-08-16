@@ -391,7 +391,7 @@ namespace ONI_Together.Networking.Overlay
 		{
 			if (root != null)
 			{
-				var identity = root.GetComponent<NetworkIdentity>();
+				var identity = root.GetExistingNetIdentity();
 				if (identity != null)
 					partition?.Add(identity);
 			}
@@ -401,7 +401,7 @@ namespace ONI_Together.Networking.Overlay
 		{
 			if (root != null && root.gameObject != null)
 			{
-				var identity = root.GetComponent<NetworkIdentity>();
+				var identity = root.GetExistingNetIdentity();
 				if (identity != null)
 				{
 					layerTargets.Remove(identity);
