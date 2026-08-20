@@ -6,6 +6,7 @@ using ONI_Together.DebugTools;
 using ONI_Together.Menus;
 using ONI_Together.Misc;
 using ONI_Together.Networking;
+using ONI_Together.Networking.Transport.Lan;
 using ONI_Together.Networking.Transport.Steamworks;
 using ONI_Together.Patches.ToolPatches;
 using ONI_Together.UI.Components;
@@ -629,7 +630,12 @@ namespace ONI_Together.UI
 			if (!ShowLobbies)
 				return;
 
-			SteamLobby.RequestLobbyList(OnLobbyListReceived);
+			if (SteamManager.Initialized)
+			{
+				SteamLobby.RequestLobbyList(OnLobbyListReceived);
+			}
+
+			LiteNetLibClient.StartLanDiscovery(Configuration.Instance.Host.LanSettings.Port);
 		}
 		private void OnLobbyListReceived(List<LobbyListEntry> lobbies)
 		{

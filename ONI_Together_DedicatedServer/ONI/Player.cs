@@ -1,26 +1,22 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Riptide;
+using System;
+using LiteNetLib;
 using Shared.Profiling;
 
 namespace ONI_Together_DedicatedServer.ONI
 {
     public class Player
     {
-        public Connection Connection { get; private set; }
+        public NetPeer Connection { get; private set; }
         public bool IsMaster { get; private set; }
+        public ulong ClientID { get; set; }
 
-        public ulong ClientID => Connection?.Id ?? 0uL;
-
-        public Player(Connection conn, bool IsMaster)
+        public Player(NetPeer conn, bool isMaster, ulong clientId)
         {
             using var _ = Profiler.Scope();
 
             Connection = conn;
-            UpdateMasterState(IsMaster);
+            ClientID = clientId;
+            UpdateMasterState(isMaster);
         }
 
         public void UpdateMasterState(bool state)

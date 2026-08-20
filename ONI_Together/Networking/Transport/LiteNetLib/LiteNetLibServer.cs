@@ -2,6 +2,7 @@ using LiteNetLib;
 using LiteNetLib.Utils;
 using ONI_Together.DebugTools;
 using ONI_Together.Misc;
+using ONI_Together.Misc.World;
 using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.States;
@@ -76,6 +77,7 @@ namespace ONI_Together.Networking.Transport.Lan
             _listener.PeerDisconnectedEvent += OnPeerDisconnected;
             _listener.NetworkReceiveEvent += OnNetworkReceive;
             _listener.NetworkErrorEvent += OnNetworkError;
+            _listener.NetworkReceiveUnconnectedEvent += OnNetworkReceiveUnconnected;
 
             // UnsyncedEvents = false ensures ALL events fire on Unity Main Thread inside PollEvents()
             _server = new NetManager(_listener)
@@ -83,7 +85,8 @@ namespace ONI_Together.Networking.Transport.Lan
                 AutoRecycle = true,
                 DisconnectTimeout = Configuration.Instance.Host.TimeoutSeconds * 1000,
                 UnsyncedEvents = false,
-                ChannelsCount = 4
+                ChannelsCount = 4,
+                BroadcastReceiveEnabled = true
             };
 
             bool started = _server.Start(port);
@@ -169,6 +172,30 @@ namespace ONI_Together.Networking.Transport.Lan
             else
             {
                 request.Reject();
+            }
+        }
+
+        private void OnNetworkReceiveUnconnected(IPEndPoint remoteEndPoint, NetPacketReader reader, UnconnectedMessageType messageType)
+        {
+            try
+            {
+                string req = reader.GetString();
+                if (req == "ONI_DISCOVERY_REQ")
+                {
+                    var writer = new NetDataWriter();
+                    writer.Put("ONI_DISCOVERY_RESP");
+                    writer.Put(Utils.GetLocalPlayerName() ?? "Host");
+                    writer.Put(SaveHelper.WorldName ?? "Colony");
+                    writer.Put(GameClock.Instance != null ? GameClock.Instance.GetCycle() + 1 : 1);
+                    writer.Put(MultiplayerSession.ConnectedPlayers.Count);
+                    writer.Put(Configuration.Instance.Host.MaxLobbySize);
+                    writer.Put(Configuration.Instance.Host.LanSettings.Port);
+                    _server.SendUnconnectedMessage(writer, remoteEndPoint);
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugConsole.LogWarning("[LiteNetLibServer] Error in discovery response: " + ex.Message);
             }
         }
 

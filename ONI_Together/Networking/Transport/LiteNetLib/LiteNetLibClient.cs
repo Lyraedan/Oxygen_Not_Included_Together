@@ -26,6 +26,12 @@ namespace ONI_Together.Networking.Transport.Lan
         private static NetPeer _serverPeer;
         private static ulong _localClientId = 0;
 
+        // LAN Discovery
+        private static NetManager _discoveryClient;
+        private static EventBasedNetListener _discoveryListener;
+        public static readonly Dictionary<string, LanDiscoveredHost> DiscoveredHosts = new Dictionary<string, LanDiscoveredHost>();
+        public static event System.Action OnDiscoveredHostsChanged;
+
         public static NetManager Client => _client;
         public static NetPeer ServerPeer => _serverPeer;
         public static ulong CLIENT_ID { get; private set; }
@@ -58,6 +64,77 @@ namespace ONI_Together.Networking.Transport.Lan
             CLIENT_ID = 0;
         }
 
+        public static void StartLanDiscovery(int targetPort = 8080)
+        {
+            if (_discoveryClient == null)
+            {
+                _discoveryListener = new EventBasedNetListener();
+                _discoveryListener.NetworkReceiveUnconnectedEvent += OnDiscoveryResponseReceived;
+                _discoveryClient = new NetManager(_discoveryListener)
+                {
+                    UnsyncedEvents = false,
+                    BroadcastReceiveEnabled = true
+                };
+                _discoveryClient.Start();
+            }
+
+            var writer = new NetDataWriter();
+            writer.Put("ONI_DISCOVERY_REQ");
+            _discoveryClient.SendBroadcast(writer, targetPort);
+            if (targetPort != 7777)
+            {
+                _discoveryClient.SendBroadcast(writer, 7777);
+            }
+        }
+
+        public static void PollDiscovery()
+        {
+            if (_discoveryClient != null && _discoveryClient.IsRunning)
+            {
+                _discoveryClient.PollEvents();
+            }
+        }
+
+        public static void StopLanDiscovery()
+        {
+            if (_discoveryClient != null)
+            {
+                _discoveryClient.Stop();
+                _discoveryClient = null;
+                _discoveryListener = null;
+            }
+        }
+
+        private static void OnDiscoveryResponseReceived(IPEndPoint remoteEndPoint, NetPacketReader reader, UnconnectedMessageType messageType)
+        {
+            try
+            {
+                string resp = reader.GetString();
+                if (resp == "ONI_DISCOVERY_RESP")
+                {
+                    var host = new LanDiscoveredHost
+                    {
+                        EndPoint = remoteEndPoint,
+                        HostName = reader.GetString(),
+                        WorldName = reader.GetString(),
+                        Cycle = reader.GetInt(),
+                        PlayerCount = reader.GetInt(),
+                        MaxPlayers = reader.GetInt(),
+                        Port = reader.GetInt(),
+                        LastSeenTime = Time.realtimeSinceStartup
+                    };
+
+                    string key = remoteEndPoint.Address.ToString() + ":" + host.Port;
+                    DiscoveredHosts[key] = host;
+                    OnDiscoveredHostsChanged?.Invoke();
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugConsole.LogWarning("[LiteNetLibClient] Error parsing discovery response: " + ex.Message);
+            }
+        }
+
         public override void Prepare()
         {
             using var _ = Profiler.Scope();
@@ -66,6 +143,8 @@ namespace ONI_Together.Networking.Transport.Lan
         public override void ConnectToHost(string ip, int port)
         {
             using var _ = Profiler.Scope();
+
+            StopLanDiscovery();
 
             if (_client != null && _client.IsRunning)
             {
@@ -196,6 +275,8 @@ namespace ONI_Together.Networking.Transport.Lan
         public override void Update()
         {
             using var _ = Profiler.Scope();
+
+            PollDiscovery();
 
             if (_client == null)
                 return;
