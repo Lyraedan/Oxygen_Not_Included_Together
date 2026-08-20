@@ -138,7 +138,33 @@ namespace ONI_Together.Networking.Transport.Lan
         {
             if (_server.ConnectedPeersCount < Configuration.Instance.Host.MaxLobbySize)
             {
-                request.AcceptIfKey("ONI_TOGETHER");
+                try
+                {
+                    string key = request.Data.GetString();
+                    if (key == "ONI_TOGETHER")
+                    {
+                        ulong clientNetId = 0;
+                        if (request.Data.AvailableBytes >= sizeof(ulong))
+                        {
+                            clientNetId = request.Data.GetULong();
+                        }
+
+                        var peer = request.Accept();
+                        if (peer != null)
+                        {
+                            ulong assignedId = clientNetId > 1 ? clientNetId : ((ulong)peer.Id + 2);
+                            _peersByClientId[assignedId] = peer;
+                            _clientIdByPeerId[peer.Id] = assignedId;
+                        }
+                        return;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    DebugConsole.LogWarning("[LiteNetLibServer] Error reading connection request: " + ex.Message);
+                }
+
+                request.Reject();
             }
             else
             {
@@ -150,9 +176,12 @@ namespace ONI_Together.Networking.Transport.Lan
         {
             using var _ = Profiler.Scope();
 
-            ulong clientId = (ulong)peer.Id + 2; // Remote client IDs start from 2
-            _peersByClientId[clientId] = peer;
-            _clientIdByPeerId[peer.Id] = clientId;
+            if (!_clientIdByPeerId.TryGetValue(peer.Id, out ulong clientId))
+            {
+                clientId = (ulong)peer.Id + 2;
+                _peersByClientId[clientId] = peer;
+                _clientIdByPeerId[peer.Id] = clientId;
+            }
 
             if (!MultiplayerSession.ConnectedPlayers.TryGetValue(clientId, out var player))
             {

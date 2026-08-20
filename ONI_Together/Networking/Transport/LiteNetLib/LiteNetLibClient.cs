@@ -24,6 +24,7 @@ namespace ONI_Together.Networking.Transport.Lan
         private static NetManager _client;
         private static EventBasedNetListener _listener;
         private static NetPeer _serverPeer;
+        private static ulong _localClientId = 0;
 
         public static NetManager Client => _client;
         public static NetPeer ServerPeer => _serverPeer;
@@ -51,6 +52,12 @@ namespace ONI_Together.Networking.Transport.Lan
         public override int IncomingPps => _clientInPps;
         public override int OutgoingPps => _clientOutPps;
 
+        public static void ResetLocalId()
+        {
+            _localClientId = 0;
+            CLIENT_ID = 0;
+        }
+
         public override void Prepare()
         {
             using var _ = Profiler.Scope();
@@ -65,6 +72,12 @@ namespace ONI_Together.Networking.Transport.Lan
                 if (_serverPeer != null && _serverPeer.ConnectionState == ConnectionState.Connected)
                     return;
             }
+
+            if (_localClientId == 0)
+            {
+                _localClientId = ((ulong)(uint)Guid.NewGuid().GetHashCode() % 1000000UL) + 2;
+            }
+            CLIENT_ID = _localClientId;
 
             MultiplayerSession.ServerIp = ip;
             MultiplayerSession.ServerPort = port;
@@ -85,8 +98,12 @@ namespace ONI_Together.Networking.Transport.Lan
             };
 
             _client.Start();
-            DebugConsole.Log("[LiteNetLibClient] Connecting to " + ip + ":" + port + "...");
-            _serverPeer = _client.Connect(ip, port, "ONI_TOGETHER");
+            DebugConsole.Log("[LiteNetLibClient] Connecting to " + ip + ":" + port + " with ClientID: " + CLIENT_ID + "...");
+
+            var writer = new NetDataWriter();
+            writer.Put("ONI_TOGETHER");
+            writer.Put(CLIENT_ID);
+            _serverPeer = _client.Connect(ip, port, writer);
 
             int timeout = Configuration.Instance.Client.TimeoutSeconds;
             CoroutineRunner.RunOne(WaitForConnectionSuccess(timeout));
@@ -117,7 +134,6 @@ namespace ONI_Together.Networking.Transport.Lan
             using var _ = Profiler.Scope();
 
             _serverPeer = peer;
-            CLIENT_ID = (ulong)peer.Id + 2; // Remote client ID
 
             OnClientConnected?.Invoke();
             MultiplayerSession.SetHost(1);
@@ -129,6 +145,7 @@ namespace ONI_Together.Networking.Transport.Lan
             MultiplayerSession.KnownPlayerNames[CLIENT_ID] = Utils.GetLocalPlayerName();
 
             DebugConsole.Log("[LiteNetLibClient] Connected to host! Assigned Client ID: " + CLIENT_ID);
+            Game.Instance?.Trigger(MP_HASHES.OnConnected);
             OnRequestStateOrReturn?.Invoke();
         }
 
@@ -136,7 +153,6 @@ namespace ONI_Together.Networking.Transport.Lan
         {
             using var _ = Profiler.Scope();
 
-            CLIENT_ID = Utils.NilUlong();
             _serverPeer = null;
 
             OnClientDisconnected?.Invoke();
