@@ -66,8 +66,8 @@
 - [ ] **Cleanup the codebase** `Issue`
   > The codebase is a mess, it has alot of contributor left over code and genuinely needs to be cleaned up
 
-- [x] **LiteNetLib Network Transport & Standardized Transport Layer (ITransport)** `Code fix` `Next Update`
-  > Replaced Riptide's 1000-byte limitation on LAN with LiteNetLib 1.3.1. Implemented a driver-based `ITransport` and `TransportRegistry` layer providing unified abstractions for Steamworks P2P, LiteNetLib (UDP LAN / Direct IP), Riptide (Legacy LAN), and Epic Online Services (EOS Crossplay driver). High-level gameplay systems (OxySync, Chores, World State) now send payloads transparently without low-level byte-limit concerns or transport coupling.
+- [x] **LiteNetLib Network Transport, Standardized Transport Layer (ITransport), LAN Discovery & Dedicated Server** `Code fix` `Next Update`
+  > Replaced Riptide's 1000-byte limitation on LAN with LiteNetLib 1.3.1. Implemented a driver-based `ITransport` and `TransportRegistry` layer providing unified abstractions for Steamworks P2P, LiteNetLib (UDP LAN / Direct IP), and Epic Online Services (EOS Crossplay driver). Added zero-configuration UDP broadcast LAN Lobby Auto-Discovery and modernized `ONI_Together_DedicatedServer` to LiteNetLib with headless packet relay and master-migration. High-level gameplay systems (OxySync, Chores, World State) now send payloads transparently without low-level byte-limit concerns or transport coupling.
 
 - [x] **Dragtool: Visual Display Sync** `Code fix` `Runtime QA pending`
   > Local and remote players now see box/line drag areas, their width × height text, and brush footprints. This includes Brush, Sprinkle, Heat, Stress, Destroy, Reveal, Clear Floor, Critter Removal, Priority, Mop, Harvest, Disinfect, Empty Pipe, and Disconnect. The local multiplayer visualizer updates every frame; drag start and final extent are sent immediately to peers so short operations remain visible. Remote drag endpoints follow the interpolated cursor, and the Move To cursor mapping now uses the correct game tool class.
