@@ -1,4 +1,4 @@
-﻿using ONI_Together.DebugTools;
+using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking.States;
 using ONI_Together.Networking.Transport.Steamworks;
@@ -47,12 +47,15 @@ namespace ONI_Together.Networking.Components
 			{
 				GameServer.Update();
 			}
-			else if (MultiplayerSession.IsClient && MultiplayerSession.HostUserID.IsValid())
+			else
 			{
 				GameClient.Poll();
 
-				// Check for inactive transfers and request missing chunks
-				ONI_Together.Misc.World.SaveChunkAssembler.CheckInactiveTransfers();
+				if (MultiplayerSession.IsClient && MultiplayerSession.HostUserID.IsValid())
+				{
+					// Check for inactive transfers and request missing chunks
+					ONI_Together.Misc.World.SaveChunkAssembler.CheckInactiveTransfers();
+				}
 			}
             NetworkConfig.TransportPacketSender.Flush();
         }
