@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using System.Reflection;
@@ -49,4 +49,56 @@ namespace ONI_Together.Patches
 			DebugConsole.Log($"Loaded {filename}");
 		}
 	}
+
+	[HarmonyPatch(typeof(LoadScreen), "MigrateFile")]
+	public static class MigrateFilePatch
+	{
+		[HarmonyPrefix]
+		public static bool Prefix(string source, string dest, bool ignoreMissing)
+		{
+			try
+			{
+				if (!System.IO.File.Exists(source))
+				{
+					return false;
+				}
+
+				string destDir = System.IO.Path.GetDirectoryName(dest);
+				if (!string.IsNullOrEmpty(destDir) && !System.IO.Directory.Exists(destDir))
+				{
+					System.IO.Directory.CreateDirectory(destDir);
+				}
+			}
+			catch
+			{
+				return false;
+			}
+			return true;
+		}
+
+		[HarmonyFinalizer]
+		public static System.Exception Finalizer(System.Exception __exception)
+		{
+			if (__exception != null)
+			{
+				DebugConsole.LogWarning($"[LoadScreenPatch] Suppressed MigrateFile error: {__exception.Message}");
+			}
+			return null;
+		}
+	}
+
+	[HarmonyPatch(typeof(LoadScreen), "CheckCloudLocalOverlap")]
+	public static class CheckCloudLocalOverlapPatch
+	{
+		[HarmonyFinalizer]
+		public static System.Exception Finalizer(System.Exception __exception)
+		{
+			if (__exception != null)
+			{
+				DebugConsole.LogWarning($"[LoadScreenPatch] Suppressed CheckCloudLocalOverlap error: {__exception.Message}");
+			}
+			return null;
+		}
+	}
 }
+

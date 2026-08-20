@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using Klei;
 using ONI_Together;
 using ONI_Together.DebugTools;
@@ -49,6 +49,25 @@ public static class SaveHelper
 		var path = SecurePath.Combine(savePath, baseName, $"{baseName}.sav");
 
 		Directory.CreateDirectory(Path.GetDirectoryName(path));
+
+		try
+		{
+			string cloudPrefix = SaveLoader.GetCloudSavePrefix();
+			if (!string.IsNullOrEmpty(cloudPrefix))
+			{
+				string cloudDir = Path.Combine(cloudPrefix, baseName);
+				if (!Directory.Exists(cloudDir))
+					Directory.CreateDirectory(cloudDir);
+			}
+			string localPrefix = SaveLoader.GetSavePrefixAndCreateFolder();
+			if (!string.IsNullOrEmpty(localPrefix))
+			{
+				string localDir = Path.Combine(localPrefix, baseName);
+				if (!Directory.Exists(localDir))
+					Directory.CreateDirectory(localDir);
+			}
+		}
+		catch { }
 
 		File.WriteAllBytes(path, data);
 
