@@ -264,7 +264,81 @@ namespace ONI_Together.UI
 			SetHostVia(HostMode.Steam);
 			NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.STEAMWORKS); // default to steam
 
+			ApplyLocalization();
+
 			init = true;
+		}
+
+		private void ApplyLocalization()
+		{
+			using var _ = Profiler.Scope();
+
+			try
+			{
+				var addSettingsBtnText = transform.Find("HostMenu/AdditionalSettings")?.GetComponentInChildren<LocText>();
+				if (addSettingsBtnText != null)
+					addSettingsBtnText.SetText(STRINGS.UI.MP_SCREEN.HOSTMENU.ADDITIONALSETTINGS.TEXT);
+
+				var addHostTitleText = transform.Find("AdditionalHostSettings/Title")?.GetComponent<LocText>()
+					?? transform.Find("AdditionalHostSettings/Header")?.GetComponent<LocText>()
+					?? transform.Find("AdditionalHostSettings/TopBar/Title")?.GetComponent<LocText>()
+					?? transform.Find("AdditionalHostSettings")?.GetComponent<LocText>()
+					?? transform.Find("AdditionalHostSettings")?.GetComponentInChildren<LocText>();
+				if (addHostTitleText != null)
+					addHostTitleText.SetText(STRINGS.UI.MP_SCREEN.ADDITIONALHOSTSETTINGS.TITLE);
+
+				var hostingTitle = transform.Find("MainMenu/HostingTitle")?.GetComponent<LocText>();
+				if (hostingTitle != null)
+					hostingTitle.SetText(STRINGS.UI.MP_SCREEN.MAINMENU.HOSTINGTITLE);
+
+				var joiningTitle = transform.Find("MainMenu/JoiningTitle")?.GetComponent<LocText>();
+				if (joiningTitle != null)
+					joiningTitle.SetText(STRINGS.UI.MP_SCREEN.MAINMENU.JOININGTITLE);
+
+				var hostMenuTitle = transform.Find("HostMenu/Title")?.GetComponent<LocText>();
+				if (hostMenuTitle != null)
+					hostMenuTitle.SetText(STRINGS.UI.MP_SCREEN.HOSTMENU.TITLE);
+
+				var lobbySizeLabel = transform.Find("HostMenu/LobbySize/Label")?.GetComponent<LocText>();
+				if (lobbySizeLabel != null)
+					lobbySizeLabel.SetText(STRINGS.UI.MP_SCREEN.HOSTMENU.LOBBYSIZE.LABEL);
+
+				var ipLabel = transform.Find("HostMenu/LanHosting/IpTarget/Label")?.GetComponent<LocText>();
+				if (ipLabel != null)
+					ipLabel.SetText(STRINGS.UI.MP_SCREEN.HOSTMENU.LANHOSTING.IPTARGET.LABEL);
+
+				var portLabel = transform.Find("HostMenu/LanHosting/Port/Label")?.GetComponent<LocText>();
+				if (portLabel != null)
+					portLabel.SetText(STRINGS.UI.MP_SCREEN.HOSTMENU.LANHOSTING.PORT.LABEL);
+
+				var privateLobbyLabel = transform.Find("HostMenu/SteamHosting/FriendsOnly/Label")?.GetComponent<LocText>();
+				if (privateLobbyLabel != null)
+					privateLobbyLabel.SetText(STRINGS.UI.MP_SCREEN.HOSTMENU.STEAMHOSTING.FRIENDSONLY.LABEL);
+
+				var passwordTitle = transform.Find("HostMenu/SteamHosting/Password/PasswordTitle")?.GetComponent<LocText>();
+				if (passwordTitle != null)
+					passwordTitle.SetText(STRINGS.UI.MP_SCREEN.HOSTMENU.STEAMHOSTING.PASSWORD.PASSWORDTITLE);
+
+				var hostGameBtnText = transform.Find("MainMenu/HostGameButton")?.GetComponentInChildren<LocText>();
+				if (hostGameBtnText != null)
+					hostGameBtnText.SetText(STRINGS.UI.MP_SCREEN.MAINMENU.HOSTGAMEBUTTON.TEXT);
+
+				var mainCancelBtnText = transform.Find("MainMenu/Cancel")?.GetComponentInChildren<LocText>();
+				if (mainCancelBtnText != null)
+					mainCancelBtnText.SetText(STRINGS.UI.MP_SCREEN.MAINMENU.CANCEL.TEXT);
+
+				var startHostBtnText = transform.Find("HostMenu/Buttons/StartHosting")?.GetComponentInChildren<LocText>();
+				if (startHostBtnText != null)
+					startHostBtnText.SetText(STRINGS.UI.MP_SCREEN.HOSTMENU.BUTTONS.STARTHOSTING.TEXT);
+
+				var hostCancelBtnText = transform.Find("HostMenu/Buttons/Cancel")?.GetComponentInChildren<LocText>();
+				if (hostCancelBtnText != null)
+					hostCancelBtnText.SetText(STRINGS.UI.MP_SCREEN.HOSTMENU.BUTTONS.CANCEL.TEXT);
+			}
+			catch (Exception ex)
+			{
+				DebugConsole.LogWarning($"[UnityMultiplayerScreen] Error applying localization: {ex}");
+			}
 		}
 
 		private void SetHostVia(HostMode current)
@@ -388,7 +462,10 @@ namespace ONI_Together.UI
 			base.OnShow(show);
 
 			if (show)
+			{
+				ApplyLocalization();
 				LobbyRefresh = StartCoroutine(RefreshLobbiesEnumerator());
+			}
 			else
 				StopCoroutine(LobbyRefresh);
 		}
