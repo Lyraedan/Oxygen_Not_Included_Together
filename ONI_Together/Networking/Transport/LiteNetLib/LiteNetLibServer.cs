@@ -22,8 +22,6 @@ namespace ONI_Together.Networking.Transport.Lan
     {
         private static NetManager _server;
         private static EventBasedNetListener _listener;
-        private static NetManager _hostClient;
-        private static EventBasedNetListener _hostClientListener;
 
         private TcpFileTransferServer _tcpTransfer;
         private readonly Dictionary<ulong, NetPeer> _peersByClientId = new Dictionary<ulong, NetPeer>();
@@ -31,8 +29,7 @@ namespace ONI_Together.Networking.Transport.Lan
         private readonly ConcurrentQueue<(ulong clientId, byte[] data)> _incomingPackets = new ConcurrentQueue<(ulong, byte[])>();
 
         public static NetManager ServerInstance => _server;
-        public static NetManager HostClient => _hostClient;
-        public static ulong CLIENT_ID { get; private set; }
+        public static ulong CLIENT_ID { get; private set; } = 1;
 
         public bool IsRunning => _server != null && _server.IsRunning;
         public int ConnectedClientCount => _server != null ? _server.ConnectedPeersCount : 0;
@@ -80,11 +77,12 @@ namespace ONI_Together.Networking.Transport.Lan
             _listener.NetworkReceiveEvent += OnNetworkReceive;
             _listener.NetworkErrorEvent += OnNetworkError;
 
+            // UnsyncedEvents = false ensures ALL events fire on Unity Main Thread inside PollEvents()
             _server = new NetManager(_listener)
             {
                 AutoRecycle = true,
                 DisconnectTimeout = Configuration.Instance.Host.TimeoutSeconds * 1000,
-                UnsyncedEvents = true,
+                UnsyncedEvents = false,
                 ChannelsCount = 4
             };
 
@@ -109,24 +107,31 @@ namespace ONI_Together.Networking.Transport.Lan
                 _tcpTransfer = null;
             }
 
-            // Start local host client
-            _hostClientListener = new EventBasedNetListener();
-            _hostClientListener.PeerConnectedEvent += OnHostClientConnected;
-            _hostClientListener.PeerDisconnectedEvent += OnHostClientDisconnected;
-            _hostClientListener.NetworkReceiveEvent += (peer, reader, channel, method) =>
-            {
-                byte[] raw = reader.GetRemainingBytes();
-                _incomingPackets.Enqueue((1, raw));
-            };
+            // Register Local Host
+            CLIENT_ID = 1;
+            MultiplayerSession.SetHost(1);
+            MultiplayerSession.InActiveSession = true;
 
-            _hostClient = new NetManager(_hostClientListener)
+            ClientList.Clear();
+            ClientList.Add(1);
+
+            if (!MultiplayerSession.ConnectedPlayers.TryGetValue(1, out var hostPlayer))
             {
-                AutoRecycle = true,
-                DisconnectTimeout = Configuration.Instance.HostTimeoutSeconds * 1000,
-                UnsyncedEvents = true
-            };
-            _hostClient.Start();
-            _hostClient.Connect("127.0.0.1", port, "ONI_TOGETHER");
+                hostPlayer = new MultiplayerPlayer(1)
+                {
+                    PlayerName = Utils.GetLocalPlayerName(),
+                    Connection = null
+                };
+                MultiplayerSession.ConnectedPlayers[1] = hostPlayer;
+            }
+            else
+            {
+                hostPlayer.PlayerName = Utils.GetLocalPlayerName();
+                hostPlayer.Connection = null;
+            }
+            MultiplayerSession.KnownPlayerNames[1] = hostPlayer.PlayerName;
+
+            OxySyncChat.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, hostPlayer.PlayerName));
         }
 
         private void OnConnectionRequest(ConnectionRequest request)
@@ -145,7 +150,7 @@ namespace ONI_Together.Networking.Transport.Lan
         {
             using var _ = Profiler.Scope();
 
-            ulong clientId = (ulong)peer.Id + 1; // 1-based unique client ID
+            ulong clientId = (ulong)peer.Id + 2; // Remote client IDs start from 2
             _peersByClientId[clientId] = peer;
             _clientIdByPeerId[peer.Id] = clientId;
 
@@ -159,7 +164,7 @@ namespace ONI_Together.Networking.Transport.Lan
             if (!ClientList.Contains(clientId))
                 ClientList.Add(clientId);
 
-            DebugConsole.Log("[LiteNetLibServer] Client connected: " + clientId + " (" + peer.Address + ":" + peer.Port + ")");
+            DebugConsole.Log("[LiteNetLibServer] Remote client connected: " + clientId + " (" + peer.Address + ":" + peer.Port + ")");
         }
 
         private void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
@@ -198,111 +203,116 @@ namespace ONI_Together.Networking.Transport.Lan
             DebugConsole.LogWarning("[LiteNetLibServer] Network error from " + endPoint + ": " + socketError);
         }
 
-        private void OnHostClientConnected(NetPeer peer)
-        {
-            CLIENT_ID = 1;
-            MultiplayerSession.SetHost(1);
-            MultiplayerSession.InActiveSession = true;
-
-            string hostName = Utils.GetLocalPlayerName();
-            OxySyncChat.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, hostName));
-            DebugConsole.Log("[LiteNetLibServer] Host client connected!");
-        }
-
-        private void OnHostClientDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
-        {
-            CLIENT_ID = Utils.NilUlong();
-            MultiplayerSession.HostUserID = Utils.NilUlong();
-            MultiplayerSession.InActiveSession = false;
-            DebugConsole.Log("[LiteNetLibServer] Host client disconnected!");
-        }
-
         public override void Stop()
         {
             using var _ = Profiler.Scope();
 
-            OxySyncChat.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_SERVER_STOPPED, "LiteNetLib"));
+            if (_server == null)
+                return;
+
+            _server.Stop();
+            _server = null;
+            _listener = null;
 
             _tcpTransfer?.Stop();
             _tcpTransfer = null;
 
-            _hostClient?.Stop();
-            _hostClient = null;
-
-            _server?.Stop();
-            _server = null;
-
             _peersByClientId.Clear();
             _clientIdByPeerId.Clear();
             ClientList.Clear();
+
+            while (_incomingPackets.TryDequeue(out var _)) { }
+
+            CLIENT_ID = Utils.NilUlong();
+            MultiplayerSession.HostUserID = Utils.NilUlong();
             MultiplayerSession.InActiveSession = false;
+
+            DebugConsole.Log("[LiteNetLibServer] Server stopped.");
         }
 
         public override void CloseConnections()
         {
-            _server?.DisconnectAll();
+            using var _ = Profiler.Scope();
+
+            if (_server == null)
+                return;
+
+            _server.DisconnectAll();
+            _peersByClientId.Clear();
+            _clientIdByPeerId.Clear();
+            ClientList.Clear();
+            ClientList.Add(1);
         }
 
         public override void Update()
         {
             using var _ = Profiler.Scope();
 
-            _server?.PollEvents();
-            _hostClient?.PollEvents();
+            if (_server == null)
+                return;
+
+            _server.PollEvents();
             OnMessageRecieved();
-            UpdateBandwidth();
+            UpdateMetrics();
         }
 
         public override void OnMessageRecieved()
         {
             using var _ = Profiler.Scope();
 
-            while (_incomingPackets.TryDequeue(out var item))
+            while (_incomingPackets.TryDequeue(out var packet))
             {
                 try
                 {
-                    PacketHandler.HandleIncoming(item.data);
+                    PacketHandler.HandleIncoming(packet.data);
                 }
                 catch (Exception ex)
                 {
-                    DebugConsole.LogError("[LiteNetLibServer] Error processing packet: " + ex);
+                    DebugConsole.LogError("[LiteNetLibServer] Exception while handling packet from " + packet.clientId + ": " + ex);
                 }
             }
         }
 
         public override void KickClient(ulong clientId)
         {
+            using var _ = Profiler.Scope();
+
             if (_peersByClientId.TryGetValue(clientId, out var peer))
             {
                 peer.Disconnect();
+                _peersByClientId.Remove(clientId);
+                _clientIdByPeerId.Remove(peer.Id);
+                ClientList.Remove(clientId);
+                MultiplayerSession.ConnectedPlayers.Remove(clientId);
+                DebugConsole.Log("[LiteNetLibServer] Kicked client: " + clientId);
             }
         }
 
-        private void UpdateBandwidth()
+        private void UpdateMetrics()
         {
-            float now = Time.unscaledTime;
-            if (now - _srvLastBwPollTime < 0.5f) return;
+            if (_server == null)
+                return;
+
+            float now = Time.realtimeSinceStartup;
             float dt = now - _srvLastBwPollTime;
+            if (dt < 1f)
+                return;
+
+            long totalBytesIn = _server.Statistics.BytesReceived;
+            long totalBytesOut = _server.Statistics.BytesSent;
+            long totalPacketsIn = _server.Statistics.PacketsReceived;
+            long totalPacketsOut = _server.Statistics.PacketsSent;
+
+            _srvInBw = (totalBytesIn - _srvLastBytesIn) / dt;
+            _srvOutBw = (totalBytesOut - _srvLastBytesOut) / dt;
+            _srvInPps = (int)((totalPacketsIn - _srvLastMsgIn) / dt);
+            _srvOutPps = (int)((totalPacketsOut - _srvLastMsgOut) / dt);
+
+            _srvLastBytesIn = totalBytesIn;
+            _srvLastBytesOut = totalBytesOut;
+            _srvLastMsgIn = (int)totalPacketsIn;
+            _srvLastMsgOut = (int)totalPacketsOut;
             _srvLastBwPollTime = now;
-
-            if (_server != null)
-            {
-                var stats = _server.Statistics;
-                long bytesIn = stats.BytesReceived;
-                long bytesOut = stats.BytesSent;
-                long packetsIn = stats.PacketsReceived;
-                long packetsOut = stats.PacketsSent;
-
-                _srvInBw = (bytesIn - _srvLastBytesIn) / dt;
-                _srvOutBw = (bytesOut - _srvLastBytesOut) / dt;
-                _srvInPps = (int)((packetsIn - _srvLastMsgIn) / dt);
-                _srvOutPps = (int)((packetsOut - _srvLastMsgOut) / dt);
-
-                _srvLastBytesIn = bytesIn;
-                _srvLastBytesOut = bytesOut;
-                _srvLastMsgIn = (int)packetsIn;
-                _srvLastMsgOut = (int)packetsOut;
-            }
         }
     }
 }

@@ -75,11 +75,12 @@ namespace ONI_Together.Networking.Transport.Lan
             _listener.NetworkReceiveEvent += OnNetworkReceive;
             _listener.NetworkErrorEvent += OnNetworkError;
 
+            // UnsyncedEvents = false ensures ALL events execute on Main Thread in PollEvents()
             _client = new NetManager(_listener)
             {
                 AutoRecycle = true,
                 DisconnectTimeout = Configuration.Instance.Client.TimeoutSeconds * 1000,
-                UnsyncedEvents = true,
+                UnsyncedEvents = false,
                 ChannelsCount = 4
             };
 
@@ -116,7 +117,7 @@ namespace ONI_Together.Networking.Transport.Lan
             using var _ = Profiler.Scope();
 
             _serverPeer = peer;
-            CLIENT_ID = (ulong)peer.Id + 2; // Unique client ID
+            CLIENT_ID = (ulong)peer.Id + 2; // Remote client ID
 
             OnClientConnected?.Invoke();
             MultiplayerSession.SetHost(1);
@@ -164,6 +165,8 @@ namespace ONI_Together.Networking.Transport.Lan
             _client?.Stop();
             _serverPeer = null;
             _client = null;
+
+            while (_incomingPackets.TryDequeue(out var _)) { }
         }
 
         public override void ReconnectToSession()
@@ -178,45 +181,49 @@ namespace ONI_Together.Networking.Transport.Lan
         {
             using var _ = Profiler.Scope();
 
-            _client?.PollEvents();
+            if (_client == null)
+                return;
+
+            _client.PollEvents();
             OnMessageRecieved();
-            UpdateBandwidth();
+            UpdateMetrics();
         }
 
         public override void OnMessageRecieved()
         {
             using var _ = Profiler.Scope();
 
-            while (_incomingPackets.TryDequeue(out var rawData))
+            while (_incomingPackets.TryDequeue(out var data))
             {
                 try
                 {
-                    PacketHandler.HandleIncoming(rawData);
+                    PacketHandler.HandleIncoming(data);
                 }
                 catch (Exception ex)
                 {
-                    DebugConsole.LogError("[LiteNetLibClient] Failed to handle incoming packet: " + ex);
+                    DebugConsole.LogError("[LiteNetLibClient] Exception while handling packet from host: " + ex);
                 }
             }
         }
 
         public override int GetPing()
         {
-            return _serverPeer != null ? _serverPeer.Ping : 0;
+            if (_serverPeer == null) return -1;
+            return _serverPeer.Ping * 2; // RTT
         }
 
-        public override NetworkState GetJitterState()
+        public override NetworkIndicatorsScreen.NetworkState GetJitterState()
         {
-            int ping = GetPing();
-            _pingSamples.Enqueue(ping);
-            while (_pingSamples.Count > JITTER_SAMPLE_COUNT)
+            int currentPing = GetPing();
+            if (currentPing < 0) return NetworkState.BAD;
+
+            _pingSamples.Enqueue(currentPing);
+            if (_pingSamples.Count > JITTER_SAMPLE_COUNT)
                 _pingSamples.Dequeue();
 
-            if (_pingSamples.Count < 2)
-                return NetworkState.GOOD;
+            if (_pingSamples.Count < 5) return NetworkState.GOOD;
 
-            int min = int.MaxValue;
-            int max = int.MinValue;
+            int min = int.MaxValue, max = int.MinValue;
             foreach (var p in _pingSamples)
             {
                 if (p < min) min = p;
@@ -224,54 +231,56 @@ namespace ONI_Together.Networking.Transport.Lan
             }
 
             int jitter = max - min;
-            if (jitter > 60) return NetworkState.BAD;
-            if (jitter > 30) return NetworkState.DEGRADED;
+            if (jitter > 80) return NetworkState.BAD;
+            if (jitter > 40) return NetworkState.DEGRADED;
             return NetworkState.GOOD;
         }
 
-        public override NetworkState GetLatencyState()
+        public override NetworkIndicatorsScreen.NetworkState GetLatencyState()
         {
             int ping = GetPing();
-            if (ping >= NetworkConfig.PingRanges.BAD) return NetworkState.BAD;
-            if (ping >= NetworkConfig.PingRanges.DEGRADED) return NetworkState.DEGRADED;
+            if (ping < 0) return NetworkState.BAD;
+            if (ping > NetworkConfig.PingRanges.BAD) return NetworkState.BAD;
+            if (ping > NetworkConfig.PingRanges.DEGRADED) return NetworkState.DEGRADED;
             return NetworkState.GOOD;
         }
 
-        public override NetworkState GetPacketlossState()
+        public override NetworkIndicatorsScreen.NetworkState GetPacketlossState()
+        {
+            if (_client == null || _serverPeer == null) return NetworkState.BAD;
+            return NetworkState.GOOD;
+        }
+
+        public override NetworkIndicatorsScreen.NetworkState GetServerPerformanceState()
         {
             return NetworkState.GOOD;
         }
 
-        public override NetworkState GetServerPerformanceState()
+        private void UpdateMetrics()
         {
-            return NetworkState.GOOD;
-        }
+            if (_client == null)
+                return;
 
-        private void UpdateBandwidth()
-        {
-            float now = Time.unscaledTime;
-            if (now - _lastBwPollTime < 0.5f) return;
+            float now = Time.realtimeSinceStartup;
             float dt = now - _lastBwPollTime;
+            if (dt < 1f)
+                return;
+
+            long totalBytesIn = _client.Statistics.BytesReceived;
+            long totalBytesOut = _client.Statistics.BytesSent;
+            long totalPacketsIn = _client.Statistics.PacketsReceived;
+            long totalPacketsOut = _client.Statistics.PacketsSent;
+
+            _clientInBw = (totalBytesIn - _lastBytesIn) / dt;
+            _clientOutBw = (totalBytesOut - _lastBytesOut) / dt;
+            _clientInPps = (int)((totalPacketsIn - _lastPacketsIn) / dt);
+            _clientOutPps = (int)((totalPacketsOut - _lastPacketsOut) / dt);
+
+            _lastBytesIn = totalBytesIn;
+            _lastBytesOut = totalBytesOut;
+            _lastPacketsIn = totalPacketsIn;
+            _lastPacketsOut = totalPacketsOut;
             _lastBwPollTime = now;
-
-            if (_client != null)
-            {
-                var stats = _client.Statistics;
-                long bytesIn = stats.BytesReceived;
-                long bytesOut = stats.BytesSent;
-                long packetsIn = stats.PacketsReceived;
-                long packetsOut = stats.PacketsSent;
-
-                _clientInBw = (bytesIn - _lastBytesIn) / dt;
-                _clientOutBw = (bytesOut - _lastBytesOut) / dt;
-                _clientInPps = (int)((packetsIn - _lastPacketsIn) / dt);
-                _clientOutPps = (int)((packetsOut - _lastPacketsOut) / dt);
-
-                _lastBytesIn = bytesIn;
-                _lastBytesOut = bytesOut;
-                _lastPacketsIn = packetsIn;
-                _lastPacketsOut = packetsOut;
-            }
         }
     }
 }
