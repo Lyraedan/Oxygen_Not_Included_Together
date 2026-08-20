@@ -66,12 +66,8 @@
 - [ ] **Cleanup the codebase** `Issue`
   > The codebase is a mess, it has alot of contributor left over code and genuinely needs to be cleaned up
 
-- [ ] **LiteNetLib Network Transport** `Under Consideration`
-  > The Duplicate ID issue is an internal issue with Riptide.
-  > ‌
-  > Considering replacing it with LiteNetLib
-  > ‌
-  > See my discussion with the Riptide dev here: [https://github.com/RiptideNetworking/Riptide/issues/179](https://github.com/RiptideNetworking/Riptide/issues/179 "‌")
+- [x] **LiteNetLib Network Transport & Standardized Transport Layer (ITransport)** `Code fix` `Next Update`
+  > Replaced Riptide's 1000-byte limitation on LAN with LiteNetLib 1.3.1. Implemented a driver-based `ITransport` and `TransportRegistry` layer providing unified abstractions for Steamworks P2P, LiteNetLib (UDP LAN / Direct IP), Riptide (Legacy LAN), and Epic Online Services (EOS Crossplay driver). High-level gameplay systems (OxySync, Chores, World State) now send payloads transparently without low-level byte-limit concerns or transport coupling.
 
 - [x] **Dragtool: Visual Display Sync** `Code fix` `Runtime QA pending`
   > Local and remote players now see box/line drag areas, their width × height text, and brush footprints. This includes Brush, Sprinkle, Heat, Stress, Destroy, Reveal, Clear Floor, Critter Removal, Priority, Mop, Harvest, Disinfect, Empty Pipe, and Disconnect. The local multiplayer visualizer updates every frame; drag start and final extent are sent immediately to peers so short operations remain visible. Remote drag endpoints follow the interpolated cursor, and the Move To cursor mapping now uses the correct game tool class.

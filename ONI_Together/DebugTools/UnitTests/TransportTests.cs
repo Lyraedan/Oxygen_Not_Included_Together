@@ -36,6 +36,14 @@ namespace ONI_Together.DebugTools.UnitTests
 						return UnitTestResult.Fail($"transport=STEAMWORKS but client is {client.GetType().Name}");
 					return UnitTestResult.Pass("STEAMWORKS config matches SteamworksServer/SteamworksClient");
 
+				case NetworkConfig.NetworkTransport.LITENETLIB:
+				case NetworkConfig.NetworkTransport.EOS:
+					if (server is not LiteNetLibServer)
+						return UnitTestResult.Fail($"transport={transport} but server is {server.GetType().Name}");
+					if (client is not LiteNetLibClient)
+						return UnitTestResult.Fail($"transport={transport} but client is {client.GetType().Name}");
+					return UnitTestResult.Pass($"{transport} config matches LiteNetLibServer/LiteNetLibClient");
+
 				default:
 					return UnitTestResult.Fail($"Unknown transport: {transport}");
 			}
