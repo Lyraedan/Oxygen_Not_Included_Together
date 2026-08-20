@@ -1,12 +1,12 @@
 # 📊 Trello Progress Status: Oxygen Not Included Together
 
 > **Quelle:** [Trello Board - Oxygen Not Included Together](https://trello.com/b/kq7yVWyU/oxygen-not-included-together)
-> **Stand:** Letzte Aktivität: 2026-08-01
+> **Stand:** Letzte Aktivität: 2026-08-20
 
 ---
 ## 📈 Übersicht & Zusammenfassung
 
-- **Gesamtzahl Karten (Tasks/Features/Bugs):** 161
+- **Gesamtzahl Karten (Tasks/Features/Bugs):** 165
 - **Requested Features:** 3 Einträge
 - **Mod Compatibility Issues:** 3 Einträge
 - **To Do Syncronization:** 5 Einträge
@@ -14,9 +14,9 @@
 - **Known issues:** 15 Einträge
 - **Work In progress:** 1 Einträge
 - **New features for next update:** 14 Einträge
-- **Bugfixes for next update:** 6 Einträge
+- **Bugfixes for next update:** 10 Einträge
 - **Synced (Live and next update):** 60 Einträge
-- **Synched with Issues (Live and next update):** 10 Einträge
+- **Synched with Issues (Live and next update):** 10 Einträge (3 behoben)
 - **Complete:** 32 Einträge
 - **Benched (For now):** 2 Einträge
 
@@ -292,7 +292,7 @@
 
 ---
 
-## 📋 List: Bugfixes for next update (6)
+## 📋 List: Bugfixes for next update (10)
 
 - [x] **Fixed entities added in Aqua Planet DLC being desynced (Crabs etc)** `Next Update`
 
@@ -305,6 +305,18 @@
 - [x] **Fixed generators falling out of sync** `Next Update`
 
 - [x] **Fixed storage containers falling out of sync** `Next Update`
+
+- [x] **Fixed Asteroid Cycle Clock (Top-Left) teleporting and stuttering** `Next Update` `Code fix`
+  > Allowed continuous local time progression on clients via `GameClock.AddTime` and implemented smooth interpolation (Lerp) for periodic time sync packets (`GameTimeSyncer` and `WorldCyclePacket`) to prevent the asteroid cycle clock from freezing and teleporting every second.
+
+- [x] **Fixed Duplicant Eating Animations not playing on clients** `Next Update` `Code fix`
+  > Added `Edible` to `workablesToSkip` in `StandardWorker_Patches` and protected minion/creature animation playback in `KAnimControllerBase_Patches` so eating animations and hand overrides replicate without being overwritten by the client's local idle state.
+
+- [x] **Fixed Plant Harvest and Seed Item Drops missing on clients** `Next Update` `Code fix`
+  > Added `ScenarioSpawnPrefabPatch` to capture all items spawned by `Scenario.SpawnPrefab` (harvested food, dropped seeds, loot) on the host and replicate them with synchronized `NetworkIdentity` and `SpawnPrefabPacket` to clients.
+
+- [x] **Full Multi-Language Localization (German & Polish)** `Next Update` `Code fix`
+  > Added full 341-key PO files for German (`de.po`) and Polish (`pl.po`), enhanced culture code resolution in `LocalizationPatch`, and added dynamic UI translation in `UnityMultiplayerScreen`.
 
 ---
 
@@ -452,7 +464,8 @@
 
 - [ ] **Mopping Tool** `Live`
 
-- [ ] **Disinfect Tool** `Live`
+- [x] **Disinfect Tool** `Live` `Code fix`
+  > Disinfecting progress and visual beams/multitools are now reliably cleared on clients upon work completion or cancellation via `Workable.CompleteWork` / `Workable.StopWork` and `RemoteProgressRegistry.HideTarget()`.
 
 - [ ] **Gas/Liquid on world** `Live`
 
@@ -460,9 +473,11 @@
 
 - [ ] **Diagonistics** `Live`
 
-- [ ] **Plant sync (Plants don't drop their harvested loot on clients)** `Live`
+- [x] **Plant sync (Plants don't drop their harvested loot on clients)** `Live` `Code fix`
+  > Fixed via `ScenarioSpawnPrefabPatch`: when plants are harvested or uprooted on the host, fruit, seeds, and dropped loot spawned through `Scenario.SpawnPrefab` are registered with `NetworkIdentity` and broadcast to all clients via `SpawnPrefabPacket`.
 
-- [ ] **Pickupables (sweeping etc) synced (Objects don't appear on dupes back on clients right now)** `Live`
+- [x] **Pickupables (sweeping etc) synced (Objects don't appear on dupes back on clients right now)** `Live` `Code fix`
+  > Fixed via `PickupablePatches` partial pickup protection and `DuplicantCarryItemPacket`. Partial pickups no longer destroy the world item stack prematurely on clients, and carried items render accurately on duplicant backs.
 
 ---
 
