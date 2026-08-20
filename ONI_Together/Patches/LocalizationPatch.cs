@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using ONI_Together.DebugTools;
 using System;
 using System.Collections.Generic;
@@ -14,15 +14,14 @@ namespace ONI_Together.Patches
 {
 	internal class LocalizationPatch
 	{
-
-        [HarmonyPatch(typeof(Localization), nameof(Localization.Initialize))]
-        public class Localization_Initialize_Patch
-        {
+		[HarmonyPatch(typeof(Localization), nameof(Localization.Initialize))]
+		public class Localization_Initialize_Patch
+		{
 			public static void Postfix()
-            {
-	            using var _ = Profiler.Scope();
+			{
+				using var _ = Profiler.Scope();
 				Translate(typeof(STRINGS), true);
-            }
+			}
 
 			static string ModPath => Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 
@@ -47,16 +46,53 @@ namespace ONI_Together.Patches
 			{
 				using var _ = Profiler.Scope();
 
-				string code = Localization.GetLocale()?.Code;
+				var locale = Localization.GetLocale();
+				string code = locale?.Code;
 
-				if (code.IsNullOrWhiteSpace()) return;
+				if (code.IsNullOrWhiteSpace())
+					return;
 
-				string path = Path.Combine(ModPath, "translations", Localization.GetLocale().Code + ".po");
-
-				if (File.Exists(path))
+				string[] candidateCodes = new[]
 				{
-					Localization.OverloadStrings(Localization.LoadStringsFile(path, false));
-					DebugConsole.Log($"Found translation file for {code}.");
+					code,
+					code.ToLowerInvariant(),
+					code.Split('-')[0],
+					code.Split('_')[0],
+					(code.ToLowerInvariant().Contains("de") || code.ToLowerInvariant().Contains("german")) ? "de" : null
+				}.Where(c => !string.IsNullOrEmpty(c)).Distinct().ToArray();
+
+				string[] candidateDirs = new[]
+				{
+					Path.Combine(ModPath, "translations"),
+					Path.Combine(ModPath, "ModAssets", "translations")
+				};
+
+				foreach (var dir in candidateDirs)
+				{
+					if (!Directory.Exists(dir))
+						continue;
+
+					foreach (var cand in candidateCodes)
+					{
+						string path = Path.Combine(dir, cand + ".po");
+						if (File.Exists(path))
+						{
+							try
+							{
+								var strings = Localization.LoadStringsFile(path, false);
+								if (strings != null && strings.Count > 0)
+								{
+									Localization.OverloadStrings(strings);
+									DebugConsole.Log($"[Localization] Loaded translation file for {code} from {path} ({strings.Count} strings).");
+									return;
+								}
+							}
+							catch (Exception ex)
+							{
+								DebugConsole.LogError($"[Localization] Failed to load translation file {path}: {ex}");
+							}
+						}
+					}
 				}
 			}
 		}

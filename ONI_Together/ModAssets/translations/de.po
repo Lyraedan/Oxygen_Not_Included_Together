@@ -1,10 +1,10 @@
 msgid ""
 msgstr ""
-"Project-Id-Version: \n"
+"Project-Id-Version: ONI_Together\n"
 "POT-Creation-Date: \n"
 "PO-Revision-Date: \n"
 "Last-Translator: \n"
-"Language-Team: \n"
+"Language-Team: German\n"
 "Language: de\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -12,8 +12,9 @@ msgstr ""
 "Application: Oxygen Not IncludedPOT Version: 2.0\n"
 "X-Generator: Poedit 3.8\n"
 
+#. ONI_Together.STRINGS.UI.MAINMENU.DISCORD_INFO
 #. ONI_Together.MP_STRINGS.UI.MAINMENU.DISCORD_INFO
-msgctxt "ONI_Together.MP_STRINGS.UI.MAINMENU.DISCORD_INFO"
+msgctxt "ONI_Together.STRINGS.UI.MAINMENU.DISCORD_INFO"
 msgid ""
 "Join ONI Together\n"
 "on Discord"
@@ -21,58 +22,363 @@ msgstr ""
 "Tritt der ONI-Together Community\n"
 "auf Discord bei"
 
+#. ONI_Together.STRINGS.UI.MAINMENU.JOINGAME
 #. ONI_Together.MP_STRINGS.UI.MAINMENU.JOINGAME
-msgctxt "ONI_Together.MP_STRINGS.UI.MAINMENU.JOINGAME"
+msgctxt "ONI_Together.STRINGS.UI.MAINMENU.JOINGAME"
 msgid "JOIN GAME"
 msgstr "SPIEL BEITRETEN"
 
-#. ONI_Together.MP_STRINGS.UI.MP_CHATWINDOW.CHAT_INITIALIZED
-msgctxt "ONI_Together.MP_STRINGS.UI.MP_CHATWINDOW.CHAT_INITIALIZED"
-msgid "<color=yellow>System:</color> Chat initialized."
-msgstr "<color=yellow>System:</color> Chat gestartet."
+#. ONI_Together.STRINGS.UI.MAINMENU.MULTIPLAYER.LABEL
+msgctxt "ONI_Together.STRINGS.UI.MAINMENU.MULTIPLAYER.LABEL"
+msgid "MULTIPLAYER"
+msgstr "MEHRSPIELER"
 
-#. ONI_Together.MP_STRINGS.UI.MP_CHATWINDOW.RESIZE.EXPAND
-msgctxt "ONI_Together.MP_STRINGS.UI.MP_CHATWINDOW.RESIZE.EXPAND"
-msgid "Chat +"
+#. ONI_Together.STRINGS.UI.MULTIPLAYERMENU.TITLE
+msgctxt "ONI_Together.STRINGS.UI.MULTIPLAYERMENU.TITLE"
+msgid "Multiplayer"
+msgstr "Mehrspieler"
+
+#. ONI_Together.STRINGS.UI.MULTIPLAYERMENU.HOST_WORLD
+msgctxt "ONI_Together.STRINGS.UI.MULTIPLAYERMENU.HOST_WORLD"
+msgid "Host World"
+msgstr "Welt hosten"
+
+#. ONI_Together.STRINGS.UI.MULTIPLAYERMENU.HOST_WORLD_FLAVOR
+msgctxt "ONI_Together.STRINGS.UI.MULTIPLAYERMENU.HOST_WORLD_FLAVOR"
+msgid "Select a save to host"
+msgstr "Wähle einen Spielstand zum Hosten"
+
+#. ONI_Together.STRINGS.UI.MULTIPLAYERMENU.BROWSE_LOBBIES
+msgctxt "ONI_Together.STRINGS.UI.MULTIPLAYERMENU.BROWSE_LOBBIES"
+msgid "Browse Lobbies"
+msgstr "Lobbys durchsuchen"
+
+#. ONI_Together.STRINGS.UI.MULTIPLAYERMENU.BROWSE_LOBBIES_FLAVOR
+msgctxt "ONI_Together.STRINGS.UI.MULTIPLAYERMENU.BROWSE_LOBBIES_FLAVOR"
+msgid "Find public games to join"
+msgstr "Finde öffentliche Spiele zum Beitreten"
+
+#. ONI_Together.STRINGS.UI.MULTIPLAYERMENU.JOIN_BY_CODE
+msgctxt "ONI_Together.STRINGS.UI.MULTIPLAYERMENU.JOIN_BY_CODE"
+msgid "Join by code"
+msgstr "Mit Code beitreten"
+
+#. ONI_Together.STRINGS.UI.MULTIPLAYERMENU.JOIN_BY_CODE_FLAVOR
+msgctxt "ONI_Together.STRINGS.UI.MULTIPLAYERMENU.JOIN_BY_CODE_FLAVOR"
+msgid "Enter a lobby code"
+msgstr "Gib einen Lobby-Code ein"
+
+#. ONI_Together.STRINGS.UI.MULTIPLAYERMENU.JOIN_BY_STEAM
+msgctxt "ONI_Together.STRINGS.UI.MULTIPLAYERMENU.JOIN_BY_STEAM"
+msgid "Join via Steam"
+msgstr "Über Steam beitreten"
+
+#. ONI_Together.STRINGS.UI.MULTIPLAYERMENU.JOIN_BY_STEAM_FLAVOR
+msgctxt "ONI_Together.STRINGS.UI.MULTIPLAYERMENU.JOIN_BY_STEAM_FLAVOR"
+msgid "Find friends playing"
+msgstr "Finde spielende Freunde"
+
+#. ONI_Together.STRINGS.UI.MULTIPLAYERMENU.BACK
+msgctxt "ONI_Together.STRINGS.UI.MULTIPLAYERMENU.BACK"
+msgid "Back"
+msgstr "Zurück"
+
+#. ONI_Together.STRINGS.UI.CONFIGURATION.HEADERS.A_HOST_SETTINGS
+msgctxt "ONI_Together.STRINGS.UI.CONFIGURATION.HEADERS.A_HOST_SETTINGS"
+msgid "Host Settings"
+msgstr "Host-Einstellungen"
+
+#. ONI_Together.STRINGS.UI.CONFIGURATION.HEADERS.B_CLIENT_SETTINGS
+msgctxt "ONI_Together.STRINGS.UI.CONFIGURATION.HEADERS.B_CLIENT_SETTINGS"
+msgid "Client Settings"
+msgstr "Client-Einstellungen"
+
+#. ONI_Together.STRINGS.UI.CONFIGURATION.HEADERS.C_NETWORK_SETTINGS
+msgctxt "ONI_Together.STRINGS.UI.CONFIGURATION.HEADERS.C_NETWORK_SETTINGS"
+msgid "General Network Settings"
+msgstr "Allgemeine Netzwerkeinstellungen"
+
+#. ONI_Together.STRINGS.UI.CONFIGURATION.HEADERS.D_CURSOR_SETTINGS
+msgctxt "ONI_Together.STRINGS.UI.CONFIGURATION.HEADERS.D_CURSOR_SETTINGS"
+msgid "Cursor Settings"
+msgstr "Mauszeiger-Einstellungen"
+
+#. ONI_Together.STRINGS.UI.CONFIGURATION.HEADERS.E_MISC_SETTINGS
+msgctxt "ONI_Together.STRINGS.UI.CONFIGURATION.HEADERS.E_MISC_SETTINGS"
+msgid "Misc Settings"
+msgstr "Sonstige Einstellungen"
+
+#. ONI_Together.STRINGS.UI.CONFIGURATION.HEADERS.SERVER_SETTINGS
+msgctxt "ONI_Together.STRINGS.UI.CONFIGURATION.HEADERS.SERVER_SETTINGS"
+msgid "Server Settings"
+msgstr "Server-Einstellungen"
+
+#. ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.MAX_MESSAGES_PER_POLL
+msgctxt "ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.MAX_MESSAGES_PER_POLL"
+msgid "Max Messages Per Poll"
+msgstr "Max. Nachrichten pro Poll"
+
+#. ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SAVE_FILE_TRANSFER_CHUNK
+msgctxt "ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SAVE_FILE_TRANSFER_CHUNK"
+msgid "Save Chunk Size (KB)"
+msgstr "Speicherstand-Blockgröße (KB)"
+
+#. ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.HARD_SYNC_AT_CYCLE_START
+msgctxt "ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.HARD_SYNC_AT_CYCLE_START"
+msgid "Hard Sync On Cycle Start"
+msgstr "Hart-Synchronisation bei Zyklusbeginn"
+
+#. ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.TIMEOUT_SECONDS
+msgctxt "ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.TIMEOUT_SECONDS"
+msgid "Connection Timeout (seconds)"
+msgstr "Verbindungs-Timeout (Sekunden)"
+
+#. ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.PAUSE_SIM_ON_PLAYER_DISCONNECT
+msgctxt "ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.PAUSE_SIM_ON_PLAYER_DISCONNECT"
+msgid "Pause Simulation On Player Disconnect"
+msgstr "Simulation bei Verbindungsabbruch pausieren"
+
+#. ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.SERVER_TICK_RATE
+msgctxt "ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.SERVER_TICK_RATE"
+msgid "Server Tick Rate"
+msgstr "Server-Tickrate"
+
+#. ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.CLIENT_SETTINGS.MAX_MESSAGES_PER_POLL
+msgctxt "ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.CLIENT_SETTINGS.MAX_MESSAGES_PER_POLL"
+msgid "Max Messages Per Poll"
+msgstr "Max. Nachrichten pro Poll"
+
+#. ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.CLIENT_SETTINGS.TIMEOUT_SECONDS
+msgctxt "ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.CLIENT_SETTINGS.TIMEOUT_SECONDS"
+msgid "Connection Timeout (seconds)"
+msgstr "Verbindungs-Timeout (Sekunden)"
+
+#. ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.NETWORK_SETTINGS.ENABLE_PACKET_QUEUE
+msgctxt "ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.NETWORK_SETTINGS.ENABLE_PACKET_QUEUE"
+msgid "Enable Packet Queue"
+msgstr "Paket-Warteschlange aktivieren"
+
+#. ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.NETWORK_SETTINGS.MAX_PACKETS_PER_SECOND
+msgctxt "ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.NETWORK_SETTINGS.MAX_PACKETS_PER_SECOND"
+msgid "Max Packets Per Second"
+msgstr "Max. Pakete pro Sekunde"
+
+#. ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.NETWORK_SETTINGS.BYPASS_PROTOCOL_CHECKS
+msgctxt "ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.NETWORK_SETTINGS.BYPASS_PROTOCOL_CHECKS"
+msgid "Bypass Protocol Checks"
+msgstr "Protokollprüfungen umgehen"
+
+#. ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.CURSOR_SETTINGS.RANDOM_COLOR
+msgctxt "ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.CURSOR_SETTINGS.RANDOM_COLOR"
+msgid "Use Random Color"
+msgstr "Zufällige Farbe verwenden"
+
+#. ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.CURSOR_SETTINGS.CURSOR_COLOR
+msgctxt "ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.CURSOR_SETTINGS.CURSOR_COLOR"
+msgid "Cursor Color"
+msgstr "Mauszeigerfarbe"
+
+#. ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.MISC_SETTINGS.PUFT_LOADINGSCREEN
+msgctxt "ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.MISC_SETTINGS.PUFT_LOADINGSCREEN"
+msgid "Use Puft Loading Icon"
+msgstr "Puft-Ladesymbol verwenden"
+
+#. ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.MISC_SETTINGS.LOADINGSCREEN_COLOR
+msgctxt "ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.MISC_SETTINGS.LOADINGSCREEN_COLOR"
+msgid "Use Custom Loading Screen Color"
+msgstr "Benutzerdefinierte Ladebildschirmfarbe"
+
+#. ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.MISC_SETTINGS.USE_DISCORD_RICH_PRESENCE
+msgctxt "ONI_Together.STRINGS.UI.CONFIGURATION.TITLES.MISC_SETTINGS.USE_DISCORD_RICH_PRESENCE"
+msgid "Use Discord Rich Presence"
+msgstr "Discord Rich Presence aktivieren"
+
+#. ONI_Together.STRINGS.UI.SERVERBROWSER.MULTIPLAYER_SESSION_TITLE
+msgctxt "ONI_Together.STRINGS.UI.SERVERBROWSER.MULTIPLAYER_SESSION_TITLE"
+msgid "Multiplayer Session"
+msgstr "Mehrspieler-Sitzung"
+
+#. ONI_Together.STRINGS.UI.SERVERBROWSER.LOBBY_CODE
+msgctxt "ONI_Together.STRINGS.UI.SERVERBROWSER.LOBBY_CODE"
+msgid "Lobby Code:"
+msgstr "Lobby-Code:"
+
+#. ONI_Together.STRINGS.UI.SERVERBROWSER.COPY
+msgctxt "ONI_Together.STRINGS.UI.SERVERBROWSER.COPY"
+msgid "Copy"
+msgstr "Kopieren"
+
+#. ONI_Together.STRINGS.UI.SERVERBROWSER.COPIED
+msgctxt "ONI_Together.STRINGS.UI.SERVERBROWSER.COPIED"
+msgid "Copied!"
+msgstr "Kopiert!"
+
+#. ONI_Together.STRINGS.UI.SERVERBROWSER.CONNECTED_PLAYERS
+msgctxt "ONI_Together.STRINGS.UI.SERVERBROWSER.CONNECTED_PLAYERS"
+msgid "Connected Players: {0}"
+msgstr "Verbundene Spieler: {0}"
+
+#. ONI_Together.STRINGS.UI.SERVERBROWSER.TITLE
+msgctxt "ONI_Together.STRINGS.UI.SERVERBROWSER.TITLE"
+msgid "Public Lobby Browser"
+msgstr "Öffentliche Lobbys"
+
+#. ONI_Together.STRINGS.UI.SERVERBROWSER.HEADERS.COLONY
+msgctxt "ONI_Together.STRINGS.UI.SERVERBROWSER.HEADERS.COLONY"
+msgid "Colony"
+msgstr "Kolonie"
+
+#. ONI_Together.STRINGS.UI.SERVERBROWSER.HEADERS.HOST
+msgctxt "ONI_Together.STRINGS.UI.SERVERBROWSER.HEADERS.HOST"
+msgid "Host"
+msgstr "Host"
+
+#. ONI_Together.STRINGS.UI.SERVERBROWSER.HEADERS.PLAYERS
+msgctxt "ONI_Together.STRINGS.UI.SERVERBROWSER.HEADERS.PLAYERS"
+msgid "Players"
+msgstr "Spieler"
+
+#. ONI_Together.STRINGS.UI.SERVERBROWSER.HEADERS.CYCLE
+msgctxt "ONI_Together.STRINGS.UI.SERVERBROWSER.HEADERS.CYCLE"
+msgid "Cycle"
+msgstr "Zyklus"
+
+#. ONI_Together.STRINGS.UI.SERVERBROWSER.HEADERS.DUPES
+msgctxt "ONI_Together.STRINGS.UI.SERVERBROWSER.HEADERS.DUPES"
+msgid "Dupes"
+msgstr "Dupes"
+
+#. ONI_Together.STRINGS.UI.SERVERBROWSER.HEADERS.PING
+msgctxt "ONI_Together.STRINGS.UI.SERVERBROWSER.HEADERS.PING"
+msgid "Ping"
+msgstr "Ping"
+
+#. ONI_Together.STRINGS.UI.SERVERBROWSER.JOIN_BY_CODE
+msgctxt "ONI_Together.STRINGS.UI.SERVERBROWSER.JOIN_BY_CODE"
+msgid "Join by Code"
+msgstr "Mit Code beitreten"
+
+#. ONI_Together.STRINGS.UI.SERVERBROWSER.BACK
+msgctxt "ONI_Together.STRINGS.UI.SERVERBROWSER.BACK"
+msgid "Back"
+msgstr "Zurück"
+
+#. ONI_Together.STRINGS.UI.SERVERBROWSER.LOADING_LOBBIES
+msgctxt "ONI_Together.STRINGS.UI.SERVERBROWSER.LOADING_LOBBIES"
+msgid "Loading Lobbies..."
+msgstr "Lade Lobbys..."
+
+#. ONI_Together.STRINGS.UI.SERVERBROWSER.NO_PUBLIC_LOBBIES_FOUND
+msgctxt "ONI_Together.STRINGS.UI.SERVERBROWSER.NO_PUBLIC_LOBBIES_FOUND"
+msgid "No public lobbies found. Try hosting your own!"
+msgstr "Keine öffentlichen Lobbys gefunden. Starte dein eigenes Spiel!"
+
+#. ONI_Together.STRINGS.UI.SERVERBROWSER.FOUND_X_LOBBIES
+msgctxt "ONI_Together.STRINGS.UI.SERVERBROWSER.FOUND_X_LOBBIES"
+msgid "Found {0} joinable lobby(s)"
+msgstr "{0} verfügbare Lobby(s) gefunden"
+
+#. ONI_Together.STRINGS.UI.SERVERBROWSER.JOIN_BUTTON
+msgctxt "ONI_Together.STRINGS.UI.SERVERBROWSER.JOIN_BUTTON"
+msgid "Join"
+msgstr "Beitreten"
+
+#. ONI_Together.STRINGS.UI.SERVERBROWSER.FRIEND_ONLY
+msgctxt "ONI_Together.STRINGS.UI.SERVERBROWSER.FRIEND_ONLY"
+msgid "Friends Only"
+msgstr "Nur Freunde"
+
+#. ONI_Together.STRINGS.UI.SERVERBROWSER.PASSWORD_REQUIRED
+msgctxt "ONI_Together.STRINGS.UI.SERVERBROWSER.PASSWORD_REQUIRED"
+msgid "Password Required"
+msgstr "Passwort erforderlich"
+
+#. ONI_Together.STRINGS.UI.SERVERBROWSER.PASSWORD_INCORRECT
+msgctxt "ONI_Together.STRINGS.UI.SERVERBROWSER.PASSWORD_INCORRECT"
+msgid "Incorrect password"
+msgstr "Falsches Passwort"
+
+#. ONI_Together.STRINGS.UI.SERVERBROWSER.CANCEL
+msgctxt "ONI_Together.STRINGS.UI.SERVERBROWSER.CANCEL"
+msgid "Cancel"
+msgstr "Abbrechen"
+
+#. ONI_Together.STRINGS.UI.SERVERBROWSER.REFRESH
+msgctxt "ONI_Together.STRINGS.UI.SERVERBROWSER.REFRESH"
+msgid "Refresh"
+msgstr "Aktualisieren"
+
+#. ONI_Together.STRINGS.UI.SERVERBROWSER.SEARCH
+msgctxt "ONI_Together.STRINGS.UI.SERVERBROWSER.SEARCH"
+msgid "{0} Search..."
+msgstr "{0} Suchen..."
+
+#. ONI_Together.STRINGS.UI.MP_CHATWINDOW.CHAT_INITIALIZED
+msgctxt "ONI_Together.STRINGS.UI.MP_CHATWINDOW.CHAT_INITIALIZED"
+msgid "Chat initialized."
+msgstr "Chat gestartet."
+
+#. ONI_Together.STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED
+msgctxt "ONI_Together.STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED"
+msgid "<b>{0}</b> joined the game."
+msgstr "<b>{0}</b> ist dem Spiel beigetreten."
+
+#. ONI_Together.STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_LEFT
+msgctxt "ONI_Together.STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_LEFT"
+msgid "<b>{0}</b> left the game."
+msgstr "<b>{0}</b> hat das Spiel verlassen."
+
+#. ONI_Together.STRINGS.UI.MP_CHATWINDOW.RESIZE.EXPAND
+msgctxt "ONI_Together.STRINGS.UI.MP_CHATWINDOW.RESIZE.EXPAND"
+msgid "Chat (+)"
 msgstr "Chat (+)"
 
-#. ONI_Together.MP_STRINGS.UI.MP_CHATWINDOW.RESIZE.RETRACT
-msgctxt "ONI_Together.MP_STRINGS.UI.MP_CHATWINDOW.RESIZE.RETRACT"
-msgid "Chat -"
+#. ONI_Together.STRINGS.UI.MP_CHATWINDOW.RESIZE.RETRACT
+msgctxt "ONI_Together.STRINGS.UI.MP_CHATWINDOW.RESIZE.RETRACT"
+msgid "Chat (-)"
 msgstr "Chat (-)"
 
-#. ONI_Together.MP_STRINGS.UI.MP_OVERLAY.CLIENT.CONNECTING_TO_HOST
-msgctxt "ONI_Together.MP_STRINGS.UI.MP_OVERLAY.CLIENT.CONNECTING_TO_HOST"
+#. ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.CONNECTING_TO_HOST
+msgctxt "ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.CONNECTING_TO_HOST"
 msgid "Connecting to {0}!"
 msgstr "Verbindung zu {0} wird aufgebaut!"
 
-#. ONI_Together.MP_STRINGS.UI.MP_OVERLAY.CLIENT.DOWNLOADING_GAME
-msgctxt "ONI_Together.MP_STRINGS.UI.MP_OVERLAY.CLIENT.DOWNLOADING_GAME"
+#. ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.DOWNLOADING_GAME
+msgctxt "ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.DOWNLOADING_GAME"
 msgid "Downloading world: {0}%"
 msgstr "Welt wird heruntergeladen: {0}%"
 
-#. ONI_Together.MP_STRINGS.UI.MP_OVERLAY.CLIENT.LOST_CONNECTION
-msgctxt "ONI_Together.MP_STRINGS.UI.MP_OVERLAY.CLIENT.LOST_CONNECTION"
+#. ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.MENU_LOST_CONNECTION
+msgctxt "ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.MENU_LOST_CONNECTION"
 msgid "Connection to the host was lost!"
-msgstr "Verbindung zum Server verloren!"
+msgstr "Verbindung zum Host wurde verloren!"
 
-#. ONI_Together.MP_STRINGS.UI.MP_OVERLAY.CLIENT.MISSING_SAVE_FILE
-msgctxt "ONI_Together.MP_STRINGS.UI.MP_OVERLAY.CLIENT.MISSING_SAVE_FILE"
+#. ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.MISSING_SAVE_FILE
+msgctxt "ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.MISSING_SAVE_FILE"
 msgid "Downloaded save file not found."
 msgstr "Heruntergeladener Spielstand nicht gefunden."
 
-#. ONI_Together.MP_STRINGS.UI.MP_OVERLAY.CLIENT.WAITING_FOR_PLAYER
-msgctxt "ONI_Together.MP_STRINGS.UI.MP_OVERLAY.CLIENT.WAITING_FOR_PLAYER"
+#. ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.WAITING_FOR_PLAYER
+msgctxt "ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.WAITING_FOR_PLAYER"
 msgid "Waiting for {0}..."
 msgstr "Warten auf {0}..."
 
-#. ONI_Together.MP_STRINGS.UI.MP_OVERLAY.HOST.STARTINGHOSTING
-msgctxt "ONI_Together.MP_STRINGS.UI.MP_OVERLAY.HOST.STARTINGHOSTING"
+#. ONI_Together.STRINGS.UI.MP_OVERLAY.HOST.STARTINGHOSTING
+msgctxt "ONI_Together.STRINGS.UI.MP_OVERLAY.HOST.STARTINGHOSTING"
 msgid "Hosting game..."
 msgstr "Server wird gestartet..."
 
-#. ONI_Together.MP_STRINGS.UI.MP_OVERLAY.SYNC.FINALIZING_SYNC
-msgctxt "ONI_Together.MP_STRINGS.UI.MP_OVERLAY.SYNC.FINALIZING_SYNC"
+#. ONI_Together.STRINGS.UI.MP_OVERLAY.HOST.SEND_SAVE_FILE
+msgctxt "ONI_Together.STRINGS.UI.MP_OVERLAY.HOST.SEND_SAVE_FILE"
+msgid ""
+"Sending save file to a client!\n"
+"Please wait..."
+msgstr ""
+"Sende Spielstand an einen Client!\n"
+"Bitte warten..."
+
+#. ONI_Together.STRINGS.UI.MP_OVERLAY.SYNC.FINALIZING_SYNC
+msgctxt "ONI_Together.STRINGS.UI.MP_OVERLAY.SYNC.FINALIZING_SYNC"
 msgid ""
 "All players are ready!\n"
 "Please wait..."
@@ -80,52 +386,377 @@ msgstr ""
 "Alle Mitspieler sind bereit!\n"
 "Bitte warten..."
 
-#. ONI_Together.MP_STRINGS.UI.MP_OVERLAY.SYNC.HARDSYNC_INPROGRESS
-msgctxt "ONI_Together.MP_STRINGS.UI.MP_OVERLAY.SYNC.HARDSYNC_INPROGRESS"
+#. ONI_Together.STRINGS.UI.MP_OVERLAY.SYNC.HARDSYNC_INPROGRESS
+msgctxt "ONI_Together.STRINGS.UI.MP_OVERLAY.SYNC.HARDSYNC_INPROGRESS"
 msgid "Hard sync in progress!"
 msgstr "Hart-Synchronisation läuft!"
 
-#. ONI_Together.MP_STRINGS.UI.MP_OVERLAY.SYNC.READYSTATE.READY
-msgctxt "ONI_Together.MP_STRINGS.UI.MP_OVERLAY.SYNC.READYSTATE.READY"
+#. ONI_Together.STRINGS.UI.MP_OVERLAY.SYNC.READYSTATE.READY
+msgctxt "ONI_Together.STRINGS.UI.MP_OVERLAY.SYNC.READYSTATE.READY"
 msgid "Ready"
 msgstr "Bereit"
 
-#. ONI_Together.MP_STRINGS.UI.MP_OVERLAY.SYNC.READYSTATE.UNKNOWN
-msgctxt "ONI_Together.MP_STRINGS.UI.MP_OVERLAY.SYNC.READYSTATE.UNKNOWN"
+#. ONI_Together.STRINGS.UI.MP_OVERLAY.SYNC.READYSTATE.UNKNOWN
+msgctxt "ONI_Together.STRINGS.UI.MP_OVERLAY.SYNC.READYSTATE.UNKNOWN"
 msgid "Unknown"
 msgstr "Unbekannt"
 
-#. ONI_Together.MP_STRINGS.UI.MP_OVERLAY.SYNC.READYSTATE.UNREADY
-msgctxt "ONI_Together.MP_STRINGS.UI.MP_OVERLAY.SYNC.READYSTATE.UNREADY"
+#. ONI_Together.STRINGS.UI.MP_OVERLAY.SYNC.READYSTATE.UNREADY
+msgctxt "ONI_Together.STRINGS.UI.MP_OVERLAY.SYNC.READYSTATE.UNREADY"
 msgid "Loading"
 msgstr "Ladend"
 
-#. ONI_Together.MP_STRINGS.UI.MP_OVERLAY.SYNC.WAITING_FOR_PLAYERS_SYNC
-msgctxt "ONI_Together.MP_STRINGS.UI.MP_OVERLAY.SYNC.WAITING_FOR_PLAYERS_SYNC"
+#. ONI_Together.STRINGS.UI.MP_OVERLAY.SYNC.WAITING_FOR_PLAYERS_SYNC
+msgctxt "ONI_Together.STRINGS.UI.MP_OVERLAY.SYNC.WAITING_FOR_PLAYERS_SYNC"
 msgid "Waiting for players ({0}/{1} ready)...\n"
 msgstr "Warten auf Mitspieler ({0}/{1} bereit)...\n"
 
-#. ONI_Together.MP_STRINGS.UI.PAUSESCREEN.DOHARDSYNC.LABEL
-msgctxt "ONI_Together.MP_STRINGS.UI.PAUSESCREEN.DOHARDSYNC.LABEL"
+#. ONI_Together.STRINGS.UI.PAUSESCREEN.DOHARDSYNC.LABEL
+msgctxt "ONI_Together.STRINGS.UI.PAUSESCREEN.DOHARDSYNC.LABEL"
 msgid "Perform Hard Sync"
 msgstr "Hart-Synchronisation durchführen"
 
-#. ONI_Together.MP_STRINGS.UI.PAUSESCREEN.ENDSESSION.LABEL
-msgctxt "ONI_Together.MP_STRINGS.UI.PAUSESCREEN.ENDSESSION.LABEL"
-msgid "End Multiplayer Session"
-msgstr "Mehrspieler-Sitzung beenden"
+#. ONI_Together.STRINGS.UI.PAUSESCREEN.ENDSESSION.LABEL
+msgctxt "ONI_Together.STRINGS.UI.PAUSESCREEN.ENDSESSION.LABEL"
+msgid "End Session"
+msgstr "Sitzung beenden"
 
-#. ONI_Together.MP_STRINGS.UI.PAUSESCREEN.HARDSYNCNOTAVAILABLE.LABEL
-msgctxt "ONI_Together.MP_STRINGS.UI.PAUSESCREEN.HARDSYNCNOTAVAILABLE.LABEL"
+#. ONI_Together.STRINGS.UI.PAUSESCREEN.LEAVESESSION.LABEL
+msgctxt "ONI_Together.STRINGS.UI.PAUSESCREEN.LEAVESESSION.LABEL"
+msgid "Leave Session"
+msgstr "Sitzung verlassen"
+
+#. ONI_Together.STRINGS.UI.PAUSESCREEN.HARDSYNCNOTAVAILABLE.LABEL
+msgctxt "ONI_Together.STRINGS.UI.PAUSESCREEN.HARDSYNCNOTAVAILABLE.LABEL"
 msgid "Already hard synced this cycle!"
-msgstr "Es wurde diesen Zyklus bereits eine Synchronisation durchgeführt!"
+msgstr "Diesen Zyklus bereits synchronisiert!"
 
-#. ONI_Together.MP_STRINGS.UI.PAUSESCREEN.HOSTGAME.LABEL
-msgctxt "ONI_Together.MP_STRINGS.UI.PAUSESCREEN.HOSTGAME.LABEL"
+#. ONI_Together.STRINGS.UI.PAUSESCREEN.HOSTGAME.LABEL
+msgctxt "ONI_Together.STRINGS.UI.PAUSESCREEN.HOSTGAME.LABEL"
 msgid "Host Game"
-msgstr "Server Starten"
+msgstr "Spiel hosten"
 
-#. ONI_Together.MP_STRINGS.UI.PAUSESCREEN.INVITE.LABEL
-msgctxt "ONI_Together.MP_STRINGS.UI.PAUSESCREEN.INVITE.LABEL"
-msgid "Invite"
-msgstr "Mitspieler einladen"
+#. ONI_Together.STRINGS.UI.PAUSESCREEN.INVITE.LABEL
+msgctxt "ONI_Together.STRINGS.UI.PAUSESCREEN.INVITE.LABEL"
+msgid "Invite Friends"
+msgstr "Freunde einladen"
+
+#. ONI_Together.STRINGS.UI.PAUSESCREEN.MULTIPLAYER.LABEL
+msgctxt "ONI_Together.STRINGS.UI.PAUSESCREEN.MULTIPLAYER.LABEL"
+msgid "Multiplayer"
+msgstr "Mehrspieler"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.MAINMENU.HOSTINGTITLE
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.MAINMENU.HOSTINGTITLE"
+msgid "Hosting"
+msgstr "Hosten"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.MAINMENU.HOSTGAMEBUTTON.TEXT
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.MAINMENU.HOSTGAMEBUTTON.TEXT"
+msgid "Host Game"
+msgstr "Spiel hosten"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.MAINMENU.JOININGTITLE
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.MAINMENU.JOININGTITLE"
+msgid "Joining"
+msgstr "Beitreten"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.MAINMENU.STEAMJOIN.JOINVIASTEAM.TEXT
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.MAINMENU.STEAMJOIN.JOINVIASTEAM.TEXT"
+msgid "Join via Steam"
+msgstr "Über Steam beitreten"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.MAINMENU.STEAMJOIN.OPENLOBBYLISTBUTTON.TEXT
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.MAINMENU.STEAMJOIN.OPENLOBBYLISTBUTTON.TEXT"
+msgid "Open Lobby Browser"
+msgstr "Lobby-Browser öffnen"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.MAINMENU.LOBBYCODEJOIN.INPUT.TEXTAREA.PLACEHOLDER
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.MAINMENU.LOBBYCODEJOIN.INPUT.TEXTAREA.PLACEHOLDER"
+msgid "Enter Lobby Code..."
+msgstr "Lobby-Code eingeben..."
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.MAINMENU.LOBBYCODEJOIN.JOINWITHCODEBUTTON.TEXT
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.MAINMENU.LOBBYCODEJOIN.JOINWITHCODEBUTTON.TEXT"
+msgid "Join with Code"
+msgstr "Mit Code beitreten"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.MAINMENU.LANJOIN.INPUTS.IPINPUT.TEXTAREA.PLACEHOLDER
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.MAINMENU.LANJOIN.INPUTS.IPINPUT.TEXTAREA.PLACEHOLDER"
+msgid "Enter IP address..."
+msgstr "IP-Adresse eingeben..."
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.MAINMENU.LANJOIN.INPUTS.PORT.TEXTAREA.PLACEHOLDER
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.MAINMENU.LANJOIN.INPUTS.PORT.TEXTAREA.PLACEHOLDER"
+msgid "Enter Port..."
+msgstr "Port eingeben..."
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.MAINMENU.LANJOIN.JOINLANBUTTON.TEXT
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.MAINMENU.LANJOIN.JOINLANBUTTON.TEXT"
+msgid "Join LAN address"
+msgstr "LAN-Adresse beitreten"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.MAINMENU.CANCEL.TEXT
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.MAINMENU.CANCEL.TEXT"
+msgid "Cancel"
+msgstr "Abbrechen"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.HOSTMENU.TITLE
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.HOSTMENU.TITLE"
+msgid "Host Lobby Settings"
+msgstr "Lobby-Einstellungen"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.HOSTMENU.HOSTVIABUTTONS.STEAM.TEXT
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.HOSTMENU.HOSTVIABUTTONS.STEAM.TEXT"
+msgid "Steam Session"
+msgstr "Steam-Sitzung"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.HOSTMENU.HOSTVIABUTTONS.LAN.TEXT
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.HOSTMENU.HOSTVIABUTTONS.LAN.TEXT"
+msgid "LAN Session"
+msgstr "LAN-Sitzung"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.HOSTMENU.LOBBYSIZE.LABEL
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.HOSTMENU.LOBBYSIZE.LABEL"
+msgid "Lobby Size:"
+msgstr "Lobby-Größe:"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.HOSTMENU.STEAMHOSTING.FRIENDSONLY.LABEL
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.HOSTMENU.STEAMHOSTING.FRIENDSONLY.LABEL"
+msgid "Private Lobby:"
+msgstr "Private Lobby:"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.HOSTMENU.STEAMHOSTING.FRIENDSONLY.STATE
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.HOSTMENU.STEAMHOSTING.FRIENDSONLY.STATE"
+msgid "Friends Only"
+msgstr "Nur Freunde"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.HOSTMENU.STEAMHOSTING.PASSWORD.PASSWORDTITLE
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.HOSTMENU.STEAMHOSTING.PASSWORD.PASSWORDTITLE"
+msgid "Password (optional):"
+msgstr "Passwort (optional):"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.HOSTMENU.STEAMHOSTING.PASSWORDINPUT.TEXTAREA.PLACEHOLDER
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.HOSTMENU.STEAMHOSTING.PASSWORDINPUT.TEXTAREA.PLACEHOLDER"
+msgid "Leave empty for no password"
+msgstr "Freilassen für kein Passwort"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.HOSTMENU.BUTTONS.CANCEL.TEXT
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.HOSTMENU.BUTTONS.CANCEL.TEXT"
+msgid "Cancel"
+msgstr "Abbrechen"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.HOSTMENU.BUTTONS.STARTHOSTING.TEXT
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.HOSTMENU.BUTTONS.STARTHOSTING.TEXT"
+msgid "Start Hosting"
+msgstr "Hosting starten"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.LOBBYLIST.TITLE
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.LOBBYLIST.TITLE"
+msgid "Public Lobby Browser"
+msgstr "Öffentliche Lobbys"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.LOBBYLIST.SEARCHBAR.INPUT.TEXTAREA.PLACEHOLDER
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.LOBBYLIST.SEARCHBAR.INPUT.TEXTAREA.PLACEHOLDER"
+msgid "Search Lobbies..."
+msgstr "Lobbys durchsuchen..."
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.LOBBYLIST.INFO.WORLD
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.LOBBYLIST.INFO.WORLD"
+msgid "World Name"
+msgstr "Weltname"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.LOBBYLIST.INFO.HOST
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.LOBBYLIST.INFO.HOST"
+msgid "Host"
+msgstr "Host"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.LOBBYLIST.INFO.PLAYERS
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.LOBBYLIST.INFO.PLAYERS"
+msgid "Players"
+msgstr "Spieler"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.LOBBYLIST.INFO.CYCLE
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.LOBBYLIST.INFO.CYCLE"
+msgid "Cycle"
+msgstr "Zyklus"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.LOBBYLIST.INFO.DUPES
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.LOBBYLIST.INFO.DUPES"
+msgid "Dupes"
+msgstr "Dupes"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.LOBBYLIST.INFO.PING
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.LOBBYLIST.INFO.PING"
+msgid "Ping"
+msgstr "Ping"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.LOBBYLIST.SCROLLAREA.CONTENT.NOLOBBIES.LABEL
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.LOBBYLIST.SCROLLAREA.CONTENT.NOLOBBIES.LABEL"
+msgid "No public lobbies found. Try hosting your own!"
+msgstr "Keine öffentlichen Lobbys gefunden. Starte dein eigenes Spiel!"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.LOBBYLIST.SCROLLAREA.CONTENT.ENTRYPREFAB.JOINLOBBYBUTTON.TEXT
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.LOBBYLIST.SCROLLAREA.CONTENT.ENTRYPREFAB.JOINLOBBYBUTTON.TEXT"
+msgid "Join"
+msgstr "Beitreten"
+
+#. ONI_Together.STRINGS.UI.MP_SCREEN.TOPBAR.LABEL
+msgctxt "ONI_Together.STRINGS.UI.MP_SCREEN.TOPBAR.LABEL"
+msgid "Multiplayer"
+msgstr "Mehrspieler"
+
+#. ONI_Together.STRINGS.UI.MP_PASSWORD_DIALOGUE.HOSTMENU.TITLE
+msgctxt "ONI_Together.STRINGS.UI.MP_PASSWORD_DIALOGUE.HOSTMENU.TITLE"
+msgid "Password Required!"
+msgstr "Passwort erforderlich!"
+
+#. ONI_Together.STRINGS.UI.MP_PASSWORD_DIALOGUE.HOSTMENU.PASSWORDTITLE
+msgctxt "ONI_Together.STRINGS.UI.MP_PASSWORD_DIALOGUE.HOSTMENU.PASSWORDTITLE"
+msgid "Enter password of Lobby:"
+msgstr "Lobby-Passwort eingeben:"
+
+#. ONI_Together.STRINGS.UI.MP_PASSWORD_DIALOGUE.HOSTMENU.PASSWORD_INCORRECT
+msgctxt "ONI_Together.STRINGS.UI.MP_PASSWORD_DIALOGUE.HOSTMENU.PASSWORD_INCORRECT"
+msgid "Incorrect password!"
+msgstr "Falsches Passwort!"
+
+#. ONI_Together.STRINGS.UI.MP_PASSWORD_DIALOGUE.HOSTMENU.PASSWORDINPUT.TEXTAREA.PLACEHOLDER
+msgctxt "ONI_Together.STRINGS.UI.MP_PASSWORD_DIALOGUE.HOSTMENU.PASSWORDINPUT.TEXTAREA.PLACEHOLDER"
+msgid "Enter lobby password..."
+msgstr "Lobby-Passwort eingeben..."
+
+#. ONI_Together.STRINGS.UI.MP_PASSWORD_DIALOGUE.HOSTMENU.BUTTONS.CANCEL.TEXT
+msgctxt "ONI_Together.STRINGS.UI.MP_PASSWORD_DIALOGUE.HOSTMENU.BUTTONS.CANCEL.TEXT"
+msgid "Cancel"
+msgstr "Abbrechen"
+
+#. ONI_Together.STRINGS.UI.MP_PASSWORD_DIALOGUE.HOSTMENU.BUTTONS.CONFIRM.TEXT
+msgctxt "ONI_Together.STRINGS.UI.MP_PASSWORD_DIALOGUE.HOSTMENU.BUTTONS.CONFIRM.TEXT"
+msgid "Confirm"
+msgstr "Bestätigen"
+
+#. ONI_Together.STRINGS.UI.MP_PASSWORD_DIALOGUE.TOPBAR.LABEL
+msgctxt "ONI_Together.STRINGS.UI.MP_PASSWORD_DIALOGUE.TOPBAR.LABEL"
+msgid "Joining password protected lobby"
+msgstr "Passwortgeschützter Lobby beitreten"
+
+#. ONI_Together.STRINGS.UI.MP_CHATBOX.TOPBAR.LABEL
+msgctxt "ONI_Together.STRINGS.UI.MP_CHATBOX.TOPBAR.LABEL"
+msgid "Chat"
+msgstr "Chat"
+
+#. ONI_Together.STRINGS.UI.MP_CHATBOX.TOPBAR.TOOLTIP
+msgctxt "ONI_Together.STRINGS.UI.MP_CHATBOX.TOPBAR.TOOLTIP"
+msgid "Toggle the ONI-Together chat window."
+msgstr "ONI-Together Chatfenster ein-/ausblenden."
+
+#. ONI_Together.STRINGS.UI.MP_CHATBOX.TOPBAR.FILTERBUTTON.TEXT
+msgctxt "ONI_Together.STRINGS.UI.MP_CHATBOX.TOPBAR.FILTERBUTTON.TEXT"
+msgid "Settings"
+msgstr "Einstellungen"
+
+#. ONI_Together.STRINGS.UI.MP_CHATBOX.TOPBAR.FILTERBUTTON.DROPDOWNCONTENT.RESETPOS.LABEL
+msgctxt "ONI_Together.STRINGS.UI.MP_CHATBOX.TOPBAR.FILTERBUTTON.DROPDOWNCONTENT.RESETPOS.LABEL"
+msgid "Reset Position"
+msgstr "Position zurücksetzen"
+
+#. ONI_Together.STRINGS.UI.MP_CHATBOX.TOPBAR.FILTERBUTTON.DROPDOWNCONTENT.RESETSIZE.LABEL
+msgctxt "ONI_Together.STRINGS.UI.MP_CHATBOX.TOPBAR.FILTERBUTTON.DROPDOWNCONTENT.RESETSIZE.LABEL"
+msgid "Reset Size"
+msgstr "Größe zurücksetzen"
+
+#. ONI_Together.STRINGS.UI.MP_CHATBOX.LINK_IN_CHAT.TEXT
+msgctxt "ONI_Together.STRINGS.UI.MP_CHATBOX.LINK_IN_CHAT.TEXT"
+msgid "Link in Chat"
+msgstr "Im Chat verlinken"
+
+#. ONI_Together.STRINGS.UI.MP_CHATBOX.LINK_IN_CHAT.TOOLTIP
+msgctxt "ONI_Together.STRINGS.UI.MP_CHATBOX.LINK_IN_CHAT.TOOLTIP"
+msgid "Links this object in the multiplayer chat window."
+msgstr "Verlinkt dieses Objekt im Mehrspieler-Chat."
+
+#. ONI_Together.STRINGS.UI.MP_CHATBOX.TEXTINPUT.INPUT.TEXTAREA.PLACEHOLDER
+msgctxt "ONI_Together.STRINGS.UI.MP_CHATBOX.TEXTINPUT.INPUT.TEXTAREA.PLACEHOLDER"
+msgid "Enter Text..."
+msgstr "Text eingeben..."
+
+#. ONI_Together.STRINGS.UI.TOOLS.FILTERLAYERS.OBJECTS.NAME
+msgctxt "ONI_Together.STRINGS.UI.TOOLS.FILTERLAYERS.OBJECTS.NAME"
+msgid "Objects"
+msgstr "Objekte"
+
+#. ONI_Together.STRINGS.UI.TOOLS.FILTERLAYERS.OBJECTS.TOOLTIP
+msgctxt "ONI_Together.STRINGS.UI.TOOLS.FILTERLAYERS.OBJECTS.TOOLTIP"
+msgid "Show/hide all objects with network activity"
+msgstr "Objekte mit Netzwerkaktivität ein-/ausblenden"
+
+#. ONI_Together.STRINGS.UI.TOOLS.FILTERLAYERS.GASSYNC.NAME
+msgctxt "ONI_Together.STRINGS.UI.TOOLS.FILTERLAYERS.GASSYNC.NAME"
+msgid "Gas Sync"
+msgstr "Gas-Sync"
+
+#. ONI_Together.STRINGS.UI.TOOLS.FILTERLAYERS.GASSYNC.TOOLTIP
+msgctxt "ONI_Together.STRINGS.UI.TOOLS.FILTERLAYERS.GASSYNC.TOOLTIP"
+msgid "Show/hide gas sync network activity"
+msgstr "Gas-Synchronisationsaktivität ein-/ausblenden"
+
+#. ONI_Together.STRINGS.UI.TOOLS.FILTERLAYERS.LIQUIDSYNC.NAME
+msgctxt "ONI_Together.STRINGS.UI.TOOLS.FILTERLAYERS.LIQUIDSYNC.NAME"
+msgid "Liquid Sync"
+msgstr "Flüssigkeits-Sync"
+
+#. ONI_Together.STRINGS.UI.TOOLS.FILTERLAYERS.LIQUIDSYNC.TOOLTIP
+msgctxt "ONI_Together.STRINGS.UI.TOOLS.FILTERLAYERS.LIQUIDSYNC.TOOLTIP"
+msgid "Show/hide liquid sync network activity"
+msgstr "Flüssigkeits-Synchronisationsaktivität ein-/ausblenden"
+
+#. ONI_Together.STRINGS.UI.TOOLS.FILTERLAYERS.ANIMSYNC.NAME
+msgctxt "ONI_Together.STRINGS.UI.TOOLS.FILTERLAYERS.ANIMSYNC.NAME"
+msgid "Anim Sync"
+msgstr "Animations-Sync"
+
+#. ONI_Together.STRINGS.UI.TOOLS.FILTERLAYERS.ANIMSYNC.TOOLTIP
+msgctxt "ONI_Together.STRINGS.UI.TOOLS.FILTERLAYERS.ANIMSYNC.TOOLTIP"
+msgid "Show/hide animation sync indicators"
+msgstr "Animations-Synchronisationsindikatoren ein-/ausblenden"
+
+#. ONI_Together.STRINGS.UI.TOOLS.FILTERLAYERS.VIEWPORTS.NAME
+msgctxt "ONI_Together.STRINGS.UI.TOOLS.FILTERLAYERS.VIEWPORTS.NAME"
+msgid "Viewports"
+msgstr "Sichtbereiche"
+
+#. ONI_Together.STRINGS.UI.TOOLS.FILTERLAYERS.VIEWPORTS.TOOLTIP
+msgctxt "ONI_Together.STRINGS.UI.TOOLS.FILTERLAYERS.VIEWPORTS.TOOLTIP"
+msgid "Show/hide other players' camera viewports"
+msgstr "Kamera-Sichtbereiche anderer Spieler ein-/ausblenden"
+
+#. ONI_Together.STRINGS.UI.TOOLS.FILTERLAYERS.GROUPS.NAME
+msgctxt "ONI_Together.STRINGS.UI.TOOLS.FILTERLAYERS.GROUPS.NAME"
+msgid "Interest Groups"
+msgstr "Interessensgruppen"
+
+#. ONI_Together.STRINGS.UI.TOOLS.FILTERLAYERS.GROUPS.TOOLTIP
+msgctxt "ONI_Together.STRINGS.UI.TOOLS.FILTERLAYERS.GROUPS.TOOLTIP"
+msgid "Show/hide network interest group regions"
+msgstr "Netzwerk-Interessensgruppen ein-/ausblenden"
+
+#. ONI_Together.STRINGS.UI.OVERLAYS.NETWORKACTIVITY.NAME
+msgctxt "ONI_Together.STRINGS.UI.OVERLAYS.NETWORKACTIVITY.NAME"
+msgid "Network Activity"
+msgstr "Netzwerkaktivität"
+
+#. ONI_Together.STRINGS.UI.OVERLAYS.NETWORKACTIVITY.DESCRIPTION
+msgctxt "ONI_Together.STRINGS.UI.OVERLAYS.NETWORKACTIVITY.DESCRIPTION"
+msgid "Shows real-time network sync activity per object"
+msgstr "Zeigt die Netzwerk-Synchronisationsaktivität pro Objekt in Echtzeit"
+
+#. ONI_Together.STRINGS.UI.OVERLAYS.NETWORKACTIVITY.BUTTON
+msgctxt "ONI_Together.STRINGS.UI.OVERLAYS.NETWORKACTIVITY.BUTTON"
+msgid "Network"
+msgstr "Netzwerk"
+
+#. ONI_Together.STRINGS.UI.OVERLAYS.NETWORKACTIVITY.TOOLTIP
+msgctxt "ONI_Together.STRINGS.UI.OVERLAYS.NETWORKACTIVITY.TOOLTIP"
+msgid "Displays network activity per object"
+msgstr "Zeigt Netzwerkaktivität pro Objekt an"
