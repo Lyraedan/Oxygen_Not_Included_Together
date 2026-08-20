@@ -388,9 +388,29 @@ namespace ONI_Together.UI
 			base.OnShow(show);
 
 			if (show)
+			{
+				ApplyLocalization();
 				LobbyRefresh = StartCoroutine(RefreshLobbiesEnumerator());
+			}
 			else
 				StopCoroutine(LobbyRefresh);
+		}
+
+		private void ApplyLocalization()
+		{
+			try
+			{
+				if (AdditionalLobbySettings != null)
+				{
+					var textComp = AdditionalLobbySettings.GetComponentInChildren<LocText>();
+					if (textComp != null)
+						textComp.SetText(STRINGS.UI.MP_SCREEN.HOSTMENU.ADDITIONALSETTINGS.TEXT);
+				}
+			}
+			catch (Exception ex)
+			{
+				DebugConsole.LogError($"[UnityMultiplayerScreen.ApplyLocalization] {ex}");
+			}
 		}
 		public override void OnKeyDown(KButtonEvent e)
 		{

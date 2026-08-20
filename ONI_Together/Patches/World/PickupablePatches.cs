@@ -20,6 +20,9 @@ namespace ONI_Together.Patches.World
                     if (!MultiplayerSession.IsHost || !MultiplayerSession.InActiveSession)
                         return;
 
+                    if (__instance == null || __instance.TotalAmount > 0f)
+                        return;
+
                     var identity = __instance.GetNetIdentity();
                     if (identity == null || identity.NetId == 0)
                         return;
@@ -41,6 +44,9 @@ namespace ONI_Together.Patches.World
                 try
                 {
                     if (!MultiplayerSession.IsHost || !MultiplayerSession.InActiveSession)
+                        return;
+
+                    if (__instance == null || __instance.TotalAmount > 0f)
                         return;
 
                     var identity = __instance.GetNetIdentity();
