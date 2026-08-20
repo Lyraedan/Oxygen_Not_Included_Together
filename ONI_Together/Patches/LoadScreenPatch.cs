@@ -49,34 +49,4 @@ namespace ONI_Together.Patches
 			DebugConsole.Log($"Loaded {filename}");
 		}
 	}
-
-	[HarmonyPatch(typeof(LoadScreen), "MigrateFile")]
-	public static class MigrateFilePatch
-	{
-		[HarmonyPrefix]
-		public static bool Prefix(string source, string dest, bool ignoreMissing, ref bool __result)
-		{
-			try
-			{
-				if (!System.IO.File.Exists(source))
-				{
-					__result = false;
-					return false;
-				}
-
-				string destDir = System.IO.Path.GetDirectoryName(dest);
-				if (!string.IsNullOrEmpty(destDir) && !System.IO.Directory.Exists(destDir))
-				{
-					System.IO.Directory.CreateDirectory(destDir);
-				}
-			}
-			catch
-			{
-				__result = false;
-				return false;
-			}
-			return true;
-		}
-	}
 }
-

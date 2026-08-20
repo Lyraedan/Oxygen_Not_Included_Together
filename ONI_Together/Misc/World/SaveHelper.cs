@@ -71,6 +71,14 @@ public static class SaveHelper
 
 		File.WriteAllBytes(path, data);
 
+		try
+		{
+			string pngPath = Path.ChangeExtension(path, ".png");
+			if (!File.Exists(pngPath))
+				File.WriteAllBytes(pngPath, new byte[0]);
+		}
+		catch { }
+
 		if (!SavegameDlcListValid(data, out string errorMsg))
 		{
 			ShowMessageAndReturnToMainMenu(errorMsg);
