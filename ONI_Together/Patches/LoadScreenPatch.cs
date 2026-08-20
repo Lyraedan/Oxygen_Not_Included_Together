@@ -54,12 +54,13 @@ namespace ONI_Together.Patches
 	public static class MigrateFilePatch
 	{
 		[HarmonyPrefix]
-		public static bool Prefix(string source, string dest, bool ignoreMissing)
+		public static bool Prefix(string source, string dest, bool ignoreMissing, ref bool __result)
 		{
 			try
 			{
 				if (!System.IO.File.Exists(source))
 				{
+					__result = false;
 					return false;
 				}
 
@@ -71,33 +72,10 @@ namespace ONI_Together.Patches
 			}
 			catch
 			{
+				__result = false;
 				return false;
 			}
 			return true;
-		}
-
-		[HarmonyFinalizer]
-		public static System.Exception Finalizer(System.Exception __exception)
-		{
-			if (__exception != null)
-			{
-				DebugConsole.LogWarning($"[LoadScreenPatch] Suppressed MigrateFile error: {__exception.Message}");
-			}
-			return null;
-		}
-	}
-
-	[HarmonyPatch(typeof(LoadScreen), "CheckCloudLocalOverlap")]
-	public static class CheckCloudLocalOverlapPatch
-	{
-		[HarmonyFinalizer]
-		public static System.Exception Finalizer(System.Exception __exception)
-		{
-			if (__exception != null)
-			{
-				DebugConsole.LogWarning($"[LoadScreenPatch] Suppressed CheckCloudLocalOverlap error: {__exception.Message}");
-			}
-			return null;
 		}
 	}
 }
