@@ -446,7 +446,7 @@ namespace ONI_Together.UI
 		void JoinLanLobby()
 		{
 			using var _ = Profiler.Scope();
-			NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.RIPTIDE);
+			NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.LITENETLIB);
 
 			string ipAdress = JoinIPInput.Text;
 			string portText = JoinPortInput.Text;
@@ -854,7 +854,7 @@ namespace ONI_Together.UI
 		private void StartHostingLanGame()
 		{
 			using var _ = Profiler.Scope();
-			NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.RIPTIDE);
+			NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.LITENETLIB);
 
 			string ipAdress = HostIPInput.Text;
 			string portText = HostPortInput.Text;

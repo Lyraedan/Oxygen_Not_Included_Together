@@ -5,9 +5,8 @@ namespace ONI_Together.Networking.Transport
     public enum TransportProtocol
     {
         Steamworks = 0,
-        Riptide = 1,
-        LiteNetLib = 2,
-        EOS = 3
+        LiteNetLib = 1,
+        EOS = 2
     }
 
     /// <summary>

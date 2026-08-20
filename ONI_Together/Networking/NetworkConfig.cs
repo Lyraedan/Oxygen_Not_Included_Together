@@ -32,9 +32,8 @@ namespace ONI_Together.Networking
         public enum NetworkTransport
         {
             STEAMWORKS = 0,
-            RIPTIDE = 1,
-            LITENETLIB = 2,
-            EOS = 3,
+            LITENETLIB = 1,
+            EOS = 2,
         }
         public static NetworkTransport transport { get; private set; } = NetworkTransport.LITENETLIB;
 
@@ -56,10 +55,6 @@ namespace ONI_Together.Networking
                 case NetworkTransport.STEAMWORKS:
                     UpdateTransport(NetworkTransport.STEAMWORKS);
                     StartSteamServer();
-                    break;
-                case NetworkTransport.RIPTIDE:
-                    UpdateTransport(NetworkTransport.RIPTIDE);
-                    CoroutineRunner.RunOne(StartRawDelayed(1f));
                     break;
                 case NetworkTransport.LITENETLIB:
                 case NetworkTransport.EOS:
@@ -112,8 +107,8 @@ namespace ONI_Together.Networking
                 case NetworkTransport.STEAMWORKS:
                     StopSteamworks();
                     break;
-                case NetworkTransport.RIPTIDE:
                 case NetworkTransport.LITENETLIB:
+                case NetworkTransport.EOS:
                     StopRaw();
                     break;
             }
@@ -177,9 +172,8 @@ namespace ONI_Together.Networking
             {
                 case NetworkTransport.STEAMWORKS:
                     return SteamUser.GetSteamID().m_SteamID;
-                case NetworkTransport.RIPTIDE:
-                    return MultiplayerSession.IsClient ? RiptideClient.CLIENT_ID : RiptideServer.CLIENT_ID;
                 case NetworkTransport.LITENETLIB:
+                case NetworkTransport.EOS:
                     return MultiplayerSession.IsClient ? LiteNetLibClient.CLIENT_ID : LiteNetLibServer.CLIENT_ID;
                 default:
                     return Utils.NilUlong();
@@ -197,7 +191,7 @@ namespace ONI_Together.Networking
         {
             using var _ = Profiler.Scope();
 
-            return transport.Equals(NetworkTransport.RIPTIDE) || transport.Equals(NetworkTransport.LITENETLIB);
+            return transport.Equals(NetworkTransport.LITENETLIB);
         }
 
         public static int GetMaxServerCapacity()
@@ -208,13 +202,8 @@ namespace ONI_Together.Networking
                     if (SteamLobby.InLobby)
                         return SteamMatchmaking.GetLobbyMemberLimit(SteamLobby.CurrentLobby);
                     break;
-                case NetworkTransport.RIPTIDE:
-                    if (RiptideServer.ServerInstance != null)
-                        return RiptideServer.ServerInstance.MaxClientCount;
-                    if (RiptideClient.MaxServerCapacity > 0)
-                        return RiptideClient.MaxServerCapacity;
-                    break;
                 case NetworkTransport.LITENETLIB:
+                case NetworkTransport.EOS:
                     return Configuration.Instance.Host.MaxLobbySize;
             }
             return Configuration.Instance.Host.MaxLobbySize;
@@ -234,18 +223,8 @@ namespace ONI_Together.Networking
                         clients.Add(member.m_SteamID);
                     }
                     break;
-                case NetworkTransport.RIPTIDE:
-                    if (MultiplayerSession.IsClient)
-                    {
-                        RiptideClient client = TransportClient as RiptideClient;
-                        return client?.ClientList ?? clients;
-                    }
-                    else
-                    {
-                        RiptideServer server = TransportServer as RiptideServer;
-                        return server?.ClientList ?? clients;
-                    }
                 case NetworkTransport.LITENETLIB:
+                case NetworkTransport.EOS:
                     if (MultiplayerSession.IsClient)
                     {
                         return new List<ulong>(MultiplayerSession.ConnectedPlayers.Keys);

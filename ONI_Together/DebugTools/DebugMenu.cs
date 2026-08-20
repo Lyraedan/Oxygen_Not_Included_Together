@@ -1,4 +1,4 @@
-﻿using ONI_Together.Networking;
+using ONI_Together.Networking;
 using ONI_Together.Networking.States;
 using ONI_Together.Networking.Transport.Steamworks;
 using Steamworks;
@@ -123,7 +123,7 @@ namespace ONI_Together.DebugTools
                     Configuration.Instance.Host.LanSettings.Ip = lanHostIP;
                     Configuration.Instance.Host.LanSettings.Port = port;
 
-                    NetworkConfig.NetworkTransport selected_transport = NetworkConfig.NetworkTransport.RIPTIDE;
+                    NetworkConfig.NetworkTransport selected_transport = NetworkConfig.NetworkTransport.LITENETLIB;
                     Configuration.Instance.Host.NetworkTransport = (int)selected_transport;
                     NetworkConfig.UpdateTransport(selected_transport);
 
@@ -151,7 +151,7 @@ namespace ONI_Together.DebugTools
 
             if (GUILayout.Button("Join Server"))
             {
-                NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.RIPTIDE); // Force into riptide (Testing)
+                NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.LITENETLIB);
                 DebugConsole.Log($"[LAN] Joining {lanJoinAddress}");
 
                 string[] address = lanJoinAddress.Split(':');

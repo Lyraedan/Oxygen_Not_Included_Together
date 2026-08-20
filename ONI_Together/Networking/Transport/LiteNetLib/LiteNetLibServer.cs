@@ -34,6 +34,13 @@ namespace ONI_Together.Networking.Transport.Lan
         public static NetManager HostClient => _hostClient;
         public static ulong CLIENT_ID { get; private set; }
 
+        public bool IsRunning => _server != null && _server.IsRunning;
+        public int ConnectedClientCount => _server != null ? _server.ConnectedPeersCount : 0;
+        public TcpFileTransferServer TcpTransfer => _tcpTransfer;
+
+        public void MarkClientLoading(ulong clientId) { }
+        public bool ConsumeReconnectFromLoad(ulong clientId) { return false; }
+
         public List<ulong> ClientList { get; internal set; } = new List<ulong>();
 
         // Bandwidth and PPS tracking
