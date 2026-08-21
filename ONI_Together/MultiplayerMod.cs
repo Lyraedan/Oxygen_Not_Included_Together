@@ -83,7 +83,9 @@ namespace ONI_Together
 				go.AddComponent<PingManager>();
 				//go.AddComponent<BuildingSyncer>(); // Does thing with bridges (Wire Bridge, WireBridge)
 				go.AddComponent<WorldStateSyncer>();
-				go.AddComponent<PlantLifecycleSyncer>();
+				var plantLifecycleObject = new GameObject("PlantLifecycleSyncerHost");
+				plantLifecycleObject.transform.SetParent(go.transform);
+				plantLifecycleObject.AddComponent<PlantLifecycleSyncer>();
 				go.AddComponent<ConduitFlowSyncer>();
 				go.AddComponent<AnimSyncCoordinator>();
 				go.AddComponent<AnimResyncRequester>();
