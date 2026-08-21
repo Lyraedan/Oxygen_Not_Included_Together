@@ -173,11 +173,28 @@ namespace ONI_Together.Networking.Components
 			return viewport.width > 0 && viewport.height > 0;
 		}
 
+		private bool _lastSandboxEnabled = false;
+
+		private void SyncSandboxMode()
+		{
+			if (SaveGame.Instance != null && SaveGame.Instance.sandboxEnabled != _lastSandboxEnabled)
+			{
+				_lastSandboxEnabled = SaveGame.Instance.sandboxEnabled;
+				PacketSender.SendToAll(new ONI_Together.Networking.Packets.Tools.Sandbox.SandboxModePacket(_lastSandboxEnabled));
+				DebugConsole.Log($"[WorldStateSyncer] Synced sandbox mode change: {_lastSandboxEnabled}");
+			}
+		}
+
 		private void Update()
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InActiveSession || !MultiplayerSession.IsHost)
+			if (!MultiplayerSession.InActiveSession)
+				return;
+
+			SyncSandboxMode();
+
+			if (!MultiplayerSession.IsHost)
 				return;
 
 			// Update game info even when no clients connected (for lobby browser)

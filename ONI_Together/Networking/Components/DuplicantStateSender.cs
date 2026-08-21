@@ -32,6 +32,11 @@ namespace ONI_Together.Networking.Components
 
 			base.OnSpawn();
 
+			if (networkIdentity == null) networkIdentity = GetComponent<NetworkIdentity>();
+			if (animController == null) animController = GetComponent<KAnimControllerBase>();
+			if (choreDriver == null) choreDriver = GetComponent<ChoreDriver>();
+			if (navigator == null) navigator = GetComponent<Navigator>();
+
 			if (networkIdentity == null)
 			{
 				DebugConsole.LogWarning($"[DuplicantStateSender] {gameObject.name} missing NetworkIdentity");

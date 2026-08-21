@@ -7,7 +7,7 @@ namespace ONI_Together.Networking.Components
 		internal static bool IsAnimatedCritter(GameObject go)
 		{
 			return go != null
-				&& go.HasTag(GameTags.Creature)
+				&& (go.HasTag(GameTags.Creature) || go.GetComponent<CreatureBrain>() != null)
 				&& !go.HasTag(GameTags.BaseMinion)
 				&& go.GetComponent<KBatchedAnimController>() != null;
 		}

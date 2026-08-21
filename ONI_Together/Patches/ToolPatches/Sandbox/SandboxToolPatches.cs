@@ -1,6 +1,11 @@
 using HarmonyLib;
+using ONI_Together.DebugTools;
 using ONI_Together.Networking;
+using ONI_Together.Networking.Components;
+using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Networking.Packets.Tools.Sandbox;
+using ONI_Together.Networking.Packets.World;
+using ONI_Together.Scripts.Creatures;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -67,7 +72,143 @@ namespace ONI_Together.Patches.ToolPatches.Sandbox
     [HarmonyPatch(typeof(SandboxSpawnerTool), nameof(SandboxSpawnerTool.Place))]
     internal static class SandboxSpawnerToolPatch
     {
-        private static void Postfix(int cell) => SandboxToolSync.Send(SandboxToolAction.Spawn, cell);
+        public static bool IsPlacingEntity = false;
+        public static GameObject LastSpawnedObject = null;
+
+        private static bool Prefix(int cell)
+        {
+            using var _ = Profiler.Scope();
+
+            if (!MultiplayerSession.InActiveSession || !Grid.IsValidCell(cell))
+                return true;
+
+            if (MultiplayerSession.IsClient && !SandboxToolPacket.ProcessingIncoming)
+            {
+                SandboxToolSync.Send(SandboxToolAction.Spawn, cell);
+                return false;
+            }
+
+            IsPlacingEntity = true;
+            LastSpawnedObject = null;
+            return true;
+        }
+
+        private static void Postfix(int cell)
+        {
+            using var _ = Profiler.Scope();
+
+            try
+            {
+                if (MultiplayerSession.IsHost && Grid.IsValidCell(cell))
+                {
+                    GameObject spawned = LastSpawnedObject;
+                    if (spawned == null)
+                    {
+                        spawned = Grid.Objects[cell, (int)Grid.SceneLayer.Creatures];
+                        if (spawned == null)
+                            spawned = Grid.Objects[cell, (int)Grid.SceneLayer.Building];
+                        if (spawned == null)
+                        {
+                            foreach (var minion in global::Components.LiveMinionIdentities.Items)
+                            {
+                                if (minion != null && Grid.PosToCell(minion) == cell)
+                                {
+                                    spawned = minion.gameObject;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if (spawned != null)
+                    {
+                        var building = spawned.GetComponent<Building>();
+                        if (building != null)
+                        {
+                            var def = building.Def;
+                            var pe = spawned.GetComponent<PrimaryElement>();
+                            var packet = new ONI_Together.Networking.Packets.Tools.Build.BuildCompletePacket
+                            {
+                                PrefabID = def.PrefabID,
+                                Cell = cell,
+                                Orientation = building.Orientation,
+                                ObjectLayer = def.ObjectLayer,
+                                Temperature = pe?.Temperature ?? def.Temperature,
+                                WorkerNetId = 0,
+                                MaterialTags = def.DefaultElements().ConvertAll(t => t.Name)
+                            };
+                            PacketSender.SendToAllClients(packet);
+                            DebugConsole.Log($"[SandboxSpawnerToolPatch] Broadcasted spawned building '{def.PrefabID}' at cell {cell}");
+                            return;
+                        }
+
+                        var identity = spawned.AddOrGet<NetworkIdentity>();
+                        if (identity.NetId == 0)
+                            identity.RegisterIdentity();
+
+                        var minionIdentity = spawned.GetComponent<MinionIdentity>();
+                        if (minionIdentity != null)
+                        {
+                            spawned.AddOrGet<OxySyncEntityPositionHandler>();
+                            spawned.AddOrGet<AnimStateSyncer>();
+                            spawned.AddOrGet<Scripts.Duplicants.MinionMultiplayerInitializer>();
+
+                            string personalityId = minionIdentity.personalityResourceId.IsValid ? minionIdentity.personalityResourceId.ToString() : "HASSAN";
+                            string dupeName = minionIdentity.name;
+                            string prefabData = $"Minion|{personalityId}|{dupeName}|{minionIdentity.voiceIdx}";
+                            int hash = spawned.PrefabID().GetHashCode();
+
+                            var packet = new ONI_Together.Networking.Packets.World.SpawnPrefabPacket(
+                                identity.NetId,
+                                hash,
+                                spawned.transform.position,
+                                prefabData
+                            )
+                            {
+                                IsActive = spawned.activeSelf
+                            };
+                            PacketSender.SendToAllClients(packet);
+                            DebugConsole.Log($"[SandboxSpawnerToolPatch] Broadcasted spawned duplicant '{dupeName}' ({personalityId}, NetId: {identity.NetId}) at {spawned.transform.position}");
+                            return;
+                        }
+
+                        if (spawned.GetComponent<CreatureBrain>() != null || spawned.HasTag(GameTags.Creature))
+                        {
+                            spawned.AddOrGet<OxySyncEntityPositionHandler>();
+                            spawned.AddOrGet<AnimStateSyncer>();
+                            spawned.AddOrGet<CreatureMultiplayerInitializer>();
+                        }
+
+                        if (identity.NetId != 0)
+                        {
+                            string prefabName = spawned.PrefabID().Name;
+                            int hash = spawned.PrefabID().GetHashCode();
+
+                            var packet = new ONI_Together.Networking.Packets.World.SpawnPrefabPacket(
+                                identity.NetId,
+                                hash,
+                                spawned.transform.position,
+                                prefabName
+                            )
+                            {
+                                IsActive = spawned.activeSelf
+                            };
+                            PacketSender.SendToAllClients(packet);
+                            DebugConsole.Log($"[SandboxSpawnerToolPatch] Broadcasted spawned entity '{prefabName}' (NetId: {identity.NetId}) at {spawned.transform.position}");
+                        }
+                    }
+                }
+            }
+            catch (System.Exception ex)
+            {
+                DebugConsole.LogError($"[SandboxSpawnerToolPatch.Postfix] Exception: {ex}");
+            }
+            finally
+            {
+                IsPlacingEntity = false;
+                LastSpawnedObject = null;
+            }
+        }
     }
 
     [HarmonyPatch(typeof(SandboxDestroyerTool), nameof(SandboxDestroyerTool.OnPaintCell))]

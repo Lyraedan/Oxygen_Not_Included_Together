@@ -44,9 +44,9 @@ namespace ONI_Together.Networking.OxySync.Components
 
         public override void OnSpawn()
         {
-			// OxySyncManager registers NetworkBehaviours from base.OnSpawn(), so the
-			// type discriminator must already be available at that callback.
-			_isDuplicant = GetComponent<KPrefabID>()?.HasTag(GameTags.BaseMinion) ?? false;
+			if (kbac == null) kbac = GetComponent<KBatchedAnimController>();
+			if (navigator == null) navigator = GetComponent<Navigator>();
+			_isDuplicant = (GetComponent<KPrefabID>()?.HasTag(GameTags.BaseMinion) ?? false) || GetComponent<MinionIdentity>() != null;
             base.OnSpawn();
             syncRotation = false;
             syncScale = false;

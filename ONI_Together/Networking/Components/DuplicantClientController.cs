@@ -86,6 +86,8 @@ namespace ONI_Together.Networking.Components
 		{
 			using var _ = Profiler.Scope();
 			base.OnSpawn();
+			if (navigator == null) navigator = GetComponent<Navigator>();
+			if (animController == null) animController = GetComponent<KBatchedAnimController>();
 
 			if (!MultiplayerSession.InActiveSession || !MultiplayerSession.IsClient
 				|| navigator == null || animController == null)

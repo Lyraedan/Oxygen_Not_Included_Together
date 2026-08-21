@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -25,10 +25,7 @@ namespace ONI_Together.Patches.Critters
 				using var _ = Profiler.Scope();
 				try
 				{
-					if (__result == null)
-						return;
-
-					if (!AnimSyncEligibility.IsAnimatedCritter(__result))
+					if (__result == null || __result.HasTag(GameTags.BaseMinion))
 						return;
 
 					__result.AddOrGet<OxySyncEntityPositionHandler>();
