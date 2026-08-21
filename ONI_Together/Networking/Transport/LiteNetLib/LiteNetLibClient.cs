@@ -205,7 +205,10 @@ namespace ONI_Together.Networking.Transport.Lan
             {
                 DebugConsole.LogError("[LiteNetLibClient] Connection timed out.");
                 Disconnect();
-                OnReturnToMenu?.Invoke("Connection Timeout", "Failed to connect to the host within the timeout period.");
+                OnReturnToMenu?.Invoke(
+                    STRINGS.UI.MP_OVERLAY.CLIENT.LITENETLIB.CONNECTION_FAILED,
+                    STRINGS.UI.MP_OVERLAY.CLIENT.LITENETLIB.CONNECTION_FAILED_DESC
+                );
             }
         }
 
@@ -238,8 +241,49 @@ namespace ONI_Together.Networking.Transport.Lan
             OnClientDisconnected?.Invoke();
             MultiplayerSession.ConnectedPlayers.Clear();
 
-            DebugConsole.Log("[LiteNetLibClient] Disconnected from server. Reason: " + disconnectInfo.Reason);
-            OnReturnToMenu?.Invoke("Disconnected", "Disconnected from host (" + disconnectInfo.Reason + ").");
+            var (reason, message) = GetDisconnectInfo(disconnectInfo);
+            DebugConsole.Log($"[LiteNetLibClient] Disconnected from server. Reason: {disconnectInfo.Reason} ({reason})");
+            OnReturnToMenu?.Invoke(reason, message);
+        }
+
+        private (string reason, string message) GetDisconnectInfo(DisconnectInfo info)
+        {
+            switch (info.Reason)
+            {
+                case DisconnectReason.Timeout:
+                    return (
+                        STRINGS.UI.MP_OVERLAY.CLIENT.LITENETLIB.CONNECTION_TIMED_OUT,
+                        STRINGS.UI.MP_OVERLAY.CLIENT.LITENETLIB.CONNECTION_TIMED_OUT_DESC
+                    );
+
+                case DisconnectReason.RemoteConnectionClose:
+                case DisconnectReason.DisconnectPeerCalled:
+                    return (
+                        STRINGS.UI.MP_OVERLAY.CLIENT.LITENETLIB.HOST_DISCONNECTED,
+                        STRINGS.UI.MP_OVERLAY.CLIENT.LITENETLIB.HOST_DISCONNECTED_DESC
+                    );
+
+                case DisconnectReason.ConnectionRejected:
+                    return (
+                        STRINGS.UI.MP_OVERLAY.CLIENT.LITENETLIB.CONNECTION_REJECTED,
+                        STRINGS.UI.MP_OVERLAY.CLIENT.LITENETLIB.CONNECTION_REJECTED_DESC
+                    );
+
+                case DisconnectReason.ConnectionFailed:
+                case DisconnectReason.HostUnreachable:
+                case DisconnectReason.NetworkUnreachable:
+                case DisconnectReason.UnknownHost:
+                    return (
+                        STRINGS.UI.MP_OVERLAY.CLIENT.LITENETLIB.CONNECTION_FAILED,
+                        STRINGS.UI.MP_OVERLAY.CLIENT.LITENETLIB.CONNECTION_FAILED_DESC
+                    );
+
+                default:
+                    return (
+                        STRINGS.UI.MP_OVERLAY.CLIENT.LITENETLIB.UNKNOWN,
+                        STRINGS.UI.MP_OVERLAY.CLIENT.LITENETLIB.UNKNOWN_DESC
+                    );
+            }
         }
 
         private void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channelNumber, DeliveryMethod deliveryMethod)

@@ -410,7 +410,25 @@ namespace ONI_Together.Networking
 			_reconnectAttempt = 0;
 			_autoReconnecting = false;
 
-            MultiplayerOverlay.Show(string.Format(STRINGS.UI.MP_OVERLAY.CLIENT.LOST_CONNECTION, reason, message));
+			string displayText;
+			if (string.IsNullOrEmpty(reason) && string.IsNullOrEmpty(message))
+			{
+				displayText = STRINGS.UI.MP_OVERLAY.CLIENT.MENU_LOST_CONNECTION;
+			}
+			else if (string.IsNullOrEmpty(reason))
+			{
+				displayText = message;
+			}
+			else if (string.IsNullOrEmpty(message))
+			{
+				displayText = reason;
+			}
+			else
+			{
+				displayText = $"{reason}\n\n{message}";
+			}
+
+			MultiplayerOverlay.Show(displayText);
 			//SaveHelper.CaptureWorldSnapshot();
 			yield return new WaitForSecondsRealtime(3f);
 			//PauseScreen.TriggerQuitGame(); // Force exit to frontend, getting a crash here
