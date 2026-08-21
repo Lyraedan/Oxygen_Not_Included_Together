@@ -33,7 +33,8 @@ namespace ONI_Together.Networking
         {
             STEAMWORKS = 0,
             LITENETLIB = 1,
-            EOS = 2,
+            RIPTIDE = 2,
+            EOS = 3,
         }
         public static NetworkTransport transport { get; private set; } = NetworkTransport.LITENETLIB;
 
@@ -57,6 +58,7 @@ namespace ONI_Together.Networking
                     StartSteamServer();
                     break;
                 case NetworkTransport.LITENETLIB:
+                case NetworkTransport.RIPTIDE:
                 case NetworkTransport.EOS:
                     UpdateTransport(transport);
                     CoroutineRunner.RunOne(StartRawDelayed(0.5f));
@@ -108,6 +110,7 @@ namespace ONI_Together.Networking
                     StopSteamworks();
                     break;
                 case NetworkTransport.LITENETLIB:
+                case NetworkTransport.RIPTIDE:
                 case NetworkTransport.EOS:
                     StopRaw();
                     break;
@@ -173,6 +176,9 @@ namespace ONI_Together.Networking
                 case NetworkTransport.STEAMWORKS:
                     return SteamUser.GetSteamID().m_SteamID;
                 case NetworkTransport.LITENETLIB:
+                    return MultiplayerSession.IsClient ? LiteNetLibClient.CLIENT_ID : LiteNetLibServer.CLIENT_ID;
+                case NetworkTransport.RIPTIDE:
+                    return MultiplayerSession.IsClient ? RiptideClient.CLIENT_ID : RiptideServer.CLIENT_ID;
                 case NetworkTransport.EOS:
                     return MultiplayerSession.IsClient ? LiteNetLibClient.CLIENT_ID : LiteNetLibServer.CLIENT_ID;
                 default:
@@ -191,7 +197,7 @@ namespace ONI_Together.Networking
         {
             using var _ = Profiler.Scope();
 
-            return transport.Equals(NetworkTransport.LITENETLIB);
+            return transport.Equals(NetworkTransport.LITENETLIB) || transport.Equals(NetworkTransport.RIPTIDE);
         }
 
         public static int GetMaxServerCapacity()
@@ -203,6 +209,7 @@ namespace ONI_Together.Networking
                         return SteamMatchmaking.GetLobbyMemberLimit(SteamLobby.CurrentLobby);
                     break;
                 case NetworkTransport.LITENETLIB:
+                case NetworkTransport.RIPTIDE:
                 case NetworkTransport.EOS:
                     return Configuration.Instance.Host.MaxLobbySize;
             }
