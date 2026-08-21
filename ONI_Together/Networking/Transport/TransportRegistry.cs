@@ -19,6 +19,7 @@ namespace ONI_Together.Networking.Transport
         {
             RegisterTransport(new LiteNetLibTransport());
             RegisterTransport(new SteamworksTransport());
+            RegisterTransport(new RiptideTransport());
             RegisterTransport(new EosTransport());
 
             _activeTransport = _transports[TransportProtocol.LiteNetLib];

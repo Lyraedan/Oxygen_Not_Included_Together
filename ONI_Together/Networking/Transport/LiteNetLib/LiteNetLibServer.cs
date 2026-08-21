@@ -86,7 +86,8 @@ namespace ONI_Together.Networking.Transport.Lan
                 DisconnectTimeout = Configuration.Instance.Host.TimeoutSeconds * 1000,
                 UnsyncedEvents = false,
                 ChannelsCount = 4,
-                BroadcastReceiveEnabled = true
+                BroadcastReceiveEnabled = true,
+                EnableStatistics = true
             };
 
             bool started = _server.Start(port);

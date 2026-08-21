@@ -6,7 +6,8 @@ namespace ONI_Together.Networking.Transport
     {
         Steamworks = 0,
         LiteNetLib = 1,
-        EOS = 2
+        Riptide = 2,
+        EOS = 3
     }
 
     /// <summary>

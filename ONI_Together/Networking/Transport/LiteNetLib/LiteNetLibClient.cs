@@ -173,7 +173,8 @@ namespace ONI_Together.Networking.Transport.Lan
                 AutoRecycle = true,
                 DisconnectTimeout = Configuration.Instance.Client.TimeoutSeconds * 1000,
                 UnsyncedEvents = false,
-                ChannelsCount = 4
+                ChannelsCount = 4,
+                EnableStatistics = true
             };
 
             _client.Start();
