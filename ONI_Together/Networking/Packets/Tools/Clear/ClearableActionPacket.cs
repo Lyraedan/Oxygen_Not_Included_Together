@@ -18,7 +18,6 @@ namespace ONI_Together.Networking.Packets.Tools.Clear
 		public int NetId;
 		public int Cell;
 		public bool IsMarked;
-		public bool ClearPending;
 
 		public void Serialize(BinaryWriter writer)
 		{
@@ -27,7 +26,6 @@ namespace ONI_Together.Networking.Packets.Tools.Clear
 			writer.Write(NetId);
 			writer.Write(Cell);
 			writer.Write(IsMarked);
-			writer.Write(ClearPending);
 		}
 
 		public void Deserialize(BinaryReader reader)
@@ -37,7 +35,6 @@ namespace ONI_Together.Networking.Packets.Tools.Clear
 			NetId = reader.ReadInt32();
 			Cell = reader.ReadInt32();
 			IsMarked = reader.ReadBoolean();
-			ClearPending = reader.ReadBoolean();
 		}
 
 		public void OnDispatched()
@@ -65,7 +62,14 @@ namespace ONI_Together.Networking.Packets.Tools.Clear
 
 				if (target != null)
 				{
-					target.MarkForClear(IsMarked, ClearPending);
+					if (IsMarked)
+					{
+						target.MarkForClear();
+					}
+					else
+					{
+						target.CancelClearing();
+					}
 				}
 				else
 				{
