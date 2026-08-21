@@ -9,6 +9,26 @@ namespace ONI_Together.Patches.World
 {
 	public static class PickupablePatches
 	{
+        [HarmonyPatch(typeof(Pickupable), nameof(Pickupable.OnSpawn))]
+        public static class PickupableOnSpawnPatch
+        {
+            public static void Postfix(Pickupable __instance)
+            {
+                using var _ = Profiler.Scope();
+                try
+                {
+                    if (__instance == null || __instance.gameObject == null)
+                        return;
+
+                    __instance.gameObject.GetNetIdentity();
+                }
+                catch (System.Exception ex)
+                {
+                    DebugConsole.LogError($"[PickupableOnSpawnPatch] Exception: {ex}");
+                }
+            }
+        }
+
         [HarmonyPatch(typeof(Pickupable), nameof(Pickupable.Take))]
         public static class PickupableTakePatch
         {

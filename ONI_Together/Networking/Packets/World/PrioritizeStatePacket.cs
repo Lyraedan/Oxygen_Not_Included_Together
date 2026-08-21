@@ -10,6 +10,7 @@ namespace ONI_Together.Networking.Packets.World
 		public struct PriorityData
 		{
 			public int NetId;
+			public int Cell;
 			public int PriorityClass;
 			public int PriorityValue;
 		}
@@ -25,6 +26,7 @@ namespace ONI_Together.Networking.Packets.World
 			foreach (var p in Priorities)
 			{
 				writer.Write(p.NetId);
+				writer.Write(p.Cell);
 				writer.Write(p.PriorityClass);
 				writer.Write(p.PriorityValue);
 			}
@@ -41,6 +43,7 @@ namespace ONI_Together.Networking.Packets.World
 				Priorities.Add(new PriorityData
 				{
 					NetId = reader.ReadInt32(),
+					Cell = reader.ReadInt32(),
 					PriorityClass = reader.ReadInt32(),
 					PriorityValue = reader.ReadInt32()
 				});
@@ -57,17 +60,29 @@ namespace ONI_Together.Networking.Packets.World
 				IsApplying = true;
 				foreach (var p in Priorities)
 				{
+					Prioritizable prioritizable = null;
 					if (NetworkIdentityRegistry.TryGet(p.NetId, out var identity) && identity != null)
 					{
-						var prioritizable = identity.GetComponent<Prioritizable>();
-						if (prioritizable != null)
+						prioritizable = identity.GetComponent<Prioritizable>();
+					}
+
+					// Fallback lookup by cell for items/pickupables if NetId is 0 or unmapped
+					if (prioritizable == null && Grid.IsValidCell(p.Cell))
+					{
+						var pickupableGo = Grid.Objects[p.Cell, (int)ObjectLayer.Pickupables];
+						if (pickupableGo != null)
 						{
-							var newSetting = new PrioritySetting((PriorityScreen.PriorityClass)p.PriorityClass, p.PriorityValue);
-							// Only update if different to avoid event spam
-							if (!prioritizable.GetMasterPriority().Equals(newSetting))
-							{
-								prioritizable.SetMasterPriority(newSetting);
-							}
+							prioritizable = pickupableGo.GetComponent<Prioritizable>();
+						}
+					}
+
+					if (prioritizable != null)
+					{
+						var newSetting = new PrioritySetting((PriorityScreen.PriorityClass)p.PriorityClass, p.PriorityValue);
+						// Only update if different to avoid event spam
+						if (!prioritizable.GetMasterPriority().Equals(newSetting))
+						{
+							prioritizable.SetMasterPriority(newSetting);
 						}
 					}
 				}
