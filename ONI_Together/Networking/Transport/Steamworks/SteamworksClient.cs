@@ -95,11 +95,12 @@ namespace ONI_Together.Networking.Transport.Steam
         {
             using var _ = Profiler.Scope();
 
-            if (Connection.HasValue || GameClient.State == ClientState.Connected || GameClient.State == ClientState.Connecting) // TODO FIX, f*ck me why didn't I put what was wrong with it
+            // If already connected/connecting, disconnect first to avoid duplicate P2P handles
+            if (Connection.HasValue || GameClient.State == ClientState.Connected || GameClient.State == ClientState.Connecting)
             {
                 DebugConsole.Log("[GameClient] Reconnecting: First disconnecting existing connection.");
                 Disconnect();
-                System.Threading.Thread.Sleep(100);
+                // Note: previous Thread.Sleep(100) removed - blocks main thread; SteamNetworkingSockets needs 1 frame via RunCallbacks instead
             }
 
             if (MultiplayerSession.HostUserID != Utils.NilUlong())
