@@ -49,10 +49,49 @@ namespace ONI_Together.Networking.Packets.Tools.Sandbox
                 SaveGame.Instance.sandboxEnabled = enabled;
             }
 
+            if (Game.Instance != null)
+            {
+                try
+                {
+                    var m = Game.Instance.GetType().GetMethod("SetSandboxModeActive", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+                    if (m != null) m.Invoke(Game.Instance, new object[] { enabled });
+                    else
+                    {
+                        var prop = Game.Instance.GetType().GetProperty("SandboxModeActive", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+                        if (prop != null && prop.CanWrite) prop.SetValue(Game.Instance, enabled);
+                        else
+                        {
+                            var f = Game.Instance.GetType().GetField("sandboxModeActive", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+                            if (f != null) f.SetValue(Game.Instance, enabled);
+                        }
+                    }
+                } catch { }
+            }
+
             if (SandboxToolParameterMenu.instance != null)
             {
                 SandboxToolParameterMenu.instance.gameObject.SetActive(enabled);
             }
+
+            // Fix client sandbox button not appearing - TopLeftControlScreen holds the actual toggle
+            try
+            {
+                var topLeft = UnityEngine.Object.FindFirstObjectByType<TopLeftControlScreen>();
+                if (topLeft != null && topLeft.sandboxToggle != null)
+                {
+                    topLeft.sandboxToggle.gameObject.SetActive(enabled);
+                    try
+                    {
+                        var m = topLeft.GetType().GetMethod("RefreshTitleBar", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+                        if (m != null) m.Invoke(topLeft, null);
+                    } catch { }
+                }
+                else if (topLeft != null)
+                {
+                    var t = topLeft.transform.Find("SandboxToggle") ?? topLeft.transform.Find("sandboxToggle");
+                    if (t != null) t.gameObject.SetActive(enabled);
+                }
+            } catch { }
 
             if (PlanScreen.Instance != null)
             {
@@ -68,6 +107,13 @@ namespace ONI_Together.Networking.Packets.Tools.Sandbox
             {
                 ManagementMenu.Instance.Refresh();
             }
+
+            // Keep WorldStateSyncer shadow in sync to avoid echo on client
+            try
+            {
+                if (ONI_Together.Networking.Components.WorldStateSyncer.Instance != null)
+                    ONI_Together.Networking.Components.WorldStateSyncer.Instance.NotifySandboxModeApplied(enabled);
+            } catch { }
         }
     }
 }

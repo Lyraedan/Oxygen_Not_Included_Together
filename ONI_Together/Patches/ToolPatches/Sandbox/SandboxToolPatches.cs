@@ -153,9 +153,42 @@ namespace ONI_Together.Patches.ToolPatches.Sandbox
                             spawned.AddOrGet<AnimStateSyncer>();
                             spawned.AddOrGet<Scripts.Duplicants.MinionMultiplayerInitializer>();
 
+                            // Build full ImmigrantOptionEntry from live duplicant to preserve textures/traits
+                            try
+                            {
+                                var personality = Db.Get().Personalities.TryGet(minionIdentity.personalityResourceId);
+                                if (personality == null)
+                                    personality = Db.Get().Personalities.TryGet(minionIdentity.personalityResourceId.ToString());
+                                if (personality == null)
+                                    personality = Db.Get().Personalities.resources.Find(p => p.Id == minionIdentity.personalityResourceId.ToString());
+                                if (personality == null)
+                                    personality = Db.Get().Personalities.resources[0];
+
+                                var stats = new MinionStartingStats(personality);
+                                stats.Name = minionIdentity.name;
+                                stats.voiceIdx = minionIdentity.voiceIdx;
+
+                                var entry = ONI_Together.Networking.Packets.Social.ImmigrantOptionEntry.FromGameDeliverable(stats);
+                                var packet2 = new ONI_Together.Networking.Packets.World.TelepadEntitySpawnPacket
+                                {
+                                    NetId = identity.NetId,
+                                    Pos = spawned.transform.position,
+                                    EntityData = entry
+                                };
+                                PacketSender.SendToAllClients(packet2);
+                                DebugConsole.Log($"[SandboxSpawnerToolPatch] Broadcasted spawned duplicant '{stats.Name}' ({personality.Id}, NetId: {identity.NetId}) via TelepadEntitySpawnPacket (full personality)");
+                                return;
+                            }
+                            catch (System.Exception ex)
+                            {
+                                DebugConsole.LogWarning($"[SandboxSpawnerToolPatch] Full duplicant sync failed, falling back to minimal: {ex.Message}");
+                            }
+
+                            // Fallback minimal (should not be used for texture correctness)
                             string personalityId = minionIdentity.personalityResourceId.IsValid ? minionIdentity.personalityResourceId.ToString() : "HASSAN";
+                            var personalityFallback = Db.Get().Personalities.TryGet(new HashedString(personalityId)) ?? Db.Get().Personalities.TryGet(personalityId) ?? Db.Get().Personalities.resources[0];
                             string dupeName = minionIdentity.name;
-                            string prefabData = $"Minion|{personalityId}|{dupeName}|{minionIdentity.voiceIdx}";
+                            string prefabData = $"Minion|{personalityFallback.Id}|{dupeName}|{minionIdentity.voiceIdx}";
                             int hash = spawned.PrefabID().GetHashCode();
 
                             var packet = new ONI_Together.Networking.Packets.World.SpawnPrefabPacket(
@@ -168,7 +201,7 @@ namespace ONI_Together.Patches.ToolPatches.Sandbox
                                 IsActive = spawned.activeSelf
                             };
                             PacketSender.SendToAllClients(packet);
-                            DebugConsole.Log($"[SandboxSpawnerToolPatch] Broadcasted spawned duplicant '{dupeName}' ({personalityId}, NetId: {identity.NetId}) at {spawned.transform.position}");
+                            DebugConsole.Log($"[SandboxSpawnerToolPatch] Broadcasted spawned duplicant '{dupeName}' ({personalityFallback.Id}, NetId: {identity.NetId}) at {spawned.transform.position} (fallback)");
                             return;
                         }
 

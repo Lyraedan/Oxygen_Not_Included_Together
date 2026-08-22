@@ -175,14 +175,24 @@ namespace ONI_Together.Networking.Components
 
 		private bool _lastSandboxEnabled = false;
 
+		public void NotifySandboxModeApplied(bool enabled)
+		{
+			_lastSandboxEnabled = enabled;
+		}
+
 		private void SyncSandboxMode()
 		{
-			if (SaveGame.Instance != null && SaveGame.Instance.sandboxEnabled != _lastSandboxEnabled)
-			{
-				_lastSandboxEnabled = SaveGame.Instance.sandboxEnabled;
-				PacketSender.SendToAll(new ONI_Together.Networking.Packets.Tools.Sandbox.SandboxModePacket(_lastSandboxEnabled));
-				DebugConsole.Log($"[WorldStateSyncer] Synced sandbox mode change: {_lastSandboxEnabled}");
-			}
+			if (SaveGame.Instance == null || SaveGame.Instance.sandboxEnabled == _lastSandboxEnabled)
+				return;
+
+			_lastSandboxEnabled = SaveGame.Instance.sandboxEnabled;
+
+			// Host-authoritative only - clients will receive via packet and update shadow via NotifySandboxModeApplied
+			if (!MultiplayerSession.IsHost)
+				return;
+
+			PacketSender.SendToAll(new ONI_Together.Networking.Packets.Tools.Sandbox.SandboxModePacket(_lastSandboxEnabled));
+			DebugConsole.Log($"[WorldStateSyncer] Synced sandbox mode change: {_lastSandboxEnabled}");
 		}
 
 		private void Update()
