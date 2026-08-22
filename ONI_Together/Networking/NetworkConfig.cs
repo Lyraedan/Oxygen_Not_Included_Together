@@ -33,8 +33,7 @@ namespace ONI_Together.Networking
         {
             STEAMWORKS = 0,
             LITENETLIB = 1,
-            RIPTIDE = 2,
-            EOS = 3,
+            RIPTIDE = 2
         }
         public static NetworkTransport transport { get; private set; } = NetworkTransport.LITENETLIB;
 
@@ -59,7 +58,6 @@ namespace ONI_Together.Networking
                     break;
                 case NetworkTransport.LITENETLIB:
                 case NetworkTransport.RIPTIDE:
-                case NetworkTransport.EOS:
                     UpdateTransport(transport);
                     CoroutineRunner.RunOne(StartRawDelayed(0.5f));
                     break;
@@ -111,7 +109,6 @@ namespace ONI_Together.Networking
                     break;
                 case NetworkTransport.LITENETLIB:
                 case NetworkTransport.RIPTIDE:
-                case NetworkTransport.EOS:
                     StopRaw();
                     break;
             }
@@ -179,8 +176,6 @@ namespace ONI_Together.Networking
                     return MultiplayerSession.IsClient ? LiteNetLibClient.CLIENT_ID : LiteNetLibServer.CLIENT_ID;
                 case NetworkTransport.RIPTIDE:
                     return MultiplayerSession.IsClient ? RiptideClient.CLIENT_ID : RiptideServer.CLIENT_ID;
-                case NetworkTransport.EOS:
-                    return MultiplayerSession.IsClient ? LiteNetLibClient.CLIENT_ID : LiteNetLibServer.CLIENT_ID;
                 default:
                     return Utils.NilUlong();
             }
@@ -210,7 +205,6 @@ namespace ONI_Together.Networking
                     break;
                 case NetworkTransport.LITENETLIB:
                 case NetworkTransport.RIPTIDE:
-                case NetworkTransport.EOS:
                     return Configuration.Instance.Host.MaxLobbySize;
             }
             return Configuration.Instance.Host.MaxLobbySize;
@@ -231,7 +225,6 @@ namespace ONI_Together.Networking
                     }
                     break;
                 case NetworkTransport.LITENETLIB:
-                case NetworkTransport.EOS:
                     if (MultiplayerSession.IsClient)
                     {
                         return new List<ulong>(MultiplayerSession.ConnectedPlayers.Keys);

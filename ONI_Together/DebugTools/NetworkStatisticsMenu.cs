@@ -75,7 +75,6 @@ namespace ONI_Together.DebugTools
 					qualityR = SteamworksClient.GetRemotePacketQuality();
 					break;
 				case NetworkConfig.NetworkTransport.LITENETLIB:
-				case NetworkConfig.NetworkTransport.EOS:
 					qualityL = 1.0f;
 					qualityR = 1.0f;
 					break;

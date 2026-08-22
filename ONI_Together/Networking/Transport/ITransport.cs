@@ -6,13 +6,12 @@ namespace ONI_Together.Networking.Transport
     {
         Steamworks = 0,
         LiteNetLib = 1,
-        Riptide = 2,
-        EOS = 3
+        Riptide = 2
     }
 
     /// <summary>
     /// Standardized transport interface abstracting low-level networking technologies
-    /// (Steamworks P2P, LiteNetLib UDP, Riptide, EOS) from higher-level gameplay systems.
+    /// (Steamworks P2P, LiteNetLib UDP, Riptide) from higher-level gameplay systems.
     /// </summary>
     public interface ITransport
     {

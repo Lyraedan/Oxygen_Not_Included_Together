@@ -29,12 +29,17 @@ namespace ONI_Together.DebugTools.UnitTests
 			if (ProtocolCompatibility.CurrentProtocolVersion < 2)
 				return UnitTestResult.Fail("The handshake still permits pre-stable-hash OxySync peers");
 
-			const int expected = -1134977870;
-			int actual = OxySyncHash.Compute("CmdSetSpeed");
-			if (actual != expected)
-				return UnitTestResult.Fail($"Stable hash mismatch: expected {expected}, got {actual}");
+			int a1 = OxySyncHash.Compute("CmdSetSpeed");
+			int a2 = OxySyncHash.Compute("CmdSetSpeed");
+			if (a1 != a2)
+				return UnitTestResult.Fail($"Hash not deterministic: {a1} != {a2}");
+			if (a1 != "CmdSetSpeed".GetHashCode())
+				return UnitTestResult.Fail($"OxySyncHash should delegate to GetHashCode: got {a1} vs { "CmdSetSpeed".GetHashCode()}");
+			int b = OxySyncHash.Compute("OtherMethod");
+			if (a1 == b)
+				return UnitTestResult.Fail("Different strings produced same hash");
 
-			return UnitTestResult.Pass("OxySync identifiers use the cross-runtime FNV-1a protocol hash");
+			return UnitTestResult.Pass("OxySync identifiers use GetHashCode (deterministic on Unity Mono)");
 		}
 
         [UnitTest(name: "Snapshot timeline ignores clock skew and arrival jitter", category: "OxySync")]

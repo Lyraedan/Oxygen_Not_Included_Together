@@ -289,7 +289,6 @@ namespace ONI_Together.DebugTools
                         SteamLobby.LeaveLobby();
                     break;
                 case NetworkConfig.NetworkTransport.LITENETLIB:
-                case NetworkConfig.NetworkTransport.EOS:
                     if (ImGui.Button("Start Lan"))
                     {
                         MultiplayerSession.Clear();
@@ -606,7 +605,6 @@ namespace ONI_Together.DebugTools
                     SteamworksPlayerList();
                     break;
                 case NetworkConfig.NetworkTransport.LITENETLIB:
-                case NetworkConfig.NetworkTransport.EOS:
                     LiteNetLibPlayerList();
                     break;
             }
@@ -830,7 +828,7 @@ namespace ONI_Together.DebugTools
 
             ImGui.Text("Network Transport Settings");
 
-            string[] display_options = new string[] { "Steam", "LAN (LiteNetLib)", "EOS (Crossplay)" };
+            string[] display_options = new string[] { "Steam", "LAN (LiteNetLib)" };
             int currentTransportIndex = Mathf.Clamp((int)NetworkConfig.transport, 0, display_options.Length - 1);
             ImGui.Text($"Currently used transport: {display_options[currentTransportIndex]}");
 
