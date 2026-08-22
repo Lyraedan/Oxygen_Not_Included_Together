@@ -655,3 +655,8 @@ Player-prev.log
 *.tar.gz
 /mod_build/
 .vscode/
+
+# Mod build artifacts (generated, not committed)
+mod/oni_mp/
+ONI_Together_DedicatedServer/testing/
+*.mo
