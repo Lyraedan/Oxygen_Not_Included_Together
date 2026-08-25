@@ -1,9 +1,7 @@
 using System.Collections.Generic;
 using System;
 using System.Linq;
-using KSerialization;
 using ONI_Together.DebugTools;
-using ONI_Together.Patches;
 using Shared.OxySync;
 using Shared.OxySync.Attributes;
 using UnityEngine;
@@ -86,11 +84,14 @@ namespace ONI_Together.Networking.OxySync.Components
             base.OnCleanUp();
         }
 
-        public static void RegisterNetId() {
+        public static void RegisterNetId(GameObject parent = null) {
+            var root = parent == null ? Game.Instance.gameObject : parent;
             if (Instance == null)
             {
                 DebugConsole.LogWarning("[WorkableSyncer] Initializing WorkableSyncer instance.");
-                Instance = Game.Instance.gameObject.AddComponent<WorkableSyncer>();
+                var syncerRoot = new GameObject("WorkableSyncer");
+                syncerRoot.transform.SetParent(root.transform);
+                Instance = syncerRoot.AddComponent<WorkableSyncer>();
             }
 
             Instance.workableAuthorization.Clear();

@@ -72,7 +72,7 @@ namespace ONI_Together.Patches.GamePatches
       Game.Instance.gameObject.AddComponent<LogicPortManager>();
 
       MoveToLocationToolSyncer.RegisterNetId(Game.Instance.gameObject);
-      WorkableSyncer.RegisterNetId();
+      WorkableSyncer.RegisterNetId(Game.Instance.gameObject);
     }
   }
 }

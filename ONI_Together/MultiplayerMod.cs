@@ -91,7 +91,6 @@ namespace ONI_Together
 				go.AddComponent<OxySyncManager>();
 				go.AddComponent<NetIdActivityTracker>();
 				go.AddComponent<DiscordRichPresence>();
-				go.AddComponent<WorkableSyncer>();
 
 				// CHECKPOINT 5
 				System.IO.File.AppendAllText(logPath, "[Trace] Checkpoint 5: Pre-Listeners\n");
