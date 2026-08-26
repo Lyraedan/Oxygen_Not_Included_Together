@@ -37,10 +37,11 @@ namespace Shared.OxySync
 
         public bool useSnapshotInterpolation;
         public double bufferTimeMultiplier = 2.0;
+		public double maxAdaptiveBufferMilliseconds = 350.0;
 
         private struct SnapshotEntry
         {
-            public long timestamp;
+            public double timestamp;
             public Vector3 position;
             public Quaternion rotation;
             public Vector3 scale;
@@ -50,6 +51,7 @@ namespace Shared.OxySync
         private int _netPositionHash;
         private int _netRotationHash;
         private int _netScaleHash;
+        private SnapshotTimeline _snapshotTimeline;
         private Vector3 _interpolatedPosition;
         private Quaternion _interpolatedRotation;
         private Vector3 _interpolatedScale;
@@ -66,27 +68,57 @@ namespace Shared.OxySync
             _netScale = target.localScale;
             SyncInterval = 0.05f;
             _snapshots = new List<SnapshotEntry>(16);
-            _netPositionHash = nameof(_netPosition).GetHashCode();
-            _netRotationHash = nameof(_netRotation).GetHashCode();
-            _netScaleHash = nameof(_netScale).GetHashCode();
+            _snapshotTimeline = new SnapshotTimeline();
+            _netPositionHash = OxySyncHash.Compute(nameof(_netPosition));
+            _netRotationHash = OxySyncHash.Compute(nameof(_netRotation));
+            _netScaleHash = OxySyncHash.Compute(nameof(_netScale));
         }
 
-        public override void ApplySyncVar(int fieldHash, object value, long timestamp)
+        public override bool ApplySyncVar(int fieldHash, object value, long timestamp)
         {
-            base.ApplySyncVar(fieldHash, value, timestamp);
+            bool isTransformField = fieldHash == _netPositionHash ||
+                                    fieldHash == _netRotationHash ||
+                                    fieldHash == _netScaleHash;
 
-            if (!useSnapshotInterpolation || timestamp == 0) return;
+            if (!base.ApplySyncVar(fieldHash, value, timestamp))
+                return false;
 
-            if (fieldHash == _netPositionHash || fieldHash == _netRotationHash || fieldHash == _netScaleHash)
+            if (!isTransformField || timestamp == 0)
+                return true;
+
+            if (!useSnapshotInterpolation)
+                return true;
+
+            double localTimestamp = _snapshotTimeline.ToLocalTime(
+                timestamp,
+                SnapshotTimeline.MonotonicMilliseconds);
+            AddSnapshot(localTimestamp);
+            return true;
+        }
+
+        private void AddSnapshot(double timestamp)
+        {
+            if (_snapshots.Count > 0)
             {
-                AddSnapshot(timestamp);
-            }
-        }
+                int lastIndex = _snapshots.Count - 1;
+                if (timestamp < _snapshots[lastIndex].timestamp)
+                    return;
 
-        private void AddSnapshot(long timestamp)
-        {
-            if (_snapshots.Count > 0 && _snapshots[_snapshots.Count - 1].timestamp == timestamp)
-                return;
+                // A batch gives position, rotation, and scale the same timestamp.
+                // Replace the pending snapshot so it contains the complete batch,
+                // rather than retaining only the first field that was applied.
+                if (timestamp == _snapshots[lastIndex].timestamp)
+                {
+                    _snapshots[lastIndex] = new SnapshotEntry
+                    {
+                        timestamp = timestamp,
+                        position = _netPosition,
+                        rotation = _netRotation,
+                        scale = _netScale,
+                    };
+                    return;
+                }
+            }
 
             _snapshots.Add(new SnapshotEntry
             {
@@ -154,12 +186,14 @@ namespace Shared.OxySync
         [Client]
         protected virtual void ClientUpdate()
         {
-            if (useSnapshotInterpolation)
+            bool applyClientState = ShouldApplyClientState();
+
+            if (useSnapshotInterpolation && applyClientState)
             {
                 UpdateInterpolation();
             }
 
-            if (syncPosition)
+            if (applyClientState && syncPosition)
             {
                 Vector3 desired = useSnapshotInterpolation ? _interpolatedPosition : _netPosition;
                 Vector3 currentPos = coordinateSpace == CoordinateSpace.Local
@@ -193,7 +227,7 @@ namespace Shared.OxySync
                 }
             }
 
-            if (syncRotation)
+            if (applyClientState && syncRotation)
             {
                 Quaternion desired = useSnapshotInterpolation ? _interpolatedRotation : _netRotation;
                 if (interpolateRotation && !useSnapshotInterpolation)
@@ -217,7 +251,7 @@ namespace Shared.OxySync
                 }
             }
 
-            if (syncScale)
+            if (applyClientState && syncScale)
             {
                 Vector3 desired = useSnapshotInterpolation ? _interpolatedScale : _netScale;
                 if (interpolateScale && !useSnapshotInterpolation)
@@ -238,6 +272,16 @@ namespace Shared.OxySync
             TryRequestPosition();
         }
 
+		/// <summary>
+		/// Allows a specialized client-side playback component to remain the sole
+		/// writer of a transform while retaining OxySync's stale-state request path.
+		/// Generic network transforms continue to use the normal implementation.
+		/// </summary>
+		protected virtual bool ShouldApplyClientState()
+		{
+			return true;
+		}
+
         [Client]
         private void UpdateInterpolation()
         {
@@ -251,9 +295,11 @@ namespace Shared.OxySync
                 return;
             }
 
-            long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            long bufferMs = (long)(SyncInterval * bufferTimeMultiplier * 1000);
-            long playbackTime = now - bufferMs;
+            double now = SnapshotTimeline.MonotonicMilliseconds;
+			double baseBufferMs = SyncInterval * bufferTimeMultiplier * 1000.0;
+			double bufferMs = _snapshotTimeline.GetAdaptiveBufferMilliseconds(
+				baseBufferMs, maxAdaptiveBufferMilliseconds);
+            double playbackTime = now - bufferMs;
 
             int index = -1;
             for (int i = 0; i < _snapshots.Count - 1; i++)
@@ -284,7 +330,7 @@ namespace Shared.OxySync
             {
                 var from = _snapshots[index];
                 var to = _snapshots[index + 1];
-                double t = (double)(playbackTime - from.timestamp) / (to.timestamp - from.timestamp);
+                double t = (playbackTime - from.timestamp) / (to.timestamp - from.timestamp);
                 t = Math.Clamp(t, 0.0, 1.0);
                 float ft = (float)t;
 
@@ -296,10 +342,11 @@ namespace Shared.OxySync
 
         private void PruneSnapshots()
         {
-            long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            long cutoff = now - (long)(SyncInterval * bufferTimeMultiplier * 2 * 1000);
+            double now = SnapshotTimeline.MonotonicMilliseconds;
+            double retentionMs = Math.Max(1000.0, SyncInterval * bufferTimeMultiplier * 4.0 * 1000.0);
+            double cutoff = now - retentionMs;
 
-            while (_snapshots.Count > 0 && _snapshots[0].timestamp < cutoff)
+            while (_snapshots.Count > 2 && _snapshots[0].timestamp < cutoff)
                 _snapshots.RemoveAt(0);
         }
 

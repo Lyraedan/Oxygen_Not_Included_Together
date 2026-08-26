@@ -1,4 +1,5 @@
 using System.IO;
+using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Architecture;
@@ -22,16 +23,14 @@ namespace ONI_Together.Networking.OxySync.Packets
         {
             writer.Write(NetId);
             writer.Write(MethodHash);
-            writer.Write(Args.Length);
-            writer.Write(Args);
+            RpcSerializer.WritePayload(writer, Args);
         }
 
         public void Deserialize(BinaryReader reader)
         {
             NetId = reader.ReadInt32();
             MethodHash = reader.ReadInt32();
-            int len = reader.ReadInt32();
-            Args = reader.ReadBytes(len);
+            Args = RpcSerializer.ReadPayload(reader);
         }
 
         public void OnDispatched()
@@ -40,8 +39,18 @@ namespace ONI_Together.Networking.OxySync.Packets
 
             if (!MultiplayerSession.IsHost) return;
 
-            if (!NetworkIdentityRegistry.TryGetComponent<NetworkBehaviour>(NetId, out var behaviour))
+            var behaviour = OxySyncDispatchResolver.FindCommandBehaviour(NetId, MethodHash);
+            if (behaviour == null)
                 return;
+
+            // Host-only commands are invoked directly by the host and must never
+            // arrive through the client -> host packet path.
+            if (behaviour.CommandRequiresHost(MethodHash))
+            {
+                DebugConsole.LogWarning(
+                    $"[OxySync] Rejected remote host-only command {MethodHash} for NetId {NetId}.");
+                return;
+            }
 
             behaviour.InvokeCommand(MethodHash, Args);
         }

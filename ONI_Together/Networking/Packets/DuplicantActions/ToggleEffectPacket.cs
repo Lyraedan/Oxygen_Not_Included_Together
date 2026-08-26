@@ -1,4 +1,4 @@
-﻿using Klei.AI;
+using Klei.AI;
 using ONI_Together.DebugTools;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Architecture;
@@ -70,13 +70,15 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 			if (MultiplayerSession.IsHost)
 				return;
 
-			if(!NetworkIdentityRegistry.TryGet(MinionNetId, out var minionId))
+			if(!NetworkIdentityRegistry.TryGet(MinionNetId, out var minionId) || minionId == null)
 			{
 				DebugConsole.LogError("Could not find minion with net id " + MinionNetId + " to toggle effect " + EffectId + " to " + (IsAdding ? "on" : "off"), false);
+				return;
 			}
-			if(!minionId.TryGetComponent<Effects>(out var minionEffects))
+			if(!minionId.TryGetComponent<Effects>(out var minionEffects) || minionEffects == null)
 			{
 				DebugConsole.LogError("Could not find effects instance on minion "+minionId.gameObject.GetProperName(), false);
+				return;
 			}
 			if (IsAdding)
 			{

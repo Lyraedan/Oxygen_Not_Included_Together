@@ -17,10 +17,10 @@ using ONI_Together.Misc;
 using Shared.Profiling;
 using System.Text;
 using ONI_Together.Patches.ToolPatches;
-using ONI_Together.Tests;
+using ONI_Together.Networking.Transport;
 using ONI_Together.Networking.Transport.Lan;
+using ONI_Together.Tests;
 using static STRINGS.BUILDINGS.PREFABS;
-using Riptide;
 using Steamworks;
 using ONI_Together.Networking.Transport.Steamworks;
 using ONI_Together.Networking.OxySync;
@@ -49,7 +49,7 @@ namespace ONI_Together.DebugTools
 
         // Network transport
         private int selectedTransportType = 0; // 0 = Steam, 1 = LAN
-        private int selectedLanType = 0; // 0 = Riptide, 1 = LiteNetLib
+        private int selectedLanType = 0; // 0 = LiteNetLib
         private string hostIP = "";
         private int hostPort = 7777;
         private string clientIP = "";
@@ -288,7 +288,7 @@ namespace ONI_Together.DebugTools
                     if (ImGui.Button("Leave Lobby"))
                         SteamLobby.LeaveLobby();
                     break;
-                case NetworkConfig.NetworkTransport.RIPTIDE:
+                case NetworkConfig.NetworkTransport.LITENETLIB:
                     if (ImGui.Button("Start Lan"))
                     {
                         MultiplayerSession.Clear();
@@ -319,6 +319,7 @@ namespace ONI_Together.DebugTools
                         MultiplayerSession.Clear();
 
                         SelectToolPatch.UpdateColor();
+                        Game.Instance.Trigger(MP_HASHES.OnDisconnected);
                     }
                     break;
                 default:
@@ -391,11 +392,6 @@ namespace ONI_Together.DebugTools
         {
             using var _ = Profiler.Scope();
 
-            if (ImGui.Button("Riptide Smoke Test"))
-            {
-                RiptideSmokeTest.Run();
-            }
-            ImGui.SameLine();
             if (ImGui.Button("Start Current Config Server"))
             {
                 NetworkConfig.TransportServer.Start();
@@ -608,8 +604,8 @@ namespace ONI_Together.DebugTools
                 case NetworkConfig.NetworkTransport.STEAMWORKS:
                     SteamworksPlayerList();
                     break;
-                case NetworkConfig.NetworkTransport.RIPTIDE:
-                    RiptidePlayerList();
+                case NetworkConfig.NetworkTransport.LITENETLIB:
+                    LiteNetLibPlayerList();
                     break;
             }
         }
@@ -621,7 +617,7 @@ namespace ONI_Together.DebugTools
             var players = SteamLobby.GetAllLobbyMembers();
             string self = $"[You] {SteamFriends.GetPersonaName()} | {MultiplayerSession.LocalUserID}";
 
-            RiptideServer server = null;
+            TransportServer server = null;
 
             foreach (CSteamID player in players)
             {
@@ -658,21 +654,21 @@ namespace ONI_Together.DebugTools
                     ImGui.SameLine();
                     if (ImGui.Button($"Kick##{player.m_SteamID}")) // ensure unique ID
                     {
-                        server = NetworkConfig.GetTransportServer() as RiptideServer;
+                        server = NetworkConfig.GetTransportServer();
                         server?.KickClient(player.m_SteamID);
                     }
                 }
             }
         }
 
-        void RiptidePlayerList()
+        void LiteNetLibPlayerList()
         {
             using var _ = Profiler.Scope();
 
             if(MultiplayerSession.IsHost)
             {
                 var players = MultiplayerSession.ConnectedPlayers;
-                var server = NetworkConfig.GetTransportServer() as RiptideServer;
+                var server = NetworkConfig.GetTransportServer() as LiteNetLibServer;
 
                 foreach (var player in players)
                 {
@@ -680,7 +676,7 @@ namespace ONI_Together.DebugTools
                     {
                         if (ImGui.Button("Kick"))
                         {
-                            server.KickClient(player.Value.PlayerId);
+                            server?.KickClient(player.Value.PlayerId);
                         }
                         ImGui.SameLine();
                         ImGui.Text($"{player.Value.PlayerName}");
@@ -692,8 +688,7 @@ namespace ONI_Together.DebugTools
             }
             else if(MultiplayerSession.IsClient)
             {
-                var client = NetworkConfig.GetTransportClient() as RiptideClient;
-                var players = client.ClientList;
+                var players = MultiplayerSession.ConnectedPlayers.Keys;
                 foreach(ulong player in players)
                 {
                     if(player == MultiplayerSession.LocalUserID)
@@ -833,8 +828,9 @@ namespace ONI_Together.DebugTools
 
             ImGui.Text("Network Transport Settings");
 
-            string[] display_options = new string[] { "Steam", "LAN/Riptide" };
-            ImGui.Text($"Currently used transport: {display_options[(int)NetworkConfig.transport]}");
+            string[] display_options = new string[] { "Steam", "LAN (LiteNetLib)" };
+            int currentTransportIndex = Mathf.Clamp((int)NetworkConfig.transport, 0, display_options.Length - 1);
+            ImGui.Text($"Currently used transport: {display_options[currentTransportIndex]}");
 
             string[] options = new string[] { "Steam", "LAN" };
             // Dropdown for Steam/LAN
@@ -846,7 +842,7 @@ namespace ONI_Together.DebugTools
                 ImGui.Indent();
                 ImGui.Separator();
 
-                string[] lan_options = new string[] { "Riptide" };
+                string[] lan_options = new string[] { "LiteNetLib (UDP)" };
                 ImGui.Combo("Lan Type", ref selectedLanType, lan_options, lan_options.Length);
                 ImGui.Separator();
 
@@ -875,15 +871,10 @@ namespace ONI_Together.DebugTools
                 Configuration.Instance.Client.LanSettings.Ip = clientIP;
                 Configuration.Instance.Client.LanSettings.Port = clientPort;
 
-                NetworkConfig.NetworkTransport selected_transport = NetworkConfig.NetworkTransport.STEAMWORKS;
-                if (selectedTransportType == 0)
-                {
-                    selected_transport = NetworkConfig.NetworkTransport.STEAMWORKS;
-                }
-                else
-                {
-                    selected_transport = NetworkConfig.NetworkTransport.RIPTIDE;
-                }
+                NetworkConfig.NetworkTransport selected_transport = selectedTransportType == 0
+                    ? NetworkConfig.NetworkTransport.STEAMWORKS
+                    : NetworkConfig.NetworkTransport.LITENETLIB;
+
                 Configuration.Instance.Host.NetworkTransport = (int)selected_transport;
                 NetworkConfig.UpdateTransport(selected_transport);
                 Configuration.Instance.Save();

@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -33,12 +33,12 @@ namespace ONI_Together.DebugTools.UnitTests
             return UnitTestResult.Pass("Transport is Steamworks");
         }
 
-        [UnitTest(name: "Using Riptide Transport", category: "Networking")]
-        public static UnitTestResult IsRiptideTransport()
+        [UnitTest(name: "Using LiteNetLib Transport", category: "Networking")]
+        public static UnitTestResult IsLiteNetLibTransport()
         {
-            if (NetworkConfig.transport != NetworkConfig.NetworkTransport.RIPTIDE)
-                return UnitTestResult.Fail("Transport is not Riptide");
-            return UnitTestResult.Pass("Transport is Riptide");
+            if (NetworkConfig.transport != NetworkConfig.NetworkTransport.LITENETLIB)
+                return UnitTestResult.Fail("Transport is not LiteNetLib");
+            return UnitTestResult.Pass("Transport is LiteNetLib");
         }
 
         [UnitTest(name: "Check for duplicate network identities", category: "Networking")]
@@ -62,16 +62,16 @@ namespace ONI_Together.DebugTools.UnitTests
                 return UnitTestResult.Fail("Not host, TCP transfer server only runs on the host");
 
             if (!NetworkConfig.IsLanConfig())
-                return UnitTestResult.Fail("Not on Riptide/LAN transport");
+                return UnitTestResult.Fail("Not on LiteNetLib/LAN transport");
 
-            if (NetworkConfig.TransportServer is not RiptideServer server)
-                return UnitTestResult.Fail("TransportServer is not a RiptideServer");
+            if (NetworkConfig.TransportServer is not LiteNetLibServer server)
+                return UnitTestResult.Fail("TransportServer is not a LiteNetLibServer");
 
             if (server.TcpTransfer == null)
                 return UnitTestResult.Fail("TcpFileTransfer is null (listener failed to start, UDP fallback in use)");
 
-            int riptidePort = Configuration.Instance.Host.LanSettings.Port;
-            return UnitTestResult.Pass($"TcpFileTransferServer running on port {riptidePort + 1}");
+            int lanPort = Configuration.Instance.Host.LanSettings.Port;
+            return UnitTestResult.Pass($"TcpFileTransferServer running on port {lanPort + 1}");
         }
 
         [UnitTest(name: "UDP save-transfer fallback pipeline registered", category: "Networking")]

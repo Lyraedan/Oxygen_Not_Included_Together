@@ -6,6 +6,7 @@ using ONI_Together.DebugTools;
 using ONI_Together.Menus;
 using ONI_Together.Misc;
 using ONI_Together.Networking;
+using ONI_Together.Networking.Transport.Lan;
 using ONI_Together.Networking.Transport.Steamworks;
 using ONI_Together.Patches.ToolPatches;
 using ONI_Together.UI.Components;
@@ -388,9 +389,29 @@ namespace ONI_Together.UI
 			base.OnShow(show);
 
 			if (show)
+			{
+				ApplyLocalization();
 				LobbyRefresh = StartCoroutine(RefreshLobbiesEnumerator());
+			}
 			else
 				StopCoroutine(LobbyRefresh);
+		}
+
+		private void ApplyLocalization()
+		{
+			try
+			{
+				if (AdditionalLobbySettings != null)
+				{
+					var textComp = AdditionalLobbySettings.GetComponentInChildren<LocText>();
+					if (textComp != null)
+						textComp.SetText(STRINGS.UI.MP_SCREEN.HOSTMENU.ADDITIONALSETTINGS.TEXT);
+				}
+			}
+			catch (Exception ex)
+			{
+				DebugConsole.LogError($"[UnityMultiplayerScreen.ApplyLocalization] {ex}");
+			}
 		}
 		public override void OnKeyDown(KButtonEvent e)
 		{
@@ -426,7 +447,7 @@ namespace ONI_Together.UI
 		void JoinLanLobby()
 		{
 			using var _ = Profiler.Scope();
-			NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.RIPTIDE);
+			NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.LITENETLIB);
 
 			string ipAdress = JoinIPInput.Text;
 			string portText = JoinPortInput.Text;
@@ -609,7 +630,12 @@ namespace ONI_Together.UI
 			if (!ShowLobbies)
 				return;
 
-			SteamLobby.RequestLobbyList(OnLobbyListReceived);
+			if (SteamManager.Initialized)
+			{
+				SteamLobby.RequestLobbyList(OnLobbyListReceived);
+			}
+
+			LiteNetLibClient.StartLanDiscovery(Configuration.Instance.Host.LanSettings.Port);
 		}
 		private void OnLobbyListReceived(List<LobbyListEntry> lobbies)
 		{
@@ -834,7 +860,7 @@ namespace ONI_Together.UI
 		private void StartHostingLanGame()
 		{
 			using var _ = Profiler.Scope();
-			NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.RIPTIDE);
+			NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.LITENETLIB);
 
 			string ipAdress = HostIPInput.Text;
 			string portText = HostPortInput.Text;

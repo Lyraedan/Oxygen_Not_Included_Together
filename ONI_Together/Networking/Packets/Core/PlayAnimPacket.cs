@@ -11,7 +11,7 @@ using System.Reflection;
 using Shared.Profiling;
 using UnityEngine;
 
-public class PlayAnimPacket : IPacket
+public class PlayAnimPacket : IPacket, ILatencySensitivePacket
 {
 
 	public PlayAnimPacket() { }
@@ -26,10 +26,12 @@ public class PlayAnimPacket : IPacket
 		Speed = speed;
 		TimeOffset = offset;
 		TimeStamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+		Sequence = NextSequence(targetNetId);
 	}
 
 	public int NetId;
 	public long TimeStamp;
+	public uint Sequence;
 	public HashedString[] AnimHashes = [];
 	public KAnim.PlayMode Mode;
 	public float Speed;
@@ -43,6 +45,7 @@ public class PlayAnimPacket : IPacket
 
 		writer.Write(NetId);
 		writer.Write(TimeStamp);
+		writer.Write(Sequence);
 		writer.Write((int)Mode);
 		writer.Write(Speed);
 		writer.Write(TimeOffset);
@@ -59,6 +62,7 @@ public class PlayAnimPacket : IPacket
 
 		NetId = reader.ReadInt32();
 		TimeStamp = reader.ReadInt64();
+		Sequence = reader.ReadUInt32();
 		Mode = (KAnim.PlayMode)reader.ReadInt32();
 		Speed = reader.ReadSingle();
 		TimeOffset = reader.ReadSingle();
@@ -71,17 +75,32 @@ public class PlayAnimPacket : IPacket
 	}
 
 	private static readonly Dictionary<int, long> LastIdUpdates = [];
+	private static readonly Dictionary<int, uint> LastSentSequences = [];
+	private static readonly Dictionary<int, uint> LastReceivedSequences = [];
+
+	private static uint NextSequence(int netId)
+	{
+		LastSentSequences.TryGetValue(netId, out uint sequence);
+		sequence++;
+		if (sequence == 0) sequence++;
+		LastSentSequences[netId] = sequence;
+		return sequence;
+	}
 
 	// Invariant #6: bound long-lived collections. Prune per-entity entry on cleanup,
 	// clear the whole map on session teardown via NetworkIdentityRegistry.Clear().
 	public static void ForgetNetId(int netId)
 	{
 		LastIdUpdates.Remove(netId);
+		LastSentSequences.Remove(netId);
+		LastReceivedSequences.Remove(netId);
 	}
 
 	public static void ClearState()
 	{
 		LastIdUpdates.Clear();
+		LastSentSequences.Clear();
+		LastReceivedSequences.Clear();
 	}
 
 	public void OnDispatched()
@@ -93,36 +112,38 @@ public class PlayAnimPacket : IPacket
 
 		if (!NetworkIdentityRegistry.TryGet(NetId, out var go))
 			return;
-
-		// Keep the last event time per entity so older anim packets cannot rewind newer state.
-		if (LastIdUpdates.TryGetValue(NetId, out var lastTimeStamp) && lastTimeStamp > TimeStamp)
-			return;
-		LastIdUpdates[NetId] = TimeStamp;
-
-
 		if (!AnimHashes.Any())
 		{
 			DebugConsole.LogWarning("emtpy anim list dispatched for " + go.name);
 			return;
 		}
 
-		//// Check for DuplicantClientController first (for duplicants)
-		//var clientController = go.GetComponent<DuplicantClientController>();
-		//if (clientController != null)
-		//{
-		//	if (IsMulti)
-		//	{
-		//		var hashedStrings = AnimHashes.ConvertAll(hash => new HashedString(hash)).ToArray();
-		//		clientController.OnAnimationsReceived(hashedStrings, Mode);
-		//	}
-		//	else
-		//	{
-		//		clientController.OnAnimationReceived(new HashedString(SingleAnimHash), Mode, Speed, IsQueue);
-		//	}
-		//	return;
-		//}
+		// The duplicant controller buffers out-of-order events before applying
+		// sequence filtering, so route to it before the direct fallback state map.
+		if (go.TryGetComponent<DuplicantClientController>(out var duplicantPlayback)
+			&& duplicantPlayback.IsPlaybackActive)
+		{
+			duplicantPlayback.OnAnimationEventReceived(this);
+			return;
+		}
 
-		//// Fallback: direct animation control for non-duplicant entities
+		// Reliable delivery is not necessarily ordered on every backend. Prefer the
+		// explicit sequence and retain timestamp ordering for legacy/local packets.
+		if (Sequence != 0)
+		{
+			if (LastReceivedSequences.TryGetValue(NetId, out uint lastSequence)
+				&& !DuplicantClientController.IsNewerSequence(Sequence, lastSequence))
+			{
+				return;
+			}
+			LastReceivedSequences[NetId] = Sequence;
+		}
+		else if (LastIdUpdates.TryGetValue(NetId, out var lastTimeStamp) && lastTimeStamp > TimeStamp)
+		{
+			return;
+		}
+		LastIdUpdates[NetId] = TimeStamp;
+		// Fallback: direct animation control for non-duplicant entities.
 		if (!go.TryGetComponent(out KBatchedAnimController kbac))
 			return;
 

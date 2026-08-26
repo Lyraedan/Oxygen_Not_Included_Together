@@ -3,6 +3,7 @@ using System.Linq;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Animation;
+using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.Packets.Core;
 using Shared.Interfaces.Networking;
 
@@ -102,6 +103,41 @@ namespace ONI_Together.DebugTools.UnitTests
 			return UnitTestResult.Pass("AnimSyncPacket serialize/deserialize roundtrip succeeded");
 		}
 
+		[UnitTest(name: "Anim event packet: preserves queued transition", category: "Animation")]
+		public static UnitTestResult AnimEventPacketPreservesQueuedTransition()
+		{
+			var packet = new PlayAnimPacket(
+				42,
+				[new HashedString("working_loop")],
+				true,
+				KAnim.PlayMode.Loop,
+				1.25f,
+				0.5f);
+
+			using var ms = new MemoryStream();
+			using (var writer = new BinaryWriter(ms, System.Text.Encoding.UTF8, true))
+				packet.Serialize(writer);
+
+			ms.Position = 0;
+			var copy = new PlayAnimPacket();
+			using (var reader = new BinaryReader(ms, System.Text.Encoding.UTF8, true))
+				copy.Deserialize(reader);
+
+			if (!copy.IsQueue || copy.NetId != 42 || copy.AnimHashes.Length != 1)
+				return UnitTestResult.Fail("Queued animation metadata did not roundtrip");
+			if (copy.Sequence != packet.Sequence || copy.TimeStamp != packet.TimeStamp)
+				return UnitTestResult.Fail("Animation ordering metadata did not roundtrip");
+			if (copy.AnimHashes[0] != new HashedString("working_loop")
+				|| copy.Mode != KAnim.PlayMode.Loop
+				|| copy.Speed != 1.25f
+				|| copy.TimeOffset != 0.5f)
+			{
+				return UnitTestResult.Fail("Queued animation payload did not roundtrip");
+			}
+
+			return UnitTestResult.Pass("PlayAnimPacket preserves ordered Queue transitions");
+		}
+
 		[UnitTest(name: "Anim packets: bypass bulk queue", category: "Animation")]
 		public static UnitTestResult AnimPacketsBypassBulkQueue()
 		{
@@ -109,8 +145,10 @@ namespace ONI_Together.DebugTools.UnitTests
 			bool playAnimBulk = typeof(IBulkablePacket).IsAssignableFrom(typeof(PlayAnimPacket));
 			if (animSyncBulk || playAnimBulk)
 				return UnitTestResult.Fail("Animation packets still route through the bulk queue");
+			if (!typeof(ILatencySensitivePacket).IsAssignableFrom(typeof(PlayAnimPacket)))
+				return UnitTestResult.Fail("Ordered animation events can still wait behind the optional rate queue");
 
-			return UnitTestResult.Pass("AnimSyncPacket and PlayAnimPacket send directly");
+			return UnitTestResult.Pass("Animation events bypass bulk and optional rate queues");
 		}
 
 		[UnitTest(name: "Anim sync: non-minion snapshots use coordinator", category: "Animation")]

@@ -1,52 +1,46 @@
-/*
-
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Architecture;
-using System.IO;
 using Shared.Profiling;
+using System.IO;
 using UnityEngine;
 
 namespace ONI_Together.Networking.Packets.Core
 {
-	public class NavigatorTransitionPacket : IPacket
+	/// <summary>
+	/// Ordered semantic duplicant navigation event. The transition id addresses
+	/// the receiver's own NavGrid definition, allowing ONI's original visual
+	/// transition driver to replay ladders, poles, jumps, tubes and floor motion.
+	/// </summary>
+	public sealed class NavigatorTransitionPacket : IPacket, ILatencySensitivePacket
 	{
 		public int NetId;
+		public uint Sequence;
+		public long ServerTimestamp;
 		public bool IsStop;
-
 		public Vector3 SourcePosition;
-		public sbyte TransitionX;
-		public sbyte TransitionY;
+		public byte TransitionId;
 		public float Speed;
-		public float AnimSpeed;
-		public string Anim;
-		public string PreAnim;
-		public bool IsLooping;
-		public byte StartNavType;
-		public byte EndNavType;
+		public NavType StopNavType;
+		public bool PlayIdle;
 
 		public void Serialize(BinaryWriter writer)
 		{
 			using var _ = Profiler.Scope();
 
 			writer.Write(NetId);
+			writer.Write(Sequence);
+			writer.Write(ServerTimestamp);
 			writer.Write(IsStop);
-
+			writer.Write(SourcePosition);
 			if (IsStop)
 			{
-				writer.Write(EndNavType);
+				writer.Write((byte)StopNavType);
+				writer.Write(PlayIdle);
 				return;
 			}
 
-			writer.Write(SourcePosition);
-			writer.Write(TransitionX);
-			writer.Write(TransitionY);
+			writer.Write(TransitionId);
 			writer.Write(Speed);
-			writer.Write(AnimSpeed);
-			writer.Write(Anim ?? "");
-			writer.Write(PreAnim ?? "");
-			writer.Write(IsLooping);
-			writer.Write(StartNavType);
-			writer.Write(EndNavType);
 		}
 
 		public void Deserialize(BinaryReader reader)
@@ -54,24 +48,19 @@ namespace ONI_Together.Networking.Packets.Core
 			using var _ = Profiler.Scope();
 
 			NetId = reader.ReadInt32();
+			Sequence = reader.ReadUInt32();
+			ServerTimestamp = reader.ReadInt64();
 			IsStop = reader.ReadBoolean();
-
+			SourcePosition = reader.ReadVector3();
 			if (IsStop)
 			{
-				EndNavType = reader.ReadByte();
+				StopNavType = (NavType)reader.ReadByte();
+				PlayIdle = reader.ReadBoolean();
 				return;
 			}
 
-			SourcePosition = reader.ReadVector3();
-			TransitionX = reader.ReadSByte();
-			TransitionY = reader.ReadSByte();
+			TransitionId = reader.ReadByte();
 			Speed = reader.ReadSingle();
-			AnimSpeed = reader.ReadSingle();
-			Anim = reader.ReadString();
-			PreAnim = reader.ReadString();
-			IsLooping = reader.ReadBoolean();
-			StartNavType = reader.ReadByte();
-			EndNavType = reader.ReadByte();
 		}
 
 		public void OnDispatched()
@@ -84,20 +73,8 @@ namespace ONI_Together.Networking.Packets.Core
 			if (!NetworkIdentityRegistry.TryGet(NetId, out var entity))
 				return;
 
-			var clientController = entity.GetComponent<DuplicantClientController>();
-			if (clientController == null)
-				return;
-
-			if (IsStop)
-			{
-				clientController.OnStopReceived((NavType)EndNavType);
-			}
-			else
-			{
-				clientController.OnTransitionReceived(this);
-			}
+			if (entity.TryGetComponent<DuplicantClientController>(out var playback))
+				playback.OnNavigationEventReceived(this);
 		}
 	}
 }
-
-*/

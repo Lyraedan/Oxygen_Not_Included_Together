@@ -28,7 +28,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			{
 				NetId = identity.NetId,
 				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "BottleEmptierManualPump".GetHashCode(),
+				ConfigHash = "BottleEmptierAllowManualPump".GetHashCode(),
 				Value = __instance.allowManualPumpingStationFetching ? 1f : 0f,
 				ConfigType = BuildingConfigType.Boolean
 			};

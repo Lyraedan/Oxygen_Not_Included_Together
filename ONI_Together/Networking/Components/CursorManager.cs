@@ -15,6 +15,8 @@ namespace ONI_Together.Networking.Components
 		public static float SendInterval = 0.1f;
 
 		private float timeSinceLastSend = 0f;
+		private readonly PlayerAreaVisualizer localAreaVisualizer = new PlayerAreaVisualizer();
+		private bool localAreaVisible;
 
 		public Color color;
 
@@ -74,7 +76,16 @@ namespace ONI_Together.Networking.Components
 				return;
 
 			if (!MultiplayerSession.InActiveSession || !MultiplayerSession.LocalUserID.IsValid())
+			{
+				if (localAreaVisible)
+				{
+					localAreaVisualizer.DestroyArea();
+					localAreaVisible = false;
+				}
 				return;
+			}
+
+			UpdateLocalAreaVisualizer();
 
 			timeSinceLastSend += Time.unscaledDeltaTime;
 			if (timeSinceLastSend >= SendInterval)
@@ -145,33 +156,9 @@ namespace ONI_Together.Networking.Components
 				}
 			}
 
-			// Area visualizer
-			Vector3 areaDownPos = Vector3.zero;
-			bool dragging = false;
-			DragTool.Mode dragMode = DragTool.Mode.Box;
-			Vector2 lengthLimit = Vector2.zero;
-
-			if (interfaceTool is DragTool dragTool and not BuildTool and not BaseUtilityBuildTool)
-			{
-                dragging = dragTool.Dragging;
-
-                if (dragging)
-				{
-					dragMode = dragTool.mode;
-					areaDownPos = dragTool.downPos;
-
-					if(Input.GetKey((KeyCode)Global.GetInputManager().GetDefaultController().GetInputForAction(Action.DragStraight))) {
-						dragMode = DragTool.Mode.Line;
-					}
-
-                    if (dragTool is DisconnectTool disconnectTool)
-                    {
-                        // Disconnect tool uses Line mode
-                        dragMode = DragTool.Mode.Line;
-						lengthLimit = new Vector2(2, 2);
-                    }
-                }
-			}
+			GetAreaVisualizerState(interfaceTool, out Vector3 areaDownPos, out bool dragging,
+				out DragTool.Mode dragMode, out Vector2 lengthLimit,
+				out bool hasBrushPreview, out byte brushRadius);
 
 			var packet = new PlayerCursorPacket
 			{
@@ -192,6 +179,8 @@ namespace ONI_Together.Networking.Components
                 AreaDownPos = areaDownPos,
 				DragMode = dragMode,
 				LengthLimit = lengthLimit,
+				HasBrushPreview = hasBrushPreview,
+				BrushRadius = brushRadius,
 
 				HasUtilityPath = hasUtilityPath,
 				UtilityPathData = utilityPathData
@@ -205,6 +194,73 @@ namespace ONI_Together.Networking.Components
 			{
 				PacketSender.SendToHost(packet, PacketSendMode.Unreliable);
 			}
+		}
+
+		private void UpdateLocalAreaVisualizer()
+		{
+			InterfaceTool interfaceTool = PlayerController.Instance.ActiveTool;
+			Vector3 cursorWorldPos = GetCursorWorldPosition();
+
+			GetAreaVisualizerState(interfaceTool, out Vector3 areaDownPos, out bool dragging,
+				out DragTool.Mode dragMode, out Vector2 lengthLimit,
+				out bool hasBrushPreview, out byte brushRadius);
+
+			localAreaVisualizer.UpdateArea(color, areaDownPos, cursorWorldPos, dragging,
+				dragMode, lengthLimit, hasBrushPreview, brushRadius);
+			localAreaVisible = dragging || hasBrushPreview;
+		}
+
+		private static void GetAreaVisualizerState(InterfaceTool interfaceTool,
+			out Vector3 areaDownPos, out bool dragging, out DragTool.Mode dragMode,
+			out Vector2 lengthLimit, out bool hasBrushPreview, out byte brushRadius)
+		{
+			areaDownPos = Vector3.zero;
+			dragging = false;
+			dragMode = DragTool.Mode.Box;
+			lengthLimit = Vector2.zero;
+			hasBrushPreview = false;
+			brushRadius = 0;
+
+			if (interfaceTool is BrushTool brushTool)
+			{
+				hasBrushPreview = true;
+				dragMode = DragTool.Mode.Brush;
+				brushRadius = (byte)Mathf.Clamp(brushTool.brushRadius, 1, byte.MaxValue);
+				return;
+			}
+
+			if (interfaceTool is not DragTool dragTool || interfaceTool is BuildTool || interfaceTool is BaseUtilityBuildTool)
+				return;
+
+			dragging = dragTool.Dragging;
+			dragMode = dragTool.GetMode();
+			if (!dragging)
+				return;
+
+			areaDownPos = dragTool.downPos;
+
+			// Regular DragTools in brush mode still need their complete drag
+			// extent and size text. Radius-only previews are for BrushTool.
+			if (dragMode == DragTool.Mode.Brush)
+				dragMode = DragTool.Mode.Box;
+
+			if (Input.GetKey((KeyCode)Global.GetInputManager().GetDefaultController().GetInputForAction(Action.DragStraight)))
+				dragMode = DragTool.Mode.Line;
+
+			if (dragTool is DisconnectTool)
+			{
+				dragMode = DragTool.Mode.Line;
+				lengthLimit = new Vector2(2, 2);
+			}
+		}
+
+		public void SendCursorPositionNow()
+		{
+			if (!Utils.IsInGame() || !MultiplayerSession.InActiveSession || !MultiplayerSession.LocalUserID.IsValid())
+				return;
+
+			SendCursorPosition();
+			timeSinceLastSend = 0f;
 		}
 
 		

@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using ONI_Together.Networking;
 using Shared.Profiling;
 using UnityEngine;
@@ -35,6 +35,17 @@ public static class KInstantiatePatch
 
 		if (__result == null || original == null)
 			return;
+
+		if (ONI_Together.Patches.ToolPatches.Sandbox.SandboxSpawnerToolPatch.IsPlacingEntity)
+		{
+			if (__result != null && !__result.name.ToLowerInvariant().Contains("placer"))
+			{
+				if (ONI_Together.Patches.ToolPatches.Sandbox.SandboxSpawnerToolPatch.LastSpawnedObject == null)
+				{
+					ONI_Together.Patches.ToolPatches.Sandbox.SandboxSpawnerToolPatch.LastSpawnedObject = __result;
+				}
+			}
+		}
 
 		if (MultiplayerSession.IsHost)
 		{

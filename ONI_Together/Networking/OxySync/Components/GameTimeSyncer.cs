@@ -24,7 +24,7 @@ namespace ONI_Together.Networking.OxySync.Components
             base.OnSpawn();
             Instance = this;
             SyncInterval = 1f; // Every 1 second
-            NetId = nameof(GameClock).GetHashCode();
+            NetId = OxySyncHash.Compute(nameof(GameClock));
             InterestGroup = -1;
         }
 
@@ -61,10 +61,25 @@ namespace ONI_Together.Networking.OxySync.Components
             if (GameClock.Instance == null)
                 return;
 
-            float totalTime = _cycle * 600f + _cycleTime;
-            GameClockPatch.allowAddTimeForSetTime = true;
-            GameClock.Instance.SetTime(totalTime);
-            GameClockPatch.allowAddTimeForSetTime = false;
+            float hostTotalTime = _cycle * 600f + _cycleTime;
+            float clientTime = GameClock.Instance.GetTime();
+            float diff = hostTotalTime - clientTime;
+
+            // If time is significantly off (> 1.5s) or cycle differs, snap time
+            if (UnityEngine.Mathf.Abs(diff) > 1.5f || GameClock.Instance.GetCycle() != _cycle)
+            {
+                GameClockPatch.allowAddTimeForSetTime = true;
+                GameClock.Instance.SetTime(hostTotalTime);
+                GameClockPatch.allowAddTimeForSetTime = false;
+            }
+            else if (UnityEngine.Mathf.Abs(diff) > 0.05f)
+            {
+                // Smoothly nudge clock towards host time without teleporting
+                float correctedTime = UnityEngine.Mathf.Lerp(clientTime, hostTotalTime, 0.25f);
+                GameClockPatch.allowAddTimeForSetTime = true;
+                GameClock.Instance.SetTime(correctedTime);
+                GameClockPatch.allowAddTimeForSetTime = false;
+            }
         }
     }
 }

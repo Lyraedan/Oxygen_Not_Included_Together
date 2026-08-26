@@ -11,8 +11,10 @@ namespace ONI_Together.Networking.Transport
 
         public bool SendToConnection(object conn, IPacket packet, PacketSendMode sendType = PacketSendMode.ReliableImmediate)
         {
-            // This does work but if it queues up the client will see what the host saw but will be behind and plays catchup
-            if (!Configuration.Instance.EnablePacketQueue)
+			// Never put latency-sensitive snapshots behind reliable state traffic.
+			// Old movement data has no value and causes visible catch-up/teleports.
+			if (!Configuration.Instance.EnablePacketQueue || IsLatencySensitive(sendType)
+				|| packet is ILatencySensitivePacket)
                 return SendPacket(conn, packet, sendType);
             // queue it
             if (!_pendingQueues.TryGetValue(conn, out var queue))
@@ -26,6 +28,12 @@ namespace ONI_Together.Networking.Transport
             queue.Enqueue((packet, sendType));
             return true;
         }
+
+		internal static bool IsLatencySensitive(PacketSendMode sendType)
+		{
+			return (sendType & PacketSendMode.Reliable) == 0
+				&& (sendType & PacketSendMode.NoDelay) != 0;
+		}
 
         public void Flush()
         {

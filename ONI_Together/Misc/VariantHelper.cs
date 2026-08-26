@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using UnityEngine;
 
 namespace ONI_Together.Misc
@@ -9,6 +10,7 @@ namespace ONI_Together.Misc
     {
         public static Variant ObjectToVariant(object? value)
         {
+            if (value == null) return new Variant { Type = Variant.TypeCode.Null };
             if (value is int i) return i;
             if (value is float f) return f;
             if (value is byte b) return b;
@@ -24,11 +26,19 @@ namespace ONI_Together.Misc
             if (value is ushort us) return us;
             if (value is uint ui) return ui;
             if (value is long l) return l;
+            if (value is ulong ul) return ul;
             if (value is double d) return d;
+            if (value is decimal dec) return dec;
             if (value is sbyte sb) return sb;
             if (value is char c) return c;
             if (value is Color col) return col;
-            if (value is Enum e) return Convert.ToInt32(e);
+            if (value is Enum e)
+            {
+                Type underlying = Enum.GetUnderlyingType(e.GetType());
+                bool unsigned = underlying == typeof(byte) || underlying == typeof(ushort) ||
+                    underlying == typeof(uint) || underlying == typeof(ulong);
+                return unsigned ? (Variant)Convert.ToUInt64(e) : (Variant)Convert.ToInt64(e);
+            }
 
             if (value is int[] iarr) return iarr;
             if (value is float[] farr) return farr;
@@ -72,11 +82,20 @@ namespace ONI_Together.Misc
                 return new Variant { Type = Variant.TypeCode.VariantArray, VariantArray = variants };
             }
 
-            return 0;
+            throw new NotSupportedException(
+                $"Type '{value?.GetType().FullName ?? "null"}' is not supported by OxySync Variant serialization.");
         }
 
         public static object VariantToObject(Variant v, Type targetType)
         {
+            if (v.Type == Variant.TypeCode.Null)
+            {
+                if (targetType.IsValueType && Nullable.GetUnderlyingType(targetType) == null)
+                    throw new InvalidDataException(
+                        $"Null SyncVar cannot be assigned to non-nullable type '{targetType}'.");
+                return null;
+            }
+
             if (targetType == typeof(int)) return v.Int;
             if (targetType == typeof(float)) return v.Float;
             if (targetType == typeof(byte)) return v.Byte;
@@ -92,7 +111,9 @@ namespace ONI_Together.Misc
             if (targetType == typeof(ushort)) return (ushort)v.Int;
             if (targetType == typeof(uint)) return (uint)v.Long;
             if (targetType == typeof(long)) return v.Long;
+            if (targetType == typeof(ulong)) return v.ULong;
             if (targetType == typeof(double)) return v.Double;
+            if (targetType == typeof(decimal)) return v.Decimal;
             if (targetType == typeof(sbyte)) return (sbyte)v.Byte;
             if (targetType == typeof(char)) return (char)v.Int;
             if (targetType == typeof(Color)) return v.Color;
@@ -158,6 +179,8 @@ namespace ONI_Together.Misc
 
                     if (def == typeof(Dictionary<,>))
                     {
+                        if ((v.VariantArray.Length & 1) != 0)
+                            throw new InvalidDataException("OxySync dictionary Variant contains an unmatched key/value entry.");
                         var keyType = targetType.GetGenericArguments()[0];
                         var valType = targetType.GetGenericArguments()[1];
                         var dictType = typeof(Dictionary<,>).MakeGenericType(keyType, valType);
@@ -173,7 +196,21 @@ namespace ONI_Together.Misc
                 }
             }
 
-            if (targetType.IsEnum) return Enum.ToObject(targetType, v.Int);
+            if (targetType.IsEnum)
+            {
+                object rawValue = v.Type switch
+                {
+                    Variant.TypeCode.ULong => v.ULong,
+                    Variant.TypeCode.UInt => (uint)v.Long,
+                    Variant.TypeCode.UShort => (ushort)v.Int,
+                    Variant.TypeCode.Byte => v.Byte,
+                    Variant.TypeCode.Long => v.Long,
+                    Variant.TypeCode.Short => (short)v.Int,
+                    Variant.TypeCode.SByte => (sbyte)v.Byte,
+                    _ => v.Int,
+                };
+                return Enum.ToObject(targetType, rawValue);
+            }
             return v.String ?? string.Empty;
         }
 
@@ -197,7 +234,10 @@ namespace ONI_Together.Misc
                 Variant.TypeCode.UShort => a.Int != b.Int,
                 Variant.TypeCode.UInt => a.Long != b.Long,
                 Variant.TypeCode.Long => a.Long != b.Long,
+                Variant.TypeCode.ULong => a.ULong != b.ULong,
                 Variant.TypeCode.Double => Math.Abs(a.Double - b.Double) > epsilon,
+                Variant.TypeCode.Decimal => a.Decimal != b.Decimal,
+                Variant.TypeCode.Null => false,
                 Variant.TypeCode.SByte => a.Byte != b.Byte,
                 Variant.TypeCode.Char => a.Int != b.Int,
                 Variant.TypeCode.Color => Vector4.Distance(a.Color, b.Color) > epsilon,

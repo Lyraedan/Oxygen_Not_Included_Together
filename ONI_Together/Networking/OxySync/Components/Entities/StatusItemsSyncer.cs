@@ -1,13 +1,14 @@
 using Database;
 using Klei.AI;
 using KSerialization;
-using ONI_Together.Networking.Components;
+using ONI_Together.Networking.Packets.World;
 using Shared.OxySync;
 using Shared.OxySync.Attributes;
 using Shared.Profiling;
 using System;
 using System.Collections.Generic;
-using UnityEngine;
+using System.IO;
+using System.Text;
 
 namespace ONI_Together.Networking.OxySync.Components
 {
@@ -23,77 +24,114 @@ namespace ONI_Together.Networking.OxySync.Components
             ROBOT
         }
 
-        public StatusRecieverType recieverType = StatusRecieverType.DUPLICANT;
-
-        private const int MAX_ENTRIES = 12;
-        private const char FIELD_SEP = '\x1F';
+        public StatusRecieverType recieverType = StatusRecieverType.MISC;
 
         [MyCmpGet]
         private KSelectable _selectable;
 
-        [SyncVar] private string _e00, _e01, _e02, _e03;
-        [SyncVar] private string _e04, _e05, _e06, _e07;
-        [SyncVar] private string _e08, _e09, _e10, _e11;
-
-        [SyncVar] private int _entriesCount;
-
-        [SyncVar(Hook = nameof(OnStatusItemsChanged))]
-        private int _version;
+        [SyncVar(Hook = nameof(OnStatusItemsChanged), SendMode = (int)PacketSendMode.ReliableImmediate)]
+        private byte[] _statusBlob;
 
         private float _syncTimer;
 
-        public override void OnSpawn()
-        {
-            base.OnSpawn();
-        }
-
         private void Update()
         {
-            if (!isServer) return;
-            ServerSync();
-        }
+            if (!isServer || !inSession)
+                return;
 
-        [Server]
-        private void ServerSync()
-        {
-            _syncTimer += Time.unscaledDeltaTime;
-            if (_syncTimer < 0.5f) return;
+            _syncTimer += UnityEngine.Time.unscaledDeltaTime;
+            if (_syncTimer < 0.5f)
+                return;
             _syncTimer = 0f;
 
-            if (_selectable == null) return;
+            if (_selectable == null)
+                return;
 
-            var group = _selectable.GetStatusItemGroup();
-            int idx = 0;
+            // Off-screen chunk entities receive a reliable full snapshot when a
+            // player subscribes, so do not continually rebuild status strings.
+            if (InterestGroup != -1 && InterestGroupManager.GetPlayersInGroup(InterestGroup).Count == 0)
+                return;
+
+            byte[] next = Encode(_selectable.GetStatusItemGroup());
+            if (!ByteArraysEqual(_statusBlob, next))
+                _statusBlob = next;
+        }
+
+        private void OnStatusItemsChanged(byte[] oldValue, byte[] newValue)
+        {
+			if (_selectable == null || _selectable.IsNullOrDestroyed() || newValue == null)
+                return;
+
+            Apply(Decode(newValue));
+        }
+
+        internal static byte[] Encode(StatusItemGroup group)
+        {
+            using var stream = new MemoryStream();
+            using var writer = new BinaryWriter(stream, Encoding.UTF8, true);
+
+            var entries = new List<StatusItemGroup.Entry>();
             if (group != null)
             {
                 foreach (var entry in group)
                 {
-                    if (idx >= MAX_ENTRIES) break;
-                    SetSlot(idx, Pack(entry));
-                    idx++;
+                    if (entry.item == null)
+                        continue;
+                    entries.Add(entry);
+                    if (entries.Count >= StatusItemsPacket.MaxEntries)
+                        break;
                 }
             }
 
-            for (int i = idx; i < MAX_ENTRIES; i++)
-                SetSlot(i, "");
+            writer.Write((byte)entries.Count);
+            foreach (var entry in entries)
+            {
+                writer.Write(entry.item.Id ?? string.Empty);
+                writer.Write(entry.category?.Id ?? string.Empty);
+                writer.Write(entry.GetName() ?? string.Empty);
+                writer.Write(entry.item.GetTooltip(entry.data) ?? string.Empty);
+            }
 
-            _entriesCount = idx;
-            _version++;
-            MarkAllDirty();
+            return stream.ToArray();
         }
 
-        private void OnStatusItemsChanged(int oldVersion, int newVersion)
+        internal static List<StatusItemEntry> Decode(byte[] blob)
         {
-            if (_selectable.IsNullOrDestroyed()) return;
-            Apply();
+            var result = new List<StatusItemEntry>();
+            if (blob == null || blob.Length == 0)
+                return result;
+
+            try
+            {
+                using var stream = new MemoryStream(blob, false);
+                using var reader = new BinaryReader(stream, Encoding.UTF8, true);
+                int count = Math.Min((int)reader.ReadByte(), StatusItemsPacket.MaxEntries);
+                for (int i = 0; i < count; i++)
+                {
+                    result.Add(new StatusItemEntry
+                    {
+                        ItemId = reader.ReadString(),
+                        CategoryId = reader.ReadString(),
+                        DisplayName = reader.ReadString(),
+                        Tooltip = reader.ReadString(),
+                    });
+                }
+            }
+            catch (EndOfStreamException)
+            {
+                result.Clear();
+            }
+
+            return result;
         }
 
-        private void Apply()
+        private void Apply(List<StatusItemEntry> entries)
         {
             using var _ = Profiler.Scope();
 
             var group = _selectable.GetStatusItemGroup();
-            if (group == null) return;
+            if (group == null)
+                return;
 
             var toRemove = new List<Guid>();
             foreach (var entry in group)
@@ -101,99 +139,28 @@ namespace ONI_Together.Networking.OxySync.Components
             foreach (var guid in toRemove)
                 group.RemoveStatusItem(guid, immediate: true);
 
-            for (int i = 0; i < _entriesCount; i++)
+            foreach (var entry in entries)
             {
-                var packed = GetSlot(i);
-                if (string.IsNullOrEmpty(packed)) continue;
+                var syncedItem = BuildSyncedItem(entry);
+                if (syncedItem == null)
+                    continue;
 
-                var parsed = Unpack(packed);
-                if (parsed == null) continue;
-
-                var syncedItem = BuildSyncedItem(
-                    parsed.Value.ItemId,
-                    parsed.Value.CategoryId,
-                    parsed.Value.DisplayName,
-                    parsed.Value.Tooltip
-                );
-                if (syncedItem == null) continue;
-
-                var category = ResolveCategory(parsed.Value.CategoryId);
-                group.AddStatusItem(syncedItem, null, category);
+                group.AddStatusItem(syncedItem, null, ResolveCategory(entry.CategoryId));
             }
         }
 
-        private static string Pack(StatusItemGroup.Entry entry)
+        private StatusItem BuildSyncedItem(StatusItemEntry entry)
         {
-            var item = entry.item;
-            if (item == null) return "";
-            return item.Id + FIELD_SEP +
-                   (entry.category?.Id ?? "") + FIELD_SEP +
-                   entry.GetName() + FIELD_SEP +
-                   item.GetTooltip(entry.data);
-        }
+            if (string.IsNullOrEmpty(entry.ItemId))
+                return null;
 
-        private static (string ItemId, string CategoryId, string DisplayName, string Tooltip)? Unpack(string packed)
-        {
-            if (string.IsNullOrEmpty(packed)) return null;
-            var parts = packed.Split(FIELD_SEP);
-            if (parts.Length < 4) return null;
-            return (parts[0], parts[1], parts[2], parts[3]);
-        }
-
-        private string GetSlot(int i) => i switch
-        {
-            0 => _e00, 1 => _e01, 2 => _e02, 3 => _e03,
-            4 => _e04, 5 => _e05, 6 => _e06, 7 => _e07,
-            8 => _e08, 9 => _e09, 10 => _e10, 11 => _e11,
-            _ => "",
-        };
-
-        private void SetSlot(int i, string value)
-        {
-            switch (i)
-            {
-                case 0:  _e00 = value; break;
-                case 1:  _e01 = value; break;
-                case 2:  _e02 = value; break;
-                case 3:  _e03 = value; break;
-                case 4:  _e04 = value; break;
-                case 5:  _e05 = value; break;
-                case 6:  _e06 = value; break;
-                case 7:  _e07 = value; break;
-                case 8:  _e08 = value; break;
-                case 9:  _e09 = value; break;
-                case 10: _e10 = value; break;
-                case 11: _e11 = value; break;
-            }
-        }
-
-        private void ClearAllSlots()
-        {
-            _e00 = _e01 = _e02 = _e03 = "";
-            _e04 = _e05 = _e06 = _e07 = "";
-            _e08 = _e09 = _e10 = _e11 = "";
-        }
-
-        private StatusItem BuildSyncedItem(string itemId, string categoryId, string displayName, string tooltip)
-        {
-            if (string.IsNullOrEmpty(itemId)) return null;
-
-            StatusItem original = recieverType switch
-            {
-                StatusRecieverType.DUPLICANT => Db.Get().DuplicantStatusItems.TryGet(itemId),
-                StatusRecieverType.CREATURE => Db.Get().CreatureStatusItems.TryGet(itemId),
-                StatusRecieverType.MISC => Db.Get().MiscStatusItems.TryGet(itemId),
-                StatusRecieverType.BUILDING => Db.Get().BuildingStatusItems.TryGet(itemId),
-                StatusRecieverType.ROBOT => Db.Get().RobotStatusItems.TryGet(itemId),
-                _ => Db.Get().DuplicantStatusItems.TryGet(itemId),
-            };
-
+            StatusItem original = ResolveOriginal(entry.ItemId);
             if (original != null)
             {
                 var item = new StatusItem(
-                    "ONIT_Sync_" + itemId,
-                    displayName ?? original.Name,
-                    tooltip ?? original.tooltipText,
+                    "ONIT_Sync_" + entry.ItemId,
+                    entry.DisplayName ?? original.Name,
+                    entry.Tooltip ?? original.tooltipText,
                     original.iconName,
                     original.iconType,
                     original.notificationType,
@@ -207,25 +174,34 @@ namespace ONI_Together.Networking.OxySync.Components
                 return item;
             }
 
-            var effect = Db.Get().effects.TryGet(itemId);
-            if (effect != null)
-                return BuildFromEffect(itemId, displayName, tooltip, effect);
-
-            return null;
+            var effect = Db.Get().effects.TryGet(entry.ItemId);
+            return effect != null ? BuildFromEffect(entry, effect) : null;
         }
 
-        private static StatusItem BuildFromEffect(string itemId, string displayName, string tooltip, Effect effect)
+        private StatusItem ResolveOriginal(string itemId)
         {
-            var iconType = StatusItem.IconType.Info;
-            var notifType = NotificationType.Neutral;
-            var iconName = "dash";
-
-            if (effect.isBad)
+            StatusItem preferred = recieverType switch
             {
-                iconType = StatusItem.IconType.Exclamation;
-                notifType = NotificationType.Bad;
-                iconName = "status_item_exclamation";
-            }
+                StatusRecieverType.DUPLICANT => Db.Get().DuplicantStatusItems.TryGet(itemId),
+                StatusRecieverType.CREATURE => Db.Get().CreatureStatusItems.TryGet(itemId),
+                StatusRecieverType.BUILDING => Db.Get().BuildingStatusItems.TryGet(itemId),
+                StatusRecieverType.ROBOT => Db.Get().RobotStatusItems.TryGet(itemId),
+                _ => Db.Get().MiscStatusItems.TryGet(itemId),
+            };
+
+            return preferred
+                ?? Db.Get().MiscStatusItems.TryGet(itemId)
+                ?? Db.Get().BuildingStatusItems.TryGet(itemId)
+                ?? Db.Get().CreatureStatusItems.TryGet(itemId)
+                ?? Db.Get().DuplicantStatusItems.TryGet(itemId)
+                ?? Db.Get().RobotStatusItems.TryGet(itemId);
+        }
+
+        private static StatusItem BuildFromEffect(StatusItemEntry entry, Effect effect)
+        {
+            var iconType = effect.isBad ? StatusItem.IconType.Exclamation : StatusItem.IconType.Info;
+            var notificationType = effect.isBad ? NotificationType.Bad : NotificationType.Neutral;
+            string iconName = effect.isBad ? "status_item_exclamation" : "dash";
 
             if (!effect.customIcon.IsNullOrWhiteSpace())
             {
@@ -234,12 +210,12 @@ namespace ONI_Together.Networking.OxySync.Components
             }
 
             return new StatusItem(
-                "ONIT_Sync_" + itemId,
-                displayName ?? effect.Name,
-                tooltip ?? effect.description,
+                "ONIT_Sync_" + entry.ItemId,
+                entry.DisplayName ?? effect.Name,
+                entry.Tooltip ?? effect.description,
                 iconName,
                 iconType,
-                notifType,
+                notificationType,
                 false,
                 OverlayModes.None.ID,
                 2,
@@ -249,8 +225,16 @@ namespace ONI_Together.Networking.OxySync.Components
 
         private static StatusItemCategory ResolveCategory(string id)
         {
-            if (string.IsNullOrEmpty(id)) return null;
-            return Db.Get().StatusItemCategories.TryGet(id);
+            return string.IsNullOrEmpty(id) ? null : Db.Get().StatusItemCategories.TryGet(id);
+        }
+
+        private static bool ByteArraysEqual(byte[] left, byte[] right)
+        {
+            if (ReferenceEquals(left, right)) return true;
+            if (left == null || right == null || left.Length != right.Length) return false;
+            for (int i = 0; i < left.Length; i++)
+                if (left[i] != right[i]) return false;
+            return true;
         }
     }
 }

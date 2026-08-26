@@ -1,4 +1,4 @@
-﻿using ONI_Together.DebugTools;
+using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.OxySync.Components;
@@ -19,25 +19,19 @@ namespace ONI_Together.Scripts.Duplicants
 		{
 			using var _ = Profiler.Scope();
 			base.OnSpawn();
-			StartCoroutine(WaitForSessionAndInit());
+			if (MultiplayerSession.InActiveSession)
+			{
+				FinalizeInit();
+			}
+			else
+			{
+				StartCoroutine(WaitForSessionAndInit());
+			}
 		}
 
 		IEnumerator WaitForSessionAndInit()
 		{
 			yield return new WaitUntil((() => MultiplayerSession.InActiveSession));
-			InitializeMP();
-		}
-
-		void InitializeMP(object _ = null)
-		{
-			using var scope = Profiler.Scope();
-			StartCoroutine(DelayedInit());
-		}
-		
-		IEnumerator DelayedInit()
-		{
-			using var _ = Profiler.Scope();
-			yield return new WaitForSecondsRealtime(0.5f);
 			FinalizeInit();
 		}
 
@@ -59,14 +53,17 @@ namespace ONI_Together.Scripts.Duplicants
 		
 		void InitializeClient(GameObject go)
 		{
+			// This component becomes the single client-side writer for duplicant
+			// position and animation before local AI/state machines are disabled.
+			go.AddOrGet<DuplicantClientController>();
+
 			if (go.TryGetComponent<ChoreDriver>(out var driver)) driver.enabled = false;
 			if (go.TryGetComponent<ChoreConsumer>(out var consumer)) consumer.enabled = false;
 			if (go.TryGetComponent<MinionBrain>(out var brain)) brain.enabled = false;
 			if (go.TryGetComponent<Sensors>(out var sensors)) sensors.enabled = false;
 
-			var stateMachineControllers = go.GetComponents<StateMachineController>();
-			foreach (var smc in stateMachineControllers)
-				if (smc != null) smc.enabled = false;
+			// Do NOT disable StateMachineController!
+			// In Klei's engine, StateMachineController drives visual animation and rendering of the Duplicant.
 
 			go.AddOrGet<ClientReceiver_ChoreErrands>();
 			var statusSync = go.AddOrGet<StatusItemsSyncer>();

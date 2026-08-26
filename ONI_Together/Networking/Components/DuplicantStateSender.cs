@@ -22,14 +22,20 @@ namespace ONI_Together.Networking.Components
 
 		private DuplicantActionState lastSentState;
 		private int lastSentTargetCell;
-		private string lastSentAnimName;
+		private int lastSentAnimHash;
 		private bool lastSentIsWorking;
+		private uint stateSequence;
 
 		public override void OnSpawn()
 		{
 			using var _ = Profiler.Scope();
 
 			base.OnSpawn();
+
+			if (networkIdentity == null) networkIdentity = GetComponent<NetworkIdentity>();
+			if (animController == null) animController = GetComponent<KAnimControllerBase>();
+			if (choreDriver == null) choreDriver = GetComponent<ChoreDriver>();
+			if (navigator == null) navigator = GetComponent<Navigator>();
 
 			if (networkIdentity == null)
 			{
@@ -79,17 +85,18 @@ namespace ONI_Together.Networking.Components
 			{
 				var state = DetermineCurrentState();
 				int targetCell = DetermineTargetCell();
-				string animName = GetCurrentAnimName();
+				int animHash = GetCurrentAnimHash();
 				bool isWorking = IsCurrentlyWorking();
 				string heldSymbol = DetermineHeldItemSymbol();
+				int heldSymbolHash = string.IsNullOrEmpty(heldSymbol) ? 0 : new HashedString(heldSymbol).hash;
 				float animElapsedTime = animController != null ? animController.GetElapsedTime() : 0f;
 
 				// Only send if something changed (or periodically for sync)
 				bool stateChanged = state != lastSentState ||
 														targetCell != lastSentTargetCell ||
-														animName != lastSentAnimName ||
-														isWorking != lastSentIsWorking ||
-														heldSymbol != lastSentHeldSymbol;
+												animHash != lastSentAnimHash ||
+												isWorking != lastSentIsWorking ||
+												heldSymbolHash != lastSentHeldSymbolHash;
 
 				// Heartbeat: Force send if enough time passed, even if no change
 
@@ -98,36 +105,43 @@ namespace ONI_Together.Networking.Components
 
 				lastSentState = state;
 				lastSentTargetCell = targetCell;
-				lastSentAnimName = animName;
+				lastSentAnimHash = animHash;
 				lastSentIsWorking = isWorking;
-				lastSentHeldSymbol = heldSymbol;
+				lastSentHeldSymbolHash = heldSymbolHash;
 
-				int animPlayMode = 0;
+				byte animPlayMode = 0;
 				float animSpeed = 1f;
 				try
 				{
 					if (animController != null)
 					{
-						animPlayMode = (int)animController.mode;
+						animPlayMode = (byte)animController.mode;
 						animSpeed = animController.playSpeed;
 					}
 				}
 				catch (System.Exception) { /* field not accessible, use defaults */ }
 
+				stateSequence++;
+				if (stateSequence == 0) stateSequence++;
+
 				var packet = new DuplicantStatePacket
 				{
 					NetId = networkIdentity.NetId,
+					Sequence = stateSequence,
+					ServerTimestamp = System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
 					ActionState = state,
 					TargetCell = targetCell,
-					CurrentAnimName = animName,
+					CurrentAnimHash = animHash,
 					AnimElapsedTime = animElapsedTime,
 					IsWorking = isWorking,
-					HeldItemSymbol = heldSymbol,
+					HeldItemSymbolHash = heldSymbolHash,
 					AnimPlayMode = animPlayMode,
 					AnimSpeed = animSpeed
 				};
 
-				PacketSender.SendToAllClients(packet, sendType: PacketSendMode.Unreliable);
+				// Keyframes repair loss and phase drift; queuing an old one behind bulk
+				// traffic only creates a later visible correction.
+				PacketSender.SendToAllClients(packet, sendType: PacketSendMode.UnreliableNoDelay);
 			}
 			catch (System.Exception)
 			{
@@ -135,7 +149,7 @@ namespace ONI_Together.Networking.Components
 			}
 		}
 
-		private string lastSentHeldSymbol;
+		private int lastSentHeldSymbolHash;
 
 		private string DetermineHeldItemSymbol()
 		{
@@ -269,17 +283,14 @@ namespace ONI_Together.Networking.Components
 			return -1;
 		}
 
-		private string GetCurrentAnimName()
+		private int GetCurrentAnimHash()
 		{
 			using var _ = Profiler.Scope();
 
 			if (animController == null)
-				return string.Empty;
+				return 0;
 
-			if (animController.CurrentAnim != null)
-				return animController.CurrentAnim.name;
-
-			return string.Empty;
+			return animController.currentAnim.hash;
 		}
 
 		private bool IsCurrentlyWorking()

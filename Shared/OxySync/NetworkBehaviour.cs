@@ -32,7 +32,9 @@ namespace Shared.OxySync
         private Dictionary<int, CachedMethod>? _clientRpcMethods;
         private Dictionary<int, CachedMethod>? _targetRpcMethods;
         private uint _syncVarDirtyBits;
+        private HashSet<int>? _syncVarDirtyIndices;
         private Dictionary<int, int>? _syncVarHashToIndex;
+        private Dictionary<int, long>? _lastReceivedSyncVarTimestamps;
 
         protected bool isServer => IsHostQuery?.Invoke() ?? false;
         protected bool isClient => IsClientQuery?.Invoke() ?? false;
@@ -80,6 +82,7 @@ namespace Shared.OxySync
             public int InterestGroup;
             public int SendMode;
             public bool IncludeHost;
+            public bool RequiresHost;
         }
 
         public override void OnSpawn()
@@ -112,6 +115,7 @@ namespace Shared.OxySync
         {
             var fields = GetFieldsIncludingBaseTypes(GetType());
             var list = new List<SyncVarField>();
+            var registeredHashes = new HashSet<int>();
             int classDefaultGroup = GetType().GetCustomAttribute<InterestGroupAttribute>()?.Group ?? -1;
 
             foreach (var field in fields)
@@ -119,10 +123,33 @@ namespace Shared.OxySync
                 var attr = field.GetCustomAttribute<SyncVarAttribute>();
                 if (attr == null) continue;
 
+                int hash = OxySyncHash.Compute(field.Name);
+                if (!registeredHashes.Add(hash))
+                {
+                    LogWarning?.Invoke(
+                        $"[OxySync] SyncVar hash collision for '{field.Name}' on {GetType().Name}; field skipped.");
+                    continue;
+                }
+
                 MethodInfo? hook = null;
                 if (!string.IsNullOrEmpty(attr.Hook))
                 {
-                    hook = GetType().GetMethod(attr.Hook, FLAGS);
+                    hook = GetMethodsIncludingBaseTypes(GetType()).FirstOrDefault(method =>
+                    {
+                        if (method.Name != attr.Hook || method.ReturnType != typeof(void))
+                            return false;
+                        var parameters = method.GetParameters();
+                        return parameters.Length == 2 &&
+                            parameters[0].ParameterType == field.FieldType &&
+                            parameters[1].ParameterType == field.FieldType;
+                    });
+
+                    if (hook == null)
+                    {
+                        LogWarning?.Invoke(
+                            $"[OxySync] SyncVar hook '{attr.Hook}' for {GetType().Name}.{field.Name} " +
+                            $"must return void and accept ({field.FieldType.Name} oldValue, {field.FieldType.Name} newValue); hook disabled.");
+                    }
                 }
 
                 int group = attr.InterestGroup != -1 ? attr.InterestGroup : classDefaultGroup;
@@ -130,8 +157,8 @@ namespace Shared.OxySync
                 list.Add(new SyncVarField
                 {
                     Info = field,
-                    Hash = field.Name.GetHashCode(),
-                    LastSentValue = field.GetValue(this),
+                    Hash = hash,
+                    LastSentValue = SnapshotSyncVarValue(field.GetValue(this), field.FieldType),
                     Hook = hook,
                     Epsilon = attr.Epsilon,
                     InterestGroup = group,
@@ -146,6 +173,8 @@ namespace Shared.OxySync
                 _syncVarHashToIndex[list[i].Hash] = i;
 
             _syncVarDirtyBits = 0;
+            _syncVarDirtyIndices = null;
+            _lastReceivedSyncVarTimestamps = new Dictionary<int, long>(list.Count);
         }
 
         private static IEnumerable<MethodInfo> GetMethodsIncludingBaseTypes(Type type)
@@ -164,6 +193,9 @@ namespace Shared.OxySync
         {
             var methods = GetMethodsIncludingBaseTypes(GetType());
             int classDefaultGroup = GetType().GetCustomAttribute<InterestGroupAttribute>()?.Group ?? -1;
+            _commandMethods = new Dictionary<int, CachedMethod>();
+            _clientRpcMethods = new Dictionary<int, CachedMethod>();
+            _targetRpcMethods = new Dictionary<int, CachedMethod>();
 
             foreach (var method in methods)
             {
@@ -171,21 +203,64 @@ namespace Shared.OxySync
                 if (cmdAttr != null)
                 {
                     ValidateMethodPrefix(method, "Cmd", "Command");
-                    (_commandMethods ??= new())[method.Name.GetHashCode()] = MakeCachedMethod(method, cmdAttr);
+                    if (ValidateRpcSignature(method, "Command"))
+                        RegisterRpcMethod(_commandMethods, MakeCachedMethod(method, cmdAttr), "Command");
                 }
                 var rpcAttr = method.GetCustomAttribute<ClientRpcAttribute>();
                 if (rpcAttr != null)
                 {
                     ValidateMethodPrefix(method, "Rpc", "ClientRpc");
-                    (_clientRpcMethods ??= new())[method.Name.GetHashCode()] = MakeCachedMethod(method, rpcAttr, classDefaultGroup);
+                    if (ValidateRpcSignature(method, "ClientRpc"))
+                        RegisterRpcMethod(_clientRpcMethods, MakeCachedMethod(method, rpcAttr, classDefaultGroup), "ClientRpc");
                 }
                 var tgtAttr = method.GetCustomAttribute<TargetRpcAttribute>();
                 if (tgtAttr != null)
                 {
                     ValidateMethodPrefix(method, "Target", "TargetRpc");
-                    (_targetRpcMethods ??= new())[method.Name.GetHashCode()] = MakeCachedMethod(method, tgtAttr);
+                    if (ValidateRpcSignature(method, "TargetRpc"))
+                        RegisterRpcMethod(_targetRpcMethods, MakeCachedMethod(method, tgtAttr), "TargetRpc");
                 }
             }
+        }
+
+        private bool ValidateRpcSignature(MethodInfo method, string attributeName)
+        {
+            if (method.ReturnType != typeof(void))
+            {
+                LogWarning?.Invoke(
+                    $"[OxySync] {GetType().Name}.{method.Name} [{attributeName}] must return void; method skipped.");
+                return false;
+            }
+
+            foreach (var parameter in method.GetParameters())
+            {
+                if (parameter.IsOut || parameter.ParameterType.IsByRef ||
+                    !RpcSerializer.IsSupportedType(parameter.ParameterType))
+                {
+                    LogWarning?.Invoke(
+                        $"[OxySync] {GetType().Name}.{method.Name} [{attributeName}] has unsupported parameter " +
+                        $"'{parameter.Name}' ({parameter.ParameterType}); method skipped.");
+                    return false;
+                }
+            }
+
+            return true;
+        }
+
+        private void RegisterRpcMethod(
+            Dictionary<int, CachedMethod> methods,
+            CachedMethod method,
+            string attributeName)
+        {
+            if (methods.TryGetValue(method.Hash, out var existing))
+            {
+                LogWarning?.Invoke(
+                    $"[OxySync] {attributeName} hash collision on {GetType().Name}: " +
+                    $"'{existing.Info.Name}' and '{method.Info.Name}'. '{method.Info.Name}' skipped.");
+                return;
+            }
+
+            methods.Add(method.Hash, method);
         }
 
         private static void ValidateMethodPrefix(MethodInfo method, string expectedPrefix, string attributeName)
@@ -204,10 +279,11 @@ namespace Shared.OxySync
             return new CachedMethod
             {
                 Info = method,
-                Hash = method.Name.GetHashCode(),
+                Hash = OxySyncHash.Compute(method.Name),
                 ArgTypes = method.GetParameters().Select(p => p.ParameterType).ToArray(),
                 InterestGroup = -1,
                 SendMode = attr.SendMode,
+                RequiresHost = attr.RequiresHost,
             };
         }
 
@@ -216,7 +292,7 @@ namespace Shared.OxySync
             return new CachedMethod
             {
                 Info = method,
-                Hash = method.Name.GetHashCode(),
+                Hash = OxySyncHash.Compute(method.Name),
                 ArgTypes = method.GetParameters().Select(p => p.ParameterType).ToArray(),
                 InterestGroup = attr.InterestGroup != -1 ? attr.InterestGroup : classDefaultGroup,
                 SendMode = attr.SendMode,
@@ -229,7 +305,7 @@ namespace Shared.OxySync
             return new CachedMethod
             {
                 Info = method,
-                Hash = method.Name.GetHashCode(),
+                Hash = OxySyncHash.Compute(method.Name),
                 ArgTypes = method.GetParameters().Select(p => p.ParameterType).ToArray(),
                 InterestGroup = -1,
                 SendMode = attr.SendMode,
@@ -240,11 +316,17 @@ namespace Shared.OxySync
         {
             if (!inSession) return;
 
-            var hash = methodName.GetHashCode();
+            var hash = OxySyncHash.Compute(methodName);
 
             if (_commandMethods == null || !_commandMethods.ContainsKey(hash))
             {
                 LogWarning?.Invoke($"[OxySync] '{methodName}' is not a registered Command on {GetType().Name}.");
+                return;
+            }
+
+            if (_commandMethods[hash].RequiresHost && !isServer)
+            {
+                LogWarning?.Invoke($"[OxySync] Command '{methodName}' requires the host and cannot be sent by a client.");
                 return;
             }
 
@@ -292,7 +374,7 @@ namespace Shared.OxySync
         {
             if (!inSession || !isServer) return;
 
-            var hash = methodName.GetHashCode();
+            var hash = OxySyncHash.Compute(methodName);
 
             if (_clientRpcMethods == null || !_clientRpcMethods.ContainsKey(hash))
             {
@@ -330,7 +412,7 @@ namespace Shared.OxySync
         {
             if (!inSession || !isServer) return;
 
-            var hash = methodName.GetHashCode();
+            var hash = OxySyncHash.Compute(methodName);
 
             if (_clientRpcMethods == null || !_clientRpcMethods.ContainsKey(hash))
             {
@@ -366,7 +448,7 @@ namespace Shared.OxySync
         {
             if (!inSession || !isServer) return;
 
-            var hash = methodName.GetHashCode();
+            var hash = OxySyncHash.Compute(methodName);
 
             if (_targetRpcMethods == null || !_targetRpcMethods.ContainsKey(hash))
             {
@@ -376,6 +458,12 @@ namespace Shared.OxySync
 
             var argTypes = GetTargetRpcArgTypes(hash);
             var serialized = RpcSerializer.Serialize(args, argTypes);
+
+            if (targetPlayer == (LocalUserIdQuery?.Invoke() ?? ulong.MaxValue))
+            {
+                InvokeTargetRpc(hash, serialized);
+                return;
+            }
 
             var sendMode = GetTargetRpcSendMode(hash);
             SendTargetRpcToPlayer?.Invoke(targetPlayer, NetId, hash, serialized, sendMode);
@@ -392,9 +480,17 @@ namespace Shared.OxySync
             CallTargetRpc(targetPlayer, method.Method.Name, args);
         }
 
-        public virtual void ApplySyncVar(int fieldHash, object value, long timestamp = 0)
+        public virtual bool ApplySyncVar(int fieldHash, object value, long timestamp = 0)
         {
-            if (_syncVarFields == null) return;
+            if (_syncVarFields == null) return false;
+
+            if (timestamp > 0 &&
+                _lastReceivedSyncVarTimestamps != null &&
+                _lastReceivedSyncVarTimestamps.TryGetValue(fieldHash, out long previousTimestamp) &&
+                !IsNewerSyncTimestamp(timestamp, previousTimestamp))
+            {
+                return false;
+            }
 
             for (int i = 0; i < _syncVarFields.Count; i++)
             {
@@ -405,15 +501,25 @@ namespace Shared.OxySync
                 field.Info.SetValue(this, value);
 
                 var updated = field;
-                updated.LastSentValue = value;
+                updated.LastSentValue = SnapshotSyncVarValue(value, field.Info.FieldType);
                 _syncVarFields[i] = updated;
+
+                if (timestamp > 0)
+                    (_lastReceivedSyncVarTimestamps ??= new Dictionary<int, long>())[fieldHash] = timestamp;
 
                 if (field.Hook != null && !Equals(oldValue, value))
                 {
                     field.Hook.Invoke(this, new[] { oldValue, value });
                 }
-                return;
+                return true;
             }
+
+            return false;
+        }
+
+        public static bool IsNewerSyncTimestamp(long incomingTimestamp, long previousTimestamp)
+        {
+            return incomingTimestamp <= 0 || previousTimestamp <= 0 || incomingTimestamp > previousTimestamp;
         }
 
         public void InvokeCommand(int methodHash, byte[] args)
@@ -449,7 +555,7 @@ namespace Shared.OxySync
                 LogWarning?.Invoke($"[OxySync] '{method.Info.Name}' is [Client] but called on server — skipped.");
                 return;
             }
-            if (method.Info.GetCustomAttribute<CommandAttribute>()?.RequiresHost == true && !isServer)
+            if (method.RequiresHost && !isServer)
             {
                 LogWarning?.Invoke($"[OxySync] Command '{method.Info.Name}' requires host — skipped.");
                 return;
@@ -470,6 +576,13 @@ namespace Shared.OxySync
             if (_commandMethods != null && _commandMethods.TryGetValue(hash, out var m))
                 return m.ArgTypes;
             return Array.Empty<Type>();
+        }
+
+        public bool CommandRequiresHost(int methodHash)
+        {
+            return _commandMethods != null &&
+                _commandMethods.TryGetValue(methodHash, out var method) &&
+                method.RequiresHost;
         }
 
         private Type[] GetClientRpcArgTypes(int hash)
@@ -542,7 +655,7 @@ namespace Shared.OxySync
 
                 field.Info.SetValue(this, value);
                 var updated = field;
-                updated.LastSentValue = value;
+                updated.LastSentValue = SnapshotSyncVarValue(value, field.Info.FieldType);
                 _syncVarFields[i] = updated;
                 SetSyncVarDirty(fieldHash);
                 return;
@@ -555,28 +668,69 @@ namespace Shared.OxySync
             for (int i = 0; i < _syncVarFields.Count; i++)
             {
                 var field = _syncVarFields[i];
-                field.LastSentValue = field.Info.GetValue(this);
+                field.LastSentValue = SnapshotSyncVarValue(
+                    field.Info.GetValue(this), field.Info.FieldType);
                 _syncVarFields[i] = field;
             }
+        }
+
+        public static object? SnapshotSyncVarValue(object? value, Type fieldType)
+        {
+            if (value == null)
+                return null;
+
+            if (fieldType.IsValueType || fieldType == typeof(string))
+                return value;
+
+            if (!RpcSerializer.IsSupportedType(fieldType))
+                return value;
+
+            byte[] snapshot = RpcSerializer.Serialize(
+                new[] { value },
+                new[] { fieldType });
+            return RpcSerializer.Deserialize(snapshot, new[] { fieldType })[0];
         }
 
         protected void SetSyncVarDirty(int fieldHash)
         {
             if (_syncVarHashToIndex != null && _syncVarHashToIndex.TryGetValue(fieldHash, out int idx))
-                _syncVarDirtyBits |= 1u << idx;
+            {
+                (_syncVarDirtyIndices ??= new HashSet<int>()).Add(idx);
+                if (idx < 32)
+                    _syncVarDirtyBits |= 1u << idx;
+            }
         }
 
+        /// <summary>
+        /// Legacy 32-bit dirty mask retained for API compatibility. New framework
+        /// code should consume GetAndClearDirtyIndices(), which has no field limit.
+        /// </summary>
         public uint GetAndClearDirtyBits()
         {
             uint bits = _syncVarDirtyBits;
             _syncVarDirtyBits = 0;
+            _syncVarDirtyIndices = null;
             return bits;
+        }
+
+        public HashSet<int>? GetAndClearDirtyIndices()
+        {
+            var indices = _syncVarDirtyIndices;
+            _syncVarDirtyIndices = null;
+            _syncVarDirtyBits = 0;
+            return indices;
         }
 
         public void MarkAllDirty()
         {
             if (_syncVarFields != null)
+            {
                 _syncVarDirtyBits = _syncVarFields.Count < 32 ? (1u << _syncVarFields.Count) - 1 : ~0u;
+                var indices = _syncVarDirtyIndices ??= new HashSet<int>();
+                indices.Clear();
+                for (int i = 0; i < _syncVarFields.Count; i++)
+                    indices.Add(i);
+            }
         }
     }
 }

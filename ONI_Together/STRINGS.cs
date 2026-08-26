@@ -1,4 +1,4 @@
-﻿
+
 using Steamworks;
 
 namespace ONI_Together
@@ -395,6 +395,27 @@ namespace ONI_Together
 
                         public static LocString UNKNOWN = "Disconnected";
                         public static LocString UNKNOWN_DESC = "An unknown network error occurred.";
+                    }
+
+                    public class LITENETLIB
+                    {
+                        public static LocString CONNECTION_FAILED = "Connection failed";
+                        public static LocString CONNECTION_FAILED_DESC = "Could not establish a connection to the host.";
+
+                        public static LocString CONNECTION_REJECTED = "Connection rejected";
+                        public static LocString CONNECTION_REJECTED_DESC = "The host refused the connection.";
+
+                        public static LocString HOST_DISCONNECTED = "Host disconnected";
+                        public static LocString HOST_DISCONNECTED_DESC = "The host has closed the game or ended the session.";
+
+                        public static LocString CONNECTION_TIMED_OUT = "Connection timed out";
+                        public static LocString CONNECTION_TIMED_OUT_DESC = "Lost connection to the host. No response received.";
+
+                        public static LocString KICKED = "Kicked from server";
+                        public static LocString KICKED_DESC = "You were disconnected by the host.";
+
+                        public static LocString UNKNOWN = "Disconnected";
+                        public static LocString UNKNOWN_DESC = "Disconnected from host.";
                     }
 
 					public static LocString MISSING_SAVE_FILE = "Downloaded save file not found.";

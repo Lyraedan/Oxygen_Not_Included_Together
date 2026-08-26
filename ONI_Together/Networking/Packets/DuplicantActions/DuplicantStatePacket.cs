@@ -1,38 +1,42 @@
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Architecture;
-using System.IO;
 using Shared.Profiling;
+using System.IO;
 
 namespace ONI_Together.Networking.Packets.DuplicantActions
 {
 	/// <summary>
-	/// Synchronizes high-level duplicant state (action type, work target, etc.)
-	/// This helps clients understand what the duplicant is doing beyond just animations.
-	/// Includes continuous animation reconciliation to self-correct desync.
+	/// Periodic compact animation/action keyframe. Ordered Play/Queue events remain
+	/// the primary source; this packet repairs loss and slow phase drift without
+	/// independently writing the client animation controller.
 	/// </summary>
-	public class DuplicantStatePacket : IPacket
+	public sealed class DuplicantStatePacket : IPacket
 	{
 		public int NetId;
+		public uint Sequence;
+		public long ServerTimestamp;
 		public DuplicantActionState ActionState;
-		public int TargetCell;          // Cell of work target (-1 if none)
-		public string CurrentAnimName;  // specific animation override
-		public float AnimElapsedTime;   // Elapsed time in current animation
-		public bool IsWorking;          // Whether actively working on something
-		public string HeldItemSymbol;   // For syncing guns/tools/carryables current animation
-		public int AnimPlayMode;        // KAnim.PlayMode for continuous anim reconciliation
-		public float AnimSpeed;         // Playback speed for continuous anim reconciliation
+		public int TargetCell;
+		public int CurrentAnimHash;
+		public float AnimElapsedTime;
+		public bool IsWorking;
+		public int HeldItemSymbolHash;
+		public byte AnimPlayMode;
+		public float AnimSpeed;
 
 		public void Serialize(BinaryWriter writer)
 		{
 			using var _ = Profiler.Scope();
 
 			writer.Write(NetId);
-			writer.Write((int)ActionState);
+			writer.Write(Sequence);
+			writer.Write(ServerTimestamp);
+			writer.Write((byte)ActionState);
 			writer.Write(TargetCell);
-			writer.Write(CurrentAnimName ?? string.Empty);
+			writer.Write(CurrentAnimHash);
 			writer.Write(AnimElapsedTime);
 			writer.Write(IsWorking);
-			writer.Write(HeldItemSymbol ?? string.Empty);
+			writer.Write(HeldItemSymbolHash);
 			writer.Write(AnimPlayMode);
 			writer.Write(AnimSpeed);
 		}
@@ -42,13 +46,15 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 			using var _ = Profiler.Scope();
 
 			NetId = reader.ReadInt32();
-			ActionState = (DuplicantActionState)reader.ReadInt32();
+			Sequence = reader.ReadUInt32();
+			ServerTimestamp = reader.ReadInt64();
+			ActionState = (DuplicantActionState)reader.ReadByte();
 			TargetCell = reader.ReadInt32();
-			CurrentAnimName = reader.ReadString();
+			CurrentAnimHash = reader.ReadInt32();
 			AnimElapsedTime = reader.ReadSingle();
 			IsWorking = reader.ReadBoolean();
-			HeldItemSymbol = reader.ReadString();
-			AnimPlayMode = reader.ReadInt32();
+			HeldItemSymbolHash = reader.ReadInt32();
+			AnimPlayMode = reader.ReadByte();
 			AnimSpeed = reader.ReadSingle();
 		}
 
@@ -58,16 +64,22 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 
 			if (MultiplayerSession.IsHost)
 				return;
-
-			if (!NetworkIdentityRegistry.TryGetComponent<KBatchedAnimController>(NetId, out var kbac))
+			if (!NetworkIdentityRegistry.TryGet(NetId, out var entity))
 				return;
 
-			if (string.IsNullOrEmpty(CurrentAnimName))
+			if (entity.TryGetComponent<DuplicantClientController>(out var playback)
+				&& playback.IsPlaybackActive)
+			{
+				playback.OnStateReceived(this);
+				return;
+			}
+
+			if (CurrentAnimHash == 0 || !entity.TryGetComponent<KBatchedAnimController>(out var kbac))
 				return;
 
 			AnimReconciliationHelper.Reconcile(
 				kbac,
-				new HashedString(CurrentAnimName),
+				new HashedString(CurrentAnimHash),
 				(KAnim.PlayMode)AnimPlayMode,
 				AnimSpeed,
 				AnimElapsedTime,
@@ -75,9 +87,6 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 		}
 	}
 
-	/// <summary>
-	/// High-level action states for duplicants
-	/// </summary>
 	public enum DuplicantActionState : byte
 	{
 		Idle = 0,
@@ -87,12 +96,12 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 		Digging = 4,
 		Eating = 5,
 		Sleeping = 6,
-		Using = 7,       // Using a machine/station
+		Using = 7,
 		Carrying = 9,
 		Climbing = 10,
 		Swimming = 11,
 		Falling = 12,
 		Disinfecting = 13,
-		Other = 100
+		Other = 100,
 	}
 }

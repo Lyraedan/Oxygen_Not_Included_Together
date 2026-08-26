@@ -49,13 +49,15 @@
 	</Target>
 
 	<PropertyGroup>
-		<TargetFolder>$(ModFolder)\$(TargetName)_dev\</TargetFolder>
+		<TargetFolder>$([System.IO.Path]::GetFullPath('$(ModFolder)\$(TargetName)_dev'))</TargetFolder>
 	</PropertyGroup>
 
 	<!--Copies the mod dll, the two yaml files and everything inside the ModAssets folder to the target mod folder-->
 	<Target Name="CopyModsToDevFolder" AfterTargets="ILRepack" Condition="'$(DoNotBuildAsMod)' != 'true'">
 
 		<Message Text="Executing CopyDLLs task" Importance="High" />
+
+		<MakeDir Directories="$(TargetFolder)"/>
 
 		<ItemGroup>
 			<ModAssets

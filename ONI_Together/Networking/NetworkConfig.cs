@@ -32,13 +32,14 @@ namespace ONI_Together.Networking
         public enum NetworkTransport
         {
             STEAMWORKS = 0,
-            RIPTIDE = 1,
+            LITENETLIB = 1,
+            RIPTIDE = 2
         }
-        public static NetworkTransport transport { get; private set; } = NetworkTransport.RIPTIDE;
+        public static NetworkTransport transport { get; private set; } = NetworkTransport.LITENETLIB;
 
-        public static TransportServer TransportServer { get; set; } = new RiptideServer();
-        public static TransportClient TransportClient { get; set; } = new RiptideClient();
-        public static TransportPacketSender TransportPacketSender { get; set; } = new RiptidePacketSender();
+        public static TransportServer TransportServer { get; set; } = new LiteNetLibServer();
+        public static TransportClient TransportClient { get; set; } = new LiteNetLibClient();
+        public static TransportPacketSender TransportPacketSender { get; set; } = new LiteNetLibPacketSender();
 
         public static readonly int LOBBY_SIZE_MIN = 2;
         public static readonly int LOBBY_SIZE_DEFAULT = 4;
@@ -55,9 +56,10 @@ namespace ONI_Together.Networking
                     UpdateTransport(NetworkTransport.STEAMWORKS);
                     StartSteamServer();
                     break;
+                case NetworkTransport.LITENETLIB:
                 case NetworkTransport.RIPTIDE:
-                    UpdateTransport(NetworkTransport.RIPTIDE);
-                    CoroutineRunner.RunOne(StartRawDelayed(1f)); // Wait 1 second (prevents timeouts when hosting after loading... doesn't work on crap hardware)
+                    UpdateTransport(transport);
+                    CoroutineRunner.RunOne(StartRawDelayed(0.5f));
                     break;
             }
         }
@@ -105,6 +107,7 @@ namespace ONI_Together.Networking
                 case NetworkTransport.STEAMWORKS:
                     StopSteamworks();
                     break;
+                case NetworkTransport.LITENETLIB:
                 case NetworkTransport.RIPTIDE:
                     StopRaw();
                     break;
@@ -146,46 +149,19 @@ namespace ONI_Together.Networking
         public static TransportServer GetTransportServer()
         {
             using var _ = Profiler.Scope();
-
-            switch (transport)
-            {
-                case NetworkTransport.STEAMWORKS:
-                    return new SteamServer();
-                case NetworkTransport.RIPTIDE:
-                    return new RiptideServer();
-                default:
-                    return new RiptideServer(); // Use riptide by default now
-            }
+            return TransportRegistry.GetTransport((TransportProtocol)transport).CreateServer();
         }
 
         public static TransportClient GetTransportClient()
         {
             using var _ = Profiler.Scope();
-
-            switch (transport)
-            {
-                case NetworkTransport.STEAMWORKS:
-                    return new SteamClient();
-                case NetworkTransport.RIPTIDE:
-                    return new RiptideClient();
-                default:
-                    return new RiptideClient(); // Use riptide by default now
-            }
+            return TransportRegistry.GetTransport((TransportProtocol)transport).CreateClient();
         }
 
         public static TransportPacketSender GetTransportPacketSender()
         {
             using var _ = Profiler.Scope();
-
-            switch (transport)
-            {
-                case NetworkTransport.STEAMWORKS:
-                    return new SteamworksPacketSender();
-                case NetworkTransport.RIPTIDE:
-                    return new RiptidePacketSender();
-                default:
-                    return new RiptidePacketSender(); // Use riptide by default now
-            }
+            return TransportRegistry.GetTransport((TransportProtocol)transport).CreatePacketSender();
         }
 
         public static ulong GetLocalID()
@@ -196,15 +172,10 @@ namespace ONI_Together.Networking
             {
                 case NetworkTransport.STEAMWORKS:
                     return SteamUser.GetSteamID().m_SteamID;
+                case NetworkTransport.LITENETLIB:
+                    return MultiplayerSession.IsClient ? LiteNetLibClient.CLIENT_ID : LiteNetLibServer.CLIENT_ID;
                 case NetworkTransport.RIPTIDE:
-                    if (MultiplayerSession.IsClient)
-                    {
-                        return RiptideClient.CLIENT_ID;
-                    }
-                    else
-                    {
-                        return RiptideServer.CLIENT_ID;
-                    }
+                    return MultiplayerSession.IsClient ? RiptideClient.CLIENT_ID : RiptideServer.CLIENT_ID;
                 default:
                     return Utils.NilUlong();
             }
@@ -221,7 +192,7 @@ namespace ONI_Together.Networking
         {
             using var _ = Profiler.Scope();
 
-            return transport.Equals(NetworkTransport.RIPTIDE);
+            return transport.Equals(NetworkTransport.LITENETLIB) || transport.Equals(NetworkTransport.RIPTIDE);
         }
 
         public static int GetMaxServerCapacity()
@@ -232,12 +203,9 @@ namespace ONI_Together.Networking
                     if (SteamLobby.InLobby)
                         return SteamMatchmaking.GetLobbyMemberLimit(SteamLobby.CurrentLobby);
                     break;
+                case NetworkTransport.LITENETLIB:
                 case NetworkTransport.RIPTIDE:
-                    if (RiptideServer.ServerInstance != null)
-                        return RiptideServer.ServerInstance.MaxClientCount;
-                    if (RiptideClient.MaxServerCapacity > 0)
-                        return RiptideClient.MaxServerCapacity;
-                    break;
+                    return Configuration.Instance.Host.MaxLobbySize;
             }
             return Configuration.Instance.Host.MaxLobbySize;
         }
@@ -256,16 +224,15 @@ namespace ONI_Together.Networking
                         clients.Add(member.m_SteamID);
                     }
                     break;
-                case NetworkTransport.RIPTIDE:
+                case NetworkTransport.LITENETLIB:
                     if (MultiplayerSession.IsClient)
                     {
-                        RiptideClient client = TransportClient as RiptideClient;
-                        return client.ClientList;
+                        return new List<ulong>(MultiplayerSession.ConnectedPlayers.Keys);
                     }
                     else
                     {
-                        RiptideServer server = TransportServer as RiptideServer;
-                        return server.ClientList;
+                        LiteNetLibServer server = TransportServer as LiteNetLibServer;
+                        return server?.ClientList ?? clients;
                     }
             }
             return clients;

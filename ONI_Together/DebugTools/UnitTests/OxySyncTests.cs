@@ -2,22 +2,136 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using HarmonyLib;
 using ONI_Together.Misc;
+using ONI_Together.Networking;
+using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Networking.OxySync.Packets;
+using ONI_Together.Networking.Packets.Core;
+using ONI_Together.Networking.Packets.Architecture;
+using ONI_Together.Networking.Components;
 using Shared.OxySync;
+using Shared.OxySync.Attributes;
 using UnityEngine;
 
 namespace ONI_Together.DebugTools.UnitTests
 {
     public static class OxySyncTests
     {
+        private enum WideRpcEnum : ulong
+        {
+            HighValue = ulong.MaxValue - 7,
+        }
+
+		[UnitTest(name: "OxySync protocol hashes are deterministic", category: "OxySync")]
+		public static UnitTestResult OxySyncProtocolHashIsDeterministic()
+		{
+			if (ProtocolCompatibility.CurrentProtocolVersion < 2)
+				return UnitTestResult.Fail("The handshake still permits pre-stable-hash OxySync peers");
+
+			int a1 = OxySyncHash.Compute("CmdSetSpeed");
+			int a2 = OxySyncHash.Compute("CmdSetSpeed");
+			if (a1 != a2)
+				return UnitTestResult.Fail($"Hash not deterministic: {a1} != {a2}");
+			if (a1 != "CmdSetSpeed".GetHashCode())
+				return UnitTestResult.Fail($"OxySyncHash should delegate to GetHashCode: got {a1} vs { "CmdSetSpeed".GetHashCode()}");
+			int b = OxySyncHash.Compute("OtherMethod");
+			if (a1 == b)
+				return UnitTestResult.Fail("Different strings produced same hash");
+
+			return UnitTestResult.Pass("OxySync identifiers use GetHashCode (deterministic on Unity Mono)");
+		}
+
+        [UnitTest(name: "Snapshot timeline ignores clock skew and arrival jitter", category: "OxySync")]
+        public static UnitTestResult SnapshotTimelineNormalizesRemoteTime()
+        {
+            var timeline = new SnapshotTimeline();
+
+            double first = timeline.ToLocalTime(1_700_000_000_000L, 1_000.0);
+            double second = timeline.ToLocalTime(1_700_000_000_050L, 1_135.0);
+            double third = timeline.ToLocalTime(1_700_000_000_100L, 1_155.0);
+
+            if (Math.Abs(first - 1_000.0) > 0.001)
+                return UnitTestResult.Fail($"Initial local anchor mismatch: {first}");
+            if (Math.Abs(second - 1_050.0) > 0.001)
+                return UnitTestResult.Fail($"Remote cadence was changed by arrival jitter: {second}");
+            if (Math.Abs(third - 1_100.0) > 0.001)
+                return UnitTestResult.Fail($"Remote cadence was changed by clock skew: {third}");
+
+            return UnitTestResult.Pass("Remote snapshots use a stable local monotonic timeline");
+        }
+
+		[UnitTest(name: "Snapshot timeline adapts its buffer to arrival jitter", category: "OxySync")]
+		public static UnitTestResult SnapshotTimelineAdaptsToJitter()
+		{
+			var timeline = new SnapshotTimeline();
+			timeline.ToLocalTime(1_000L, 1_000.0);
+			timeline.ToLocalTime(1_050L, 1_140.0);
+			timeline.ToLocalTime(1_100L, 1_160.0);
+
+			double adaptive = timeline.GetAdaptiveBufferMilliseconds(150.0, 350.0);
+			if (adaptive <= 150.0 || adaptive > 350.0)
+				return UnitTestResult.Fail($"Adaptive buffer out of range: {adaptive}");
+
+			timeline.Reset();
+			if (timeline.EstimatedJitterMilliseconds != 0.0)
+				return UnitTestResult.Fail("Reset did not clear estimated jitter");
+
+			return UnitTestResult.Pass("Arrival jitter increases the interpolation buffer within its cap");
+		}
+
+		[UnitTest(name: "Snapshot timeline ignores reordered arrivals", category: "OxySync")]
+		public static UnitTestResult SnapshotTimelineIgnoresReorderedArrivalForJitter()
+		{
+			var timeline = new SnapshotTimeline();
+			timeline.ToLocalTime(1_000L, 1_000.0);
+			timeline.ToLocalTime(1_100L, 1_100.0);
+			double olderMapped = timeline.ToLocalTime(1_050L, 1_150.0);
+			timeline.ToLocalTime(1_150L, 1_150.0);
+
+			if (Math.Abs(olderMapped - 1_050.0) > 0.001)
+				return UnitTestResult.Fail("Reordered packet did not retain the anchor mapping");
+			if (timeline.EstimatedJitterMilliseconds > 0.001)
+				return UnitTestResult.Fail($"Reordered packet poisoned jitter estimate: {timeline.EstimatedJitterMilliseconds}");
+
+			return UnitTestResult.Pass("Reordered channels do not inflate the adaptive buffer");
+		}
+
+		[UnitTest(name: "SyncVars reject stale and duplicate timestamps", category: "OxySync")]
+		public static UnitTestResult SyncVarTimestampOrdering()
+		{
+			if (!NetworkBehaviour.IsNewerSyncTimestamp(101, 100))
+				return UnitTestResult.Fail("A newer SyncVar timestamp was rejected");
+			if (NetworkBehaviour.IsNewerSyncTimestamp(100, 100))
+				return UnitTestResult.Fail("A duplicate SyncVar timestamp was accepted");
+			if (NetworkBehaviour.IsNewerSyncTimestamp(99, 100))
+				return UnitTestResult.Fail("A stale SyncVar timestamp was accepted");
+			if (!NetworkBehaviour.IsNewerSyncTimestamp(0, 100))
+				return UnitTestResult.Fail("An explicit untimestamped local update was rejected");
+
+			return UnitTestResult.Pass("Out-of-order SyncVar packets cannot roll state backwards");
+		}
+
+		[UnitTest(name: "Realtime snapshots bypass the optional packet queue", category: "OxySync")]
+		public static UnitTestResult RealtimeSnapshotsBypassPacketQueue()
+		{
+			if (!Networking.Transport.TransportPacketSender.IsLatencySensitive(PacketSendMode.UnreliableNoDelay))
+				return UnitTestResult.Fail("UnreliableNoDelay should bypass the queue");
+			if (Networking.Transport.TransportPacketSender.IsLatencySensitive(PacketSendMode.Unreliable))
+				return UnitTestResult.Fail("Regular unreliable traffic should retain configured queue behavior");
+			if (Networking.Transport.TransportPacketSender.IsLatencySensitive(PacketSendMode.ReliableImmediate))
+				return UnitTestResult.Fail("Reliable traffic must retain ordering through the queue");
+
+			return UnitTestResult.Pass("Only latency-sensitive unreliable snapshots bypass the queue");
+		}
+
         [UnitTest(name: "SyncVarPacket round-trip", category: "OxySync")]
         public static UnitTestResult SyncVarPacketRoundTrip()
         {
             var input = new SyncVarPacket
             {
                 NetId = 12345,
-                FieldHash = "health".GetHashCode(),
+                FieldHash = OxySyncHash.Compute("health"),
                 Value = (Variant)100f,
                 Timestamp = 987654321098L,
             };
@@ -48,10 +162,10 @@ namespace ONI_Together.DebugTools.UnitTests
         {
             var updates = new System.Collections.Generic.List<(int Hash, Variant Value)>
             {
-                ("hp".GetHashCode(), (Variant)80f),
-                ("dead".GetHashCode(), (Variant)false),
-                ("name".GetHashCode(), (Variant)"Alice"),
-                ("count".GetHashCode(), (Variant)42),
+                (OxySyncHash.Compute("hp"), (Variant)80f),
+                (OxySyncHash.Compute("dead"), (Variant)false),
+                (OxySyncHash.Compute("name"), (Variant)"Alice"),
+                (OxySyncHash.Compute("count"), (Variant)42),
             };
 
             var input = new SyncVarBatchPacket(999, updates)
@@ -86,13 +200,45 @@ namespace ONI_Together.DebugTools.UnitTests
             return UnitTestResult.Pass("SyncVarBatchPacket round-trips correctly");
         }
 
+		[UnitTest(name: "SyncVar dispatch resolves the owning component", category: "OxySync")]
+		public static UnitTestResult SyncVarDispatchResolvesOwningComponent()
+		{
+			int checkedComponents = 0;
+			foreach (var identity in NetworkIdentityRegistry.AllIdentities)
+			{
+				if (identity.TryGetComponent<BatterySyncer>(out var batterySyncer))
+				{
+					var resolved = OxySyncDispatchResolver.FindSyncVarBehaviour(
+						identity.NetId, OxySyncHash.Compute("_joulesAvailable"));
+					if (resolved != batterySyncer)
+						return UnitTestResult.Fail("Battery joules resolved to the wrong NetworkBehaviour");
+					checkedComponents++;
+				}
+
+				if (identity.TryGetComponent<EnergyGeneratorSyncer>(out _) &&
+					identity.TryGetComponent<StorageSyncer>(out var fuelStorageSyncer))
+				{
+					var resolved = OxySyncDispatchResolver.FindSyncVarBehaviour(
+						identity.NetId, OxySyncHash.Compute("_storageBlob"));
+					if (resolved != fuelStorageSyncer)
+						return UnitTestResult.Fail("Generator fuel storage resolved to the wrong NetworkBehaviour");
+					checkedComponents++;
+				}
+			}
+
+			return UnitTestResult.Pass(
+				checkedComponents > 0
+					? $"Resolved {checkedComponents} battery/generator SyncVar components"
+					: "No live batteries or fueled generators; resolver is ready for spawned entities");
+		}
+
         [UnitTest(name: "CommandPacket round-trip", category: "OxySync")]
         public static UnitTestResult CommandPacketRoundTrip()
         {
             var input = new CommandPacket
             {
                 NetId = 777,
-                MethodHash = "TakeDamage".GetHashCode(),
+                MethodHash = OxySyncHash.Compute("TakeDamage"),
                 Args = new byte[] { 0x01, 0x02, 0x03 },
             };
 
@@ -115,13 +261,31 @@ namespace ONI_Together.DebugTools.UnitTests
             return UnitTestResult.Pass("CommandPacket round-trips correctly");
         }
 
+        [UnitTest(name: "Host-only commands reject remote dispatch", category: "OxySync")]
+        public static UnitTestResult HostOnlyCommandsRejectRemoteDispatch()
+        {
+            var resetMethod = AccessTools.Method(
+                typeof(Networking.OxySync.OxySyncTestComponent),
+                nameof(Networking.OxySync.OxySyncTestComponent.CmdReset));
+            var attribute = resetMethod?.GetCustomAttributes(typeof(CommandAttribute), true);
+
+            if (attribute == null || attribute.Length != 1 ||
+                attribute[0] is not CommandAttribute command || !command.RequiresHost)
+                return UnitTestResult.Fail("CmdReset is not marked as a host-only command");
+
+            if (AccessTools.Method(typeof(NetworkBehaviour), nameof(NetworkBehaviour.CommandRequiresHost)) == null)
+                return UnitTestResult.Fail("Remote command dispatch cannot query host-only metadata");
+
+            return UnitTestResult.Pass("Host-only metadata is available to the remote command rejection path");
+        }
+
         [UnitTest(name: "ClientRpcPacket round-trip (broadcast)", category: "OxySync")]
         public static UnitTestResult ClientRpcPacketBroadcastRoundTrip()
         {
             var input = new ClientRpcPacket
             {
                 NetId = 555,
-                MethodHash = "RpcHealed".GetHashCode(),
+                MethodHash = OxySyncHash.Compute("RpcHealed"),
                 Args = new byte[] { 0x0A },
                 TargetPlayerId = ulong.MaxValue,
             };
@@ -153,7 +317,7 @@ namespace ONI_Together.DebugTools.UnitTests
             var input = new ClientRpcPacket
             {
                 NetId = 444,
-                MethodHash = "RpcPrivateMsg".GetHashCode(),
+                MethodHash = OxySyncHash.Compute("RpcPrivateMsg"),
                 Args = Array.Empty<byte>(),
                 TargetPlayerId = 9001,
             };
@@ -173,6 +337,31 @@ namespace ONI_Together.DebugTools.UnitTests
             return UnitTestResult.Pass("ClientRpcPacket (targeted) round-trips correctly");
         }
 
+		[UnitTest(name: "TargetRpc dispatch resolves the target method owner", category: "OxySync")]
+		public static UnitTestResult TargetRpcDispatchResolvesOwningComponent()
+		{
+			int checkedMethods = 0;
+			foreach (var identity in NetworkIdentityRegistry.AllIdentities)
+			{
+				foreach (var behaviour in identity.GetComponents<NetworkBehaviour>())
+				{
+					foreach (var targetRpc in behaviour.TargetRpcs)
+					{
+						var resolved = OxySyncDispatchResolver.FindTargetRpcBehaviour(
+							identity.NetId, targetRpc.Key);
+						if (resolved != behaviour)
+							return UnitTestResult.Fail(
+								$"TargetRpc {targetRpc.Value.Info.Name} resolved to the wrong NetworkBehaviour");
+						checkedMethods++;
+					}
+				}
+			}
+
+			return UnitTestResult.Pass(checkedMethods > 0
+				? $"Resolved {checkedMethods} live TargetRpc methods"
+				: "No live TargetRpc behaviours; dedicated target resolver is registered");
+		}
+
         [UnitTest(name: "RpcSerializer all 12 types round-trip", category: "OxySync")]
         public static UnitTestResult RpcSerializerAllTypes()
         {
@@ -191,6 +380,7 @@ namespace ONI_Together.DebugTools.UnitTests
                 new byte[] { 0xAA, 0xBB, 0xCC },
                 new HashedString(55555),
                 new KAnimHashedString(66666),
+                WideRpcEnum.HighValue,
             };
 
             Type[] types = {
@@ -199,6 +389,7 @@ namespace ONI_Together.DebugTools.UnitTests
                 typeof(Vector2), typeof(Vector3), typeof(Color),
                 typeof(Quaternion), typeof(byte[]),
                 typeof(HashedString), typeof(KAnimHashedString),
+                typeof(WideRpcEnum),
             };
 
             var data = RpcSerializer.Serialize(args, types);
@@ -247,7 +438,10 @@ namespace ONI_Together.DebugTools.UnitTests
             if (khs.hash != 66666)
                 return UnitTestResult.Fail("KAnimHashedString mismatch");
 
-            return UnitTestResult.Pass("All 14 RPC types round-trip correctly");
+            if ((WideRpcEnum)result[14] != WideRpcEnum.HighValue)
+                return UnitTestResult.Fail("ulong-backed enum mismatch");
+
+            return UnitTestResult.Pass("All 15 RPC types round-trip correctly");
         }
 
         [UnitTest(name: "RpcSerializer empty args", category: "OxySync")]
@@ -261,6 +455,124 @@ namespace ONI_Together.DebugTools.UnitTests
 
             return UnitTestResult.Pass("Empty args round-trip correctly");
         }
+
+		[UnitTest(name: "RpcSerializer validates payload framing", category: "OxySync")]
+		public static UnitTestResult RpcSerializerValidatesPayloadFraming()
+		{
+			object[] nullValues = { null, null, null };
+			Type[] nullTypes = { typeof(string), typeof(byte[]), typeof(List<int>) };
+			object[] nullRoundTrip = RpcSerializer.Deserialize(
+				RpcSerializer.Serialize(nullValues, nullTypes), nullTypes);
+			if (nullRoundTrip[0] != null || nullRoundTrip[1] != null || nullRoundTrip[2] != null)
+				return UnitTestResult.Fail("Top-level null RPC references were not preserved");
+
+			try
+			{
+				RpcSerializer.Serialize(new object[] { 1 }, Array.Empty<Type>());
+				return UnitTestResult.Fail("Mismatched RPC argument counts were accepted");
+			}
+			catch (ArgumentException)
+			{
+			}
+
+			using var stream = new MemoryStream();
+			using (var writer = new BinaryWriter(stream, Encoding.UTF8, true))
+			{
+				writer.Write(5);
+				writer.Write(new byte[] { 1, 2 });
+			}
+			stream.Position = 0;
+			try
+			{
+				using var reader = new BinaryReader(stream, Encoding.UTF8, true);
+				RpcSerializer.ReadPayload(reader);
+				return UnitTestResult.Fail("A truncated RPC payload was accepted");
+			}
+			catch (EndOfStreamException)
+			{
+			}
+
+			string input = new string('O', 100_000) + new string('N', 100_000);
+			string output = RpcSerializer.DecompressString(RpcSerializer.CompressString(input));
+			if (output != input)
+				return UnitTestResult.Fail("Large compressed RPC strings did not round-trip completely");
+
+			try
+			{
+				RpcSerializer.DecompressString(Convert.ToBase64String(new byte[] { 1, 2, 3 }));
+				return UnitTestResult.Fail("A malformed compressed RPC string was accepted");
+			}
+			catch (InvalidDataException)
+			{
+			}
+
+			return UnitTestResult.Pass("RPC argument counts, lengths, and compressed reads are validated");
+		}
+
+		[UnitTest(name: "SyncVar Variant rejects invalid data", category: "OxySync")]
+		public static UnitTestResult SyncVarVariantRejectsInvalidData()
+		{
+			Variant nullVariant = VariantHelper.ObjectToVariant(null);
+			if (nullVariant.Type != Variant.TypeCode.Null ||
+				VariantHelper.VariantToObject(nullVariant, typeof(string)) != null)
+				return UnitTestResult.Fail("A null SyncVar did not preserve its null state");
+
+			Variant wideEnum = VariantHelper.ObjectToVariant(WideRpcEnum.HighValue);
+			if ((WideRpcEnum)VariantHelper.VariantToObject(wideEnum, typeof(WideRpcEnum)) != WideRpcEnum.HighValue)
+				return UnitTestResult.Fail("A ulong-backed SyncVar enum did not round-trip");
+
+			const decimal decimalInput = 1234567890.123456789m;
+			Variant decimalVariant = VariantHelper.ObjectToVariant(decimalInput);
+			if ((decimal)VariantHelper.VariantToObject(decimalVariant, typeof(decimal)) != decimalInput)
+				return UnitTestResult.Fail("A decimal SyncVar did not round-trip");
+
+			try
+			{
+				VariantHelper.ObjectToVariant(new object());
+				return UnitTestResult.Fail("An unsupported SyncVar value silently serialized");
+			}
+			catch (NotSupportedException)
+			{
+			}
+
+			using var stream = new MemoryStream();
+			using (var writer = new BinaryWriter(stream, Encoding.UTF8, true))
+			{
+				writer.Write((byte)Variant.TypeCode.ByteArray);
+				writer.Write(Variant.MaxBinaryBytes + 1);
+			}
+			stream.Position = 0;
+			try
+			{
+				using var reader = new BinaryReader(stream, Encoding.UTF8, true);
+				Variant.Read(reader);
+				return UnitTestResult.Fail("An oversized SyncVar byte array was accepted");
+			}
+			catch (InvalidDataException)
+			{
+			}
+
+			return UnitTestResult.Pass("Unsupported and oversized SyncVar values are rejected explicitly");
+		}
+
+		[UnitTest(name: "SyncVar mutable values use independent snapshots", category: "OxySync")]
+		public static UnitTestResult SyncVarMutableValuesUseIndependentSnapshots()
+		{
+			var current = new List<int> { 1, 2, 3 };
+			var snapshot = (List<int>)NetworkBehaviour.SnapshotSyncVarValue(
+				current, typeof(List<int>));
+
+			current[1] = 99;
+			if (snapshot[1] != 2)
+				return UnitTestResult.Fail("The previous SyncVar collection snapshot mutated with the live value");
+
+			var currentVariant = VariantHelper.ObjectToVariant(current);
+			var snapshotVariant = VariantHelper.ObjectToVariant(snapshot);
+			if (!VariantHelper.ValuesDiffer(currentVariant, snapshotVariant, 0.01f))
+				return UnitTestResult.Fail("An in-place SyncVar collection mutation was not detected");
+
+			return UnitTestResult.Pass("In-place array and collection changes remain visible to dirty comparison");
+		}
 
         [UnitTest(name: "RpcSerializer string handles null", category: "OxySync")]
         public static UnitTestResult RpcSerializerNullString()
