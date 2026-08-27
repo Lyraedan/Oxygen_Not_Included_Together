@@ -33,18 +33,17 @@ namespace ONI_Together.Networking.OxySync.Components
         private byte[] _statusBlob;
 
         private float _syncTimer;
+        private int _lastStatusFingerprint = int.MinValue;
+
+        private const float MinSyncInterval = 0.5f;
+        private const float MaxSyncInterval = 2f;
 
         private void Update()
         {
-            if (!isServer || !inSession)
+            if (!isServer || !inSession || !MultiplayerSession.SessionHasPlayers)
                 return;
 
-            _syncTimer += UnityEngine.Time.unscaledDeltaTime;
-            if (_syncTimer < 0.5f)
-                return;
-            _syncTimer = 0f;
-
-            if (_selectable == null)
+            if (_selectable == null || _selectable.IsNullOrDestroyed())
                 return;
 
             // Off-screen chunk entities receive a reliable full snapshot when a
@@ -52,9 +51,24 @@ namespace ONI_Together.Networking.OxySync.Components
             if (InterestGroup != -1 && InterestGroupManager.GetPlayersInGroup(InterestGroup).Count == 0)
                 return;
 
-            byte[] next = Encode(_selectable.GetStatusItemGroup());
+            _syncTimer += UnityEngine.Time.unscaledDeltaTime;
+            if (_syncTimer < MinSyncInterval)
+                return;
+
+            var group = _selectable.GetStatusItemGroup();
+            int fingerprint = ComputeFingerprint(group);
+            bool likelyChanged = fingerprint != _lastStatusFingerprint;
+            if (!likelyChanged && _syncTimer < MaxSyncInterval)
+                return;
+
+            byte[] next = Encode(group);
             if (!ByteArraysEqual(_statusBlob, next))
+            {
                 _statusBlob = next;
+                _syncTimer = 0f;
+            }
+
+            _lastStatusFingerprint = fingerprint;
         }
 
         private void OnStatusItemsChanged(byte[] oldValue, byte[] newValue)
@@ -235,6 +249,40 @@ namespace ONI_Together.Networking.OxySync.Components
             for (int i = 0; i < left.Length; i++)
                 if (left[i] != right[i]) return false;
             return true;
+        }
+
+        private static int ComputeFingerprint(StatusItemGroup group)
+        {
+            unchecked
+            {
+                int hash = 17;
+                int count = 0;
+
+                if (group != null)
+                {
+                    foreach (var entry in group)
+                    {
+                        if (entry.item == null)
+                            continue;
+
+                        count++;
+                        hash = (hash * 31) + HashString(entry.item.Id);
+                        hash = (hash * 31) + HashString(entry.category?.Id);
+
+                        if (count >= StatusItemsPacket.MaxEntries) {
+                            Debug.LogWarning($"StatusItemsSyncer: fingerprint truncated to {StatusItemsPacket.MaxEntries}");
+                            break;
+                        }
+                    }
+                }
+
+                return (hash * 31) + count;
+            }
+        }
+
+        private static int HashString(string value)
+        {
+            return value == null ? 0 : StringComparer.Ordinal.GetHashCode(value);
         }
     }
 }
