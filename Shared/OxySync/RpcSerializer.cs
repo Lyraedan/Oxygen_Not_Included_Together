@@ -11,16 +11,12 @@ namespace Shared.OxySync
 {
     public static class RpcSerializer
     {
-        public const int MaxPayloadBytes = 8 * 1024 * 1024;
-        private const int MaxCollectionElements = 65536;
-
         private enum ArgType : byte
         {
             Int, Float, Bool, Byte, Long, Double, String,
             Vector2, Vector3, Color, Quaternion, ByteArray, ULong,
             Array, List, Dict, Short, UShort, UInt, SByte, Char, Decimal,
-            Nullable, HashSet, Queue, Stack, HashedString, KAnimHashedString,
-            Null
+            Nullable, HashSet, Queue, Stack, HashedString, KAnimHashedString
         }
 
         private static readonly Dictionary<Type, ArgType> TypeToTag = new()
@@ -77,22 +73,12 @@ namespace Shared.OxySync
 
         public static byte[] Serialize(object[] args, Type[] argTypes)
         {
-            if (args == null) throw new ArgumentNullException(nameof(args));
-            if (argTypes == null) throw new ArgumentNullException(nameof(argTypes));
-            if (args.Length != argTypes.Length)
-                throw new ArgumentException(
-                    $"RPC argument count mismatch: received {args.Length}, expected {argTypes.Length}.");
-
             using var ms = new MemoryStream();
             using var writer = new BinaryWriter(ms);
 
-            for (int i = 0; i < argTypes.Length; i++)
+            for (int i = 0; i < args.Length; i++)
             {
-                if (!IsSupportedType(argTypes[i]))
-                    throw new NotSupportedException($"RPC argument type '{argTypes[i]}' is not supported.");
                 WriteArg(writer, args[i], argTypes[i]);
-                if (ms.Length > MaxPayloadBytes)
-                    throw new InvalidDataException($"RPC payload exceeds {MaxPayloadBytes} bytes.");
             }
 
             return ms.ToArray();
@@ -100,11 +86,6 @@ namespace Shared.OxySync
 
         public static object[] Deserialize(byte[] data, Type[] argTypes)
         {
-            if (data == null) throw new ArgumentNullException(nameof(data));
-            if (argTypes == null) throw new ArgumentNullException(nameof(argTypes));
-            if (data.Length > MaxPayloadBytes)
-                throw new InvalidDataException($"RPC payload exceeds {MaxPayloadBytes} bytes.");
-
             using var ms = new MemoryStream(data);
             using var reader = new BinaryReader(ms);
 
@@ -121,8 +102,8 @@ namespace Shared.OxySync
         {
             if (type.IsEnum)
             {
-                Type underlyingType = Enum.GetUnderlyingType(type);
-                WriteArg(writer, Convert.ChangeType(value, underlyingType), underlyingType);
+                writer.Write((byte)ArgType.Int);
+                writer.Write(Convert.ToInt32(value));
                 return;
             }
 
@@ -135,15 +116,6 @@ namespace Shared.OxySync
                     WriteArg(writer, value, Nullable.GetUnderlyingType(type));
                 return;
             }
-
-            if (value == null && !type.IsValueType)
-            {
-                writer.Write((byte)ArgType.Null);
-                return;
-            }
-
-            if (value == null)
-                throw new InvalidDataException($"RPC value for non-nullable type '{type}' is null.");
 
             if (type.IsArray && type != typeof(byte[]))
             {
@@ -267,39 +239,20 @@ namespace Shared.OxySync
 
             switch (tag)
             {
-                case ArgType.Null:
-                    if (type.IsValueType && Nullable.GetUnderlyingType(type) == null)
-                        throw new InvalidDataException($"RPC null cannot be assigned to '{type}'.");
-                    return null;
-
                 case ArgType.Int:
                     int intVal = reader.ReadInt32();
                     return type.IsEnum ? Enum.ToObject(type, intVal) : intVal;
 
                 case ArgType.Float: return reader.ReadSingle();
                 case ArgType.Bool: return reader.ReadBoolean();
-                case ArgType.Byte:
-                    byte byteVal = reader.ReadByte();
-                    return type.IsEnum ? Enum.ToObject(type, byteVal) : byteVal;
-                case ArgType.Long:
-                    long longVal = reader.ReadInt64();
-                    return type.IsEnum ? Enum.ToObject(type, longVal) : longVal;
-                case ArgType.ULong:
-                    ulong ulongVal = reader.ReadUInt64();
-                    return type.IsEnum ? Enum.ToObject(type, ulongVal) : ulongVal;
+                case ArgType.Byte: return reader.ReadByte();
+                case ArgType.Long: return reader.ReadInt64();
+                case ArgType.ULong: return reader.ReadUInt64();
                 case ArgType.Double: return reader.ReadDouble();
-                case ArgType.Short:
-                    short shortVal = reader.ReadInt16();
-                    return type.IsEnum ? Enum.ToObject(type, shortVal) : shortVal;
-                case ArgType.UShort:
-                    ushort ushortVal = reader.ReadUInt16();
-                    return type.IsEnum ? Enum.ToObject(type, ushortVal) : ushortVal;
-                case ArgType.UInt:
-                    uint uintVal = reader.ReadUInt32();
-                    return type.IsEnum ? Enum.ToObject(type, uintVal) : uintVal;
-                case ArgType.SByte:
-                    sbyte sbyteVal = reader.ReadSByte();
-                    return type.IsEnum ? Enum.ToObject(type, sbyteVal) : sbyteVal;
+                case ArgType.Short: return reader.ReadInt16();
+                case ArgType.UShort: return reader.ReadUInt16();
+                case ArgType.UInt: return reader.ReadUInt32();
+                case ArgType.SByte: return reader.ReadSByte();
                 case ArgType.Char: return reader.ReadChar();
                 case ArgType.Decimal: return reader.ReadDecimal();
                 case ArgType.String: return DecompressString(reader.ReadString());
@@ -310,11 +263,11 @@ namespace Shared.OxySync
                 case ArgType.Quaternion:
                     return new Quaternion(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
                 case ArgType.ByteArray:
-                    return ReadBytesChecked(reader);
+                    return reader.ReadBytes(reader.ReadInt32());
 
                 case ArgType.Array:
                 {
-                    int len = ReadCollectionCount(reader);
+                    int len = reader.ReadInt32();
                     var elementType = type.GetElementType();
                     var arr = Array.CreateInstance(elementType, len);
                     for (int i = 0; i < len; i++)
@@ -324,7 +277,7 @@ namespace Shared.OxySync
 
                 case ArgType.List:
                 {
-                    int count = ReadCollectionCount(reader);
+                    int count = reader.ReadInt32();
                     var elementType = type.GetGenericArguments()[0];
                     var list = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(elementType));
                     for (int i = 0; i < count; i++)
@@ -334,7 +287,7 @@ namespace Shared.OxySync
 
                 case ArgType.Dict:
                 {
-                    int count = ReadCollectionCount(reader);
+                    int count = reader.ReadInt32();
                     var keyType = type.GetGenericArguments()[0];
                     var valueType = type.GetGenericArguments()[1];
                     var dict = (IDictionary)Activator.CreateInstance(typeof(Dictionary<,>).MakeGenericType(keyType, valueType));
@@ -349,7 +302,7 @@ namespace Shared.OxySync
 
                 case ArgType.HashSet:
                 {
-                    int count = ReadCollectionCount(reader);
+                    int count = reader.ReadInt32();
                     var elementType = type.GetGenericArguments()[0];
                     var hashSetType = typeof(HashSet<>).MakeGenericType(elementType);
                     var hashSet = Activator.CreateInstance(hashSetType);
@@ -361,7 +314,7 @@ namespace Shared.OxySync
 
                 case ArgType.Queue:
                 {
-                    int count = ReadCollectionCount(reader);
+                    int count = reader.ReadInt32();
                     var elementType = type.GetGenericArguments()[0];
                     var queueType = typeof(Queue<>).MakeGenericType(elementType);
                     var queue = Activator.CreateInstance(queueType);
@@ -373,7 +326,7 @@ namespace Shared.OxySync
 
                 case ArgType.Stack:
                 {
-                    int count = ReadCollectionCount(reader);
+                    int count = reader.ReadInt32();
                     var elementType = type.GetGenericArguments()[0];
                     var stackType = typeof(Stack<>).MakeGenericType(elementType);
                     var stack = Activator.CreateInstance(stackType);
@@ -429,51 +382,6 @@ namespace Shared.OxySync
 
             return ReadArg(reader, elementType);
         }
-
-        public static byte[] ReadPayload(BinaryReader reader)
-        {
-            int length = reader.ReadInt32();
-            if (length < 0 || length > MaxPayloadBytes)
-                throw new InvalidDataException($"Invalid RPC payload length: {length}.");
-
-            byte[] payload = reader.ReadBytes(length);
-            if (payload.Length != length)
-                throw new EndOfStreamException(
-                    $"RPC payload ended after {payload.Length} of {length} bytes.");
-            return payload;
-        }
-
-        public static void WritePayload(BinaryWriter writer, byte[] payload)
-        {
-            if (payload == null)
-                throw new ArgumentNullException(nameof(payload));
-            if (payload.Length > MaxPayloadBytes)
-                throw new InvalidDataException($"RPC payload exceeds {MaxPayloadBytes} bytes.");
-
-            writer.Write(payload.Length);
-            writer.Write(payload);
-        }
-
-        private static byte[] ReadBytesChecked(BinaryReader reader)
-        {
-            int length = reader.ReadInt32();
-            if (length < 0 || length > MaxPayloadBytes)
-                throw new InvalidDataException($"Invalid byte array length: {length}.");
-
-            byte[] value = reader.ReadBytes(length);
-            if (value.Length != length)
-                throw new EndOfStreamException(
-                    $"Byte array ended after {value.Length} of {length} bytes.");
-            return value;
-        }
-
-        private static int ReadCollectionCount(BinaryReader reader)
-        {
-            int count = reader.ReadInt32();
-            if (count < 0 || count > MaxCollectionElements)
-                throw new InvalidDataException($"Invalid RPC collection count: {count}.");
-            return count;
-        }
         
         public static string CompressString(string text)
         {
@@ -505,43 +413,25 @@ namespace Shared.OxySync
             {
                 //return compressedText.Trim('`');
                 byte[] gZipBuffer = Convert.FromBase64String(compressedText);
-                if (gZipBuffer.Length < 4)
-                    throw new InvalidDataException("Compressed RPC string is missing its length header.");
-
-                int dataLength = BitConverter.ToInt32(gZipBuffer, 0);
-                if (dataLength < 0 || dataLength > MaxPayloadBytes)
-                    throw new InvalidDataException($"Invalid decompressed RPC string length: {dataLength}.");
-
-                using (var memoryStream = new MemoryStream(gZipBuffer, 4, gZipBuffer.Length - 4, false))
+                using (var memoryStream = new MemoryStream())
                 {
-                    using (var gZipStream = new GZipStream(memoryStream, CompressionMode.Decompress))
-                    using (var output = new MemoryStream(dataLength))
-                    {
-                        var chunk = new byte[8192];
-                        int total = 0;
-                        int read;
-                        while ((read = gZipStream.Read(chunk, 0, chunk.Length)) > 0)
-                        {
-                            total += read;
-                            if (total > dataLength || total > MaxPayloadBytes)
-                                throw new InvalidDataException("Compressed RPC string exceeds its declared length.");
-                            output.Write(chunk, 0, read);
-                        }
+                    int dataLength = BitConverter.ToInt32(gZipBuffer, 0);
+                    memoryStream.Write(gZipBuffer, 4, gZipBuffer.Length - 4);
 
-                        if (total != dataLength)
-                            throw new InvalidDataException(
-                                $"Compressed RPC string ended after {total} of {dataLength} bytes.");
-                        return Encoding.UTF8.GetString(output.ToArray());
+                    var buffer = new byte[dataLength];
+
+                    memoryStream.Position = 0;
+                    using (var gZipStream = new GZipStream(memoryStream, CompressionMode.Decompress))
+                    {
+                        gZipStream.Read(buffer, 0, buffer.Length);
                     }
+
+                    return Encoding.UTF8.GetString(buffer);
                 }
             }
-            catch (InvalidDataException)
+            catch (Exception ex) 
             {
-                throw;
-            }
-            catch (Exception ex)
-            {
-                throw new InvalidDataException("Invalid compressed RPC string payload.", ex);
+                return string.Empty;
             }
         }
     }

@@ -398,60 +398,7 @@ namespace ONI_Together.DebugTools.UnitTests
 
             return UnitTestResult.Pass("Empty args round-trip correctly");
         }
-
-		[UnitTest(name: "RpcSerializer validates payload framing", category: "OxySync")]
-		public static UnitTestResult RpcSerializerValidatesPayloadFraming()
-		{
-			object[] nullValues = { null, null, null };
-			Type[] nullTypes = { typeof(string), typeof(byte[]), typeof(List<int>) };
-			object[] nullRoundTrip = RpcSerializer.Deserialize(
-				RpcSerializer.Serialize(nullValues, nullTypes), nullTypes);
-			if (nullRoundTrip[0] != null || nullRoundTrip[1] != null || nullRoundTrip[2] != null)
-				return UnitTestResult.Fail("Top-level null RPC references were not preserved");
-
-			try
-			{
-				RpcSerializer.Serialize(new object[] { 1 }, Array.Empty<Type>());
-				return UnitTestResult.Fail("Mismatched RPC argument counts were accepted");
-			}
-			catch (ArgumentException)
-			{
-			}
-
-			using var stream = new MemoryStream();
-			using (var writer = new BinaryWriter(stream, Encoding.UTF8, true))
-			{
-				writer.Write(5);
-				writer.Write(new byte[] { 1, 2 });
-			}
-			stream.Position = 0;
-			try
-			{
-				using var reader = new BinaryReader(stream, Encoding.UTF8, true);
-				RpcSerializer.ReadPayload(reader);
-				return UnitTestResult.Fail("A truncated RPC payload was accepted");
-			}
-			catch (EndOfStreamException)
-			{
-			}
-
-			string input = new string('O', 100_000) + new string('N', 100_000);
-			string output = RpcSerializer.DecompressString(RpcSerializer.CompressString(input));
-			if (output != input)
-				return UnitTestResult.Fail("Large compressed RPC strings did not round-trip completely");
-
-			try
-			{
-				RpcSerializer.DecompressString(Convert.ToBase64String(new byte[] { 1, 2, 3 }));
-				return UnitTestResult.Fail("A malformed compressed RPC string was accepted");
-			}
-			catch (InvalidDataException)
-			{
-			}
-
-			return UnitTestResult.Pass("RPC argument counts, lengths, and compressed reads are validated");
-		}
-
+        
 		[UnitTest(name: "SyncVar Variant rejects invalid data", category: "OxySync")]
 		public static UnitTestResult SyncVarVariantRejectsInvalidData()
 		{
