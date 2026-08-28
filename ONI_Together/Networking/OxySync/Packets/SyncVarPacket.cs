@@ -38,8 +38,7 @@ namespace ONI_Together.Networking.OxySync.Packets
 
             if (MultiplayerSession.IsHost) return;
 
-            var behaviour = OxySyncDispatchResolver.FindSyncVarBehaviour(NetId, FieldHash);
-            if (behaviour == null)
+            if (!NetworkIdentityRegistry.TryGetComponent<NetworkBehaviour>(NetId, out var behaviour))
                 return;
 
             var fields = behaviour.SyncVarFields;

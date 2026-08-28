@@ -69,9 +69,9 @@ namespace Shared.OxySync
             SyncInterval = 0.05f;
             _snapshots = new List<SnapshotEntry>(16);
             _snapshotTimeline = new SnapshotTimeline();
-            _netPositionHash = OxySyncHash.Compute(nameof(_netPosition));
-            _netRotationHash = OxySyncHash.Compute(nameof(_netRotation));
-            _netScaleHash = OxySyncHash.Compute(nameof(_netScale));
+            _netPositionHash = nameof(_netPosition).GetHashCode();
+            _netRotationHash = nameof(_netRotation).GetHashCode();
+            _netScaleHash = nameof(_netScale).GetHashCode();
         }
 
         public override bool ApplySyncVar(int fieldHash, object value, long timestamp)

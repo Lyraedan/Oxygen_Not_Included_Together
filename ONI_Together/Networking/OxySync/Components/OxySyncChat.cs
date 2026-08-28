@@ -45,7 +45,7 @@ public class OxySyncChat : NetworkBehaviour
     {
         base.OnSpawn();
         Instance = this;
-        NetId = OxySyncHash.Compute(nameof(OxySyncChat));
+        NetId = nameof(OxySyncChat).GetHashCode();
         InterestGroup = -1;
         
         if (Game.Instance != null)

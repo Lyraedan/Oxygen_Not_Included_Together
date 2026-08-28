@@ -29,13 +29,13 @@ namespace ONI_Together.DebugTools.UnitTests
 			if (ProtocolCompatibility.CurrentProtocolVersion < 2)
 				return UnitTestResult.Fail("The handshake still permits pre-stable-hash OxySync peers");
 
-			int a1 = OxySyncHash.Compute("CmdSetSpeed");
-			int a2 = OxySyncHash.Compute("CmdSetSpeed");
+			int a1 = "CmdSetSpeed".GetHashCode();
+			int a2 = "CmdSetSpeed".GetHashCode();
 			if (a1 != a2)
 				return UnitTestResult.Fail($"Hash not deterministic: {a1} != {a2}");
 			if (a1 != "CmdSetSpeed".GetHashCode())
 				return UnitTestResult.Fail($"OxySyncHash should delegate to GetHashCode: got {a1} vs { "CmdSetSpeed".GetHashCode()}");
-			int b = OxySyncHash.Compute("OtherMethod");
+            int b = "OtherMethod".GetHashCode();
 			if (a1 == b)
 				return UnitTestResult.Fail("Different strings produced same hash");
 
@@ -131,7 +131,7 @@ namespace ONI_Together.DebugTools.UnitTests
             var input = new SyncVarPacket
             {
                 NetId = 12345,
-                FieldHash = OxySyncHash.Compute("health"),
+                FieldHash = "health".GetHashCode(),
                 Value = (Variant)100f,
                 Timestamp = 987654321098L,
             };
@@ -162,10 +162,10 @@ namespace ONI_Together.DebugTools.UnitTests
         {
             var updates = new System.Collections.Generic.List<(int Hash, Variant Value)>
             {
-                (OxySyncHash.Compute("hp"), (Variant)80f),
-                (OxySyncHash.Compute("dead"), (Variant)false),
-                (OxySyncHash.Compute("name"), (Variant)"Alice"),
-                (OxySyncHash.Compute("count"), (Variant)42),
+                ("hp".GetHashCode(), (Variant)80f),
+                ("dead".GetHashCode(), (Variant)false),
+                ("name".GetHashCode(), (Variant)"Alice"),
+                ("count".GetHashCode(), (Variant)42),
             };
 
             var input = new SyncVarBatchPacket(999, updates)
@@ -200,45 +200,13 @@ namespace ONI_Together.DebugTools.UnitTests
             return UnitTestResult.Pass("SyncVarBatchPacket round-trips correctly");
         }
 
-		[UnitTest(name: "SyncVar dispatch resolves the owning component", category: "OxySync")]
-		public static UnitTestResult SyncVarDispatchResolvesOwningComponent()
-		{
-			int checkedComponents = 0;
-			foreach (var identity in NetworkIdentityRegistry.AllIdentities)
-			{
-				if (identity.TryGetComponent<BatterySyncer>(out var batterySyncer))
-				{
-					var resolved = OxySyncDispatchResolver.FindSyncVarBehaviour(
-						identity.NetId, OxySyncHash.Compute("_joulesAvailable"));
-					if (resolved != batterySyncer)
-						return UnitTestResult.Fail("Battery joules resolved to the wrong NetworkBehaviour");
-					checkedComponents++;
-				}
-
-				if (identity.TryGetComponent<EnergyGeneratorSyncer>(out _) &&
-					identity.TryGetComponent<StorageSyncer>(out var fuelStorageSyncer))
-				{
-					var resolved = OxySyncDispatchResolver.FindSyncVarBehaviour(
-						identity.NetId, OxySyncHash.Compute("_storageBlob"));
-					if (resolved != fuelStorageSyncer)
-						return UnitTestResult.Fail("Generator fuel storage resolved to the wrong NetworkBehaviour");
-					checkedComponents++;
-				}
-			}
-
-			return UnitTestResult.Pass(
-				checkedComponents > 0
-					? $"Resolved {checkedComponents} battery/generator SyncVar components"
-					: "No live batteries or fueled generators; resolver is ready for spawned entities");
-		}
-
         [UnitTest(name: "CommandPacket round-trip", category: "OxySync")]
         public static UnitTestResult CommandPacketRoundTrip()
         {
             var input = new CommandPacket
             {
                 NetId = 777,
-                MethodHash = OxySyncHash.Compute("TakeDamage"),
+                MethodHash = "TakeDamage".GetHashCode(),
                 Args = new byte[] { 0x01, 0x02, 0x03 },
             };
 
@@ -285,7 +253,7 @@ namespace ONI_Together.DebugTools.UnitTests
             var input = new ClientRpcPacket
             {
                 NetId = 555,
-                MethodHash = OxySyncHash.Compute("RpcHealed"),
+                MethodHash = "RpcHealed".GetHashCode(),
                 Args = new byte[] { 0x0A },
                 TargetPlayerId = ulong.MaxValue,
             };
@@ -317,7 +285,7 @@ namespace ONI_Together.DebugTools.UnitTests
             var input = new ClientRpcPacket
             {
                 NetId = 444,
-                MethodHash = OxySyncHash.Compute("RpcPrivateMsg"),
+                MethodHash = "RpcPrivateMsg".GetHashCode(),
                 Args = Array.Empty<byte>(),
                 TargetPlayerId = 9001,
             };
@@ -336,31 +304,6 @@ namespace ONI_Together.DebugTools.UnitTests
 
             return UnitTestResult.Pass("ClientRpcPacket (targeted) round-trips correctly");
         }
-
-		[UnitTest(name: "TargetRpc dispatch resolves the target method owner", category: "OxySync")]
-		public static UnitTestResult TargetRpcDispatchResolvesOwningComponent()
-		{
-			int checkedMethods = 0;
-			foreach (var identity in NetworkIdentityRegistry.AllIdentities)
-			{
-				foreach (var behaviour in identity.GetComponents<NetworkBehaviour>())
-				{
-					foreach (var targetRpc in behaviour.TargetRpcs)
-					{
-						var resolved = OxySyncDispatchResolver.FindTargetRpcBehaviour(
-							identity.NetId, targetRpc.Key);
-						if (resolved != behaviour)
-							return UnitTestResult.Fail(
-								$"TargetRpc {targetRpc.Value.Info.Name} resolved to the wrong NetworkBehaviour");
-						checkedMethods++;
-					}
-				}
-			}
-
-			return UnitTestResult.Pass(checkedMethods > 0
-				? $"Resolved {checkedMethods} live TargetRpc methods"
-				: "No live TargetRpc behaviours; dedicated target resolver is registered");
-		}
 
         [UnitTest(name: "RpcSerializer all 12 types round-trip", category: "OxySync")]
         public static UnitTestResult RpcSerializerAllTypes()

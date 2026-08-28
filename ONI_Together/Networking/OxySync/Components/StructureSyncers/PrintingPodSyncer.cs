@@ -28,7 +28,7 @@ namespace ONI_Together.Networking.OxySync.Components
             Instance = this;
             _telepad = GetComponent<Telepad>();
             SyncInterval = 0.2f;
-            NetId = OxySyncHash.Compute(nameof(Telepad) + "_" + gameObject.GetMyWorldId());
+            NetId = (nameof(Telepad) + "_" + gameObject.GetMyWorldId()).GetHashCode();
             InterestGroup = -1;
         }
 

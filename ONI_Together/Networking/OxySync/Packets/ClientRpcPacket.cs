@@ -24,7 +24,8 @@ namespace ONI_Together.Networking.OxySync.Packets
         {
             writer.Write(NetId);
             writer.Write(MethodHash);
-            RpcSerializer.WritePayload(writer, Args);
+            writer.Write(Args.Length);
+            writer.Write(Args);
             writer.Write(TargetPlayerId);
         }
 
@@ -32,7 +33,8 @@ namespace ONI_Together.Networking.OxySync.Packets
         {
             NetId = reader.ReadInt32();
             MethodHash = reader.ReadInt32();
-            Args = RpcSerializer.ReadPayload(reader);
+            int len = reader.ReadInt32();
+            Args = reader.ReadBytes(len);
             TargetPlayerId = reader.ReadUInt64();
         }
 
@@ -45,16 +47,10 @@ namespace ONI_Together.Networking.OxySync.Packets
             if (TargetPlayerId != ulong.MaxValue && TargetPlayerId != MultiplayerSession.LocalUserID)
                 return;
 
-            if (TargetPlayerId == ulong.MaxValue)
-            {
-                var behaviour = OxySyncDispatchResolver.FindClientRpcBehaviour(NetId, MethodHash);
-                behaviour?.InvokeClientRpc(MethodHash, Args);
-            }
-            else
-            {
-                var behaviour = OxySyncDispatchResolver.FindTargetRpcBehaviour(NetId, MethodHash);
-                behaviour?.InvokeTargetRpc(MethodHash, Args);
-            }
+            if (!NetworkIdentityRegistry.TryGetComponent<NetworkBehaviour>(NetId, out var behaviour))
+                return;
+
+            behaviour.InvokeClientRpc(MethodHash, Args);
         }
     }
 }

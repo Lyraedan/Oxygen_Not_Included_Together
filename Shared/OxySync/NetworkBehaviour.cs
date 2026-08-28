@@ -123,7 +123,7 @@ namespace Shared.OxySync
                 var attr = field.GetCustomAttribute<SyncVarAttribute>();
                 if (attr == null) continue;
 
-                int hash = OxySyncHash.Compute(field.Name);
+                int hash = field.Name.GetHashCode();
                 if (!registeredHashes.Add(hash))
                 {
                     LogWarning?.Invoke(
@@ -279,7 +279,7 @@ namespace Shared.OxySync
             return new CachedMethod
             {
                 Info = method,
-                Hash = OxySyncHash.Compute(method.Name),
+                Hash = method.Name.GetHashCode(),
                 ArgTypes = method.GetParameters().Select(p => p.ParameterType).ToArray(),
                 InterestGroup = -1,
                 SendMode = attr.SendMode,
@@ -292,7 +292,7 @@ namespace Shared.OxySync
             return new CachedMethod
             {
                 Info = method,
-                Hash = OxySyncHash.Compute(method.Name),
+                Hash = method.Name.GetHashCode(),
                 ArgTypes = method.GetParameters().Select(p => p.ParameterType).ToArray(),
                 InterestGroup = attr.InterestGroup != -1 ? attr.InterestGroup : classDefaultGroup,
                 SendMode = attr.SendMode,
@@ -305,7 +305,7 @@ namespace Shared.OxySync
             return new CachedMethod
             {
                 Info = method,
-                Hash = OxySyncHash.Compute(method.Name),
+                Hash = method.Name.GetHashCode(),
                 ArgTypes = method.GetParameters().Select(p => p.ParameterType).ToArray(),
                 InterestGroup = -1,
                 SendMode = attr.SendMode,
@@ -316,7 +316,7 @@ namespace Shared.OxySync
         {
             if (!inSession) return;
 
-            var hash = OxySyncHash.Compute(methodName);
+            var hash = methodName.GetHashCode();
 
             if (_commandMethods == null || !_commandMethods.ContainsKey(hash))
             {
@@ -374,7 +374,7 @@ namespace Shared.OxySync
         {
             if (!inSession || !isServer) return;
 
-            var hash = OxySyncHash.Compute(methodName);
+            var hash = methodName.GetHashCode();
 
             if (_clientRpcMethods == null || !_clientRpcMethods.ContainsKey(hash))
             {
@@ -412,7 +412,7 @@ namespace Shared.OxySync
         {
             if (!inSession || !isServer) return;
 
-            var hash = OxySyncHash.Compute(methodName);
+            var hash = methodName.GetHashCode();
 
             if (_clientRpcMethods == null || !_clientRpcMethods.ContainsKey(hash))
             {
@@ -448,7 +448,7 @@ namespace Shared.OxySync
         {
             if (!inSession || !isServer) return;
 
-            var hash = OxySyncHash.Compute(methodName);
+            var hash = methodName.GetHashCode();
 
             if (_targetRpcMethods == null || !_targetRpcMethods.ContainsKey(hash))
             {

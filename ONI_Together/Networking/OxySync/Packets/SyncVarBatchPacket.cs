@@ -11,8 +11,6 @@ namespace ONI_Together.Networking.OxySync.Packets
 {
     public class SyncVarBatchPacket : IPacket
     {
-        public const int MaxFieldsPerBatch = 1024;
-
         public int NetId;
         public int Count;
         public int[] FieldHashes;
@@ -40,10 +38,6 @@ namespace ONI_Together.Networking.OxySync.Packets
 
         public void Serialize(BinaryWriter writer)
         {
-            if (Count < 0 || Count > MaxFieldsPerBatch ||
-                FieldHashes.Length != Count || Values.Length != Count)
-                throw new InvalidDataException($"Invalid SyncVar batch count: {Count}.");
-
             writer.Write(NetId);
             writer.Write(Timestamp);
             writer.Write(Count);
@@ -59,8 +53,6 @@ namespace ONI_Together.Networking.OxySync.Packets
             NetId = reader.ReadInt32();
             Timestamp = reader.ReadInt64();
             Count = reader.ReadInt32();
-            if (Count < 0 || Count > MaxFieldsPerBatch)
-                throw new InvalidDataException($"Invalid SyncVar batch count: {Count}.");
             FieldHashes = new int[Count];
             Values = new Variant[Count];
             for (int i = 0; i < Count; i++)
@@ -76,15 +68,15 @@ namespace ONI_Together.Networking.OxySync.Packets
 
             if (MultiplayerSession.IsHost) return;
 
+            if (!NetworkIdentityRegistry.TryGetComponent<NetworkBehaviour>(NetId, out var behaviour))
+                return;
+
+            var fields = behaviour.SyncVarFields;
             for (int i = 0; i < Count; i++)
             {
                 int hash = FieldHashes[i];
                 var val = Values[i];
-				var behaviour = OxySyncDispatchResolver.FindSyncVarBehaviour(NetId, hash);
-				if (behaviour == null)
-					continue;
 
-				var fields = behaviour.SyncVarFields;
                 for (int j = 0; j < fields.Count; j++)
                 {
                     if (fields[j].Hash == hash)

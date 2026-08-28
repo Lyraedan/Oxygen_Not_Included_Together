@@ -5,6 +5,7 @@ using Shared.Profiling;
 
 namespace ONI_Together.Networking.OxySync.Packets
 {
+    // Currently unused, the host now manages interest groups. This can technically be deleted
     public class InterestGroupSubscribePacket : IPacket
     {
         public ulong SenderId;
