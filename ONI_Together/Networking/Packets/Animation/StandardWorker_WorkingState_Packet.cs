@@ -128,6 +128,12 @@ namespace ONI_Together.Networking.Packets.Animation
 				return false;
 			}
 
+			if (workable is Pickupable)
+			{
+				DebugConsole.Log($"[StandardWorker_WorkingState_Packet] Ignoring Pickupable start-work for {worker.name} (fetch sync is separate)");
+				return true;
+			}
+
 			try
 			{
 				if (!worker.state.Equals(StandardWorker.State.Idle))
