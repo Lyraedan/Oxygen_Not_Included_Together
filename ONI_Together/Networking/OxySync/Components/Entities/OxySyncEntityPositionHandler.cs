@@ -24,6 +24,10 @@ namespace ONI_Together.Networking.OxySync.Components
         [SyncVar(Hook = nameof(OnNavTypeChanged))]
         private NavType _netNavType;
 
+		private static readonly int NetFlipXHash = OxySyncHash.Compute(nameof(_netFlipX));
+		private static readonly int NetFlipYHash = OxySyncHash.Compute(nameof(_netFlipY));
+		private static readonly int NetNavTypeHash = OxySyncHash.Compute(nameof(_netNavType));
+
         private const int VIEWPORT_MARGIN = 2;
         private const float STALE_THRESHOLD = 2f;
         private const float HEARTBEAT_INTERVAL = 1f;
@@ -69,26 +73,45 @@ namespace ONI_Together.Networking.OxySync.Components
         {
             base.ServerUpdate();
 
+			if (Time.unscaledTime - _lastHeartbeatTime < HEARTBEAT_INTERVAL)
+				return;
+			
+			bool hasUpdate = false;
+
             if (kbac != null)
             {
-                _netFlipX = kbac.FlipX;
-                _netFlipY = kbac.FlipY;
+                if (_netFlipX != kbac.FlipX)
+                {
+					_netFlipX = kbac.FlipX;
+					SetSyncVarDirty(NetFlipXHash);
+					hasUpdate = true;
+				}
+
+				if (_netFlipY != kbac.FlipY)
+				{
+					_netFlipY = kbac.FlipY;
+					SetSyncVarDirty(NetFlipYHash);
+					hasUpdate = true;
+				}
             }
 
-            if (navigator != null && navigator.CurrentNavType != NavType.NumNavTypes)
-                _netNavType = navigator.CurrentNavType;
+			if (navigator != null && navigator.CurrentNavType != NavType.NumNavTypes && _netNavType != navigator.CurrentNavType)
+			{
+					_netNavType = navigator.CurrentNavType;
+					SetSyncVarDirty(NetNavTypeHash);
+					hasUpdate = true;
+			}
 
             Vector3 currentPos = transform.position;
             if (Vector3.Distance(currentPos, _lastPosition) >= 0.01f)
             {
                 _lastHeartbeatTime = Time.unscaledTime;
                 _lastPosition = currentPos;
+				hasUpdate = true;
             }
-            else if (Time.unscaledTime - _lastHeartbeatTime >= HEARTBEAT_INTERVAL)
-            {
-                MarkAllDirty();
-                _lastHeartbeatTime = Time.unscaledTime;
-            }
+
+			if (hasUpdate)
+				_lastHeartbeatTime = Time.unscaledTime;
         }
 
         public override bool ApplySyncVar(int fieldHash, object value, long timestamp)
