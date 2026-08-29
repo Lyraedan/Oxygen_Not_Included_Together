@@ -17,6 +17,7 @@ namespace ONI_Together.Networking.Packets.Core
 	public class PlayerCursorPacket : IPacket
 	{
 		public ulong PlayerID;
+		public string PlayerName;
 		public Vector3 Position;
 		public Color Color;
 		public CursorState CursorState;
@@ -46,6 +47,7 @@ namespace ONI_Together.Networking.Packets.Core
 		    using var _ = Profiler.Scope();
 
 		    writer.Write(PlayerID);
+		    writer.Write(PlayerName);
 		    writer.Write(Position);
 		    writer.Write(Color);
 
@@ -98,6 +100,7 @@ namespace ONI_Together.Networking.Packets.Core
 		    using var _ = Profiler.Scope();
 
 		    PlayerID = reader.ReadUInt64();
+		    PlayerName = reader.ReadString();
 		    Position = reader.ReadVector3();
 		    Color = reader.ReadColor();
 
@@ -151,6 +154,7 @@ namespace ONI_Together.Networking.Packets.Core
 
 			if (MultiplayerSession.TryGetCursorObject(PlayerID, out PlayerCursor cursor))
 			{
+				cursor.SetPlayerName(PlayerName);
 				cursor.SetState(CursorState);
 				cursor.SetColor(Color);
 				cursor.SetVisibility(true);

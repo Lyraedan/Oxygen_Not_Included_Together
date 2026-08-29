@@ -42,9 +42,7 @@ namespace ONI_Together.Networking
 		public int InterestGroup = -1;
 		public int ViewMinX, ViewMinY, ViewMaxX, ViewMaxY;
 		public HashSet<int> SubscribedChunks = new HashSet<int>();
-
-		private OxySyncPlayerCursor oxySyncCursor;
-
+		
         private readonly Dictionary<CursorState, float> cursorActionThresholds = new Dictionary<CursorState, float>()
 				{
 						{ CursorState.NONE, 0.36f },
@@ -118,11 +116,9 @@ namespace ONI_Together.Networking
 			cursor.transform.SetParent(transform, false);
 			gameObject.SetLayerRecursively(LayerMask.NameToLayer("UI"));
 
-			playerName = NetworkConfig.IsLanConfig()
-				? (MultiplayerSession.GetPlayer(assignedPlayer)?.PlayerName ?? $"Player {assignedPlayer}")
-				: SteamFriends.GetFriendPersonaName(assignedPlayer.AsCSteamID());
-			cursorText.text = $"{playerName}";
-
+			string defaultName = NetworkConfig.IsLanConfig() ? (MultiplayerSession.GetPlayer(assignedPlayer)?.PlayerName ?? $"Player {assignedPlayer}") : SteamFriends.GetFriendPersonaName(assignedPlayer.AsCSteamID());
+			SetPlayerName(defaultName);
+			
 			OnCursorStateChanged += () => UpdateActionImage();
 
 			canvas.overrideSorting = true;
@@ -138,17 +134,6 @@ namespace ONI_Together.Networking
 				playerCursorMaterial.SetColor("_ReplacementColor", Color.white);
 				playerCursorMaterial.SetFloat("_Threshold", 0.36f);
 			}
-
-			/* Can't be bothered to fix this right now, its not a high priority - Lyraedan
-			oxySyncCursor = gameObject.AddOrGet<OxySyncPlayerCursor>();
-			oxySyncCursor.NetId = $"Player {assignedPlayer}".GetHashCode();
-			oxySyncCursor.OnNameChanged = (pn) =>
-			{
-				playerName = pn;
-				cursorText.text = $"{pn}";
-			};
-			oxySyncCursor.CmdRequestName(assignedPlayer);
-			*/
 		}
 
 		private void UpdateActionImage()
@@ -357,6 +342,12 @@ namespace ONI_Together.Networking
 				RestoreCursor();
 				DebugConsole.LogWarning($"UpdateActionImage: Sprite '{icon}' not found or material missing.");
 			}
+		}
+
+		public void SetPlayerName(string newName)
+		{
+			playerName = newName;
+			cursorText.text = $"{newName}";
 		}
 
 	}

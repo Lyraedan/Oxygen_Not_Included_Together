@@ -163,6 +163,7 @@ namespace ONI_Together.Networking.Components
 			var packet = new PlayerCursorPacket
 			{
 				PlayerID = MultiplayerSession.LocalUserID,
+				PlayerName = Utils.GetLocalPlayerName(),
 				Position = cursorWorldPos,
 				Color = color,
 				CursorState = cursorState,
