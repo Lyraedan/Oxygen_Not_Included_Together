@@ -62,7 +62,7 @@ namespace ONI_Together.Networking.OxySync.Components
             else if (Time.unscaledTime - _lastHeartbeatTime >= HEARTBEAT_INTERVAL)
             {
                 //MarkAllDirty();
-                SetSyncVarDirty(_netPosition.GetHashCode());
+                MarkSyncVarAsDirty(_netPosition);
                 _lastHeartbeatTime = Time.unscaledTime;
             }
         }

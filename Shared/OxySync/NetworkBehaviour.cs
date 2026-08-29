@@ -544,7 +544,7 @@ namespace Shared.OxySync
                 var updated = field;
                 updated.LastSentValue = value;
                 _syncVarFields[i] = updated;
-                SetSyncVarDirty(fieldHash);
+                MarkSyncVarAsDirty(fieldHash);
                 return;
             }
         }
@@ -560,7 +560,22 @@ namespace Shared.OxySync
             }
         }
 
-        protected void SetSyncVarDirty(int fieldHash)
+        /// <summary>
+        /// Takes in a variable and automatically gets its hash and flags it as dirty
+        /// </summary>
+        /// <param name="variable"></param>
+        protected void MarkSyncVarAsDirty(object variable)
+        {
+            int fieldHash = variable.GetHashCode();
+            if (_syncVarHashToIndex != null && _syncVarHashToIndex.TryGetValue(fieldHash, out int idx))
+                _syncVarDirtyBits |= 1u << idx;
+        }
+        
+        /// <summary>
+        ///  Flags a specific field hash as dirty
+        /// </summary>
+        /// <param name="fieldHash"></param>
+        protected void MarkSyncVarAsDirty(int fieldHash)
         {
             if (_syncVarHashToIndex != null && _syncVarHashToIndex.TryGetValue(fieldHash, out int idx))
                 _syncVarDirtyBits |= 1u << idx;
