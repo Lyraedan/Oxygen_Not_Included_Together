@@ -13,17 +13,17 @@ namespace ONI_Together.Networking.OxySync.Components
     public class WorkableSyncer : NetworkBehaviour
     {
 
-        private static string GetWorkableTypeId(Workable workable)
+        private string GetWorkableTypeId(Workable workable)
         {
             return workable?.GetType().AssemblyQualifiedName ?? string.Empty;
         }
 
-        private static string GetWorkableTypeId(string workableTypeId)
+        private string GetWorkableTypeId(string workableTypeId)
         {
             return workableTypeId ?? string.Empty;
         }
 
-        private static Type ResolveWorkableType(string workableTypeId)
+        private Type ResolveWorkableType(string workableTypeId)
         {
             string normalizedTypeId = GetWorkableTypeId(workableTypeId);
             if (string.IsNullOrEmpty(normalizedTypeId))
@@ -49,12 +49,12 @@ namespace ONI_Together.Networking.OxySync.Components
                 .FirstOrDefault(t => t != null);
         }
 
-        private static (int WorkableNetId, string WorkableTypeId, MethodType Method) BuildAuthKey(int workableNetId, string workableTypeId, MethodType method)
+        private (int WorkableNetId, string WorkableTypeId, MethodType Method) BuildAuthKey(int workableNetId, string workableTypeId, MethodType method)
         {
             return (workableNetId, GetWorkableTypeId(workableTypeId), method);
         }
 
-        private static (int WorkableNetId, string WorkableTypeId, MethodType Method) BuildAuthKey(Workable workable, MethodType method)
+        private (int WorkableNetId, string WorkableTypeId, MethodType Method) BuildAuthKey(Workable workable, MethodType method)
         {
             return (workable.GetNetId(), GetWorkableTypeId(workable), method);
         }
@@ -100,19 +100,18 @@ namespace ONI_Together.Networking.OxySync.Components
 
         public static bool IsAuthorized(int workableNetId, string workableTypeId, MethodType method)
         {
-            var syncer = Instance;
-            if (syncer == null)
+            if (Instance == null)
             {
                 return false;
             }
 
-            return syncer.workableAuthorization.ContainsKey(BuildAuthKey(workableNetId, workableTypeId, method));
+            return Instance.workableAuthorization.ContainsKey(Instance.BuildAuthKey(workableNetId, workableTypeId, method));
         }
 
         public static bool IsAuthorized(int workableNetId, string workableTypeId, MethodType method, out int workerNetId)
         {
             var syncer = Instance;
-            if (syncer != null && syncer.workableAuthorization.TryGetValue(BuildAuthKey(workableNetId, workableTypeId, method), out var workerId))
+            if (syncer != null && syncer.workableAuthorization.TryGetValue(syncer.BuildAuthKey(workableNetId, workableTypeId, method), out var workerId))
             {
                 workerNetId = workerId;
                 return true;
@@ -130,14 +129,14 @@ namespace ONI_Together.Networking.OxySync.Components
                 return false;
             }
 
-            return syncer.workableAuthorization.ContainsKey(BuildAuthKey(workable, method));
+            return syncer.workableAuthorization.ContainsKey(syncer.BuildAuthKey(workable, method));
         }
 
         public static bool IsAuthorized(Workable workable, MethodType method, out int workerNetId)
         {
             var syncer = Instance;
             if (syncer != null && workable != null && !workable.IsNullOrDestroyed() &&
-                syncer.workableAuthorization.TryGetValue(BuildAuthKey(workable, method), out var workerId))
+                syncer.workableAuthorization.TryGetValue(syncer.BuildAuthKey(workable, method), out var workerId))
             {
                 workerNetId = workerId;
                 return true;
@@ -149,7 +148,7 @@ namespace ONI_Together.Networking.OxySync.Components
 
         public static void UnAuthorize(int workableNetId, string workableTypeId, MethodType method)
         {
-            Instance?.workableAuthorization.Remove(BuildAuthKey(workableNetId, workableTypeId, method));
+            Instance?.workableAuthorization.Remove(Instance.BuildAuthKey(workableNetId, workableTypeId, method));
         }
 
         public static void UnAuthorize(Workable workable, MethodType method)
@@ -159,21 +158,19 @@ namespace ONI_Together.Networking.OxySync.Components
                 return;
             }
 
-            Instance?.workableAuthorization.Remove(BuildAuthKey(workable, method));
+            Instance?.workableAuthorization.Remove(Instance.BuildAuthKey(workable, method));
         }
 
-        public static void RequestUpdateWorkable(MethodType method, Workable workable, WorkerBase worker)
+        public void RequestUpdateWorkable(MethodType method, Workable workable, WorkerBase worker)
         {
-            var syncer = Instance;
-            if (!MultiplayerSession.IsHostInSession || syncer == null)
+            if (!MultiplayerSession.IsHostInSession || !MultiplayerSession.SessionHasPlayers)
             {
-                DebugConsole.LogWarning($"[WorkableSyncer] Skip sync for method {method}: host/session not ready or syncer missing. IsHostInSession={MultiplayerSession.IsHostInSession}, SyncerNull={syncer == null}");
                 return;
             }
 
             if (workable.IsNullOrDestroyed() || worker.IsNullOrDestroyed())
             {
-                DebugConsole.LogWarning($"[WorkableSyncer] Skip sync for method {method}: workable/worker missing. WorkableNullOrDestroyed={workable.IsNullOrDestroyed()}, WorkerNullOrDestroyed={worker.IsNullOrDestroyed()}");
+                DebugConsole.LogWarning($"[WorkableSyncer] Skip sync for method {method}: WorkableNullOrDestroyed={workable.IsNullOrDestroyed()}, WorkerNullOrDestroyed={worker.IsNullOrDestroyed()}");
                 return;
             }
 
@@ -181,15 +178,19 @@ namespace ONI_Together.Networking.OxySync.Components
             int workerNetId = worker.GetNetId();
             if (workableNetId == 0 || workerNetId == 0)
             {
-                DebugConsole.LogWarning($"[WorkableSyncer] Skip sync for method {method}: invalid NetId(s). WorkableNetId={workableNetId}, WorkerNetId={workerNetId}, Workable={workable.GetProperName()}, Worker={worker.GetProperName()}");
+                DebugConsole.LogWarning(
+                    $"[WorkableSyncer] Skip sync for method {method}: invalid NetId(s). " +
+                    $"Workable '{workable.GetProperName()}' has NetId '{workableNetId}', " +
+                    $"Worker '{worker.GetProperName()}' has NetId '{workerNetId}'");
+
                 return;
             }
 
             try
             {
                 string workableTypeId = GetWorkableTypeId(workable);
-                DebugConsole.Log($"[WorkableSyncer] Sync workable {workableNetId} ({workableTypeId}) with Worker {workerNetId} to {method.ToString()}");
-                syncer.CallCommand(nameof(CmdUpdateWorkable), (byte)method, workableNetId, workableTypeId, workerNetId);
+                DebugConsole.Log($"[WorkableSyncer] Worker has NetId {workerNetId} '{method}' on workable {workableNetId} : {workableTypeId}");
+                CallClientRpc(nameof(RpcUpdateWorkable), method, workableNetId, workableTypeId, workerNetId);
             }
             catch (System.Exception ex)
             {
@@ -197,20 +198,9 @@ namespace ONI_Together.Networking.OxySync.Components
             }
         }
 
-        [Command]
-        private void CmdUpdateWorkable(byte method, int workableNetId, string workableTypeId, int workerNetId)
-        {
-            CallClientRpc(nameof(RpcUpdateWorkable), (MethodType)method, workableNetId, workableTypeId, workerNetId);
-        }
-
         [ClientRpc]
         private void RpcUpdateWorkable(MethodType method, int workableNetId, string workableTypeId, int workerNetId)
         {
-            if (!isClient || !MultiplayerSession.IsClient)
-            {
-                return;
-            }
-
             if (workableNetId == 0 || !NetworkIdentityRegistry.TryGet(workableNetId, out var identity) || identity == null || identity.gameObject.IsNullOrDestroyed())
             {
                 return;
@@ -248,7 +238,7 @@ namespace ONI_Together.Networking.OxySync.Components
 
             workableAuthorization[BuildAuthKey(workableNetId, workableTypeId, method)] = workerNetId;
 
-            DebugConsole.Log($"[WorkableSyncer] Sync workable {workableNetId} ({GetWorkableTypeId(workable)}) with Worker {workerNetId} to {method.ToString()}");
+            DebugConsole.Log($"[WorkableSyncer] [Client] Worker has NetId {workerNetId} '{method}' on workable {workableNetId} : {workableTypeId}");
 
             switch (method)
             {
@@ -268,11 +258,6 @@ namespace ONI_Together.Networking.OxySync.Components
                     DebugConsole.LogWarning($"[WorkableSyncer] Unknown method name: {method}");
                     break;
             }
-        }
-
-        private void Update()
-        {
-            if (!isServer) return;
         }
     }
 }

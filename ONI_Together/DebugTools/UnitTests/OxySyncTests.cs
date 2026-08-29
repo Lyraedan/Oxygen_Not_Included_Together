@@ -5,8 +5,10 @@ using System.Reflection;
 using System.Text;
 using ONI_Together.Misc;
 using ONI_Together.Networking;
+using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Networking.OxySync.Packets;
 using Shared.OxySync;
+using Shared.OxySync.Attributes;
 using UnityEngine;
 
 namespace ONI_Together.DebugTools.UnitTests

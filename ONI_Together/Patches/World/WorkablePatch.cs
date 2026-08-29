@@ -1,4 +1,5 @@
 ﻿using HarmonyLib;
+using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.OxySync.Components;
@@ -11,27 +12,50 @@ namespace ONI_Together.Patches.World
 {
 	internal class WorkablePatch
 	{
-		private static bool IsAuthorizedForWorker(Workable workable, WorkableSyncer.MethodType method, WorkerBase worker)
+		private static bool IsAuthorizedToWork(Workable workable, WorkableSyncer.MethodType method, WorkerBase worker, out WorkableSyncer syncer)
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.IsClient)
+			syncer = null;
+
+			if (workable == null || workable.IsNullOrDestroyed())
 			{
 				return true;
 			}
 
-			if (!WorkableSyncer.IsAuthorized(workable, method, out int authorizedWorkerNetId))
+			if (worker == null || worker.IsNullOrDestroyed())
 			{
+				return true;
+			}
+
+			if (MultiplayerSession.IsClient)
+			{
+				if (WorkableSyncer.IsAuthorized(workable, method, out var authorizedWokerNetId))
+				{
+					if (worker.GetNetId() == authorizedWokerNetId)
+					{
+						DebugConsole.Log($"[WorkablePatch] Client worker {worker.GetProperName()} is authorized to '{method}' on {workable.GetProperName()}");
+						return true;
+					}
+				}
+
+				// If we're a client and not authorized to work, we should skip the work
 				return false;
 			}
 
-			if (worker == null || worker.IsNullOrDestroyed())
+			if (MultiplayerSession.IsHostInSession && MultiplayerSession.SessionHasPlayers)
 			{
-				return authorizedWorkerNetId == 0;
+				syncer = WorkableSyncer.Instance;
+
+				if (syncer == null)
+				{
+					WorkableSyncer.RegisterNetId();
+					syncer = WorkableSyncer.Instance;
+				}
+
 			}
 
-			int incomingWorkerNetId = worker.GetNetId();
-			return authorizedWorkerNetId == incomingWorkerNetId;
+			return true;
 		}
 
 		private static bool TryGetRemotePercent(Component target, RemoteProgressKind progressKind, out float percentComplete)
@@ -88,22 +112,15 @@ namespace ONI_Together.Patches.World
 				using var _ = Profiler.Scope();
 				__state = true;
 
-				if (__instance.IsNullOrDestroyed())
-				{
-					return true;
-				}
-				
-				// Let the host decide if the work should start when we're a client
-				if (MultiplayerSession.IsClient && !IsAuthorizedForWorker(__instance, WorkableSyncer.MethodType.StartWork, worker_to_start))
+				if (!IsAuthorizedToWork(__instance, WorkableSyncer.MethodType.StartWork, worker_to_start, out var syncer))
 				{
 					__state = false;
 					return false;
 				}
 
-				if (MultiplayerSession.IsHostInSession)
-				{
-					WorkableSyncer.RequestUpdateWorkable(WorkableSyncer.MethodType.StartWork, __instance, worker_to_start);
-				}
+				
+				syncer?.RequestUpdateWorkable(WorkableSyncer.MethodType.StartWork, __instance, worker_to_start);
+				
 
 				return true;
 			}
@@ -114,7 +131,7 @@ namespace ONI_Together.Patches.World
 				if (__instance.IsNullOrDestroyed() || !__state)
 					return;
 				
-				if (MultiplayerSession.IsClient && IsAuthorizedForWorker(__instance, WorkableSyncer.MethodType.StartWork, worker_to_start))
+				if (MultiplayerSession.IsClient && IsAuthorizedToWork(__instance, WorkableSyncer.MethodType.StartWork, worker_to_start, out var _ignoredWorkerNetId))
 				{
 					WorkableSyncer.UnAuthorize(__instance, WorkableSyncer.MethodType.StartWork);
 				}
@@ -136,16 +153,14 @@ namespace ONI_Together.Patches.World
 
 				// Let the host decide if the work should start when we're a client
 				WorkableSyncer.MethodType method = aborted ? WorkableSyncer.MethodType.AbortWork : WorkableSyncer.MethodType.StopWork;
-				if (MultiplayerSession.IsClient && !IsAuthorizedForWorker(__instance, method, workerToStop))
+				if (!IsAuthorizedToWork(__instance, method, workerToStop, out var syncer))
 				{
 					__state = false;
 					return false;
 				}
 
-				if (MultiplayerSession.IsHostInSession)
-				{
-					WorkableSyncer.RequestUpdateWorkable(method, __instance, workerToStop);
-				}
+				syncer?.RequestUpdateWorkable(method, __instance, workerToStop);
+
 
 				return true;
 			}
@@ -153,14 +168,11 @@ namespace ONI_Together.Patches.World
 			public static void Postfix(Workable __instance, bool __state, ref WorkerBase workerToStop, bool aborted)
 			{
 				using var _ = Profiler.Scope();
-
 				if (__instance.IsNullOrDestroyed() || !__state)
-				{
 					return;
-				}
 
 				WorkableSyncer.MethodType method = aborted ? WorkableSyncer.MethodType.AbortWork : WorkableSyncer.MethodType.StopWork;
-				if (MultiplayerSession.IsClient && IsAuthorizedForWorker(__instance, method, workerToStop))
+				if (MultiplayerSession.IsClient && IsAuthorizedToWork(__instance, method, workerToStop, out var _ignoredWorkerNetId))
 				{
 					WorkableSyncer.UnAuthorize(__instance, method);
 				}
@@ -181,16 +193,13 @@ namespace ONI_Together.Patches.World
 				}
 				
 				// Let the host decide if the work should complete when we're a client
-				if (MultiplayerSession.IsClient && !IsAuthorizedForWorker(__instance, WorkableSyncer.MethodType.CompleteWork, worker))
+				if (!IsAuthorizedToWork(__instance, WorkableSyncer.MethodType.CompleteWork, worker, out var syncer))
 				{
 					__state = false;
 					return false;
 				}
 
-				if (MultiplayerSession.IsHostInSession)
-				{
-					WorkableSyncer.RequestUpdateWorkable(WorkableSyncer.MethodType.CompleteWork, __instance, worker);
-				}
+				syncer?.RequestUpdateWorkable(WorkableSyncer.MethodType.CompleteWork, __instance, worker);
 
 				return true;
 			}
@@ -203,7 +212,7 @@ namespace ONI_Together.Patches.World
 					return;
 				}
 
-				if (MultiplayerSession.IsClient && IsAuthorizedForWorker(__instance, WorkableSyncer.MethodType.CompleteWork, worker))
+				if (MultiplayerSession.IsClient && IsAuthorizedToWork(__instance, WorkableSyncer.MethodType.CompleteWork, worker, out var _ignoredWorkerNetId))
 				{
 					WorkableSyncer.UnAuthorize(__instance, WorkableSyncer.MethodType.CompleteWork);
 				}
