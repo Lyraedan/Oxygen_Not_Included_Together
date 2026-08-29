@@ -5,6 +5,7 @@ using UnityEngine;
 
 namespace ONI_Together.Networking.Components
 {
+	[Obsolete("Use OxySyncEntityPositionHandler now!")]
 	public class EntityPositionHandler : KMonoBehaviour
 	{
         [MyCmpGet] public KBatchedAnimController kbac;
