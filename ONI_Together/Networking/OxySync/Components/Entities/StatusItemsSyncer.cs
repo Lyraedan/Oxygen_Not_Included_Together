@@ -266,8 +266,9 @@ namespace ONI_Together.Networking.OxySync.Components
                             continue;
 
                         count++;
-                        hash = (hash * 31) + HashString(entry.item.Id);
-                        hash = (hash * 31) + HashString(entry.category?.Id);
+                        int itemHash = entry.item.Id?.GetHashCode() ?? 0;
+                        int categoryHash = entry.category?.Id?.GetHashCode() ?? 0;
+                        hash += itemHash + categoryHash + count;
 
                         if (count >= StatusItemsPacket.MaxEntries) {
                             Debug.LogWarning($"StatusItemsSyncer: fingerprint truncated to {StatusItemsPacket.MaxEntries}");
@@ -276,13 +277,8 @@ namespace ONI_Together.Networking.OxySync.Components
                     }
                 }
 
-                return (hash * 31) + count;
+                return hash;
             }
-        }
-
-        private static int HashString(string value)
-        {
-            return value == null ? 0 : StringComparer.Ordinal.GetHashCode(value);
         }
     }
 }
