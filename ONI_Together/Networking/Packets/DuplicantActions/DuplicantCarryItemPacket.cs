@@ -116,9 +116,6 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 				var firstAnim = animData.GetAnim(0);
 				animCtrl.Play(firstAnim.hash, KAnim.PlayMode.Loop);
 			}
-
-			//DebugConsole.Log($"[DuplicantCarryItemPacket] Carry proxy created: {proxyName}");
-			ShowPopFX(dupeAnim.transform);
 		}
 
 		private static KAnimFile ResolveAnim(string name)
@@ -168,26 +165,5 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 			}
 		}
 
-		private void ShowPopFX(Transform target)
-		{
-			if (PopFXManager.Instance == null || ItemPrefabHash == 0)
-				return;
-
-			var prefab = Assets.GetPrefab(new Tag(ItemPrefabHash));
-			if (prefab == null)
-				return;
-
-			string text = string.Format(
-				global::STRINGS.UI.PICKEDUP,
-				GameUtil.GetFormattedMass(1),
-				prefab.GetProperName());
-
-			PopFXManager.Instance.SpawnFX(
-				Def.GetUISprite(prefab).first,
-				PopFXManager.Instance.sprite_Negative,
-				text,
-				target,
-				Vector3.zero);
-		}
 	}
 }
