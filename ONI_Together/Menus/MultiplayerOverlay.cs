@@ -118,6 +118,14 @@ namespace ONI_Together.Menus
 		{
 			using var _ = Profiler.Scope();
 
+			// This overlay is the only trace several user-facing failures leave behind:
+			// the paths that show a message and send the player back to the menu draw UI
+			// and log nothing, so a report of "it kicked me out" arrives with no way to
+			// tell which check rejected it. Log the transition rather than every call -
+			// the ready screen re-shows the same text constantly.
+			if (text != Text)
+				DebugConsole.Log($"[MultiplayerOverlay] {(text ?? string.Empty).Replace("\n", " | ")}");
+
 			if (overlay == null)
 			{
 				overlay = new MultiplayerOverlay();
@@ -128,6 +136,9 @@ namespace ONI_Together.Menus
 		public static void Close()
 		{
 			using var _ = Profiler.Scope();
+
+			if (overlay != null)
+				DebugConsole.Log("[MultiplayerOverlay] closed");
 
 			overlay?.Dispose();
 			overlay = null;
