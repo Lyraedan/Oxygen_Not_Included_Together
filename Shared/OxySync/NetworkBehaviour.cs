@@ -17,10 +17,10 @@ namespace Shared.OxySync
         public static Func<bool>? IsClientQuery;
         public static Func<bool>? InSessionQuery;
 
-        public static Func<int, int, byte[], int, bool>? SendCommandToHost;
-        public static Func<int, int, byte[], int, bool>? SendClientRpcToAll;
-        public static Func<int, int, int, byte[], int, bool>? SendClientRpcToGroup;
-        public static Func<ulong, int, int, byte[], int, bool>? SendTargetRpcToPlayer;
+        public static Func<int, int, int, byte[], int, bool>? SendCommandToHost;
+        public static Func<int, int, int, byte[], int, bool>? SendClientRpcToAll;
+        public static Func<int, int, int, int, byte[], int, bool>? SendClientRpcToGroup;
+        public static Func<ulong, int, int, int, byte[], int, bool>? SendTargetRpcToPlayer;
 
         public static Func<NetworkBehaviour, int>? NetIdQuery;
         public static Action<NetworkBehaviour, int>? NetIdSetter;
@@ -48,6 +48,7 @@ namespace Shared.OxySync
         public float _lastSyncTime;
         public float _lastActiveSyncTime;
         public int InterestGroup { get; set; } = -1;
+        public int BehaviourId { get; set; } = -1;
 
         public IReadOnlyList<SyncVarField> SyncVarFields =>
             _syncVarFields ?? (IReadOnlyList<SyncVarField>)Array.Empty<SyncVarField>();
@@ -262,7 +263,7 @@ namespace Shared.OxySync
             }
 
             var sendMode = GetCommandSendMode(hash);
-            SendCommandToHost?.Invoke(NetId, hash, serialized, sendMode);
+            SendCommandToHost?.Invoke(NetId, BehaviourId, hash, serialized, sendMode);
         }
 
         protected void CallCommand(Expression<Action> expr)
@@ -311,9 +312,9 @@ namespace Shared.OxySync
             if (group == -1) group = InterestGroup;
             var sendMode = GetClientRpcSendMode(hash);
             if (group == -1)
-                SendClientRpcToAll?.Invoke(NetId, hash, serialized, sendMode);
+                SendClientRpcToAll?.Invoke(NetId, BehaviourId, hash, serialized, sendMode);
             else
-                SendClientRpcToGroup?.Invoke(group, NetId, hash, serialized, sendMode);
+                SendClientRpcToGroup?.Invoke(group, NetId, BehaviourId, hash, serialized, sendMode);
 
             if (GetClientRpcIncludeHost(hash))
                 InvokeClientRpc(hash, serialized);
@@ -347,9 +348,9 @@ namespace Shared.OxySync
 
             var sendMode = GetClientRpcSendMode(hash);
             if (interestGroup == -1)
-                SendClientRpcToAll?.Invoke(NetId, hash, serialized, sendMode);
+                SendClientRpcToAll?.Invoke(NetId, BehaviourId, hash, serialized, sendMode);
             else
-                SendClientRpcToGroup?.Invoke(interestGroup, NetId, hash, serialized, sendMode);
+                SendClientRpcToGroup?.Invoke(interestGroup, NetId, BehaviourId, hash, serialized, sendMode);
 
             if (GetClientRpcIncludeHost(hash))
                 InvokeClientRpc(hash, serialized);
@@ -382,7 +383,7 @@ namespace Shared.OxySync
             var serialized = RpcSerializer.Serialize(args, argTypes);
 
             var sendMode = GetTargetRpcSendMode(hash);
-            SendTargetRpcToPlayer?.Invoke(targetPlayer, NetId, hash, serialized, sendMode);
+            SendTargetRpcToPlayer?.Invoke(targetPlayer, NetId, BehaviourId, hash, serialized, sendMode);
         }
 
         protected void CallTargetRpc(ulong targetPlayer, Expression<Action> expr)
