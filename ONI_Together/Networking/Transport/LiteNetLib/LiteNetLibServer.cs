@@ -147,16 +147,10 @@ namespace ONI_Together.Networking.Transport.Lan
                     string key = request.Data.GetString();
                     if (key == "ONI_TOGETHER")
                     {
-                        ulong clientNetId = 0;
-                        if (request.Data.AvailableBytes >= sizeof(ulong))
-                        {
-                            clientNetId = request.Data.GetULong();
-                        }
-
                         var peer = request.Accept();
                         if (peer != null)
                         {
-                            ulong assignedId = clientNetId > 1 ? clientNetId : ((ulong)peer.Id + 2);
+                            ulong assignedId = (ulong)peer.Id + 2;
                             _peersByClientId[assignedId] = peer;
                             _clientIdByPeerId[peer.Id] = assignedId;
                         }

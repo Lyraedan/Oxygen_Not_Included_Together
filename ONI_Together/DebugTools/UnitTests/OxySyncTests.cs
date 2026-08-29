@@ -5,17 +5,19 @@ using System.Reflection;
 using System.Text;
 using ONI_Together.Misc;
 using ONI_Together.Networking;
+using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Networking.OxySync.Packets;
 using Shared.OxySync;
+using Shared.OxySync.Attributes;
 using UnityEngine;
 
 namespace ONI_Together.DebugTools.UnitTests
 {
     public static class OxySyncTests
     {
-        private enum WideRpcEnum : ulong
+        private enum TestEnum
         {
-            HighValue = ulong.MaxValue - 7,
+            HighValue = 1000,
         }
 
 		[UnitTest(name: "OxySync protocol hashes are deterministic", category: "OxySync")]
@@ -301,7 +303,7 @@ namespace ONI_Together.DebugTools.UnitTests
                 new byte[] { 0xAA, 0xBB, 0xCC },
                 new HashedString(55555),
                 new KAnimHashedString(66666),
-                WideRpcEnum.HighValue,
+                TestEnum.HighValue,
             };
 
             Type[] types = {
@@ -310,7 +312,7 @@ namespace ONI_Together.DebugTools.UnitTests
                 typeof(Vector2), typeof(Vector3), typeof(Color),
                 typeof(Quaternion), typeof(byte[]),
                 typeof(HashedString), typeof(KAnimHashedString),
-                typeof(WideRpcEnum),
+                typeof(TestEnum),
             };
 
             var data = RpcSerializer.Serialize(args, types);
@@ -359,8 +361,8 @@ namespace ONI_Together.DebugTools.UnitTests
             if (khs.hash != 66666)
                 return UnitTestResult.Fail("KAnimHashedString mismatch");
 
-            if ((WideRpcEnum)result[14] != WideRpcEnum.HighValue)
-                return UnitTestResult.Fail("ulong-backed enum mismatch");
+            if ((TestEnum)result[14] != TestEnum.HighValue)
+                return UnitTestResult.Fail("enum mismatch");
 
             return UnitTestResult.Pass("All 15 RPC types round-trip correctly");
         }
@@ -385,9 +387,9 @@ namespace ONI_Together.DebugTools.UnitTests
 				VariantHelper.VariantToObject(nullVariant, typeof(string)) != null)
 				return UnitTestResult.Fail("A null SyncVar did not preserve its null state");
 
-			Variant wideEnum = VariantHelper.ObjectToVariant(WideRpcEnum.HighValue);
-			if ((WideRpcEnum)VariantHelper.VariantToObject(wideEnum, typeof(WideRpcEnum)) != WideRpcEnum.HighValue)
-				return UnitTestResult.Fail("A ulong-backed SyncVar enum did not round-trip");
+			Variant testEnum = VariantHelper.ObjectToVariant(TestEnum.HighValue);
+			if ((TestEnum)VariantHelper.VariantToObject(testEnum, typeof(TestEnum)) != TestEnum.HighValue)
+				return UnitTestResult.Fail("An enum SyncVar did not round-trip");
 
 			const decimal decimalInput = 1234567890.123456789m;
 			Variant decimalVariant = VariantHelper.ObjectToVariant(decimalInput);

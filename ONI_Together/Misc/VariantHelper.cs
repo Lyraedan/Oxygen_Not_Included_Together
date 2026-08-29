@@ -117,9 +117,6 @@ namespace ONI_Together.Misc
             if (targetType == typeof(sbyte)) return (sbyte)v.Byte;
             if (targetType == typeof(char)) return (char)v.Int;
             if (targetType == typeof(Color)) return v.Color;
-            if (targetType == typeof(int[])) return v.IntArray ?? Array.Empty<int>();
-            if (targetType == typeof(float[])) return v.FloatArray ?? Array.Empty<float>();
-            if (targetType == typeof(double[])) return v.DoubleArray ?? Array.Empty<double>();
             if (v.Type == Variant.TypeCode.VariantArray)
             {
                 if (targetType.IsArray && targetType != typeof(byte[]))
@@ -195,6 +192,10 @@ namespace ONI_Together.Misc
                     }
                 }
             }
+
+            if (targetType == typeof(int[])) return v.IntArray ?? Array.Empty<int>();
+            if (targetType == typeof(float[])) return v.FloatArray ?? Array.Empty<float>();
+            if (targetType == typeof(double[])) return v.DoubleArray ?? Array.Empty<double>();
 
             if (targetType.IsEnum)
             {
