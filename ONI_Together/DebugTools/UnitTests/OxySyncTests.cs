@@ -97,21 +97,6 @@ namespace ONI_Together.DebugTools.UnitTests
 			return UnitTestResult.Pass("Reordered channels do not inflate the adaptive buffer");
 		}
 
-		[UnitTest(name: "SyncVars reject stale and duplicate timestamps", category: "OxySync")]
-		public static UnitTestResult SyncVarTimestampOrdering()
-		{
-			if (!NetworkBehaviour.IsNewerSyncTimestamp(101, 100))
-				return UnitTestResult.Fail("A newer SyncVar timestamp was rejected");
-			if (NetworkBehaviour.IsNewerSyncTimestamp(100, 100))
-				return UnitTestResult.Fail("A duplicate SyncVar timestamp was accepted");
-			if (NetworkBehaviour.IsNewerSyncTimestamp(99, 100))
-				return UnitTestResult.Fail("A stale SyncVar timestamp was accepted");
-			if (!NetworkBehaviour.IsNewerSyncTimestamp(0, 100))
-				return UnitTestResult.Fail("An explicit untimestamped local update was rejected");
-
-			return UnitTestResult.Pass("Out-of-order SyncVar packets cannot roll state backwards");
-		}
-
 		[UnitTest(name: "Realtime snapshots bypass the optional packet queue", category: "OxySync")]
 		public static UnitTestResult RealtimeSnapshotsBypassPacketQueue()
 		{
@@ -227,24 +212,6 @@ namespace ONI_Together.DebugTools.UnitTests
                 return UnitTestResult.Fail("Args mismatch");
 
             return UnitTestResult.Pass("CommandPacket round-trips correctly");
-        }
-
-        [UnitTest(name: "Host-only commands reject remote dispatch", category: "OxySync")]
-        public static UnitTestResult HostOnlyCommandsRejectRemoteDispatch()
-        {
-            var resetMethod = AccessTools.Method(
-                typeof(Networking.OxySync.OxySyncTestComponent),
-                nameof(Networking.OxySync.OxySyncTestComponent.CmdReset));
-            var attribute = resetMethod?.GetCustomAttributes(typeof(CommandAttribute), true);
-
-            if (attribute == null || attribute.Length != 1 ||
-                attribute[0] is not CommandAttribute command || !command.RequiresHost)
-                return UnitTestResult.Fail("CmdReset is not marked as a host-only command");
-
-            if (AccessTools.Method(typeof(NetworkBehaviour), nameof(NetworkBehaviour.CommandRequiresHost)) == null)
-                return UnitTestResult.Fail("Remote command dispatch cannot query host-only metadata");
-
-            return UnitTestResult.Pass("Host-only metadata is available to the remote command rejection path");
         }
 
         [UnitTest(name: "ClientRpcPacket round-trip (broadcast)", category: "OxySync")]
@@ -443,25 +410,6 @@ namespace ONI_Together.DebugTools.UnitTests
 			}
 
 			return UnitTestResult.Pass("Unsupported and oversized SyncVar values are rejected explicitly");
-		}
-
-		[UnitTest(name: "SyncVar mutable values use independent snapshots", category: "OxySync")]
-		public static UnitTestResult SyncVarMutableValuesUseIndependentSnapshots()
-		{
-			var current = new List<int> { 1, 2, 3 };
-			var snapshot = (List<int>)NetworkBehaviour.SnapshotSyncVarValue(
-				current, typeof(List<int>));
-
-			current[1] = 99;
-			if (snapshot[1] != 2)
-				return UnitTestResult.Fail("The previous SyncVar collection snapshot mutated with the live value");
-
-			var currentVariant = VariantHelper.ObjectToVariant(current);
-			var snapshotVariant = VariantHelper.ObjectToVariant(snapshot);
-			if (!VariantHelper.ValuesDiffer(currentVariant, snapshotVariant, 0.01f))
-				return UnitTestResult.Fail("An in-place SyncVar collection mutation was not detected");
-
-			return UnitTestResult.Pass("In-place array and collection changes remain visible to dirty comparison");
 		}
 
         [UnitTest(name: "RpcSerializer string handles null", category: "OxySync")]

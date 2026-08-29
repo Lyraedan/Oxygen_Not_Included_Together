@@ -22,20 +22,14 @@ namespace ONI_Together.Networking.Components
 
 		private DuplicantActionState lastSentState;
 		private int lastSentTargetCell;
-		private int lastSentAnimHash;
+		private string lastSentAnimName;
 		private bool lastSentIsWorking;
-		private uint stateSequence;
 
 		public override void OnSpawn()
 		{
 			using var _ = Profiler.Scope();
 
 			base.OnSpawn();
-
-			if (networkIdentity == null) networkIdentity = GetComponent<NetworkIdentity>();
-			if (animController == null) animController = GetComponent<KAnimControllerBase>();
-			if (choreDriver == null) choreDriver = GetComponent<ChoreDriver>();
-			if (navigator == null) navigator = GetComponent<Navigator>();
 
 			if (networkIdentity == null)
 			{
@@ -85,18 +79,17 @@ namespace ONI_Together.Networking.Components
 			{
 				var state = DetermineCurrentState();
 				int targetCell = DetermineTargetCell();
-				int animHash = GetCurrentAnimHash();
+				string animName = GetCurrentAnimName();
 				bool isWorking = IsCurrentlyWorking();
 				string heldSymbol = DetermineHeldItemSymbol();
-				int heldSymbolHash = string.IsNullOrEmpty(heldSymbol) ? 0 : new HashedString(heldSymbol).hash;
 				float animElapsedTime = animController != null ? animController.GetElapsedTime() : 0f;
 
 				// Only send if something changed (or periodically for sync)
 				bool stateChanged = state != lastSentState ||
 														targetCell != lastSentTargetCell ||
-												animHash != lastSentAnimHash ||
-												isWorking != lastSentIsWorking ||
-												heldSymbolHash != lastSentHeldSymbolHash;
+														animName != lastSentAnimName ||
+														isWorking != lastSentIsWorking ||
+														heldSymbol != lastSentHeldSymbol;
 
 				// Heartbeat: Force send if enough time passed, even if no change
 
@@ -105,43 +98,36 @@ namespace ONI_Together.Networking.Components
 
 				lastSentState = state;
 				lastSentTargetCell = targetCell;
-				lastSentAnimHash = animHash;
+				lastSentAnimName = animName;
 				lastSentIsWorking = isWorking;
-				lastSentHeldSymbolHash = heldSymbolHash;
+				lastSentHeldSymbol = heldSymbol;
 
-				byte animPlayMode = 0;
+				int animPlayMode = 0;
 				float animSpeed = 1f;
 				try
 				{
 					if (animController != null)
 					{
-						animPlayMode = (byte)animController.mode;
+						animPlayMode = (int)animController.mode;
 						animSpeed = animController.playSpeed;
 					}
 				}
 				catch (System.Exception) { /* field not accessible, use defaults */ }
 
-				stateSequence++;
-				if (stateSequence == 0) stateSequence++;
-
 				var packet = new DuplicantStatePacket
 				{
 					NetId = networkIdentity.NetId,
-					Sequence = stateSequence,
-					ServerTimestamp = System.DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
 					ActionState = state,
 					TargetCell = targetCell,
-					CurrentAnimHash = animHash,
+					CurrentAnimName = animName,
 					AnimElapsedTime = animElapsedTime,
 					IsWorking = isWorking,
-					HeldItemSymbolHash = heldSymbolHash,
+					HeldItemSymbol = heldSymbol,
 					AnimPlayMode = animPlayMode,
 					AnimSpeed = animSpeed
 				};
 
-				// Keyframes repair loss and phase drift; queuing an old one behind bulk
-				// traffic only creates a later visible correction.
-				PacketSender.SendToAllClients(packet, sendType: PacketSendMode.UnreliableNoDelay);
+				PacketSender.SendToAllClients(packet, sendType: PacketSendMode.Unreliable);
 			}
 			catch (System.Exception)
 			{
@@ -149,7 +135,7 @@ namespace ONI_Together.Networking.Components
 			}
 		}
 
-		private int lastSentHeldSymbolHash;
+		private string lastSentHeldSymbol;
 
 		private string DetermineHeldItemSymbol()
 		{
@@ -283,14 +269,17 @@ namespace ONI_Together.Networking.Components
 			return -1;
 		}
 
-		private int GetCurrentAnimHash()
+		private string GetCurrentAnimName()
 		{
 			using var _ = Profiler.Scope();
 
 			if (animController == null)
-				return 0;
+				return string.Empty;
 
-			return animController.currentAnim.hash;
+			if (animController.CurrentAnim != null)
+				return animController.CurrentAnim.name;
+
+			return string.Empty;
 		}
 
 		private bool IsCurrentlyWorking()

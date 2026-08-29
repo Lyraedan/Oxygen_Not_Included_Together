@@ -7,7 +7,6 @@ using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Animation;
 using ONI_Together.Networking.Packets.Core;
 using ONI_Together.Networking.Packets.DuplicantActions;
-using ONI_Together.Patches.Navigation;
 using System;
 using System.Linq;
 using Shared.Profiling;
@@ -22,25 +21,7 @@ namespace ONI_Together.Patches.KleiPatches
 		static bool _allowedToPlayAnims = false;
 		public static void AllowAnims() => _allowedToPlayAnims = true;
 		public static void ForbidAnims() => _allowedToPlayAnims = false;
-
-		internal static bool CanPlayAnim(KAnimControllerBase controller)
-		{
-			if (!MultiplayerSession.InActiveSession || !MultiplayerSession.IsClient || _allowedToPlayAnims)
-				return true;
-			if (controller == null || controller.gameObject.IsNullOrDestroyed())
-				return true;
-
-			// Only suppress local state-machine animation writes for entities whose
-			// visual state is authoritative on the host. UI and unrelated local
-			// animations must continue to run normally on clients.
-			if (controller.TryGetComponent<KPrefabID>(out var prefabId)
-				&& (prefabId.HasTag(GameTags.BaseMinion) || prefabId.HasTag(GameTags.Creature)))
-			{
-				return false;
-			}
-
-			return !controller.TryGetComponent<AnimStateSyncer>(out _);
-		}
+		public static bool CanPlayAnims => true;// (MultiplayerSession.InSession && MultiplayerSession.IsClient) ? _allowedToPlayAnims : true;
 
 
 
@@ -55,30 +36,9 @@ namespace ONI_Together.Patches.KleiPatches
 				return;
 			if (__instance.gameObject.IsNullOrDestroyed() || !__instance.gameObject.TryGetComponent<KPrefabID>(out var id))
 				return;
-			if (id.HasTag(GameTags.BaseMinion)
-				&& NavigationAnimationScope.Suppresses(__instance.gameObject))
-			{
-				// NavigatorTransitionPacket replays this animation through ONI's
-				// transition driver on the same buffered movement timeline.
+
+			if (!id.HasTag(GameTags.BaseMinion) && !id.HasTag(GameTags.Creature)) // Allow BaseMinion and Creature
 				return;
-			}
-
-			if (!id.HasTag(GameTags.BaseMinion) && !id.HasTag(GameTags.Creature))
-			{
-				// Buildings and plants use the viewport-aware coordinator for periodic
-				// reconciliation. They also need the original ordered Play/Queue events:
-				// an intro -> loop sequence cannot be represented by one current-animation
-				// snapshot after multiple state-machine calls have been coalesced.
-				bool isSyncEligible = AnimSyncEligibility.IsAnimatedNonMinion(__instance.gameObject);
-				if (isSyncEligible
-					&& __instance.TryGetComponent<AnimStateSyncer>(out var syncer))
-				{
-					AnimSyncCoordinator.NotifyAnimationChanged(syncer);
-				}
-
-				if (!isSyncEligible)
-					return;
-			}
 
 			int netId = __instance.GetNetId();
 			if(netId == 0)
@@ -91,9 +51,7 @@ namespace ONI_Together.Patches.KleiPatches
 				return;
 
 			LockAnimSending = true;
-			PacketSender.SendToAllClients(
-				new PlayAnimPacket(netId, anims, queueing, mode, speed, time_offset),
-				PacketSendMode.ReliableImmediate);
+			PacketSender.SendToAllClients(new PlayAnimPacket(netId, anims, queueing,mode,speed,time_offset));
 		}
 
 		[HarmonyPatch(typeof(KAnimControllerBase), nameof(KAnimControllerBase.Play), [typeof(HashedString), typeof(KAnim.PlayMode), typeof(float), typeof(float)])]
@@ -107,11 +65,11 @@ namespace ONI_Together.Patches.KleiPatches
 				{
 					if (!MultiplayerSession.InActiveSession)
 						return true;
-					if (__instance.IsNullOrDestroyed() || !__instance.enabled) return CanPlayAnim(__instance);
+					if (__instance.IsNullOrDestroyed() || !__instance.enabled) return CanPlayAnims;
 
 					if(MultiplayerSession.IsHost)
 						SendAnimPacketToClients(__instance, false, [anim_name],mode,speed,time_offset);
-					return CanPlayAnim(__instance);
+					return CanPlayAnims;
 				}
 				catch (Exception ex)
 				{
@@ -134,10 +92,10 @@ namespace ONI_Together.Patches.KleiPatches
 				{
 					if (!MultiplayerSession.InActiveSession)
 						return true;
-					if (__instance.IsNullOrDestroyed() || !__instance.enabled) return CanPlayAnim(__instance);
+					if (__instance.IsNullOrDestroyed() || !__instance.enabled) return CanPlayAnims;
 					if (MultiplayerSession.IsHost)
 						SendAnimPacketToClients(__instance, false, anim_names, mode);
-					return CanPlayAnim(__instance);
+					return CanPlayAnims;
 				}
 				catch (Exception ex)
 				{
@@ -160,10 +118,10 @@ namespace ONI_Together.Patches.KleiPatches
 				{
 					if (!MultiplayerSession.InActiveSession)
 						return true;
-					if (__instance.IsNullOrDestroyed() || !__instance.enabled) return CanPlayAnim(__instance);
+					if (__instance.IsNullOrDestroyed() || !__instance.enabled) return CanPlayAnims;
 					if (MultiplayerSession.IsHost)
 						SendAnimPacketToClients(__instance, true, [anim_name], mode, speed, time_offset);
-					return CanPlayAnim(__instance);
+					return CanPlayAnims;
 				}
 				catch (Exception ex)
 				{

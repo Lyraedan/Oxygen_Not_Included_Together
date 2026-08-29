@@ -53,10 +53,6 @@ namespace ONI_Together.Scripts.Duplicants
 		
 		void InitializeClient(GameObject go)
 		{
-			// This component becomes the single client-side writer for duplicant
-			// position and animation before local AI/state machines are disabled.
-			go.AddOrGet<DuplicantClientController>();
-
 			if (go.TryGetComponent<ChoreDriver>(out var driver)) driver.enabled = false;
 			if (go.TryGetComponent<ChoreConsumer>(out var consumer)) consumer.enabled = false;
 			if (go.TryGetComponent<MinionBrain>(out var brain)) brain.enabled = false;
