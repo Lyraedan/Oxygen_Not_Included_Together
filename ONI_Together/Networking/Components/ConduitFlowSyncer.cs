@@ -22,8 +22,9 @@ namespace ONI_Together.Networking.Components
 	//   seconds so dropped unreliable packets self-heal. Mirrors the
 	//   BuildingSyncer "full-state, unreliable, periodic" pattern called out
 	//   in oni-architecture.md.
-	// - Per-packet update cap chosen to keep on-wire size under Steam P2P's
-	//   ~1200 byte MTU for unreliable, so fragmentation does not amplify drops.
+	// - Per-packet update cap sized to the smallest payload budget across the
+	//   transports that enforce one, so fragmentation does not amplify drops.
+	//   See MAX_UPDATES_PER_PACKET.
 	// - Solid rails are out of scope for this iteration: SolidConduitFlow
 	//   contents reference a host-local pickupable handle that does not
 	//   round-trip through serialisation.
@@ -34,9 +35,12 @@ namespace ONI_Together.Networking.Components
 		private const float SYNC_INTERVAL = 1.5f;        // delta cadence — matches WorldStateSyncer.GAS_SYNC_INTERVAL
 		private const float FORCE_REFRESH_INTERVAL = 4.5f; // full re-emit cadence; 3x delta is the smallest spacing that does not duplicate the delta tick
 		private const float INITIAL_DELAY = 5f;
-		// 31 bytes/update including visual flow direction/element/mass. 35 updates
-		// remain below Steam P2P's ~1200 byte unreliable MTU.
-		private const int MAX_UPDATES_PER_PACKET = 35;
+		// 31 bytes/update including visual flow direction/element/mass, plus a 4 byte packet
+		// id and a 4 byte count. 31 updates = 969 bytes, inside the 1000 byte budget the
+		// Riptide and LiteNetLib senders enforce; the old 35 came to 1093 and overran it.
+		// Staying under the budget beats chunking here: these sends are unreliable, so
+		// losing one chunk wastes the whole batch and leaves a partial reassembly pending.
+		private const int MAX_UPDATES_PER_PACKET = 31;
 		private const float MASS_THRESHOLD = 0.01f;      // 10 g
 		private const float TEMP_THRESHOLD = 0.5f;       // 0.5 K
 
