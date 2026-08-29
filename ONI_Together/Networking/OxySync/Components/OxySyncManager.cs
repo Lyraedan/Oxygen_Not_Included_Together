@@ -184,40 +184,10 @@ namespace ONI_Together.Networking.OxySync.Components
 
                 behaviour._lastSyncTime = Time.unscaledTime;
 
-                uint manualDirty = behaviour.GetAndClearDirtyBits();
+                ulong manualDirty = behaviour.GetAndClearDirtyBits();
 
                 _changedByGroup.Clear();
-                var fields = behaviour.SyncVarFields;
-
-                for (int j = 0; j < fields.Count; j++)
-                {
-                    var field = fields[j];
-                    bool isManuallyDirty = (manualDirty & (1u << j)) != 0;
-
-                    Variant currentVariant;
-                    if (isManuallyDirty)
-                    {
-                        currentVariant = VariantHelper.ObjectToVariant(field.Info.GetValue(behaviour));
-                    }
-                    else
-                    {
-                        var currentValue = field.Info.GetValue(behaviour);
-                        currentVariant = VariantHelper.ObjectToVariant(currentValue);
-                        var lastVariant = VariantHelper.ObjectToVariant(field.LastSentValue);
-                        if (!VariantHelper.ValuesDiffer(currentVariant, lastVariant, field.Epsilon))
-                            continue;
-                    }
-
-                    int group = field.InterestGroup;
-                    if (group == -1) group = behaviour.InterestGroup;
-                    var key = (group, (PacketSendMode)field.SendMode);
-                    if (!_changedByGroup.TryGetValue(key, out var list))
-                    {
-                        list = new List<(int Hash, Variant Value)>();
-                        _changedByGroup[key] = list;
-                    }
-                    list.Add((field.Hash, currentVariant));
-                }
+                CollectChanges(behaviour, manualDirty, _changedByGroup);
 
                 if (_changedByGroup.Count == 0) continue;
 
@@ -276,15 +246,14 @@ namespace ONI_Together.Networking.OxySync.Components
 					int currentWorld = behaviour.GetMyWorldId();
 					if (currentWorld >= 0)
 					{
-						int newGroup = WorldChunkHelper.GetGroupId(currentWorld,
-							Grid.PosToCell(behaviour.transform.position));
+						int newGroup = WorldChunkHelper.GetGroupId(currentWorld, Grid.PosToCell(behaviour.transform.position));
 						if (newGroup != behaviour.InterestGroup)
-							{
-								RemoveBehaviourFromGroupIndex(behaviour, behaviour.InterestGroup);
-								behaviour.InterestGroup = newGroup;
-								AddBehaviourToGroupIndex(behaviour, newGroup);
-								behaviour.MarkAllDirty();
-							}
+                        {
+                            RemoveBehaviourFromGroupIndex(behaviour, behaviour.InterestGroup);
+                            behaviour.InterestGroup = newGroup;
+                            AddBehaviourToGroupIndex(behaviour, newGroup);
+                            behaviour.MarkAllDirty(); // Looking at this I'm not 100% sure I need this anymore but I'll leave it - Lyraedan
+                        }
 					}
 				}
             }
@@ -294,6 +263,50 @@ namespace ONI_Together.Networking.OxySync.Components
                 sw.Stop();
                 SyncStats.RecordSync(SyncStats.OxySync, totalChanges, totalChanges * 16, sw.ElapsedMilliseconds);
             }
+        }
+
+        internal static void CollectChanges(NetworkBehaviour behaviour, ulong manualDirty, Dictionary<(int Group, PacketSendMode Mode), List<(int Hash, Variant Value)>> changes)
+        {
+            var fields = behaviour.SyncVarFields;
+
+            ulong remaining = manualDirty;
+            while (remaining != 0)
+            {
+                int index = BitUtils.TrailingZeroCount(remaining);
+                remaining &= remaining - 1;
+
+                if (index >= fields.Count) continue;
+
+                var field = fields[index];
+                AddChange(changes, behaviour, field, VariantHelper.ObjectToVariant(field.Info.GetValue(behaviour)));
+            }
+
+            for (int j = 0; j < fields.Count; j++)
+            {
+                if ((manualDirty & (1UL << j)) != 0) continue;
+
+                var field = fields[j];
+                var currentValue = field.Info.GetValue(behaviour);
+                var currentVariant = VariantHelper.ObjectToVariant(currentValue);
+                var lastVariant = VariantHelper.ObjectToVariant(field.LastSentValue);
+                if (!VariantHelper.ValuesDiffer(currentVariant, lastVariant, field.Epsilon))
+                    continue;
+
+                AddChange(changes, behaviour, field, currentVariant);
+            }
+        }
+
+        private static void AddChange(Dictionary<(int Group, PacketSendMode Mode), List<(int Hash, Variant Value)>> changes, NetworkBehaviour behaviour, NetworkBehaviour.SyncVarField field, Variant value)
+        {
+            int group = field.InterestGroup;
+            if (group == -1) group = behaviour.InterestGroup;
+            var key = (group, (PacketSendMode)field.SendMode);
+            if (!changes.TryGetValue(key, out var list))
+            {
+                list = new List<(int Hash, Variant Value)>();
+                changes[key] = list;
+            }
+            list.Add((field.Hash, value));
         }
 
         private void IndexBehaviour(NetworkBehaviour behaviour)

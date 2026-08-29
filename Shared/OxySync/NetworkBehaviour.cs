@@ -31,7 +31,7 @@ namespace Shared.OxySync
         private Dictionary<int, CachedMethod>? _commandMethods;
         private Dictionary<int, CachedMethod>? _clientRpcMethods;
         private Dictionary<int, CachedMethod>? _targetRpcMethods;
-        private uint _syncVarDirtyBits;
+        private ulong _syncVarDirtyBits;
         private Dictionary<int, int>? _syncVarHashToIndex;
 
         protected bool isServer => IsHostQuery?.Invoke() ?? false;
@@ -140,6 +140,10 @@ namespace Shared.OxySync
             }
 
             _syncVarFields = list;
+
+            if (list.Count > 64)
+                throw new InvalidOperationException(
+                    $"[OxySync] {GetType().Name} declares {list.Count} [SyncVar] fields; the limit is 64.");
 
             _syncVarHashToIndex = new Dictionary<int, int>();
             for (int i = 0; i < list.Count; i++)
@@ -568,7 +572,7 @@ namespace Shared.OxySync
         {
             int fieldHash = variable.GetHashCode();
             if (_syncVarHashToIndex != null && _syncVarHashToIndex.TryGetValue(fieldHash, out int idx))
-                _syncVarDirtyBits |= 1u << idx;
+                _syncVarDirtyBits |= 1UL << idx;
         }
         
         /// <summary>
@@ -578,12 +582,12 @@ namespace Shared.OxySync
         protected void MarkSyncVarAsDirty(int fieldHash)
         {
             if (_syncVarHashToIndex != null && _syncVarHashToIndex.TryGetValue(fieldHash, out int idx))
-                _syncVarDirtyBits |= 1u << idx;
+                _syncVarDirtyBits |= 1UL << idx;
         }
 
-        public uint GetAndClearDirtyBits()
+        public ulong GetAndClearDirtyBits()
         {
-            uint bits = _syncVarDirtyBits;
+            ulong bits = _syncVarDirtyBits;
             _syncVarDirtyBits = 0;
             return bits;
         }
@@ -591,7 +595,7 @@ namespace Shared.OxySync
         public void MarkAllDirty()
         {
             if (_syncVarFields != null)
-                _syncVarDirtyBits = _syncVarFields.Count < 32 ? (1u << _syncVarFields.Count) - 1 : ~0u;
+                _syncVarDirtyBits = _syncVarFields.Count < 64 ? (1UL << _syncVarFields.Count) - 1 : ulong.MaxValue;
         }
     }
 }
