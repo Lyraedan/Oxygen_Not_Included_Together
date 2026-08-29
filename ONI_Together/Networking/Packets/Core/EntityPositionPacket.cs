@@ -1,3 +1,4 @@
+using System;
 using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
@@ -7,6 +8,7 @@ using Shared.Profiling;
 using UnityEngine;
 using Shared.Interfaces.Networking;
 
+[Obsolete("Use OxySyncEntityPositionHandler instead")]
 public class EntityPositionPacket : IPacket, IViewportCullable
 {
 	public int NetId;

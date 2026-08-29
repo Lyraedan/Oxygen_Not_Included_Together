@@ -7,6 +7,7 @@ using ONI_Together.Networking.Packets.Architecture;
 
 namespace ONI_Together.Networking.Packets.Core
 {
+    [Obsolete("Use OxySyncEntityPositionHandler instead")]
     public class EntityPositionRequestPacket : IPacket
     {
         public ulong RequesterId;

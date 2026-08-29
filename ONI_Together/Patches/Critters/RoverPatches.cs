@@ -1,6 +1,7 @@
 using HarmonyLib;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
+using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Networking.Packets.World;
 using ONI_Together.Scripts.Creatures;
 using Shared.Profiling;
@@ -21,7 +22,7 @@ namespace ONI_Together.Patches.Critters
 					return;
 
 				__result.AddOrGet<NetworkIdentity>();
-				__result.AddOrGet<EntityPositionHandler>();
+				__result.AddOrGet<OxySyncEntityPositionHandler>();
 				__result.AddOrGet<AnimStateSyncer>();
 				__result.AddOrGet<CreatureMultiplayerInitializer>();
 			}
