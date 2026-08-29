@@ -125,7 +125,7 @@ namespace ONI_Together.DebugTools
 
                     NetworkConfig.NetworkTransport selected_transport = NetworkConfig.NetworkTransport.LITENETLIB;
                     Configuration.Instance.Host.NetworkTransport = (int)selected_transport;
-                    NetworkConfig.UpdateTransport(selected_transport);
+                    NetworkConfig.UpdateLanTransport();
 
                     Configuration.Instance.Save();
 
@@ -151,7 +151,7 @@ namespace ONI_Together.DebugTools
 
             if (GUILayout.Button("Join Server"))
             {
-                NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.LITENETLIB);
+                NetworkConfig.UpdateLanTransport();
                 DebugConsole.Log($"[LAN] Joining {lanJoinAddress}");
 
                 string[] address = lanJoinAddress.Split(':');

@@ -110,6 +110,7 @@ namespace ONI_Together.DebugTools
             OnUninit += () => UnInit();
 
             selectedTransportType = Configuration.Instance.Host.NetworkTransport;
+            selectedLanType = (int)Configuration.Instance.Host.LanSettings.Transport - 1;
             hostIP = Configuration.Instance.Host.LanSettings.Ip;
             hostPort = Configuration.Instance.Host.LanSettings.Port;
             settings_host.Ip = hostIP;
@@ -844,7 +845,7 @@ namespace ONI_Together.DebugTools
                 ImGui.Indent();
                 ImGui.Separator();
 
-                string[] lan_options = new string[] { "LiteNetLib (UDP)" };
+                string[] lan_options = new string[] { "LiteNetLib (UDP)", "Riptide" };
                 ImGui.Combo("Lan Type", ref selectedLanType, lan_options, lan_options.Length);
                 ImGui.Separator();
 
@@ -875,10 +876,14 @@ namespace ONI_Together.DebugTools
 
                 NetworkConfig.NetworkTransport selected_transport = selectedTransportType == 0
                     ? NetworkConfig.NetworkTransport.STEAMWORKS
-                    : NetworkConfig.NetworkTransport.LITENETLIB;
+                    : (NetworkConfig.NetworkTransport)(selectedLanType + 1);
 
                 Configuration.Instance.Host.NetworkTransport = (int)selected_transport;
-                NetworkConfig.UpdateTransport(selected_transport);
+                Configuration.Instance.Host.LanSettings.Transport = (LanTransportType)(selectedLanType + 1);
+                if (selectedTransportType == 1)
+                    NetworkConfig.UpdateLanTransport();
+                else
+                    NetworkConfig.UpdateTransport(selected_transport);
                 Configuration.Instance.Save();
             }
         }

@@ -3,6 +3,7 @@ using ONI_Together.Misc;
 using ONI_Together.Networking.States;
 using Steamworks;
 using System.Collections.Generic;
+using ONI_Together.Networking.OxySync;
 using Shared.Profiling;
 using TMPro;
 using UnityEngine;
@@ -41,6 +42,8 @@ namespace ONI_Together.Networking
 		public int InterestGroup = -1;
 		public int ViewMinX, ViewMinY, ViewMaxX, ViewMaxY;
 		public HashSet<int> SubscribedChunks = new HashSet<int>();
+
+		private OxySyncPlayerCursor oxySyncCursor;
 
         private readonly Dictionary<CursorState, float> cursorActionThresholds = new Dictionary<CursorState, float>()
 				{
@@ -135,6 +138,17 @@ namespace ONI_Together.Networking
 				playerCursorMaterial.SetColor("_ReplacementColor", Color.white);
 				playerCursorMaterial.SetFloat("_Threshold", 0.36f);
 			}
+
+			/* Can't be bothered to fix this right now, its not a high priority - Lyraedan
+			oxySyncCursor = gameObject.AddOrGet<OxySyncPlayerCursor>();
+			oxySyncCursor.NetId = $"Player {assignedPlayer}".GetHashCode();
+			oxySyncCursor.OnNameChanged = (pn) =>
+			{
+				playerName = pn;
+				cursorText.text = $"{pn}";
+			};
+			oxySyncCursor.CmdRequestName(assignedPlayer);
+			*/
 		}
 
 		private void UpdateActionImage()

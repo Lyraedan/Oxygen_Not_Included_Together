@@ -62,7 +62,7 @@ namespace ONI_Together.Networking.Transport.Lan
             if (_server != null)
                 return;
 
-            OxySyncChat.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_SERVER_STARTED, "LAN"));
+            OxySyncChat.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_SERVER_STARTED, "Riptide (LAN)"));
 
             string ip = Configuration.Instance.Host.LanSettings.Ip;
             int port = Configuration.Instance.Host.LanSettings.Port;
@@ -92,9 +92,9 @@ namespace ONI_Together.Networking.Transport.Lan
             _client = new Client("Lan/Riptide/HostClient");
             _client.Connected += OnLocalClientConnected;
             _client.Disconnected += OnLocalClientDisconnected;
-            _client.TimeoutTime = Configuration.Instance.HostTimeoutSeconds * 1000;
             DebugConsole.Log("[RiptideServer] Connecting host client!");
             _client.Connect($"{ip}:{port}", useMessageHandlers: false);
+            _client.TimeoutTime = Configuration.Instance.HostTimeoutSeconds * 1000;
         }
 
         private void OnClientConnectionFailed(object sender, ServerConnectionFailedEventArgs e)

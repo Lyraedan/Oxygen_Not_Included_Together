@@ -19,6 +19,18 @@ namespace ONI_Together.Networking.Transport.Lan
                 return false;
 
             byte[] bytes = PacketSender.SerializePacketForSending(packet);
+
+            return SendChunkedIfNeeded(peer, bytes, packet, sendType, SendRaw);
+        }
+
+        private bool SendRaw(object conn, byte[] bytes, IPacket packet, PacketSendMode sendType)
+        {
+            if (conn is not NetPeer peer)
+                return false;
+
+            if (peer.ConnectionState != ConnectionState.Connected)
+                return false;
+
             DeliveryMethod deliveryMethod = ConvertSendType(sendType, packet);
 
             try
@@ -35,7 +47,7 @@ namespace ONI_Together.Networking.Transport.Lan
             }
             catch (Exception ex)
             {
-                DebugConsole.LogError("[LiteNetLibPacketSender] Failed to send packet: " + ex.Message);
+                DebugConsole.LogError($"[LiteNetLibPacketSender] Failed to send packet {packet.GetType().Name} ({bytes.Length} bytes): " + ex.Message);
                 return false;
             }
         }

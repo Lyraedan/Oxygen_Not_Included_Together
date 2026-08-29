@@ -86,6 +86,22 @@ namespace ONI_Together
             set => Client.TimeoutSeconds = Mathf.Max(value, 30);
         }
 
+        [Option("STRINGS.UI.CONFIGURATION.TITLES.LAN_SETTINGS.LAN_TRANSPORT", "STRINGS.UI.CONFIGURATION.TOOLTIPS.LAN_SETTINGS.LAN_TRANSPORT", "STRINGS.UI.CONFIGURATION.HEADERS.C_NETWORK_SETTINGS")]
+        [JsonIgnore]
+        public LanTransportType LanTransport
+        {
+            get => Host.LanSettings.Transport;
+            set => Host.LanSettings.Transport = value;
+        }
+
+        [Option("STRINGS.UI.CONFIGURATION.TITLES.LAN_SETTINGS.LAN_DISPLAY_NAME", "STRINGS.UI.CONFIGURATION.TOOLTIPS.LAN_SETTINGS.LAN_DISPLAY_NAME", "STRINGS.UI.CONFIGURATION.HEADERS.C_NETWORK_SETTINGS")]
+        [JsonIgnore]
+        public string LanDisplayName
+        {
+            get => Host.LanSettings.DisplayName;
+            set => Host.LanSettings.DisplayName = value;
+        }
+
         [Option("STRINGS.UI.CONFIGURATION.TITLES.NETWORK_SETTINGS.ENABLE_PACKET_QUEUE", "STRINGS.UI.CONFIGURATION.TOOLTIPS.NETWORK_SETTINGS.ENABLE_PACKET_QUEUE", "STRINGS.UI.CONFIGURATION.HEADERS.C_NETWORK_SETTINGS")]
         [JsonIgnore]
         public bool EnablePacketQueue
@@ -292,11 +308,19 @@ namespace ONI_Together
         [JsonProperty] public string Region { get; set; } = "";
     }
 
+    public enum LanTransportType
+    {
+        LiteNetLib = 1,
+        Riptide = 2
+    }
+
     [Serializable]
     public class LanSettings
     {
         [JsonProperty] public string Ip { get; set; } = "127.0.0.1";
         [JsonProperty] public int Port { get; set; } = 8080;
+        [JsonProperty] public LanTransportType Transport { get; set; } = LanTransportType.LiteNetLib;
+        [JsonProperty] public string DisplayName { get; set; } = "";
 
         public string GetHashedAddress()
         {

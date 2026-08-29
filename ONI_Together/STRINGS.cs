@@ -62,6 +62,12 @@ namespace ONI_Together
                         public static LocString LOADINGSCREEN_COLOR = "Use Custom Loading Screen Color";
                         public static LocString USE_DISCORD_RICH_PRESENCE = "Use Discord Rich Presence";
                     }
+
+                    public class LAN_SETTINGS
+                    {
+                        public static LocString LAN_TRANSPORT = "Lan Transport";
+                        public static LocString LAN_DISPLAY_NAME = "Lan Display Name";
+                    }
                 }
 
                 public class TOOLTIPS
@@ -105,6 +111,12 @@ namespace ONI_Together
 						public static LocString PUFT_LOADINGSCREEN = "Override the loading icon with a Puft.";
 						public static LocString LOADINGSCREEN_COLOR = "Override the purple background of the loading screen with turquoise.";
 						public static LocString USE_DISCORD_RICH_PRESENCE = "Enables Discord Rich Presence integration, showing your current game state (colony name, cycle, asteroid) on your Discord profile.";
+                    }
+
+                    public class LAN_SETTINGS
+                    {
+                        public static LocString LAN_TRANSPORT = "Which network library is used for LAN games.\n\nLiteNetLib is the modern default transport. Riptide is the legacy LAN transport.";
+                        public static LocString LAN_DISPLAY_NAME = "The name shown to other players when they discover or join your LAN game.\nLeave empty to default to 'Player <id>'.";
                     }
                 }
             }

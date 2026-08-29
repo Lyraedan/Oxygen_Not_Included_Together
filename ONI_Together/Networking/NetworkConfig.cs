@@ -89,7 +89,7 @@ namespace ONI_Together.Networking
             }
             catch (Exception ex)
             {
-                DebugConsole.LogError($"Failed to start LAN game server: {ex.Message}");
+                DebugConsole.LogError($"Failed to start LAN game server: {ex.Message}\n{ex.StackTrace}");
             }
             SelectToolPatch.UpdateColor();
             Game.Instance.Trigger(MP_HASHES.OnMultiplayerGameSessionInitialized);
@@ -144,6 +144,11 @@ namespace ONI_Together.Networking
             TransportClient = GetTransportClient();
             TransportPacketSender = GetTransportPacketSender();
             DebugConsole.Log($"Updated network transport to: {newTransport.ToString()}");
+        }
+
+        public static void UpdateLanTransport()
+        {
+            UpdateTransport((NetworkTransport)Configuration.Instance.Host.LanSettings.Transport);
         }
 
         public static TransportServer GetTransportServer()
