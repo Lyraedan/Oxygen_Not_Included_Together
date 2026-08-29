@@ -3,16 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Text;
-using HarmonyLib;
 using ONI_Together.Misc;
 using ONI_Together.Networking;
-using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Networking.OxySync.Packets;
-using ONI_Together.Networking.Packets.Core;
-using ONI_Together.Networking.Packets.Architecture;
-using ONI_Together.Networking.Components;
 using Shared.OxySync;
-using Shared.OxySync.Attributes;
 using UnityEngine;
 
 namespace ONI_Together.DebugTools.UnitTests
@@ -117,6 +111,7 @@ namespace ONI_Together.DebugTools.UnitTests
             var input = new SyncVarPacket
             {
                 NetId = 12345,
+                BehaviourId = 2,
                 FieldHash = "health".GetHashCode(),
                 Value = (Variant)100f,
                 Timestamp = 987654321098L,
@@ -133,6 +128,8 @@ namespace ONI_Together.DebugTools.UnitTests
 
             if (output.NetId != 12345)
                 return UnitTestResult.Fail($"NetId mismatch: {output.NetId}");
+            if (output.BehaviourId != 2)
+                return UnitTestResult.Fail($"BehaviourId mismatch: {output.BehaviourId}");
             if (output.FieldHash != input.FieldHash)
                 return UnitTestResult.Fail("FieldHash mismatch");
             if (Mathf.Abs(output.Value.Float - 100f) > 0.001f)
@@ -154,7 +151,7 @@ namespace ONI_Together.DebugTools.UnitTests
                 ("count".GetHashCode(), (Variant)42),
             };
 
-            var input = new SyncVarBatchPacket(999, updates)
+            var input = new SyncVarBatchPacket(999, 3, updates)
             {
                 Timestamp = 1234567890123L,
             };
@@ -170,6 +167,8 @@ namespace ONI_Together.DebugTools.UnitTests
 
             if (output.NetId != 999)
                 return UnitTestResult.Fail($"NetId mismatch: {output.NetId}");
+            if (output.BehaviourId != 3)
+                return UnitTestResult.Fail($"BehaviourId mismatch: {output.BehaviourId}");
             if (output.Timestamp != 1234567890123L)
                 return UnitTestResult.Fail($"Timestamp mismatch: {output.Timestamp}");
             if (output.Count != 4)
@@ -192,6 +191,7 @@ namespace ONI_Together.DebugTools.UnitTests
             var input = new CommandPacket
             {
                 NetId = 777,
+                BehaviourId = 1,
                 MethodHash = "TakeDamage".GetHashCode(),
                 Args = new byte[] { 0x01, 0x02, 0x03 },
             };
@@ -207,6 +207,8 @@ namespace ONI_Together.DebugTools.UnitTests
 
             if (output.NetId != 777)
                 return UnitTestResult.Fail($"NetId mismatch: {output.NetId}");
+            if (output.BehaviourId != 1)
+                return UnitTestResult.Fail($"BehaviourId mismatch: {output.BehaviourId}");
             if (output.MethodHash != input.MethodHash)
                 return UnitTestResult.Fail("MethodHash mismatch");
             if (output.Args.Length != 3 || output.Args[0] != 0x01)
@@ -221,6 +223,7 @@ namespace ONI_Together.DebugTools.UnitTests
             var input = new ClientRpcPacket
             {
                 NetId = 555,
+                BehaviourId = 2,
                 MethodHash = "RpcHealed".GetHashCode(),
                 Args = new byte[] { 0x0A },
                 TargetPlayerId = ulong.MaxValue,
@@ -237,6 +240,8 @@ namespace ONI_Together.DebugTools.UnitTests
 
             if (output.NetId != 555)
                 return UnitTestResult.Fail($"NetId mismatch: {output.NetId}");
+            if (output.BehaviourId != 2)
+                return UnitTestResult.Fail($"BehaviourId mismatch: {output.BehaviourId}");
             if (output.MethodHash != input.MethodHash)
                 return UnitTestResult.Fail("MethodHash mismatch");
             if (output.Args.Length != 1 || output.Args[0] != 0x0A)
@@ -253,6 +258,7 @@ namespace ONI_Together.DebugTools.UnitTests
             var input = new ClientRpcPacket
             {
                 NetId = 444,
+                BehaviourId = 3,
                 MethodHash = "RpcPrivateMsg".GetHashCode(),
                 Args = Array.Empty<byte>(),
                 TargetPlayerId = 9001,
@@ -267,6 +273,10 @@ namespace ONI_Together.DebugTools.UnitTests
             using (var r = new BinaryReader(ms, Encoding.UTF8, true))
                 output.Deserialize(r);
 
+            if (output.NetId != 444)
+                return UnitTestResult.Fail($"NetId mismatch: {output.NetId}");
+            if (output.BehaviourId != 3)
+                return UnitTestResult.Fail($"BehaviourId mismatch: {output.BehaviourId}");
             if (output.TargetPlayerId != 9001)
                 return UnitTestResult.Fail($"TargetPlayerId mismatch: {output.TargetPlayerId}");
 
