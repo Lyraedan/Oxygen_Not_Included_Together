@@ -24,7 +24,8 @@ namespace ONI_Together.Networking.OxySync.Components
         private readonly Dictionary<int, HashSet<NetworkBehaviour>> _behavioursByGroup = new();
 
         // NetworkBehaviour fast lookup Dictionary for quick access by NetId and BehaviourId
-        int behaviorIdCounter = 1;
+        private int behaviorIdCounter = 1;
+        private int MaxRegistrationAttempts = 3;
         private readonly Dictionary<(int, int), NetworkBehaviour> _behaviourLookup = new();
 
         private float _tickAccumulator;
@@ -147,11 +148,10 @@ namespace ONI_Together.Networking.OxySync.Components
 			if (!_behaviours.Contains(behaviour))
 				_behaviours.Add(behaviour);
 
-            bool isKeyExists = _behaviourLookup.ContainsKey((behaviour.NetId, behaviour.BehaviourId));
-            if (behaviour.BehaviourId == -1 || isKeyExists)
-                AssignBehaviourId(behaviour);
-            
-            _behaviourLookup[(behaviour.NetId, behaviour.BehaviourId)] = behaviour;
+            if (AssignBehaviourId(behaviour))
+            {
+                _behaviourLookup[(behaviour.NetId, behaviour.BehaviourId)] = behaviour;
+            }
 
 			if (behaviour.GetType().GetCustomAttribute<FixedInterestGroupAttribute>() != null)
 				_explicitGroupTypes.Add(behaviour.GetType());
@@ -432,9 +432,32 @@ namespace ONI_Together.Networking.OxySync.Components
             }
         }
 
-        private void AssignBehaviourId(NetworkBehaviour behaviour)
+        private bool AssignBehaviourId(NetworkBehaviour behaviour)
         {
-            behaviour.BehaviourId = behaviorIdCounter++;
+            int behaviorId = behaviour.BehaviourId;
+            for (int attempts = 0; attempts < MaxRegistrationAttempts; attempts++)
+            {
+                bool isUnassigned = behaviorId == -1;
+                bool isDuplicate = _behaviourLookup.ContainsKey((behaviour.NetId, behaviorId));
+                if (!isUnassigned && !isDuplicate)
+                {
+                    behaviour.BehaviourId = behaviorId;
+                    return true;
+                }
+
+                behaviorId = behaviorIdCounter++;
+            }
+
+            if (!_behaviourLookup.ContainsKey((behaviour.NetId, behaviorId)))
+            {
+                behaviour.BehaviourId = behaviorId;
+                return true;
+            }
+
+            DebugConsole.LogWarning(
+                $"[OxySyncManager] Failed to assign BehaviourId for {behaviour.GetType().Name}" +
+                $" on {behaviour.gameObject.name} after {MaxRegistrationAttempts} attempts.");
+            return false;
         }
     }
 }
