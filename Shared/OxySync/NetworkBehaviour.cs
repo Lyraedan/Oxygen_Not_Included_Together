@@ -592,6 +592,14 @@ namespace Shared.OxySync
             return bits;
         }
 
+        /// <summary>
+        /// Current 64-bit SyncVar dirty mask; bit i = SyncVar index i (0-63).
+        /// Read-only — the mask is consumed and cleared by the sync manager each tick
+        /// via <see cref="GetAndClearDirtyBits"/>, so this is the state pending since
+        /// the last sync.
+        /// </summary>
+        public ulong SyncVarDirtyBits => _syncVarDirtyBits;
+
         public void MarkAllDirty()
         {
             if (_syncVarFields != null)

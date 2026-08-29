@@ -73,6 +73,8 @@ namespace ONI_Together.DebugTools
         private string[] _oxySyncWorldOptions = new[] { "All", "Group -1 (Broadcast)" };
         private int[] _oxySyncWorldIds = new[] { -2, -1 };
         private bool _oxySyncShowSyncingOnly = false;
+        private int _oxySyncNetIdPage = 0;
+        private const int OxySyncNetIdPageSize = 100;
 
         // Independent popout windows
         private struct PopoutWindow
@@ -1060,8 +1062,16 @@ namespace ONI_Together.DebugTools
 
                 ImGui.BeginChild("OxySyncNetIdList", new Vector2(0, 0), true);
 
-                foreach (int netId in sortedNetIds)
+                int totalGroups = sortedNetIds.Count;
+                int totalPages = Mathf.Max(1, (totalGroups + OxySyncNetIdPageSize - 1) / OxySyncNetIdPageSize);
+                _oxySyncNetIdPage = Mathf.Clamp(_oxySyncNetIdPage, 0, totalPages - 1);
+
+                int startIdx = _oxySyncNetIdPage * OxySyncNetIdPageSize;
+                int endIdx = Mathf.Min(startIdx + OxySyncNetIdPageSize, totalGroups);
+
+                for (int g = startIdx; g < endIdx; g++)
                 {
+                    int netId = sortedNetIds[g];
                     var group = netIdGroups[netId];
                     var first = group[0];
                     string goName = first.gameObject?.name ?? "?";
@@ -1092,6 +1102,14 @@ namespace ONI_Together.DebugTools
                             ImGui.PopStyleColor();
                     }
                 }
+
+                ImGui.Separator();
+                ImGui.Text($"Page {_oxySyncNetIdPage + 1} / {totalPages} ({totalGroups} NetIds)");
+                if (ImGui.Button("◀ Prev") && _oxySyncNetIdPage > 0)
+                    _oxySyncNetIdPage--;
+                ImGui.SameLine();
+                if (ImGui.Button("Next ▶") && _oxySyncNetIdPage < totalPages - 1)
+                    _oxySyncNetIdPage++;
 
                 ImGui.EndChild();
 
@@ -1230,6 +1248,48 @@ namespace ONI_Together.DebugTools
             ImGui.Separator();
 
             var syncVars = behaviour.SyncVarFields;
+
+            ulong dirtyMask = behaviour.SyncVarDirtyBits;
+            int dirtyCount = 0;
+            for (int b = 0; b < 64; b++)
+                if ((dirtyMask & (1UL << b)) != 0) dirtyCount++;
+
+            ImGui.Spacing();
+            ImGui.TextColored(new Vector4(1f, 0.8f, 0.3f, 1f),
+                $"Dirty Mask: 0x{dirtyMask:X16}  ({dirtyCount} / {syncVars.Count} dirty)");
+            ImGui.TextDisabled("Bit i = SyncVar index i. Cleared each sync tick.");
+
+            ImGui.Spacing();
+            for (int bit = 0; bit < 64; bit++)
+            {
+                bool isDirty = (dirtyMask & (1UL << bit)) != 0;
+                bool registered = bit < syncVars.Count;
+                var color = isDirty
+                    ? new Vector4(1f, 0.3f, 0.2f, 1f)
+                    : registered
+                        ? new Vector4(0.3f, 1f, 0.3f, 1f)
+                        : new Vector4(0.45f, 0.45f, 0.45f, 0.5f);
+
+                ImGui.PushID($"dirtybit_{bit}");
+                ImGui.TextColored(color, $"{bit:D2}");
+                if (ImGui.IsItemHovered())
+                {
+                    string fieldName = registered ? syncVars[bit].Info.Name : "unregistered";
+                    ImGui.SetTooltip($"Bit {bit}: {(isDirty ? "DIRTY" : "clean")}\n{fieldName}");
+                }
+                ImGui.PopID();
+
+                if ((bit % 8) != 7)
+                    ImGui.SameLine();
+            }
+
+            ImGui.Spacing();
+            if (ImGui.SmallButton("Mark All Dirty"))
+                behaviour.MarkAllDirty();
+            ImGui.SameLine();
+            ImGui.TextDisabled("(consumed on next sync tick)");
+            ImGui.Separator();
+
             if (syncVars.Count > 0)
             {
                 ImGui.TextColored(new Vector4(0.3f, 1f, 0.3f, 1f), "SyncVars:");
@@ -1245,6 +1305,12 @@ namespace ONI_Together.DebugTools
 
                     ImGui.PushID($"detail_syncvar_{i}");
                     ImGui.Text($"{field.Info.Name}{groupLabel} ({typeName}): {valueStr}");
+                    ImGui.SameLine();
+
+                    bool isDirty = (behaviour.SyncVarDirtyBits & (1UL << i)) != 0;
+                    ImGui.TextColored(
+                        isDirty ? new Vector4(1f, 0.3f, 0.2f, 1f) : new Vector4(0.4f, 0.6f, 0.4f, 1f),
+                        isDirty ? $"● dirty (bit {i})" : $"○ clean (bit {i})");
                     ImGui.SameLine();
 
                     if (field.Info.FieldType == typeof(bool))
