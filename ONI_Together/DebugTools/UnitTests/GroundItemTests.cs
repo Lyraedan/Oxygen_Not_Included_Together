@@ -55,18 +55,18 @@ namespace ONI_Together.DebugTools.UnitTests
 		public static UnitTestResult PendingRemovalQueue()
 		{
 			const int testNetId = 424242;
-			GroundItemPickedUpPacket.ClearPending();
+			PendingPickupRegistry.Clear();
 
 			var packet = new GroundItemPickedUpPacket { NetId = testNetId };
 			packet.OnDispatched();
 
-			if (!GroundItemPickedUpPacket.TryConsumePending(testNetId))
+			if (!PendingPickupRegistry.TryConsume(testNetId))
 				return UnitTestResult.Fail("Expected pending pickup removal to be queued for unresolved NetId");
 
-			if (GroundItemPickedUpPacket.TryConsumePending(testNetId))
+			if (PendingPickupRegistry.TryConsume(testNetId))
 				return UnitTestResult.Fail("Pending pickup removal should be consumed only once");
 
-			GroundItemPickedUpPacket.ClearPending();
+			PendingPickupRegistry.Clear();
 			return UnitTestResult.Pass("Pending pickup removals queue and consume correctly");
 		}
 	}
