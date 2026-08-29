@@ -92,9 +92,12 @@ namespace ONI_Together.Networking.Transport.Lan
             _client = new Client("Lan/Riptide/HostClient");
             _client.Connected += OnLocalClientConnected;
             _client.Disconnected += OnLocalClientDisconnected;
-            _client.TimeoutTime = Configuration.Instance.HostTimeoutSeconds * 1000;
             DebugConsole.Log("[RiptideServer] Connecting host client!");
             _client.Connect($"{ip}:{port}", useMessageHandlers: false);
+
+            // Same ordering as RiptideClient: the setter dereferences the connection Connect
+            // creates, so assigning it first threw straight out of Start().
+            _client.TimeoutTime = Configuration.Instance.HostTimeoutSeconds * 1000;
         }
 
         private void OnClientConnectionFailed(object sender, ServerConnectionFailedEventArgs e)

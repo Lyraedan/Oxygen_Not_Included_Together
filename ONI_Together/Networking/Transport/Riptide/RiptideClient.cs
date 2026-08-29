@@ -69,7 +69,6 @@ namespace ONI_Together.Networking.Transport.Lan
             MultiplayerSession.ServerIp = ip;
             MultiplayerSession.ServerPort = port;
             _client = new Client("RiptideClient");
-            _client.TimeoutTime = Configuration.Instance.Client.TimeoutSeconds * 1000;
 
             int timeout = Configuration.Instance.Client.TimeoutSeconds;
             _client.Connected += OnConnectedToServer;
@@ -80,6 +79,11 @@ namespace ONI_Together.Networking.Transport.Lan
             DebugConsole.Log($"Connecting to {ip}:{port}");
             CoroutineRunner.RunOne(WaitForConnectionSuccess(timeout));
             _client.Connect($"{ip}:{port}", useMessageHandlers: false);
+
+            // After Connect, not before: Riptide's Client.TimeoutTime setter reaches through
+            // the connection, which Connect is what creates. Setting it first threw a
+            // NullReferenceException out of ConnectToHost and the join never started.
+            _client.TimeoutTime = timeout * 1000;
         }
 
         private void OnOtherClientDisconnected(object sender, ClientDisconnectedEventArgs e)
