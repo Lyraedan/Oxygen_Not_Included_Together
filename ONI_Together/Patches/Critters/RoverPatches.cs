@@ -1,4 +1,5 @@
 using HarmonyLib;
+using ONI_Together.Misc;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.OxySync.Components;
@@ -43,6 +44,7 @@ namespace ONI_Together.Patches.Critters
 				if (identity.NetId == 0)
 					return;
 
+				// Could probably be replaced by SpawnUtils.KNetInstantiate
 				PacketSender.SendToAllClients(new SpawnPrefabPacket(
 					identity.NetId,
 					inst.PrefabID().GetHashCode(),
