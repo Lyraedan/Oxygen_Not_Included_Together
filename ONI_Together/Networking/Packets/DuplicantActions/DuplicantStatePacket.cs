@@ -1,6 +1,6 @@
-using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Architecture;
 using System.IO;
+using System;
 using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.DuplicantActions
@@ -65,17 +65,32 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 			if (string.IsNullOrEmpty(CurrentAnimName))
 				return;
 
-			AnimReconciliationHelper.Reconcile(
-				kbac,
-				new HashedString(CurrentAnimName),
-				(KAnim.PlayMode)AnimPlayMode,
-				AnimSpeed,
-				AnimElapsedTime,
-				nameof(DuplicantStatePacket));
+			try
+			{
+				var expectedAnim = new HashedString(CurrentAnimName);
+				var mode = (KAnim.PlayMode)AnimPlayMode;
+				float speed = AnimSpeed <= 0f ? 1f : AnimSpeed;
+
+				bool animMismatch = kbac.CurrentAnim == null || kbac.CurrentAnim.name != CurrentAnimName;
+				if (animMismatch)
+				{
+					kbac.Play(expectedAnim, mode, speed, 0f);
+				}
+
+				float drift = Math.Abs(kbac.GetElapsedTime() - AnimElapsedTime);
+				if (drift > 0.15f)
+				{
+					kbac.SetElapsedTime(AnimElapsedTime);
+				}
+			}
+			catch
+			{
+				// Fall back silently if animation state is transiently unavailable.
+			}
 		}
 	}
 
-	/// <summary>
+	/// <summary> 
 	/// High-level action states for duplicants
 	/// </summary>
 	public enum DuplicantActionState : byte

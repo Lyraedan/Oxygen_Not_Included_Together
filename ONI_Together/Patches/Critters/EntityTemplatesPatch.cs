@@ -1,12 +1,6 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using HarmonyLib;
 using ONI_Together.DebugTools;
-using ONI_Together.Menus;
-using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Scripts.Creatures;
@@ -30,7 +24,7 @@ namespace ONI_Together.Patches.Critters
 
 					__result.AddOrGet<OxySyncEntityPositionHandler>();
 					__result.AddOrGet<NetworkIdentity>();
-					__result.AddOrGet<AnimStateSyncer>();
+					__result.AddOrGet<AnimSyncer>();
 					__result.AddOrGet<CreatureMultiplayerInitializer>();
 				}
 				catch (Exception ex)
