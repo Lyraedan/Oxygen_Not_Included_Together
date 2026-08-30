@@ -93,29 +93,25 @@ namespace ONI_Together.DebugTools.UnitTests
 			return UnitTestResult.Pass("ForgetClientLoading releases the gate without crediting a reconnect");
 		}
 
-		[UnitTest(name: "Transport: a new join does not clear someone else's load", category: "Transport")]
-		public static UnitTestResult UnmatchedConnectLeavesLoadPending()
+		[UnitTest(name: "Transport: a reconnect under a new id still clears the load", category: "Transport")]
+		public static UnitTestResult ReassignedIdReconnectClearsLoad()
 		{
 			var server = new ProbeServer();
 			server.MarkClientLoading(FakeLoaderA);
 
-			// A different client connecting is a new join, not the loader coming back. If this
-			// consumed A's entry the gate would rest only on B's Unready flag and would open
-			// the moment B reported Ready - with A still mid-load, which is the exact bug the
-			// pending count exists to prevent.
+			// No LAN transport keeps a client id across a reconnect - both derive it from the
+			// peer handle - so the returning loader arrives as someone else and the oldest
+			// pending entry is released instead. Pinned here because the alternative, leaving
+			// it alone, stalls the gate for the full timeout after every load.
 			server.ClaimLoadingReconnect(FakeLoaderB);
 
-			if (server.PendingLoadingClientCount != 1)
-				return UnitTestResult.Fail(
-					$"A new join consumed the pending load (count {server.PendingLoadingClientCount})");
+			if (server.PendingLoadingClientCount != 0)
+				return UnitTestResult.Fail("A reconnect under a new id left the gate closed");
 
-			if (!server.IsClientLoading(FakeLoaderA))
-				return UnitTestResult.Fail("The original loader's entry was dropped");
+			if (!server.ConsumeReconnectFromLoad(FakeLoaderB))
+				return UnitTestResult.Fail("The reconnect was not reported as a returning loader");
 
-			if (server.ConsumeReconnectFromLoad(FakeLoaderB))
-				return UnitTestResult.Fail("A new join was mis-tagged as a returning loader");
-
-			return UnitTestResult.Pass("An unmatched connect leaves the pending load and the gate alone");
+			return UnitTestResult.Pass("A reconnect under a new id releases the pending load");
 		}
 	}
 }

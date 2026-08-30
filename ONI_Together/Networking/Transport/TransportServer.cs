@@ -87,37 +87,38 @@ namespace ONI_Together.Networking.Transport
         /// connection against the pending loads. Returns true if this connect was a returning
         /// loader.
         ///
-        /// Matching is by id and nothing else, because guessing is not safe here: consuming
-        /// the entry of a client that is still loading drops PendingLoadingClientCount to zero,
-        /// and the gate then rests solely on the *new* client's Unready flag - so it opens as
-        /// soon as that client reports Ready, with the original loader still mid-load. That is
-        /// precisely the failure this class exists to prevent, so an unmatched connect leaves
-        /// the pending entry alone and the gate stays closed.
+        /// Only Steamworks can match by id: it keys on the SteamID. Neither LAN transport can -
+        /// both derive the client id from the peer handle, and a returning loader is measured
+        /// to come back under a new one (a client that left as id 2 returned as id 3). So the
+        /// LAN case falls back to releasing the longest-pending entry.
         ///
-        /// LiteNetLib and Steamworks always match: LiteNetLib's OnConnectionRequest echoes back
-        /// the persistent id the client supplied, and Steamworks keys on the SteamID. Riptide
-        /// reassigns its id on reconnect and has nothing to match on - see the override in
-        /// RiptideServer for the trade it is forced into.
+        /// That fallback is a guess, and the guess is wrong when a brand-new client connects
+        /// while someone else is loading: it releases the loader's entry, and the gate is then
+        /// held only by the new client's Unready flag, so it opens as soon as that client
+        /// reports Ready. It needs two clients moving at once to bite, and the alternative -
+        /// leaving the entry alone - stalls the gate for the full timeout after every single
+        /// load. Restoring a stable client id across a reconnect would remove the choice.
         /// </summary>
         public virtual bool ClaimLoadingReconnect(ulong clientId)
         {
-            if (!_loadingClients.Remove(clientId))
-                return false;
+            if (_loadingClients.Remove(clientId))
+            {
+                _reconnectedFromLoad.Add(clientId);
+                return true;
+            }
 
-            _reconnectedFromLoad.Add(clientId);
-            return true;
+            return ClaimOldestLoadingReconnect(clientId);
         }
 
         /// <summary>
         /// HOST ONLY - release the longest-pending load entry and credit it to
-        /// <paramref name="clientId"/>. Only for transports that cannot identify a returning
-        /// client (Riptide); see the warning on <see cref="ClaimLoadingReconnect"/> for what
-        /// this costs when the guess is wrong.
+        /// <paramref name="clientId"/>. See the warning on
+        /// <see cref="ClaimLoadingReconnect"/> for what this costs when the guess is wrong.
         /// </summary>
-        protected void ClaimOldestLoadingReconnect(ulong clientId)
+        protected bool ClaimOldestLoadingReconnect(ulong clientId)
         {
             if (_loadingClients.Count == 0)
-                return;
+                return false;
 
             ulong oldest = 0;
             float oldestStartedAt = float.MaxValue;
@@ -132,6 +133,7 @@ namespace ONI_Together.Networking.Transport
 
             _loadingClients.Remove(oldest);
             _reconnectedFromLoad.Add(clientId);
+            return true;
         }
 
         /// <summary>

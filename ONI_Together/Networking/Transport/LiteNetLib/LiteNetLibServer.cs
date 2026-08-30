@@ -218,8 +218,8 @@ namespace ONI_Together.Networking.Transport.Lan
             if (!ClientList.Contains(clientId))
                 ClientList.Add(clientId);
 
-            // OnConnectionRequest echoes back the persistent id the client supplied, so a
-            // returning loader arrives under the id it left with and matches exactly.
+            // The id here comes from the peer handle, so a returning loader does not arrive
+            // under the id it left with - see ClaimLoadingReconnect for what that costs.
             ClaimLoadingReconnect(clientId);
 
             DebugConsole.Log("[LiteNetLibServer] Remote client connected: " + clientId + " (" + peer.Address + ":" + peer.Port + ")");

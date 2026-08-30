@@ -331,25 +331,6 @@ namespace ONI_Together.Networking.Transport.Lan
             ExpireStaleLoadingClients();
         }
 
-        /// <summary>
-        /// Riptide hands a reconnecting client a brand-new id, so an exact match is impossible
-        /// and the choice is between two wrong answers. Leaving the entry pending keeps the
-        /// resume gate closed for the full LOAD_RECONNECT_TIMEOUT after everyone is already
-        /// back; consuming the oldest pending entry can instead open the gate early if the
-        /// connect is a *new* player who joined during someone else's load. The stall is the
-        /// common case and the mis-guess needs two clients moving at once, so we take the
-        /// guess. Sending a persistent id in Riptide's connect payload the way LiteNetLib does
-        /// would remove the choice entirely.
-        /// </summary>
-        public override bool ClaimLoadingReconnect(ulong clientId)
-        {
-            if (base.ClaimLoadingReconnect(clientId))
-                return true;
-
-            ClaimOldestLoadingReconnect(clientId);
-            return true;
-        }
-
         public void AddClientToList(ulong id)
         {
             using var _ = Profiler.Scope();
