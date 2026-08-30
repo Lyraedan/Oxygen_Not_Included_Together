@@ -125,28 +125,36 @@ namespace ONI_Together.Networking.Packets.Core
             ReadyManager.SetPlayerReadyState(player, Status);
 			DebugConsole.Log($"[ClientReadyStatusPacket] {SenderId} marked as {Status}");
 
-			if (NetworkConfig.IsLanConfig() && nameChanged)
+			if (nameChanged)
 			{
+				// Consume on every transport, not just LAN. The flag is one-shot and only the
+				// LAN path prints the joined line, so gating the consume on IsLanConfig left
+				// Steam entries standing for the life of the session. Harmless in size - a set
+				// keyed by client id holds at most one entry per player - but it made
+				// ConsumeReconnectFromLoad answer about a reconnect that happened long ago.
 				bool isLoadingReconnect =
 					NetworkConfig.TransportServer?.ConsumeReconnectFromLoad(SenderId) == true;
 
-				if (!isLoadingReconnect)
+				if (NetworkConfig.IsLanConfig())
 				{
-					OxySyncChat.AddSystemMessage(
-						string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, player.PlayerName));
+					if (!isLoadingReconnect)
+					{
+						OxySyncChat.AddSystemMessage(
+							string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, player.PlayerName));
+					}
+
+					PacketSender.SendToAllClients(new ClientReadyStatusPacket
+					{
+						SenderId = MultiplayerSession.HostUserID,
+						PlayerName = Utils.GetLocalPlayerName()
+					});
+
+					PacketSender.SendToAllClients(new ClientReadyStatusPacket
+					{
+						SenderId = SenderId,
+						PlayerName = player.PlayerName
+					});
 				}
-
-				PacketSender.SendToAllClients(new ClientReadyStatusPacket
-				{
-					SenderId = MultiplayerSession.HostUserID,
-					PlayerName = Utils.GetLocalPlayerName()
-				});
-
-				PacketSender.SendToAllClients(new ClientReadyStatusPacket
-				{
-					SenderId = SenderId,
-					PlayerName = player.PlayerName
-				});
 			}
 
 			ReadyManager.RefreshScreen();
