@@ -71,7 +71,7 @@ namespace ONI_Together.Networking.OxySync.Packets
 
             if (MultiplayerSession.IsHost) return;
 
-            OxySyncManager.TryGet(NetId, BehaviourId, out NetworkBehaviour behaviour);
+            OxySyncManager.TryGetBehaviour(NetId, BehaviourId, out NetworkBehaviour behaviour);
 
             if (behaviour == null && !NetworkIdentityRegistry.TryGetComponent<NetworkBehaviour>(NetId, out behaviour))
                 return;

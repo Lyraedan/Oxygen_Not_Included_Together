@@ -27,6 +27,8 @@ namespace Shared.OxySync
         public static Action<string>? LogWarning;
         public static Func<ulong>? LocalUserIdQuery;
 
+        private static readonly Dictionary<Type, int> BehaviourIdCache = new();
+
         private List<SyncVarField>? _syncVarFields;
         private Dictionary<int, CachedMethod>? _commandMethods;
         private Dictionary<int, CachedMethod>? _clientRpcMethods;
@@ -86,9 +88,18 @@ namespace Shared.OxySync
         public override void OnSpawn()
         {
             base.OnSpawn();
+            BehaviourId = ResolveBehaviourId(GetType());
             DiscoverSyncVars();
             DiscoverRpcs();
             OnSpawned?.Invoke(this);
+        }
+
+        private static int ResolveBehaviourId(Type type)
+        {
+            if (BehaviourIdCache.TryGetValue(type, out int id)) return id;
+            id = (type.FullName ?? type.Name).GetHashCode();
+            BehaviourIdCache[type] = id;
+            return id;
         }
 
         public override void OnCleanUp()
@@ -143,8 +154,7 @@ namespace Shared.OxySync
             _syncVarFields = list;
 
             if (list.Count > 64)
-                throw new InvalidOperationException(
-                    $"[OxySync] {GetType().Name} declares {list.Count} [SyncVar] fields; the limit is 64.");
+                throw new InvalidOperationException($"[OxySync] {GetType().Name} declares {list.Count} [SyncVar] fields; the limit is 64.");
 
             _syncVarHashToIndex = new Dictionary<int, int>();
             for (int i = 0; i < list.Count; i++)

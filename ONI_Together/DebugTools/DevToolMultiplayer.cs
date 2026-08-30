@@ -1024,13 +1024,15 @@ namespace ONI_Together.DebugTools
                 if (hasTextFilter)
                 {
                     string netIdStr = b.NetId.ToString();
+                    string behaviourIdStr = b.BehaviourId.ToString();
                     string groupStr = b.InterestGroup.ToString();
                     string goName = b.gameObject?.name ?? "?";
                     bool matchesType = typeName.IndexOf(_oxySyncFilter, StringComparison.OrdinalIgnoreCase) >= 0;
                     bool matchesId = netIdStr.IndexOf(_oxySyncFilter, StringComparison.OrdinalIgnoreCase) >= 0;
+                    bool matchesBehaviourId = behaviourIdStr.IndexOf(_oxySyncFilter, StringComparison.OrdinalIgnoreCase) >= 0;
                     bool matchesGroup = groupStr.IndexOf(_oxySyncFilter, StringComparison.OrdinalIgnoreCase) >= 0;
                     bool matchesName = goName.IndexOf(_oxySyncFilter, StringComparison.OrdinalIgnoreCase) >= 0;
-                    if (!matchesType && !matchesId && !matchesGroup && !matchesName) continue;
+                    if (!matchesType && !matchesId && !matchesBehaviourId && !matchesGroup && !matchesName) continue;
                 }
 
                 if (_oxySyncShowSyncingOnly && MultiplayerSession.IsHost &&
@@ -1132,7 +1134,7 @@ namespace ONI_Together.DebugTools
                     {
                         string typeName = b.GetType().Name;
                         string goName = b.gameObject?.name ?? "?";
-                        string label = $"{typeName}";
+                        string label = $"{typeName}  (BehaviourId: {b.BehaviourId})";
                         bool isSelected = b == _selectedBehaviour;
 
                         if (MultiplayerSession.IsHost && (Time.unscaledTime - b._lastActiveSyncTime) <= 2f)
@@ -1206,7 +1208,7 @@ namespace ONI_Together.DebugTools
         {
             string goName = behaviour.gameObject?.name ?? "?";
             ImGui.TextColored(new Vector4(1f, 1f, 0.3f, 1f),
-                $"{behaviour.GetType().Name}  (NetId: {behaviour.NetId}, Sync: {behaviour.SyncInterval:F2}s)  [{goName}]");
+                $"{behaviour.GetType().Name}  (NetId: {behaviour.NetId}, BehaviourId: {behaviour.BehaviourId}, Sync: {behaviour.SyncInterval:F2}s)  [{goName}]");
 
             if (MultiplayerSession.IsHost)
             {

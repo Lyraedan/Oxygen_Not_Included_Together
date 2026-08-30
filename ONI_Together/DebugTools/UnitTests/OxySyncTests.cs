@@ -1510,4 +1510,46 @@ namespace ONI_Together.DebugTools.UnitTests
             finally { UnityEngine.Object.Destroy(go); }
         }
     }
+
+    public static class OxySyncBehaviourIdTests
+    {
+        [UnitTest(name: "Duplicate behaviour types on one object get unique BehaviourIds", category: "OxySync")]
+        public static UnitTestResult DuplicateBehaviourTypesGetUniqueIds()
+        {
+            var go = new GameObject("MultiNetworkBehaviourTestObject");
+            try
+            {
+                const int count = 3;
+                var behaviours = new List<NetworkBehaviour>();
+                for (int i = 0; i < count; i++)
+                {
+                    var behaviour = go.AddComponent<FewSyncVarBehaviour>();
+                    behaviour.OnSpawn();
+                    behaviours.Add(behaviour);
+                }
+
+                var ids = new HashSet<int>();
+                foreach (var b in behaviours)
+                    ids.Add(b.BehaviourId);
+
+                if (ids.Count != count)
+                    return UnitTestResult.Fail(
+                        $"Expected {count} unique BehaviourIds for {behaviours[0].GetType().Name}, got {string.Join(", ", ids)}");
+
+                foreach (var b in behaviours)
+                {
+                    if (!OxySyncManager.TryGetBehaviour(b.NetId, b.BehaviourId, out var found) || found != b)
+                        return UnitTestResult.Fail(
+                            $"Lookup failed for {b.GetType().Name} with BehaviourId {b.BehaviourId} on NetId {b.NetId}");
+                }
+
+                return UnitTestResult.Pass(
+                    $"{count} identical behaviours on one object resolved to unique ids: {string.Join(", ", ids)}");
+            }
+            finally
+            {
+                UnityEngine.Object.Destroy(go);
+            }
+        }
+    }
 }
