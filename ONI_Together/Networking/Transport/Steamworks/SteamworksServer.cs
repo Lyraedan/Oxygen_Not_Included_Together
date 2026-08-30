@@ -92,6 +92,8 @@ namespace ONI_Together.Networking.Transport.Steam
             if (ListenSocket.m_HSteamListenSocket != 0)
                 SteamNetworkingSockets.CloseListenSocket(ListenSocket);
 
+            ClearLoadTracking();
+
             MultiplayerSession.InActiveSession = false;
         }
 
@@ -121,6 +123,7 @@ namespace ONI_Together.Networking.Transport.Steam
             SteamAPI.RunCallbacks();
             SteamNetworkingSockets.RunCallbacks();
             UpdateServerBandwidth();
+            ExpireStaleLoadingClients();
         }
 
         private void UpdateServerBandwidth()
@@ -278,7 +281,21 @@ namespace ONI_Together.Networking.Transport.Steam
             }
             player.Connection = conn;
 
+            // Authority: a (re)connecting client is loading and must be forced Unready the
+            // moment it begins connecting — not just at object creation. This keeps the
+            // host's all-ready check from transiently passing while the client loads.
+            // SetPlayerReadyState safely no-ops for the host's own entry.
+            ReadyManager.SetPlayerReadyState(player, ClientReadyState.Unready);
+
+            // A SteamID is stable across a load-reconnect, so a returning loader matches its
+            // pending entry exactly. Clearing it here keeps the entry from lingering until it
+            // times out - which would count against the gate if the client later left for
+            // real and dropped off the roster.
+            NetworkConfig.TransportServer?.ClaimLoadingReconnect(clientId.m_SteamID);
+
             DebugConsole.Log($"[GameServer] Connection to {clientId} fully established!");
+
+            ReadyManager.HandleClientConnected();
             //SaveFileRequestPacket.SendSaveFile(clientId); // Old method
             //GoogleDriveUtils.UploadAndSendToClient(clientId); // Upload to googledrive and send to the client
         }
@@ -323,6 +340,9 @@ namespace ONI_Together.Networking.Transport.Steam
             {
                 DebugConsole.Log($"[GameServer] Kicking client {clientId}");
 
+                // A kicked client is not coming back, so its pending load must not keep
+                // holding the gate. OnClientClosed below carries the refresh.
+                ForgetClientLoading(clientId);
                 SteamNetworkingSockets.CloseConnection(conn, 0, "Kicked by host", false);
                 // The connection closed callback will handle cleanup
             }

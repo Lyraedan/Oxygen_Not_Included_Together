@@ -8,7 +8,6 @@ using System;
 using System.Collections;
 using System.IO;
 using Shared.Profiling;
-using ONI_Together.Menus;
 
 namespace ONI_Together.Networking.Packets.World
 {
@@ -40,7 +39,7 @@ namespace ONI_Together.Networking.Packets.World
 				return;
 
 			DebugConsole.Log($"[Packets/SaveFileRequest] Received request from {Requester}");
-			MultiplayerOverlay.Show(STRINGS.UI.MP_OVERLAY.HOST.SEND_SAVE_FILE);
+			// The ready screen (shown on connect) stays up here; no separate "sending save" overlay.
 			SendSaveFile(Requester);
 		}
 
@@ -50,6 +49,19 @@ namespace ONI_Together.Networking.Packets.World
 
 			if (!MultiplayerSession.IsHost)
 				return;
+
+			// Handing a client a save is the host's own proof that this client is about to
+			// disconnect and load, so arm the load-window gate here rather than trusting the
+			// client to say so. The client's own Loading notice is sent immediately before it
+			// tears the socket down and is regularly lost - a two-instance capture showed the
+			// client sending it twice and the host recording only the earlier one. On a hard
+			// sync that late notice is the ONLY signal (GameServerHardSync pushes saves
+			// without any client request), so losing it left the host with no pending entry:
+			// the client dropped off the roster, RefreshReadyState saw "only the host left"
+			// and resumed the sim while the client was still 20-30s into loading.
+			// Marking is idempotent and costs nothing early - PendingLoadingClientCount only
+			// counts loaders that have already left the roster.
+			NetworkConfig.TransportServer?.MarkClientLoading(requester);
 
 			try
 			{

@@ -1,3 +1,4 @@
+using ONI_Together.DebugTools;
 using KSerialization;
 using ONI_Together.Patches;
 using Shared.OxySync;
@@ -54,7 +55,33 @@ namespace ONI_Together.Networking.OxySync.Components
         [Command]
         private void CmdSetSpeed(int speed)
         {
-            ApplyAndBroadcast((SpeedState)speed);
+            var requested = (SpeedState)speed;
+
+            // Authority choke point for a client-originated resume. This method is the only
+            // way a client can change the sim speed (CommandPacket.OnDispatched -> host ->
+            // InvokeCommand), and rejecting here covers both halves in one place: the host
+            // neither applies the speed locally nor fans it out via RpcApplySpeed, because
+            // ApplyAndBroadcast does both. Pausing is always allowed - only resume is gated.
+            //
+            // The host's own resume attempts are already stopped upstream by the
+            // SpeedControlPatch prefixes, so this is a second, independent layer rather than
+            // a duplicate: both resolve through the single ReadyManager.CanHostResume()
+            // predicate, and a blocked call here simply leaves the sim as it was.
+            if (requested != SpeedState.Paused && !ReadyManager.CanHostResume())
+            {
+                DebugConsole.Log(
+                    $"[GameSpeedSyncer] Rejected remote resume to {requested}: not all players are ready");
+                ReadyManager.RefreshScreen();
+
+                // The requesting client already applied the resume to its own screen before
+                // asking (the postfix runs after the original). Re-assert the authoritative
+                // state now instead of letting it run until the next force-sync tick, so the
+                // rejection lands within a round trip rather than up to FORCE_SYNC_INTERVAL.
+                CallClientRpc(nameof(RpcApplySpeed), (int)_currentState);
+                return;
+            }
+
+            ApplyAndBroadcast(requested);
         }
 
         private void ApplyAndBroadcast(SpeedState state)

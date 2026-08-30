@@ -308,6 +308,17 @@ namespace ONI_Together.Networking
 				if (!IsHardSyncInProgress)
 				{
 					DebugConsole.Log("[GameClient] Requesting save file from host");
+
+					// Arm the host's load-window gate now, while the connection is healthy and
+					// about to stay up for the whole transfer. SaveHelper also sends this
+					// immediately before tearing the connection down, but that one races the
+					// socket close and is regularly lost - observed both ways in a two-instance
+					// session. Marking early is free: PendingLoadingClientCount only counts
+					// loaders that have dropped off the roster, so this has no effect until the
+					// client actually disconnects to load, and it expires on its own if the
+					// client never gets that far.
+					ReadyManager.SendReadyStatusPacket(ClientReadyState.Loading);
+
 					var packet = new SaveFileRequestPacket
 					{
 						Requester = MultiplayerSession.LocalUserID

@@ -4,6 +4,7 @@ using Riptide.Utils;
 using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Packets.Architecture;
+using ONI_Together.Networking.States;
 using Shared.Profiling;
 using ONI_Together.Networking.Transfer;
 using System.Collections.Generic;
@@ -21,9 +22,6 @@ namespace ONI_Together.Networking.Transport.Lan
         private static Server _server;
         private static Client _client; // Server client (Other users will use GameClient)
         private TcpFileTransferServer _tcpTransfer;
-        private Dictionary<ulong, float> _loadingClients = new Dictionary<ulong, float>();
-        private List<ulong> _expiredLoadingClients = new List<ulong>();
-        private HashSet<ulong> _reconnectedFromLoad = new HashSet<ulong>();
 
         public TcpFileTransferServer TcpTransfer => _tcpTransfer;
 
@@ -154,8 +152,16 @@ namespace ONI_Together.Networking.Transport.Lan
                 player.PlayerName = Utils.GetLocalPlayerName();
             }
 
+            // Authority: a (re)connecting client is loading and must be forced Unready the
+            // moment it begins connecting — not just at object creation. This keeps the
+            // host's all-ready check from transiently passing while the client loads.
+            // SetPlayerReadyState safely no-ops for the host's own entry.
+            ReadyManager.SetPlayerReadyState(player, ClientReadyState.Unready);
+
             AddClientToList(e.Client.Id);
             DebugConsole.Log($"New client connected: {clientId}");
+
+            ReadyManager.HandleClientConnected();
         }
 
         private void ServerOnClientDisconnected(object sender, ServerDisconnectedEventArgs e)
@@ -283,6 +289,8 @@ namespace ONI_Together.Networking.Transport.Lan
 
             _server.Stop();
             _server = null;
+
+            ClearLoadTracking();
         }
 
         // The server is shutting down so disconnect everyone
@@ -320,32 +328,26 @@ namespace ONI_Together.Networking.Transport.Lan
             _client?.Update();
             UpdateServerBandwidth();
 
-            if (_loadingClients.Count > 0)
-            {
-                float now = UnityEngine.Time.unscaledTime;
-                _expiredLoadingClients.Clear();
-                foreach (var kvp in _loadingClients)
-                {
-                    if (now - kvp.Value > Configuration.Instance.Host.TimeoutSeconds)
-                    {
-                        _expiredLoadingClients.Add(kvp.Key);
-                    }
-                }
-                foreach (var id in _expiredLoadingClients)
-                {
-                    _loadingClients.Remove(id);
-                }
-            }
+            ExpireStaleLoadingClients();
         }
 
-        public bool ConsumeReconnectFromLoad(ulong id)
+        /// <summary>
+        /// Riptide hands a reconnecting client a brand-new id, so an exact match is impossible
+        /// and the choice is between two wrong answers. Leaving the entry pending keeps the
+        /// resume gate closed for the full LOAD_RECONNECT_TIMEOUT after everyone is already
+        /// back; consuming the oldest pending entry can instead open the gate early if the
+        /// connect is a *new* player who joined during someone else's load. The stall is the
+        /// common case and the mis-guess needs two clients moving at once, so we take the
+        /// guess. Sending a persistent id in Riptide's connect payload the way LiteNetLib does
+        /// would remove the choice entirely.
+        /// </summary>
+        public override bool ClaimLoadingReconnect(ulong clientId)
         {
-            return _reconnectedFromLoad.Remove(id);
-        }
+            if (base.ClaimLoadingReconnect(clientId))
+                return true;
 
-        public void MarkClientLoading(ulong id)
-        {
-            _loadingClients[id] = UnityEngine.Time.unscaledTime;
+            ClaimOldestLoadingReconnect(clientId);
+            return true;
         }
 
         public void AddClientToList(ulong id)
@@ -357,14 +359,8 @@ namespace ONI_Together.Networking.Transport.Lan
 
             ClientList.Add(id);
 
-            // A loading client reconnects with a new Riptide ID, so we consume one loading entry
-            if (_loadingClients.Count > 0)
-            {
-                var enumerator = _loadingClients.GetEnumerator();
-                enumerator.MoveNext();
-                _loadingClients.Remove(enumerator.Current.Key);
-                _reconnectedFromLoad.Add(id);
-			}
+            ClaimLoadingReconnect(id);
+
 			var boxedId = Boxed<ulong>.Get(id);
 			Game.Instance?.Trigger(MP_HASHES.OnPlayerJoined,boxedId);
             boxedId.Release();
@@ -379,7 +375,7 @@ namespace ONI_Together.Networking.Transport.Lan
 
             ClientList.Remove(id);
 
-            if (!_loadingClients.ContainsKey(id))
+            if (!IsClientLoading(id))
             {
                 string name = MultiplayerSession.GetPlayer(id)?.PlayerName ?? $"Player {id}";
                 OxySyncChat.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_LEFT, name));
@@ -422,6 +418,10 @@ namespace ONI_Together.Networking.Transport.Lan
                 }
 
                 DebugConsole.Log($"[RiptideServer] Kicking client {clientId}");
+
+                // A kicked client is not coming back, so its pending load must not keep
+                // holding the gate. The disconnect event below carries the refresh.
+                ForgetClientLoading(clientId);
                 _server.DisconnectClient(conn);
 
                 // OnClientDisconnected should disconnect so we shouldn't need to cleanup here

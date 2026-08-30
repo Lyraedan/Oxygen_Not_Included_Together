@@ -15,7 +15,9 @@ public class MultiplayerPlayer
 	public bool IsConnected => Connection != null;
 	public bool ProtocolVerified { get; set; }
 
-	public ClientReadyState readyState = ClientReadyState.Ready;
+	// Default to Unready: a freshly created/recreated player (e.g. on connect or
+	// reconnect-for-load) must never read as ready until it explicitly says so.
+	public ClientReadyState readyState = ClientReadyState.Unready;
 
     public MultiplayerPlayer(ulong playerId)
 	{

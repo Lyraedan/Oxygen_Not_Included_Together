@@ -81,19 +81,38 @@ namespace ONI_Together.Networking.Packets.Core
 				return;
 			}
 
+			if (Status == ClientReadyState.Loading)
+			{
+				// Tracked on the base transport, not on one concrete server: the client is
+				// about to drop its connection to load, and every transport needs the host to
+				// keep it gated until it comes back.
+				//
+				// Handled BEFORE the roster lookup on purpose. The client sends this
+				// immediately before closing its connection, so the notice regularly arrives
+				// after the transport has already removed it from ConnectedPlayers - the
+				// disconnect and this packet land microseconds apart. Requiring a live roster
+				// entry here dropped the notice on exactly the path it exists for, leaving
+				// PendingLoadingClientCount at zero for the whole load window.
+				NetworkConfig.TransportServer?.MarkClientLoading(SenderId);
+				DebugConsole.Log(
+					$"[ClientReadyStatusPacket] {SenderId} marked as Loading (pending off-roster loads: " +
+					$"{NetworkConfig.TransportServer?.PendingLoadingClientCount ?? 0})");
+
+				// The disconnect that follows (or already happened) drives its own
+				// RefreshReadyState. If it ran first it saw only the host left and took the
+				// "everyone is ready" shortcut, closing the ready screen and opening the
+				// resume gate. Recompute now that the pending load is on record.
+				ReadyManager.RefreshScreen();
+				ReadyManager.RefreshReadyState();
+				return;
+			}
+
 			MultiplayerPlayer player;
 			MultiplayerSession.ConnectedPlayers.TryGetValue(SenderId, out player);
 
 			if (player == null)
 			{
 				DebugConsole.LogError("Tried to update ready state for a null player", false);
-				return;
-			}
-
-			if (Status == ClientReadyState.Loading)
-			{
-				var server = NetworkConfig.TransportServer as LiteNetLibServer;
-				server?.MarkClientLoading(SenderId);
 				return;
 			}
 
@@ -108,8 +127,8 @@ namespace ONI_Together.Networking.Packets.Core
 
 			if (NetworkConfig.IsLanConfig() && nameChanged)
 			{
-				var server = NetworkConfig.TransportServer as LiteNetLibServer;
-				bool isLoadingReconnect = server != null && server.ConsumeReconnectFromLoad(SenderId);
+				bool isLoadingReconnect =
+					NetworkConfig.TransportServer?.ConsumeReconnectFromLoad(SenderId) == true;
 
 				if (!isLoadingReconnect)
 				{
