@@ -62,7 +62,7 @@ namespace ONI_Together.Networking.Components
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession || MultiplayerSession.IsClient)
+			if (!MultiplayerSession.InActiveSession || MultiplayerSession.IsClient)
 				return;
 
 			// Skip if no clients connected

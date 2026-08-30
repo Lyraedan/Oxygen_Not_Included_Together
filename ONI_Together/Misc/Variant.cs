@@ -13,7 +13,10 @@ namespace ONI_Together.Misc
     /// </summary>
     public struct Variant
     {
-        public enum TypeCode : byte { Float, Int, Byte, String, Boolean, Vector3, Vector2, ByteArray }
+        public const int MaxBinaryBytes = 8 * 1024 * 1024;
+        public const int MaxArrayElements = 65536;
+
+        public enum TypeCode : byte { Float, Int, Byte, String, Boolean, Vector3, Vector2, ByteArray, Quaternion, HashedString, KAnimHashedString, Short, UShort, UInt, Long, Double, SByte, Char, Color, VariantArray, IntArray, FloatArray, DoubleArray, ULong, Decimal, Null }
 
         public TypeCode Type;
         public float Float;
@@ -24,6 +27,16 @@ namespace ONI_Together.Misc
         public Vector3 Vector3;
         public Vector2 Vector2;
         public byte[] ByteArray;
+        public Quaternion Quaternion;
+        public long Long;
+        public ulong ULong;
+        public double Double;
+        public decimal Decimal;
+        public Color Color;
+        public Variant[] VariantArray;
+        public int[] IntArray;
+        public float[] FloatArray;
+        public double[] DoubleArray;
 
         public void Write(BinaryWriter writer)
         {
@@ -37,7 +50,50 @@ namespace ONI_Together.Misc
                 case TypeCode.Boolean: writer.Write(Boolean); break;
                 case TypeCode.Vector3: writer.Write(Vector3); break;
                 case TypeCode.Vector2: writer.Write(Vector2); break;
-                case TypeCode.ByteArray: writer.Write(ByteArray.Length); writer.Write(ByteArray); break;
+                case TypeCode.ByteArray:
+                    var bytes = ByteArray ?? Array.Empty<byte>();
+                    if (bytes.Length > MaxBinaryBytes)
+                        throw new InvalidDataException($"Variant byte array exceeds {MaxBinaryBytes} bytes.");
+                    writer.Write(bytes.Length);
+                    writer.Write(bytes);
+                    break;
+                case TypeCode.Quaternion: writer.Write(Quaternion.x); writer.Write(Quaternion.y); writer.Write(Quaternion.z); writer.Write(Quaternion.w); break;
+                case TypeCode.HashedString: writer.Write(Int); break;
+                case TypeCode.KAnimHashedString: writer.Write(Int); break;
+                case TypeCode.Short: writer.Write((short)Int); break;
+                case TypeCode.UShort: writer.Write((ushort)Int); break;
+                case TypeCode.UInt: writer.Write((uint)Long); break;
+                case TypeCode.Long: writer.Write(Long); break;
+                case TypeCode.ULong: writer.Write(ULong); break;
+                case TypeCode.Double: writer.Write(Double); break;
+                case TypeCode.Decimal: writer.Write(Decimal); break;
+                case TypeCode.Null: break;
+                case TypeCode.SByte: writer.Write((sbyte)Byte); break;
+                case TypeCode.Char: writer.Write((char)Int); break;
+                case TypeCode.Color: writer.Write(Color.r); writer.Write(Color.g); writer.Write(Color.b); writer.Write(Color.a); break;
+                case TypeCode.VariantArray:
+                    var variants = VariantArray ?? Array.Empty<Variant>();
+                    WriteArrayCount(writer, variants.Length);
+                    for (int i = 0; i < variants.Length; i++)
+                        variants[i].Write(writer);
+                    break;
+                case TypeCode.IntArray:
+                    var ints = IntArray ?? Array.Empty<int>();
+                    WriteArrayCount(writer, ints.Length);
+                    for (int i = 0; i < ints.Length; i++) writer.Write(ints[i]);
+                    break;
+                case TypeCode.FloatArray:
+                    var floats = FloatArray ?? Array.Empty<float>();
+                    WriteArrayCount(writer, floats.Length);
+                    for (int i = 0; i < floats.Length; i++) writer.Write(floats[i]);
+                    break;
+                case TypeCode.DoubleArray:
+                    var doubles = DoubleArray ?? Array.Empty<double>();
+                    WriteArrayCount(writer, doubles.Length);
+                    for (int i = 0; i < doubles.Length; i++) writer.Write(doubles[i]);
+                    break;
+                default:
+                    throw new InvalidDataException($"Unknown Variant type code: {Type}.");
             }
         }
 
@@ -53,9 +109,67 @@ namespace ONI_Together.Misc
                 case TypeCode.Boolean: v.Boolean = reader.ReadBoolean(); break;
                 case TypeCode.Vector3: v.Vector3 = reader.ReadVector3(); break;
                 case TypeCode.Vector2: v.Vector2 = reader.ReadVector2(); break;
-                case TypeCode.ByteArray: v.ByteArray = reader.ReadBytes(reader.ReadInt32()); break;
+                case TypeCode.ByteArray:
+                    int byteCount = ReadLength(reader, MaxBinaryBytes, "Variant byte array");
+                    v.ByteArray = reader.ReadBytes(byteCount);
+                    if (v.ByteArray.Length != byteCount)
+                        throw new EndOfStreamException(
+                            $"Variant byte array ended after {v.ByteArray.Length} of {byteCount} bytes.");
+                    break;
+                case TypeCode.Quaternion: v.Quaternion = new Quaternion(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()); break;
+                case TypeCode.HashedString: v.Int = reader.ReadInt32(); break;
+                case TypeCode.KAnimHashedString: v.Int = reader.ReadInt32(); break;
+                case TypeCode.Short: v.Int = reader.ReadInt16(); break;
+                case TypeCode.UShort: v.Int = reader.ReadUInt16(); break;
+                case TypeCode.UInt: v.Long = reader.ReadUInt32(); break;
+                case TypeCode.Long: v.Long = reader.ReadInt64(); break;
+                case TypeCode.ULong: v.ULong = reader.ReadUInt64(); break;
+                case TypeCode.Double: v.Double = reader.ReadDouble(); break;
+                case TypeCode.Decimal: v.Decimal = reader.ReadDecimal(); break;
+                case TypeCode.Null: break;
+                case TypeCode.SByte: v.Byte = (byte)reader.ReadSByte(); break;
+                case TypeCode.Char: v.Int = reader.ReadChar(); break;
+                case TypeCode.Color: v.Color = new Color(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle()); break;
+                case TypeCode.VariantArray:
+                    var count = ReadLength(reader, MaxArrayElements, "Variant array");
+                    v.VariantArray = new Variant[count];
+                    for (int i = 0; i < count; i++)
+                        v.VariantArray[i] = Read(reader);
+                    break;
+                case TypeCode.IntArray:
+                    count = ReadLength(reader, MaxArrayElements, "Variant int array");
+                    v.IntArray = new int[count];
+                    for (int i = 0; i < count; i++) v.IntArray[i] = reader.ReadInt32();
+                    break;
+                case TypeCode.FloatArray:
+                    count = ReadLength(reader, MaxArrayElements, "Variant float array");
+                    v.FloatArray = new float[count];
+                    for (int i = 0; i < count; i++) v.FloatArray[i] = reader.ReadSingle();
+                    break;
+                case TypeCode.DoubleArray:
+                    count = ReadLength(reader, MaxArrayElements, "Variant double array");
+                    v.DoubleArray = new double[count];
+                    for (int i = 0; i < count; i++) v.DoubleArray[i] = reader.ReadDouble();
+                    break;
+                default:
+                    throw new InvalidDataException($"Unknown Variant type code: {v.Type}.");
             }
             return v;
+        }
+
+        private static void WriteArrayCount(BinaryWriter writer, int count)
+        {
+            if (count < 0 || count > MaxArrayElements)
+                throw new InvalidDataException($"Variant array count exceeds {MaxArrayElements}: {count}.");
+            writer.Write(count);
+        }
+
+        private static int ReadLength(BinaryReader reader, int maximum, string label)
+        {
+            int length = reader.ReadInt32();
+            if (length < 0 || length > maximum)
+                throw new InvalidDataException($"Invalid {label} length: {length}.");
+            return length;
         }
 
         public static implicit operator Variant(float f) => new Variant { Type = TypeCode.Float, Float = f };
@@ -66,6 +180,22 @@ namespace ONI_Together.Misc
         public static implicit operator Variant(Vector3 v) => new Variant { Type = TypeCode.Vector3, Vector3 = v };
         public static implicit operator Variant(Vector2 v) => new Variant { Type = TypeCode.Vector2, Vector2 = v };
         public static implicit operator Variant(byte[] b) => new Variant { Type = TypeCode.ByteArray, ByteArray = b };
+        public static implicit operator Variant(Quaternion q) => new Variant { Type = TypeCode.Quaternion, Quaternion = q };
+        public static implicit operator Variant(short s) => new Variant { Type = TypeCode.Short, Int = s };
+        public static implicit operator Variant(ushort us) => new Variant { Type = TypeCode.UShort, Int = us };
+        public static implicit operator Variant(uint ui) => new Variant { Type = TypeCode.UInt, Long = ui };
+        public static implicit operator Variant(long l) => new Variant { Type = TypeCode.Long, Long = l };
+        public static implicit operator Variant(ulong ul) => new Variant { Type = TypeCode.ULong, ULong = ul };
+        public static implicit operator Variant(double d) => new Variant { Type = TypeCode.Double, Double = d };
+        public static implicit operator Variant(decimal d) => new Variant { Type = TypeCode.Decimal, Decimal = d };
+        public static implicit operator Variant(sbyte sb) => new Variant { Type = TypeCode.SByte, Byte = (byte)sb };
+        public static implicit operator Variant(char c) => new Variant { Type = TypeCode.Char, Int = c };
+        public static implicit operator Variant(Color c) => new Variant { Type = TypeCode.Color, Color = c };
+        public static implicit operator Variant(int[] arr) => new Variant { Type = TypeCode.IntArray, IntArray = arr };
+        public static implicit operator Variant(float[] arr) => new Variant { Type = TypeCode.FloatArray, FloatArray = arr };
+        public static implicit operator Variant(double[] arr) => new Variant { Type = TypeCode.DoubleArray, DoubleArray = arr };
+        public static implicit operator Variant(HashedString h) => new Variant { Type = TypeCode.HashedString, Int = h.hash };
+        public static implicit operator Variant(KAnimHashedString h) => new Variant { Type = TypeCode.KAnimHashedString, Int = h.hash };
 
         public readonly override string ToString()
         {
@@ -79,6 +209,24 @@ namespace ONI_Together.Misc
                 TypeCode.Vector3 => Vector3.ToString(),
                 TypeCode.Vector2 => Vector2.ToString(),
                 TypeCode.ByteArray => $"byte[{ByteArray?.Length ?? 0}]",
+                TypeCode.Quaternion => Quaternion.ToString(),
+                TypeCode.HashedString => $"HashedString(0x{Int:X8})",
+                TypeCode.KAnimHashedString => $"KAnimHashedString(0x{Int:X8})",
+                TypeCode.Short => ((short)Int).ToString(),
+                TypeCode.UShort => ((ushort)Int).ToString(),
+                TypeCode.UInt => ((uint)Long).ToString(),
+                TypeCode.Long => Long.ToString(),
+                TypeCode.ULong => ULong.ToString(),
+                TypeCode.Double => Double.ToString("F4"),
+                TypeCode.Decimal => Decimal.ToString(),
+                TypeCode.Null => "null",
+                TypeCode.SByte => ((sbyte)Byte).ToString(),
+                TypeCode.Char => ((char)Int).ToString(),
+                TypeCode.Color => Color.ToString(),
+                TypeCode.VariantArray => $"VariantArray[{VariantArray?.Length ?? 0}]",
+                TypeCode.IntArray => $"int[{IntArray?.Length ?? 0}]",
+                TypeCode.FloatArray => $"float[{FloatArray?.Length ?? 0}]",
+                TypeCode.DoubleArray => $"double[{DoubleArray?.Length ?? 0}]",
                 _ => "Unknown"
             };
         }

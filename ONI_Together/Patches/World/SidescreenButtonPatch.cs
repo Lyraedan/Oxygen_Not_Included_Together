@@ -28,7 +28,7 @@ namespace ONI_Together.Patches.World
 			using var _ = Profiler.Scope();
 
 			if (BuildingConfigPacket.IsApplyingPacket) return;
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 			if (component == null) return;
 
 			var identity = component.GetComponent<NetworkIdentity>();

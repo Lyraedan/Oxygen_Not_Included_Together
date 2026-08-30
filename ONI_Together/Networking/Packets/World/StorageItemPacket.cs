@@ -125,15 +125,16 @@ namespace ONI_Together.Networking.Packets.World
                     sprite = PopFXManager.Instance.sprite_Negative;
                 }
 
-                int amount = (int)ConsumedAmount;
-                if(pickupable != null)
+                float amount = Mathf.Max(0f, ConsumedAmount);
+                if (pickupable != null)
                 {
                     PrimaryElement component = pickupable.GetComponent<PrimaryElement>();
-                    amount = (int)component.Units;
+                    if (component != null)
+                        amount = Assets.IsTagCountable(prefabTag) ? component.Units : component.Mass;
                 }
 
                 string text = Assets.IsTagCountable(prefabTag)
-                    ? string.Format(locString, amount, prefab.GetProperName())
+                    ? string.Format(locString, Mathf.Max(1, Mathf.RoundToInt(amount)), prefab.GetProperName())
                     : string.Format(locString, GameUtil.GetFormattedMass(amount), prefab.GetProperName());
 
                 PopFXManager.Instance.SpawnFX(

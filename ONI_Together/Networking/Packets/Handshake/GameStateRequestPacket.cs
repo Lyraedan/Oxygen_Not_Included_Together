@@ -99,7 +99,7 @@ namespace ONI_Together.Networking.Packets.Handshake
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession)
+			if (!MultiplayerSession.InActiveSession)
 				return;
 
 			if (MultiplayerSession.IsHost)

@@ -1,8 +1,9 @@
-﻿using ONI_Together.DebugTools;
+using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.States;
 using ONI_Together.Networking.Transport.Lan;
+using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.UI;
 using Steamworks;
 using System.IO;
@@ -65,7 +66,7 @@ namespace ONI_Together.Networking.Packets.Core
 				}
 				else
 				{
-					var client = NetworkConfig.TransportClient as RiptideClient;
+					var client = NetworkConfig.TransportClient as LiteNetLibClient;
 					bool isLoading = client != null && SenderId == MultiplayerSession.LocalUserID && client.IsLoadingReconnect;
 					if (isLoading)
 					{
@@ -73,9 +74,8 @@ namespace ONI_Together.Networking.Packets.Core
 					}
 					else
 					{
-						var pending = ChatScreen.GeneratePendingMessage(
-							string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, PlayerName));
-						ChatScreen.QueueMessage(pending);
+					OxySyncChat.AddSystemMessage(
+						string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, PlayerName));
 					}
 				}
 				return;
@@ -92,7 +92,7 @@ namespace ONI_Together.Networking.Packets.Core
 
 			if (Status == ClientReadyState.Loading)
 			{
-				var server = NetworkConfig.TransportServer as RiptideServer;
+				var server = NetworkConfig.TransportServer as LiteNetLibServer;
 				server?.MarkClientLoading(SenderId);
 				return;
 			}
@@ -108,14 +108,13 @@ namespace ONI_Together.Networking.Packets.Core
 
 			if (NetworkConfig.IsLanConfig() && nameChanged)
 			{
-				var server = NetworkConfig.TransportServer as RiptideServer;
+				var server = NetworkConfig.TransportServer as LiteNetLibServer;
 				bool isLoadingReconnect = server != null && server.ConsumeReconnectFromLoad(SenderId);
 
 				if (!isLoadingReconnect)
 				{
-					var pending = ChatScreen.GeneratePendingMessage(
+					OxySyncChat.AddSystemMessage(
 						string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, player.PlayerName));
-					ChatScreen.QueueMessage(pending);
 				}
 
 				PacketSender.SendToAllClients(new ClientReadyStatusPacket

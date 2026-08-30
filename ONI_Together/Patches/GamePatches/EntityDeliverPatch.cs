@@ -21,7 +21,7 @@ namespace ONI_Together.Patches.GamePatches
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 			if (!MultiplayerSession.IsHost) return;
 			if (__result == null) return;
 
@@ -65,7 +65,7 @@ namespace ONI_Together.Patches.GamePatches
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 			if (!MultiplayerSession.IsHost) return;
 			if (__result == null) return;
 

@@ -18,7 +18,7 @@ namespace ONI_Together.Patches.Social
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 			if (ScheduleAssignmentPacket.IsApplying) return;
 
 			int netId = schedulable.GetNetId();
@@ -49,7 +49,7 @@ namespace ONI_Together.Patches.Social
 			if (!__result)
 				return;
 
-			if (!MultiplayerSession.InSession)
+			if (!MultiplayerSession.InActiveSession)
 				return;
 
 			if (ScheduleRowPacket.IsApplying)
@@ -76,7 +76,7 @@ namespace ONI_Together.Patches.Social
         {
 	        using var _ = Profiler.Scope();
 
-            if (!MultiplayerSession.InSession)
+            if (!MultiplayerSession.InActiveSession)
                 return;
 
             if (ScheduleRowPacket.IsApplying)

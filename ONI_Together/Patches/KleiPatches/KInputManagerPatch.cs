@@ -10,7 +10,7 @@ public static class KInputManagerPatch
 		using var _ = Profiler.Scope();
 
 		// Suppress input processing while typing in chat
-		if (ChatScreen.IsFocused())
+		if (UnityChatBoxUI.IsFocused())
 		{
 			return false; // Skip Update() entirely
 		}

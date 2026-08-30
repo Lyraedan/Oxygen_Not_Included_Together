@@ -1,4 +1,4 @@
-﻿using ONI_Together.DebugTools;
+using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.Transport.Lan;
@@ -57,10 +57,10 @@ namespace ONI_Together.Networking.Packets.World
 				byte[] data = SaveHelper.GetWorldSave();
 				string fileName = name + ".sav";
 
-				if (NetworkConfig.IsLanConfig() && NetworkConfig.TransportServer is RiptideServer riptideServer && riptideServer.TcpTransfer != null)
+				if (NetworkConfig.IsLanConfig() && NetworkConfig.TransportServer is LiteNetLibServer lnlServer && lnlServer.TcpTransfer != null)
 				{
 					int tcpPort = Configuration.Instance.Host.LanSettings.Port + 1;
-					riptideServer.TcpTransfer.QueueTransfer(requester, fileName, data);
+					lnlServer.TcpTransfer.QueueTransfer(requester, fileName, data);
 
 					var startPacket = new TcpTransferStartPacket
 					{

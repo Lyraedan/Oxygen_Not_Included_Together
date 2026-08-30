@@ -16,7 +16,7 @@ namespace ONI_Together.Networking.Components
 
 		public void LateUpdate()
 		{
-			if (!MultiplayerSession.InSession)
+			if (!MultiplayerSession.InActiveSession)
 				return;
 
 			updateTimer += Time.unscaledDeltaTime;

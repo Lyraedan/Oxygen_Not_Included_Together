@@ -131,11 +131,12 @@ Please make sure your changes are clear and well-documented where necessary.
 ## AI Notice
 
 Some contributors use AI in their contributions. These models vary from ChatGPT, Gemini etc
-> Personally I am not against the use of AI, I believe AI is a tool not a solution. If you're a contributor who uses AI thats fine
+> Personally I am not against the use of AI, I believe AI is a tool not a solution. If you're a contributor who uses AI thats fine.
+> However, full AI PRs will be ignored.
 
 ---
 
 ## License
 
 This project is licensed under the MIT License.  
-Copyright (c) 2023 Zuev Vladimir, Denis Pakhorukov
+Copyright (c) 2025 - 2026 Luke Rapkin

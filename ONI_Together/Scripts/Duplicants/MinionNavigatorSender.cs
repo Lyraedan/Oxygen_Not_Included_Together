@@ -28,7 +28,7 @@ namespace ONI_Together.Scripts.Duplicants
 		{
 			using var scope = Profiler.Scope();
 
-			if(MultiplayerSession.InSession && MultiplayerSession.IsHost)
+			if(MultiplayerSession.InActiveSession && MultiplayerSession.IsHost)
 			{
 
 			}

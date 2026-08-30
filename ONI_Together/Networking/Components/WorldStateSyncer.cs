@@ -61,6 +61,8 @@ namespace ONI_Together.Networking.Components
 		/// </summary>
 		private readonly Dictionary<ulong, RectInt> _clientViewports = new Dictionary<ulong, RectInt>();
 
+		public IReadOnlyDictionary<ulong, RectInt> ClientViewports => _clientViewports;
+
 		private void Awake()
 		{
 			using var _ = Profiler.Scope();
@@ -171,11 +173,39 @@ namespace ONI_Together.Networking.Components
 			return viewport.width > 0 && viewport.height > 0;
 		}
 
+		private bool _lastSandboxEnabled = false;
+
+		public void NotifySandboxModeApplied(bool enabled)
+		{
+			_lastSandboxEnabled = enabled;
+		}
+
+		private void SyncSandboxMode()
+		{
+			if (SaveGame.Instance == null || SaveGame.Instance.sandboxEnabled == _lastSandboxEnabled)
+				return;
+
+			_lastSandboxEnabled = SaveGame.Instance.sandboxEnabled;
+
+			// Bidirectional: host broadcasts to all, client requests to host (host will rebroadcast)
+			if (MultiplayerSession.IsHost)
+				PacketSender.SendToAll(new ONI_Together.Networking.Packets.Tools.Sandbox.SandboxModePacket(_lastSandboxEnabled));
+			else
+				PacketSender.SendToHost(new ONI_Together.Networking.Packets.Tools.Sandbox.SandboxModePacket(_lastSandboxEnabled));
+
+			DebugConsole.Log($"[WorldStateSyncer] Synced sandbox mode change: {_lastSandboxEnabled} (IsHost={MultiplayerSession.IsHost})");
+		}
+
 		private void Update()
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost)
+			if (!MultiplayerSession.InActiveSession)
+				return;
+
+			SyncSandboxMode();
+
+			if (!MultiplayerSession.IsHost)
 				return;
 
 			// Update game info even when no clients connected (for lobby browser)

@@ -12,7 +12,7 @@ namespace ONI_Together.Patches.ToolPatches.Dig
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.IsHost || !MultiplayerSession.InSession)
+			if (!MultiplayerSession.IsHost || !MultiplayerSession.InActiveSession)
 				return;
 
 			int cell = __instance.GetCell();
