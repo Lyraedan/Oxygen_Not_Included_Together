@@ -12,8 +12,6 @@ namespace ONI_Together.Patches.KleiPatches
 {
 	class KAnimControllerBase_Patches
 	{
-		internal static float GetCurrentTime() => GameClock.Instance?.GetTime() ?? 0f;
-
 		internal static bool ShouldSyncAnim(KAnimControllerBase controller, KPrefabID prefabID)
 		{
 			// Only suppress local state-machine animation writes for entities whose
@@ -73,13 +71,13 @@ namespace ONI_Together.Patches.KleiPatches
 				if (!CanPlayAnim(__instance, out AnimSyncer animSyncer))
 					return false;
 
-                animSyncer?.RequestToSyncAnim(GetCurrentTime(), false, [anim_name], mode, speed, time_offset);
+                animSyncer?.RequestToPlayAnim(false, [anim_name], mode, speed, time_offset);
 
 				return true;
 			}
-		}
+        }
 
-		[HarmonyPatch(typeof(KAnimControllerBase), nameof(KAnimControllerBase.Play), [typeof(HashedString[]), typeof(KAnim.PlayMode)])]
+        [HarmonyPatch(typeof(KAnimControllerBase), nameof(KAnimControllerBase.Play), [typeof(HashedString[]), typeof(KAnim.PlayMode)])]
 		public class KAnimControllerBase_PlayRange_Patch
 		{
 			public static bool Prefix(KAnimControllerBase __instance, HashedString[] anim_names, KAnim.PlayMode mode)
@@ -89,7 +87,7 @@ namespace ONI_Together.Patches.KleiPatches
 				if (!CanPlayAnim(__instance, out AnimSyncer animSyncer))
 					return false;
 				
-				animSyncer?.RequestToSyncAnim(GetCurrentTime(), false, anim_names, mode);
+				animSyncer?.RequestToPlayAnim(false, anim_names, mode);
 				
 				return true;
 			}
@@ -105,7 +103,7 @@ namespace ONI_Together.Patches.KleiPatches
 				if (!CanPlayAnim(__instance, out AnimSyncer animSyncer))
 					return false;
 				
-				animSyncer?.RequestToSyncAnim(GetCurrentTime(), true, [anim_name], mode, speed, time_offset);
+				animSyncer?.RequestToPlayAnim(true, [anim_name], mode, speed, time_offset);
 				
 				return true;
 			}
