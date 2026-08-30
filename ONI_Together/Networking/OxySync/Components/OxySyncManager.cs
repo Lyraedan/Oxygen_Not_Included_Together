@@ -25,7 +25,7 @@ namespace ONI_Together.Networking.OxySync.Components
 
         // NetworkBehaviour fast lookup Dictionary for quick access by NetId and BehaviourId
         private int behaviorIdCounter = 1;
-        private int MaxRegistrationAttempts = 3;
+        private const int MaxRegistrationAttempts = 8;
         private readonly Dictionary<(int, int), NetworkBehaviour> _behaviourLookup = new();
 
         private float _tickAccumulator;
@@ -434,18 +434,52 @@ namespace ONI_Together.Networking.OxySync.Components
 
         private bool AssignBehaviourId(NetworkBehaviour behaviour)
         {
+            using var _ = Profiler.Scope();
+
             int behaviorId = behaviour.BehaviourId;
+
+            // Preserve explicit/non-default IDs when valid.
+            if (behaviorId != -1 && !_behaviourLookup.ContainsKey((behaviour.NetId, behaviorId)))
+            {
+                behaviour.BehaviourId = behaviorId;
+                return true;
+            }
+
+            // Deterministic ID: same behaviour type + same per-entity type ordinal => same ID across peers.
+            string stableKey = GetDeterministicBehaviourKey(behaviour);
+            behaviorId = stableKey.GetHashCode();
+            if (!_behaviourLookup.ContainsKey((behaviour.NetId, behaviorId)))
+            {
+                behaviour.BehaviourId = behaviorId;
+                return true;
+            }
+
+            // Deterministic probing with built-in hash based on a stable suffix.
             for (int attempts = 0; attempts < MaxRegistrationAttempts; attempts++)
             {
-                bool isUnassigned = behaviorId == -1;
-                bool isDuplicate = _behaviourLookup.ContainsKey((behaviour.NetId, behaviorId));
-                if (!isUnassigned && !isDuplicate)
+                int probedId = (stableKey + "|probe|" + attempts).GetHashCode();
+
+                if (!_behaviourLookup.ContainsKey((behaviour.NetId, probedId)))
                 {
-                    behaviour.BehaviourId = behaviorId;
+                    behaviour.BehaviourId = probedId;
                     return true;
                 }
+            }
 
-                behaviorId = behaviorIdCounter++;
+            // Last-resort counter fallback to avoid hard-failing registration.
+            for (int attempts = 0; attempts < MaxRegistrationAttempts; attempts++)
+            {
+                int fallbackId = behaviorIdCounter++;
+                if (fallbackId == -1 || fallbackId == 0)
+                    continue;
+
+                if (!_behaviourLookup.ContainsKey((behaviour.NetId, fallbackId)))
+                {
+                    behaviour.BehaviourId = fallbackId;
+                    DebugConsole.LogWarning(
+                        $"[OxySyncManager] Deterministic BehaviourId collision fallback used for {behaviour.GetType().FullName} on {behaviour.gameObject.name}: NetId={behaviour.NetId}, deterministic={behaviorId}, fallback={fallbackId}");
+                    return true;
+                }
             }
 
             if (!_behaviourLookup.ContainsKey((behaviour.NetId, behaviorId)))
@@ -458,6 +492,16 @@ namespace ONI_Together.Networking.OxySync.Components
                 $"[OxySyncManager] Failed to assign BehaviourId for {behaviour.GetType().Name}" +
                 $" on {behaviour.gameObject.name} after {MaxRegistrationAttempts} attempts.");
             return false;
+        }
+
+        private static string GetDeterministicBehaviourKey(NetworkBehaviour behaviour)
+        {
+            using var _ =  Profiler.Scope();
+            var type = behaviour.GetType();
+            string assemblyName = type.Assembly.GetName().Name ?? string.Empty;
+            string typeName = type.FullName ?? type.Name;
+
+            return assemblyName + "|" + typeName;
         }
     }
 }
