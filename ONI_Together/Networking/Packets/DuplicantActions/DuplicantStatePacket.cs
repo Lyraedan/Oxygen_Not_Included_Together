@@ -1,7 +1,8 @@
-using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Architecture;
 using System.IO;
+using System;
 using Shared.Profiling;
+using ONI_Together.Networking.OxySync.Components;
 
 namespace ONI_Together.Networking.Packets.DuplicantActions
 {
@@ -59,23 +60,14 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 			if (MultiplayerSession.IsHost)
 				return;
 
-			if (!NetworkIdentityRegistry.TryGetComponent<KBatchedAnimController>(NetId, out var kbac))
+			if (!NetworkIdentityRegistry.TryGetComponent<AnimSyncer>(NetId, out var animSyncer))
 				return;
 
-			if (string.IsNullOrEmpty(CurrentAnimName))
-				return;
-
-			AnimReconciliationHelper.Reconcile(
-				kbac,
-				new HashedString(CurrentAnimName),
-				(KAnim.PlayMode)AnimPlayMode,
-				AnimSpeed,
-				AnimElapsedTime,
-				nameof(DuplicantStatePacket));
+			animSyncer.PlayAnim(false, [CurrentAnimName], (KAnim.PlayMode)AnimPlayMode, AnimSpeed, AnimSpeed, true);
 		}
 	}
 
-	/// <summary>
+	/// <summary> 
 	/// High-level action states for duplicants
 	/// </summary>
 	public enum DuplicantActionState : byte
