@@ -62,7 +62,7 @@ namespace ONI_Together.Networking.OxySync.Components
             else if (Time.unscaledTime - _lastHeartbeatTime >= HEARTBEAT_INTERVAL)
             {
                 //MarkAllDirty();
-                MarkSyncVarAsDirty(_netPosition);
+                MarkSyncVarAsDirty(NetPositionHash);
                 _lastHeartbeatTime = Time.unscaledTime;
             }
         }
@@ -91,9 +91,8 @@ namespace ONI_Together.Networking.OxySync.Components
                 return false;
 
             int cell = Grid.PosToCell(transform.position);
-            if (!WorldStateSyncer.IsCellInRect(cell, viewport))
-                return false;
-
+            int margin = WorldChunkHelper.ChunkSize * 2;
+            if (!WorldStateSyncer.IsCellInRect(cell, viewport, margin)) return false;
             return Time.unscaledTime - _lastSyncReceivedTime > STALE_THRESHOLD;
         }
 
@@ -101,23 +100,15 @@ namespace ONI_Together.Networking.OxySync.Components
         {
             bool flipX = kbac != null && kbac.FlipX;
             bool flipY = kbac != null && kbac.FlipY;
-            NavType navType = navigator != null && navigator.CurrentNavType != NavType.NumNavTypes
-                ? navigator.CurrentNavType : NavType.Floor;
-
-            CallTargetRpc(requesterId, nameof(TargetRpcReceiveFullState),
-                transform.position, flipX, flipY, navType);
+            NavType navType = navigator != null && navigator.CurrentNavType != NavType.NumNavTypes ? navigator.CurrentNavType : NavType.Floor;
+            CallTargetRpc(requesterId, nameof(TargetRpcReceiveFullState), transform.position, flipX, flipY, navType);
         }
 
         [TargetRpc]
         private void TargetRpcReceiveFullState(Vector3 position, bool flipX, bool flipY, NavType navType)
         {
-            _netPosition = position;
-            _netFlipX = flipX;
-            _netFlipY = flipY;
-            _netNavType = navType;
-
+            // Clients can not set sync vars, just teleport the dupe
             transform.SetPosition(position);
-
             if (kbac != null)
             {
                 kbac.FlipX = flipX;

@@ -564,17 +564,6 @@ namespace Shared.OxySync
                 _syncVarFields[i] = field;
             }
         }
-
-        /// <summary>
-        /// Takes in a variable and automatically gets its hash and flags it as dirty
-        /// </summary>
-        /// <param name="variable"></param>
-        protected void MarkSyncVarAsDirty(object variable)
-        {
-            int fieldHash = variable.GetHashCode();
-            if (_syncVarHashToIndex != null && _syncVarHashToIndex.TryGetValue(fieldHash, out int idx))
-                _syncVarDirtyBits |= 1UL << idx;
-        }
         
         /// <summary>
         ///  Flags a specific field hash as dirty
