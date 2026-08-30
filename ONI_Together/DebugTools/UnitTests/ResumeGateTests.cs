@@ -43,6 +43,13 @@ namespace ONI_Together.DebugTools.UnitTests
 			// returning-loader flag it sets is consumed so nothing is left behind.
 			server.ClaimLoadingReconnect(ProbeLoader);
 			server.ConsumeReconnectFromLoad(ProbeLoader);
+
+			// Put the screen back. Each blocked resume calls RefreshScreen, which renders the
+			// fabricated loader into the overlay ("0/1 ready"), and nothing recomputes it
+			// afterwards - so without this the host is left sitting behind a stale "waiting for
+			// players" overlay once the tests finish.
+			ReadyManager.RefreshScreen();
+			ReadyManager.RefreshReadyState();
 		}
 
 		[UnitTest(name: "Resume gate: a pending load closes the gate", category: "Sync")]
