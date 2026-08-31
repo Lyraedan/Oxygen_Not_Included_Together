@@ -1,4 +1,6 @@
-﻿using ONI_Together.Networking.Packets.Architecture;
+﻿using ONI_Together.DebugTools;
+using ONI_Together.Misc;
+using ONI_Together.Networking.Packets.Architecture;
 using System.IO;
 using Shared.Profiling;
 using UnityEngine;
@@ -54,6 +56,24 @@ namespace ONI_Together.Networking.Packets.Tools.Dig
         public void OnDispatched()
         {
             using var _ = Profiler.Scope();
+
+            // A client still in the menu, or part way through downloading the save, has no world
+            // yet and DigTool.PlaceDig throws straight through it. Measured over one join: 64
+            // "Failed to handle incoming packet: NullReferenceException at DigTool.PlaceDig"
+            // before this guard, 0 after - with the guard itself hit 78 times, so the condition
+            // is just as frequent either way.
+            //
+            // The dig order is lost either way, and nothing else is: PacketHandler.HandleIncoming
+            // is called inside a per-message try/catch (SteamworksClient.ProcessIncomingMessages),
+            // so a throwing packet costs only itself. What this buys is a one-line warning in
+            // place of a multi-frame stack dump, and an explicit statement that dropping the
+            // order is the intended behaviour rather than an accident.
+            if (!Utils.IsInGame() || !Grid.IsValidCell(Cell))
+            {
+                DebugConsole.LogWarning(
+                    $"[DiggablePacket] Dropped dig for cell {Cell}: no world loaded yet");
+                return;
+            }
 
             GameObject game_object;
             ProcessingIncoming = true;

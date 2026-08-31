@@ -1,3 +1,4 @@
+using ONI_Together.Menus;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -112,6 +113,13 @@ namespace ONI_Together.Networking
                     StopRaw();
                     break;
             }
+            // The session is over, so there is nothing left to wait for. Nobody was closing this:
+            // GameServer has its Close call commented out and the lobby dialog's End Session
+            // button only calls Stop, so ending a session left the ready screen up for good -
+            // the host sat looking at "waiting for players" with no session to wait for and no
+            // way back. Closing here covers every exit path and both roles.
+            MultiplayerOverlay.Close();
+
             Game.Instance?.Trigger(MP_HASHES.OnDisconnected);
         }
 

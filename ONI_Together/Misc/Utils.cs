@@ -484,7 +484,7 @@ namespace ONI_Together.Misc
 	        if (!MultiplayerSession.IsHost) return;
 	        if (!Configuration.Instance.PauseSimOnPlayerDisconnect) return;
 
-	        PauseSimIfRunning();
+	        PauseSimIfRunning(false);
         }
 
         /// <summary>
@@ -509,7 +509,9 @@ namespace ONI_Together.Misc
 	        // computes its loopback flag.
 	        if (!MultiplayerSession.InActiveSession) return;
 
-	        PauseSimIfRunning();
+	        // Flagged as ours, so ResumeSimAfterReadyScreen can undo exactly this pause and
+	        // nothing else.
+	        PauseSimIfRunning(true);
         }
 
         /// <summary>
@@ -519,7 +521,7 @@ namespace ONI_Together.Misc
         /// guard keeps repeated calls (e.g. reconnect-after-load) a no-op, and pausing is
         /// never blocked by the resume gate.
         /// </summary>
-        private static void PauseSimIfRunning()
+        private static void PauseSimIfRunning(bool forReadyScreen)
         {
 	        using var _ = Profiler.Scope();
 
@@ -527,7 +529,40 @@ namespace ONI_Together.Misc
 	        if (SpeedControlScreen.Instance == null) return;
 
 	        if (!SpeedControlScreen.Instance.IsPaused)
-				SpeedControlScreen.Instance.TogglePause(false);
+	        {
+		        if (forReadyScreen)
+			        _pausedForReadyScreen = true;
+
+		        SpeedControlScreen.Instance.TogglePause(false);
+	        }
+        }
+
+        private static bool _pausedForReadyScreen;
+
+        /// <summary>
+        /// HOST ONLY - undo the pause the ready screen made, once the gate has opened. Nothing
+        /// did this before: the automatic unpause in AllClientsReadyPacket.ProcessAllReady is
+        /// commented out upstream, so after a join the host was left staring at a frozen world
+        /// and had to toggle the speed itself to get moving again.
+        ///
+        /// Only reverses a pause THIS code made for the ready screen. A host that had paused
+        /// deliberately before anyone joined, or a pause from PauseSimOnPlayerLeft, keeps it -
+        /// resuming those would be overriding the player.
+        /// </summary>
+        public static void ResumeSimAfterReadyScreen()
+        {
+	        using var _ = Profiler.Scope();
+
+	        if (!MultiplayerSession.IsHost) return;
+	        if (!_pausedForReadyScreen) return;
+
+	        _pausedForReadyScreen = false;
+
+	        if (SpeedControlScreen.Instance == null) return;
+	        if (!SpeedControlScreen.Instance.IsPaused) return;
+
+	        DebugConsole.Log("[Utils] Ready gate opened; resuming the sim the ready screen paused");
+	        SpeedControlScreen.Instance.TogglePause(false);
         }
 
         public static string CompressString(string text)

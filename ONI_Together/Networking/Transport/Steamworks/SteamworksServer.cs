@@ -213,6 +213,15 @@ namespace ONI_Together.Networking.Transport.Steam
 
                 case ESteamNetworkingConnectionState.k_ESteamNetworkingConnectionState_ClosedByPeer:
                 case ESteamNetworkingConnectionState.k_ESteamNetworkingConnectionState_ProblemDetectedLocally:
+                    // The end reason is the only signal that tells a deliberate quit from a
+                    // killed process or a timeout: our own client closes with the debug string
+                    // "Client disconnecting" (App range, 1xxx), while a dead process is closed
+                    // by the Steam client on its behalf and a vanished peer shows up as a Misc
+                    // (5xxx) reason. Kept as a log for now; measured values decide whether chat
+                    // should tell "left" apart from "lost connection".
+                    DebugConsole.Log(
+                        $"[GameServer] Close reason for {clientId}: " +
+                        $"{data.m_info.m_eEndReason} \"{data.m_info.m_szEndDebug}\"");
                     OnClientClosed(conn, clientId);
                     break;
             }
@@ -298,6 +307,20 @@ namespace ONI_Together.Networking.Transport.Steam
             ReadyManager.HandleClientConnected();
             //SaveFileRequestPacket.SendSaveFile(clientId); // Old method
             //GoogleDriveUtils.UploadAndSendToClient(clientId); // Upload to googledrive and send to the client
+        }
+
+        /// <summary>
+        /// Steam matches returning loaders by id and never guesses. Both sides of the match are
+        /// the same account's 64-bit SteamID - the client reports its own via
+        /// NetworkConfig.GetLocalID (SteamUser.GetSteamID().m_SteamID) when it is marked, and
+        /// the host claims with the connecting peer's CSteamID - so the exact branch always
+        /// hits. Inheriting the LAN fallback would only let a wrong entry be released here, and
+        /// silently: a fallback hit on Steam means the mark went missing, which is a bug to see
+        /// rather than to paper over.
+        /// </summary>
+        public override bool ClaimLoadingReconnect(ulong clientId)
+        {
+            return ClaimExactLoadingReconnect(clientId);
         }
 
         private static void OnClientClosed(HSteamNetConnection conn, CSteamID clientId)

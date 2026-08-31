@@ -126,10 +126,14 @@ namespace ONI_Together.Networking
 			if (!MultiplayerSession.InActiveSession)
 				return;
 
-			string text = GetScreenText();
-			MultiplayerOverlay.Show(text);
+			MultiplayerOverlay.Show(GetScreenText());
 		}
 
+		/// <summary>
+		/// The whole overlay body, suffix included, for both the host's own screen and the
+		/// copy shipped to clients in <see cref="ClientReadyStatusUpdatePacket"/> - the two
+		/// sides must read the same, so only one place builds it.
+		/// </summary>
 		private static string GetScreenText()
 		{
 			using var _ = Profiler.Scope();
@@ -149,7 +153,11 @@ namespace ONI_Together.Networking
 					: ClientReadyState.Unready;
 				message += $"{player.PlayerName}: {GetReadyText(displayState)}\n";
 			}
-			return message;
+
+			// Say why the tools stopped responding. A refusal with no explanation is
+			// indistinguishable from the game having frozen, and the player's next move is
+			// alt-F4.
+			return message + STRINGS.UI.MP_OVERLAY.SYNC.INPUT_LOCKED_WHILE_WAITING;
 		}
 
 		/// <summary>
@@ -266,15 +274,34 @@ namespace ONI_Together.Networking
 			int pendingLoads = NetworkConfig.TransportServer?.PendingLoadingClientCount ?? 0;
 			bool canResume = CanHostResume();
 
+			// How many players are here besides us. Whether the host counts itself in
+			// ConnectedPlayers differs per transport - LiteNetLibServer inserts the host as
+			// ConnectedPlayers[1], Steamworks never adds it - so the raw roster size does not
+			// answer "is anyone else here". Reading it as if it did meant that on Steam, with
+			// exactly one client connected, the host took the "only me left" shortcut below,
+			// resumed alone, and never sent the all-ready broadcast; the client was left on the
+			// ready screen with no way off it. HostUserID is the host's own id on both
+			// (measured: "Host set to: 1" on LAN, "Host set to: 76561198367584567" on Steam).
+			int otherPlayers = MultiplayerSession.ConnectedPlayers.Count
+				- (MultiplayerSession.ConnectedPlayers.ContainsKey(MultiplayerSession.HostUserID) ? 1 : 0);
+
 			// Log the inputs, not just that a refresh happened. Every failure of this gate so
 			// far has been invisible: the broken and the working path both printed a bare
 			// "Refreshing ready state..." and nothing else, so a load window that wrongly
-			// opened the gate looked exactly like one that held.
+			// opened the gate looked exactly like one that held. "others" is separate from
+			// "roster" because the difference between them is where the shortcut bug hid.
 			DebugConsole.Log(
 				$"[ReadyManager] Refreshing ready state... (roster: {MultiplayerSession.ConnectedPlayers.Count}, " +
-				$"pending loads: {pendingLoads}, gate: {(canResume ? "OPEN" : "CLOSED")})");
+				$"others: {otherPlayers}, pending loads: {pendingLoads}, " +
+				$"gate: {(canResume ? "OPEN" : "CLOSED")})");
 
-			if (canResume && MultiplayerSession.ConnectedPlayers.Count <= 1)
+			// The world was frozen for the ready screen; hand it back now the gate has opened.
+			// Without this the host was left in front of a stopped world after every join and
+			// had to toggle the speed itself before the play button would do anything.
+			if (canResume)
+				Utils.ResumeSimAfterReadyScreen();
+
+			if (canResume && otherPlayers == 0)
 			{
 				AllClientsReadyPacket.ProcessAllReady();//bypass sending packet if its just the host left
 				return;

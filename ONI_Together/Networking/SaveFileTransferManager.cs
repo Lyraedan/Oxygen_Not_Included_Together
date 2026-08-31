@@ -30,6 +30,10 @@ namespace ONI_Together.Networking
             public int HighestAckReceived = -1; // Last sequential ACK received
             public System.DateTime LastActivity = System.DateTime.Now;
 
+            /// <summary>Our own key into ActiveTransfers, so IsTransferCurrent - called once
+            /// per chunk - does not rebuild it every time.</summary>
+            public string Key;
+
             public ClientTransfer(ulong clientID, string transferId, string fileName, byte[] data, int chunkSize)
             {
                 using var _ = Profiler.Scope();
@@ -57,17 +61,35 @@ namespace ONI_Together.Networking
         }
 
         /// <summary>
-        /// Register new transfer and track chunks
+        /// Register new transfer and track chunks. Returns an opaque token identifying THIS
+        /// registration - the streaming coroutine holds it and checks IsTransferCurrent each
+        /// iteration, so a coroutine whose registration was cancelled or replaced stops
+        /// instead of streaming on.
         /// </summary>
-        public static void StartTransfer(ulong clientID, string transferId, string fileName, byte[] data, int chunkSize)
+        public static object StartTransfer(ulong clientID, string transferId, string fileName, byte[] data, int chunkSize)
         {
             using var _ = Profiler.Scope();
 
             string key = GetTransferKey(clientID, transferId);
-            var transfer = new ClientTransfer(clientID, transferId, fileName, data, chunkSize);
+            var transfer = new ClientTransfer(clientID, transferId, fileName, data, chunkSize) { Key = key };
             ActiveTransfers[key] = transfer;
 
             DebugConsole.Log($"[TransferManager] Started transfer {transferId} to {clientID} - {transfer.TotalChunks} chunks");
+            return transfer;
+        }
+
+        /// <summary>
+        /// True while the given registration token is still the live transfer for this
+        /// client+file. Identity, not key, on purpose: a rejoin re-registers under the SAME
+        /// key, and a key check would let the previous session's zombie coroutine resume the
+        /// moment the client reconnects - measured as two interleaved chunk streams with one
+        /// TransferId, which stalled the client's download for good.
+        /// </summary>
+        public static bool IsTransferCurrent(object token)
+        {
+            return token is ClientTransfer mine
+                && ActiveTransfers.TryGetValue(mine.Key, out var live)
+                && ReferenceEquals(live, mine);
         }
 
         /// <summary>
@@ -124,6 +146,20 @@ namespace ONI_Together.Networking
                     ActiveTransfers.Remove(key);
                 }
             }
+        }
+
+        /// <summary>
+        /// HOST ONLY - drop every in-flight transfer. Call when the server stops: nothing else
+        /// ends a transfer whose client never ACKs again, so a shutdown mid-transfer left the
+        /// retry loop sending chunks to a session that no longer existed.
+        /// </summary>
+        public static void CancelAll()
+        {
+            if (ActiveTransfers.Count == 0)
+                return;
+
+            DebugConsole.Log($"[TransferManager] Cancelling {ActiveTransfers.Count} in-flight transfer(s) (server stopping)");
+            ActiveTransfers.Clear();
         }
 
         /// <summary>
@@ -188,9 +224,11 @@ namespace ONI_Together.Networking
 
                 PacketSender.SendToPlayer(transfer.ClientID, securePacket);
 
-                // Update send timestamp
+                // Update send timestamp. Deliberately NOT LastActivity: that must only move on
+                // evidence the CLIENT is alive (an ACK). Refreshing it on our own resend meant
+                // the 2-minute timeout below never fired - a transfer to a dead client resent
+                // forever, measured as 4+ minutes of send attempts after a session had ended.
                 transfer.ChunkSentTime[chunkIndex] = System.DateTime.Now;
-                transfer.LastActivity = System.DateTime.Now;
 
                 DebugConsole.Log($"[TransferManager] Resent chunk {chunkIndex} to {transfer.ClientID}");
             }

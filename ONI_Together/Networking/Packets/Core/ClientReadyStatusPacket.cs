@@ -125,6 +125,24 @@ namespace ONI_Together.Networking.Packets.Core
             ReadyManager.SetPlayerReadyState(player, Status);
 			DebugConsole.Log($"[ClientReadyStatusPacket] {SenderId} marked as {Status}");
 
+			// Announce the join when the player is actually in, not when they first appear.
+			// Steam used to say it on lobby entry (SteamLobby), which is a whole join ahead of
+			// the truth - measured at 06:57:40 entering the lobby against 06:58:18 reaching the
+			// world, so the line landed while they were still watching the ready screen. Ready
+			// is the first moment the statement is true.
+			//
+			// JoinAnnounced keeps a returning loader quiet: it is already set from their first
+			// join, and it is cleared only by the roster entry being dropped, which is what
+			// leaving for real does.
+			if (!NetworkConfig.IsLanConfig()
+				&& Status == ClientReadyState.Ready
+				&& !player.JoinAnnounced)
+			{
+				player.JoinAnnounced = true;
+				OxySyncChat.AddSystemMessage(
+					string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, player.PlayerName));
+			}
+
 			if (nameChanged)
 			{
 				// Consume on every transport, not just LAN. The flag is one-shot and only the

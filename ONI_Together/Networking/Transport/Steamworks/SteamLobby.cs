@@ -261,8 +261,11 @@ namespace ONI_Together.Networking.Transport.Steamworks
                     MultiplayerSession.ConnectedPlayers.Add(userId, new MultiplayerPlayer(user.m_SteamID));
                 }
 
+				// No chat line here on purpose. Entering the lobby is the start of a join, not
+				// the end of one - the player still has to download the save, load it and
+				// reconnect, which measured 38s. ClientReadyStatusPacket says it when they are
+				// actually in.
 				DebugConsole.Log($"[SteamLobby] {name} joined the lobby.");
-				OxySyncChat.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, name));
                 var boxedId = Boxed<ulong>.Get(userId);
 				Game.Instance?.Trigger(MP_HASHES.OnPlayerJoined, boxedId);
 				boxedId.Release();
@@ -277,9 +280,46 @@ namespace ONI_Together.Networking.Transport.Steamworks
 
 				MultiplayerSession.ConnectedPlayers.Remove(userId);
 
+				// Someone who leaves the lobby is not coming back from a load, so their pending
+				// load entry has to go with them. Leaving it behind is worse than useless: the
+				// moment they drop off the roster that entry starts counting (see
+				// PendingLoadingClientCount) and holds the resume gate closed on behalf of a
+				// player who is already gone. A Steam session sat frozen for 5m24s on exactly
+				// that - the client left at 05:14:04 with one pending load and the gate only
+				// reopened at 05:19:28, on the 120s expiry.
+				//
+				// NOTE: every transport calls ForgetClientLoading from its KICK path, but only
+				// Steam clears it on a voluntary leave. LiteNetLibServer.OnPeerDisconnected and
+				// RiptideServer.ServerOnClientDisconnected do not, so a LAN client that drops
+				// mid-load and never returns still holds the gate for the full timeout. Not
+				// fixed here because it has not been reproduced on LAN - the LAN reconnect
+				// arrives under a NEW client id and ClaimOldestLoadingReconnect consumes the
+				// entry, which is why the window has stayed invisible there.
+				//
+				// Whether they were mid-load also decides what the rest of the table is told:
+				// vanishing while loading is a failed join, not someone choosing to leave.
+				bool failedWhileJoining = false;
+				if (MultiplayerSession.IsHost)
+				{
+					failedWhileJoining =
+						NetworkConfig.TransportServer?.IsClientLoading(userId) == true;
+					NetworkConfig.TransportServer?.ForgetClientLoading(userId);
+				}
+
 				RefreshLobbyMembers();
-				DebugConsole.Log($"[SteamLobby] {name} left the lobby.");
-                OxySyncChat.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_LEFT, name));
+				// Log the raw state-change flag: Left is a voluntary leave (the Steam client
+				// also reports Left on behalf of a killed game process), Disconnected means
+				// Steam lost the whole client, Kicked is ours. Together with the connection
+				// close reason logged by SteamworksServer this is the record of HOW a player
+				// went away, not just that they did.
+				DebugConsole.Log(
+					$"[SteamLobby] {name} left the lobby (state change: {stateChange}" +
+					$"{(failedWhileJoining ? "; still loading - treating as a failed join" : "")}).");
+                OxySyncChat.AddSystemMessage(string.Format(
+					failedWhileJoining
+						? STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_FAILED
+						: STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_LEFT,
+					name));
                 Utils.PauseSimOnPlayerLeft();
 				var boxedId = Boxed<ulong>.Get(userId);
 				Game.Instance?.Trigger(MP_HASHES.OnPlayerLeft, boxedId);

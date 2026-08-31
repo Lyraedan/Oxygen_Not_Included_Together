@@ -149,10 +149,25 @@ namespace ONI_Together.Networking.Packets.World
 
 			// SUA IDEIA: Registra transferência no manager para rastrear ACKs
 			string transferId = fileName.Replace(" ", "_").Replace(".sav", "");
-			SaveFileTransferManager.StartTransfer(steamID, transferId, fileName, data, chunkSize);
+			object transferToken = SaveFileTransferManager.StartTransfer(steamID, transferId, fileName, data, chunkSize);
 
 			for (int offset = 0; offset < data.Length; /* increments manually */)
 			{
+				// Die with the registration. Without this the loop's retry branch spun forever
+				// after a session ended (~60 sends/s of SecureTransferPacket into the void,
+				// measured for 4+ minutes), and worse: when the same client rejoined a NEW
+				// session, the old coroutine's sends started SUCCEEDING again and interleaved
+				// a second chunk stream into the new transfer under the same TransferId - the
+				// client's download hung at 30% on exactly that.
+				if (!MultiplayerSession.InActiveSession
+					|| !SaveFileTransferManager.IsTransferCurrent(transferToken))
+				{
+					DebugConsole.LogWarning(
+						$"[SaveFileRequest] Aborting transfer of '{fileName}' to {steamID} at offset {offset}: " +
+						"session ended or transfer superseded");
+					yield break;
+				}
+
 				int size = Math.Min(chunkSize, data.Length - offset);
 				byte[] chunk = new byte[size];
 				Buffer.BlockCopy(data, offset, chunk, 0, size);

@@ -459,6 +459,7 @@ namespace ONI_Together
 					public static LocString HARDSYNC_INPROGRESS = "Hard sync in progress!";
 					public static LocString FINALIZING_SYNC = "All players are ready!\nPlease wait...";
 					public static LocString WAITING_FOR_PLAYERS_SYNC = "Waiting for players ({0}/{1} ready)...\n";
+					public static LocString INPUT_LOCKED_WHILE_WAITING = "\nTools are disabled until everyone is ready.";
 
 					// New world sync menu
 					public static LocString CLIENT_SYNC_PROGRESS = "Client Sync Progress";

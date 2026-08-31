@@ -309,16 +309,6 @@ namespace ONI_Together.Networking
 				{
 					DebugConsole.Log("[GameClient] Requesting save file from host");
 
-					// Arm the host's load-window gate now, while the connection is healthy and
-					// about to stay up for the whole transfer. SaveHelper also sends this
-					// immediately before tearing the connection down, but that one races the
-					// socket close and is regularly lost - observed both ways in a two-instance
-					// session. Marking early is free: PendingLoadingClientCount only counts
-					// loaders that have dropped off the roster, so this has no effect until the
-					// client actually disconnects to load, and it expires on its own if the
-					// client never gets that far.
-					ReadyManager.SendReadyStatusPacket(ClientReadyState.Loading);
-
 					var packet = new SaveFileRequestPacket
 					{
 						Requester = MultiplayerSession.LocalUserID
@@ -406,6 +396,70 @@ namespace ONI_Together.Networking
 		{
 			_autoReconnecting = false;
 			_reconnectAttempt = 0;
+			_postLoadReconnectAttempt = 0;
+		}
+
+		private static int _postLoadReconnectAttempt = 0;
+		private const int MAX_POST_LOAD_RECONNECT_ATTEMPTS = 3;
+		private const float POST_LOAD_RECONNECT_DELAY = 2f;
+
+		/// <summary>
+		/// CLIENT ONLY - a post-load reconnect died on a route/timeout race rather than on a
+		/// real refusal; start another attempt. Returns true if a retry was scheduled, false
+		/// once the attempts are spent, in which case the caller should fall back to its
+		/// normal give-up path.
+		///
+		/// Measured in a Steam session: the reconnect after the world finished loading gave up
+		/// with ProblemDetectedLocally after ~31s, while the attempts either side of it reached
+		/// "fully established" in 15s and 25s. Steam had simply not finished finding a route in
+		/// time. Without a retry that single race threw the player back to the menu and out of
+		/// the lobby, with the host still holding a roster entry for them.
+		///
+		/// HostUserID is still set at this point (ReconnectFromCache assigns it before it drops
+		/// the cache), so ConnectToHost can retry without the cached info.
+		/// </summary>
+		public static bool TryRetryPostLoadReconnect()
+		{
+			using var _ = Profiler.Scope();
+
+			if (_postLoadReconnectAttempt >= MAX_POST_LOAD_RECONNECT_ATTEMPTS)
+			{
+				DebugConsole.LogWarning(
+					$"[GameClient] Post-load reconnect failed {_postLoadReconnectAttempt} times; giving up");
+				_postLoadReconnectAttempt = 0;
+				return false;
+			}
+
+			_postLoadReconnectAttempt++;
+			DebugConsole.Log(
+				$"[GameClient] Post-load reconnect failed; retry " +
+				$"{_postLoadReconnectAttempt}/{MAX_POST_LOAD_RECONNECT_ATTEMPTS} " +
+				$"in {POST_LOAD_RECONNECT_DELAY}s");
+			MultiplayerOverlay.Show(
+				$"Reconnecting... {_postLoadReconnectAttempt}/{MAX_POST_LOAD_RECONNECT_ATTEMPTS}");
+
+			CoroutineRunner.RunOne(RetryPostLoadReconnectCoroutine());
+			return true;
+		}
+
+		private static IEnumerator RetryPostLoadReconnectCoroutine()
+		{
+			yield return new WaitForSecondsRealtime(POST_LOAD_RECONNECT_DELAY);
+
+			if (!Utils.IsInGame())
+			{
+				DebugConsole.Log("[GameClient] No longer in game, abandoning post-load reconnect");
+				_postLoadReconnectAttempt = 0;
+				yield break;
+			}
+
+			ConnectToHost(false);
+		}
+
+		/// <summary>CLIENT ONLY - a reconnect landed; stop counting failures.</summary>
+		public static void NotifyReconnectSucceeded()
+		{
+			_postLoadReconnectAttempt = 0;
 		}
 
 		private static IEnumerator ShowMessageAndReturnToTitle(string reason = "", string message = "")

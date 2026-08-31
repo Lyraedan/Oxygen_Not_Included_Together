@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using ONI_Together.DebugTools;
+using ONI_Together.Networking.OxySync.Components;
 
 namespace ONI_Together.Networking.Transport
 {
@@ -64,6 +66,12 @@ namespace ONI_Together.Networking.Transport
         /// </summary>
         public void MarkClientLoading(ulong clientId)
         {
+            // Logged because this lifecycle decides which chat line a departure gets (failed
+            // join vs left) and whether the gate holds through a load window - and its main
+            // caller, SaveFileRequestPacket, was otherwise silent about it.
+            DebugConsole.Log(
+                $"[TransportServer] {clientId} marked loading " +
+                $"(was {(_loadingClients.ContainsKey(clientId) ? "already marked" : "unmarked")})");
             _loadingClients[clientId] = UnityEngine.Time.unscaledTime;
         }
 
@@ -98,16 +106,27 @@ namespace ONI_Together.Networking.Transport
         /// reports Ready. It needs two clients moving at once to bite, and the alternative -
         /// leaving the entry alone - stalls the gate for the full timeout after every single
         /// load. Restoring a stable client id across a reconnect would remove the choice.
+        ///
+        /// This base implementation is the LAN one. SteamworksServer overrides it to drop the
+        /// fallback, so the guess cannot fire on a transport that does not need it.
         /// </summary>
         public virtual bool ClaimLoadingReconnect(ulong clientId)
         {
-            if (_loadingClients.Remove(clientId))
-            {
-                _reconnectedFromLoad.Add(clientId);
-                return true;
-            }
+            return ClaimExactLoadingReconnect(clientId) || ClaimOldestLoadingReconnect(clientId);
+        }
 
-            return ClaimOldestLoadingReconnect(clientId);
+        /// <summary>
+        /// HOST ONLY - release the pending load recorded under this exact client id. Only
+        /// meaningful on a transport whose client id survives a reconnect.
+        /// </summary>
+        protected bool ClaimExactLoadingReconnect(ulong clientId)
+        {
+            if (!_loadingClients.Remove(clientId))
+                return false;
+
+            DebugConsole.Log($"[TransportServer] {clientId} reconnected; cleared its pending load");
+            _reconnectedFromLoad.Add(clientId);
+            return true;
         }
 
         /// <summary>
@@ -133,6 +152,15 @@ namespace ONI_Together.Networking.Transport
 
             _loadingClients.Remove(oldest);
             _reconnectedFromLoad.Add(clientId);
+
+            // The only branch in this mechanism that guesses. Worth a line in the log: when
+            // the gate misbehaves, this tells you whether an entry was released by an id match
+            // or by assumption, and which entry got consumed.
+            DebugConsole.Log(
+                $"[TransportServer] {clientId} has no pending load of its own; assuming it is " +
+                $"returning loader {oldest} (pending loads left: {_loadingClients.Count}). " +
+                "Wrong if a different client connected while someone else was loading.");
+
             return true;
         }
 
@@ -144,7 +172,8 @@ namespace ONI_Together.Networking.Transport
         /// </summary>
         public void ForgetClientLoading(ulong clientId)
         {
-            _loadingClients.Remove(clientId);
+            if (_loadingClients.Remove(clientId))
+                DebugConsole.Log($"[TransportServer] Dropped pending load for {clientId} (kick/leave)");
             _reconnectedFromLoad.Remove(clientId);
         }
 
@@ -179,8 +208,37 @@ namespace ONI_Together.Networking.Transport
                     _expiredLoadingClients.Add(kvp.Key);
             }
 
+            if (_expiredLoadingClients.Count == 0)
+                return;
+
             foreach (ulong id in _expiredLoadingClients)
                 _loadingClients.Remove(id);
+
+            // Dropping the entry is not enough on its own. Nothing else recomputes the gate on
+            // a timer, so without this refresh the safety net silently frees the count and the
+            // host still sits on the ready screen until some unrelated event happens to
+            // recalculate. Measured in a Steam session: a client left for good at 05:14:04
+            // holding one pending load, the entry expired ~05:16 with no visible effect, and
+            // the gate only reported OPEN at 05:19:28 when a late ClosedByPeer arrived -
+            // 5m24s of the world held frozen by a player who was already gone.
+            DebugConsole.Log(
+                $"[TransportServer] Expired {_expiredLoadingClients.Count} stale load(s); " +
+                $"pending loads now {PendingLoadingClientCount}");
+
+            // Tell the table why the wait ended. A loader that never came back has failed to
+            // join, and without this the gate simply opens with no explanation of who is
+            // missing.
+            foreach (ulong id in _expiredLoadingClients)
+            {
+                string name = MultiplayerSession.KnownPlayerNames.TryGetValue(id, out var known)
+                    ? known
+                    : id.ToString();
+                OxySyncChat.AddSystemMessage(
+                    string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_FAILED, name));
+            }
+
+            ReadyManager.RefreshScreen();
+            ReadyManager.RefreshReadyState();
         }
 
         /// <summary>
