@@ -1,16 +1,27 @@
 ﻿using ONI_Together.DebugTools;
 using ONI_Together.Menus;
 using ONI_Together.Misc;
+using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Networking.Packets.Core;
 using ONI_Together.Networking.States;
 using ONI_Together.Networking.Transport.Steamworks;
 using Steamworks;
 using Shared.Profiling;
+using System.Collections.Generic;
+using System.Linq;
+using UnityEngine;
 
 namespace ONI_Together.Networking
 {
 	public class ReadyManager
 	{
+		private const float HEARTBEAT_STALE_AFTER = 15f;
+		private const float STALE_CHECK_INTERVAL = 5f;
+
+		private static readonly Dictionary<ulong, float> _lastHeartbeat = new();
+		private static readonly Dictionary<ulong, float> _loadingClients = new();
+		private static float _lastStaleCheckTime;
+		private static bool _wasAllReady;
 
 		public static void SetupListeners()
 		{
@@ -19,48 +30,86 @@ namespace ONI_Together.Networking
 			SteamLobby.OnLobbyMembersRefreshed += UpdateReadyStateTracking;
 		}
 
-		public static void SendAllReadyPacket()
+		/// <summary>
+		/// HOST ONLY - Records that a client is alive. Returns true if this is the first
+		/// heartbeat seen from this client since the last ready-gate cycle (used to force
+		/// a status push so freshly-rejoined clients receive the current ready list).
+		/// </summary>
+		public static bool RegisterHeartbeat(ulong senderId)
+		{
+			using var _ = Profiler.Scope();
+
+			float now = Time.unscaledTime;
+			bool isFirst = !_lastHeartbeat.ContainsKey(senderId);
+			_lastHeartbeat[senderId] = now;
+			return isFirst;
+		}
+
+		/// <summary>
+		/// HOST ONLY - Marks a client as loading (disconnected to load the save, will reconnect).
+		/// Keeps the ready gate open and silences stale-heartbeat warnings while it loads.
+		/// </summary>
+		public static void MarkClientLoading(ulong senderId)
+		{
+			using var _ = Profiler.Scope();
+
+			_loadingClients[senderId] = Time.unscaledTime;
+			NetworkConfig.TransportServer.MarkClientLoading(senderId);
+		}
+
+		/// <summary>
+		/// HOST ONLY - Clears the loading mark once a client reconnects and reports a state.
+		/// </summary>
+		public static void CompleteLoading(ulong senderId)
+		{
+			using var _ = Profiler.Scope();
+
+			_loadingClients.Remove(senderId);
+			NetworkConfig.TransportServer.ConsumeReconnectFromLoad(senderId);
+		}
+
+		/// <summary>
+		/// HOST ONLY - Updates the cached player identity (name) and, on LAN, announces the
+		/// player to all clients and the chat so join messages stay in sync.
+		/// </summary>
+		public static void ReportPlayerIdentity(MultiplayerPlayer player, string playerName, bool isFirstSeen)
 		{
 			using var _ = Profiler.Scope();
 
 			if (!MultiplayerSession.IsHost)
 				return;
 
-			//CoroutineRunner.RunOne(DelayAllReadyBroadcast());
-			PacketSender.SendToAllClients(new AllClientsReadyPacket());
-			AllClientsReadyPacket.ProcessAllReady();
-		}
+			if (!string.IsNullOrEmpty(playerName))
+				MultiplayerSession.KnownPlayerNames[player.PlayerId] = playerName;
 
-		public static void SendStatusUpdatePacketToClients()
-		{
-			using var _ = Profiler.Scope();
+			bool nameChanged = !string.IsNullOrEmpty(playerName) && player.PlayerName != playerName;
+			if (nameChanged)
+				player.PlayerName = playerName;
 
-			if (!MultiplayerSession.IsHost)
+			if (!NetworkConfig.IsLanConfig())
+				return;
+			if (!nameChanged && !isFirstSeen)
 				return;
 
-			string text = GetScreenText();
-			var packet = new ClientReadyStatusUpdatePacket
+			bool isLoadingReconnect = NetworkConfig.TransportServer.ConsumeReconnectFromLoad(player.PlayerId);
+
+			if (!isLoadingReconnect)
 			{
-				Message = text
-			};
-			PacketSender.SendToAllClients(packet);
-		}
+				OxySyncChat.AddSystemMessage(
+					string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, player.PlayerName));
+			}
 
-		public static void SendReadyStatusPacket(ClientReadyState state)
-		{
-			using var _ = Profiler.Scope();
-
-			// Host is always considered ready so it doesn't send these
-			if (MultiplayerSession.IsHost)
-				return;
-
-			var packet = new ClientReadyStatusPacket
+			PacketSender.SendToAllClients(new ClientReadyStatusPacket
 			{
-				SenderId = NetworkConfig.GetLocalID(),
-				Status = state,
+				SenderId = MultiplayerSession.HostUserID,
 				PlayerName = Utils.GetLocalPlayerName()
-			};
-			PacketSender.SendToHost(packet);
+			});
+
+			PacketSender.SendToAllClients(new ClientReadyStatusPacket
+			{
+				SenderId = player.PlayerId,
+				PlayerName = player.PlayerName
+			});
 		}
 
 		public static void MarkAllAsUnready()
@@ -80,7 +129,11 @@ namespace ONI_Together.Networking
 
 				player.readyState = ClientReadyState.Unready;
 			}
-			RefreshScreen();
+
+			_wasAllReady = false;
+			_loadingClients.Clear();
+			_lastHeartbeat.Clear();
+			PushReadyStatus();
 		}
 
 		public static void SetPlayerReadyState(MultiplayerPlayer player, ClientReadyState state)
@@ -100,11 +153,11 @@ namespace ONI_Together.Networking
 			if (!MultiplayerSession.InActiveSession)
 				return;
 
-			string text = GetScreenText();
+			string text = BuildStatusText();
 			MultiplayerOverlay.Show(text);
 		}
 
-		private static string GetScreenText()
+		public static string BuildStatusText()
 		{
 			using var _ = Profiler.Scope();
 
@@ -116,6 +169,21 @@ namespace ONI_Together.Networking
 				message += $"{player.PlayerName}: {GetReadyText(player.readyState)}\n";
 			}
 			return message;
+		}
+
+		/// <summary>
+		/// HOST ONLY - Pushes the current aggregated ready status to all clients via the
+		/// ReadyStateSyncer SyncVar, and refreshes the host's own overlay.
+		/// </summary>
+		private static void PushReadyStatus()
+		{
+			using var _ = Profiler.Scope();
+
+			if (!MultiplayerSession.IsHost)
+				return;
+
+			ReadyStateSyncer.Instance?.PushReadyStatusText(BuildStatusText());
+			RefreshScreen();
 		}
 
 		private static int GetReadyCount()
@@ -159,26 +227,30 @@ namespace ONI_Together.Networking
 		}
 
 		/// <summary>
-		/// HOST ONLY - Check if all connected clients are ready
+		/// HOST ONLY - Check if all connected clients are ready. Loading clients are
+		/// treated as pending and block the gate.
 		/// </summary>
-		/// <returns></returns>
 		public static bool IsEveryoneReady()
 		{
 			using var _ = Profiler.Scope();
 
-			bool result = true;
+			if (_loadingClients.Count > 0)
+				return false;
+
 			foreach (MultiplayerPlayer player in MultiplayerSession.ConnectedPlayers.Values)
 			{
 				if (player.readyState == ClientReadyState.Unready)
 				{
-					result = false;
-
-					break;
+					return false;
 				}
 			}
-			return result;
+			return true;
 		}
 
+		/// <summary>
+		/// HOST ONLY - Re-evaluates the ready gate. Fires the all-ready signal exactly once
+		/// on the rising edge, otherwise pushes the current status text to all clients.
+		/// </summary>
 		internal static void RefreshReadyState()
 		{
 			using var _ = Profiler.Scope();
@@ -189,22 +261,74 @@ namespace ONI_Together.Networking
 			if (MultiplayerSession.IsQuitting)
 				return;
 
-			DebugConsole.Log("Refreshing ready state...");
-			if (MultiplayerSession.ConnectedPlayers.Count <= 1)
-			{
-				AllClientsReadyPacket.ProcessAllReady();//bypass sending packet if its just the host left
-				return;
-			}
+			bool anyLoading = _loadingClients.Count > 0;
+			bool allReady = MultiplayerSession.ConnectedPlayers.Count > 0
+				&& !anyLoading
+				&& IsEveryoneReady();
 
-			bool allReady = ReadyManager.IsEveryoneReady();
 			if (allReady)
 			{
-				ReadyManager.SendAllReadyPacket();
+				if (_wasAllReady)
+					return;
+
+				_wasAllReady = true;
+				DebugConsole.Log("Refreshing ready state...");
+				DebugConsole.Log("All players are ready! Broadcasting all-ready signal");
+				ReadyStateSyncer.Instance?.BroadcastAllReady();
+				AllClientsReadyPacket.ProcessAllReady();
 			}
 			else
 			{
-				// Broadcast updated overlay message to all clients
-				ReadyManager.SendStatusUpdatePacketToClients();
+				_wasAllReady = false;
+				PushReadyStatus();
+			}
+		}
+
+		/// <summary>
+		/// HOST ONLY - Logs clients whose heartbeat has gone stale and evicts loading entries
+		/// that never reconnected. No forced disconnects - the transport timeout handles dead
+		/// clients.
+		/// </summary>
+		internal static void CheckForStaleHeartbeats()
+		{
+			using var _ = Profiler.Scope();
+
+			if (!MultiplayerSession.IsHost)
+				return;
+
+			float now = Time.unscaledTime;
+			if (now - _lastStaleCheckTime < STALE_CHECK_INTERVAL)
+				return;
+			_lastStaleCheckTime = now;
+
+			bool loadingEvicted = false;
+			float loadingTimeout = ONI_Together.Configuration.Instance.Host.TimeoutSeconds;
+			foreach (var kvp in _loadingClients.ToList())
+			{
+				if (now - kvp.Value > loadingTimeout)
+				{
+					_loadingClients.Remove(kvp.Key);
+					loadingEvicted = true;
+					DebugConsole.LogWarning($"[ReadyManager] Loading client {kvp.Key} never reconnected after {loadingTimeout}s - treating as left");
+				}
+			}
+			if (loadingEvicted)
+				RefreshReadyState();
+
+			foreach (MultiplayerPlayer player in MultiplayerSession.ConnectedPlayers.Values)
+			{
+				if (player.PlayerId == MultiplayerSession.HostUserID)
+					continue;
+				if (player.Connection == null)
+					continue;
+				if (_loadingClients.ContainsKey(player.PlayerId))
+					continue;
+				if (!_lastHeartbeat.TryGetValue(player.PlayerId, out float last))
+					continue;
+				if (now - last <= HEARTBEAT_STALE_AFTER)
+					continue;
+
+				DebugConsole.LogWarning($"[ReadyManager] Player {player.PlayerName} ({player.PlayerId}) heartbeat stale for {now - last:F1}s - relying on transport timeout");
 			}
 		}
 	}

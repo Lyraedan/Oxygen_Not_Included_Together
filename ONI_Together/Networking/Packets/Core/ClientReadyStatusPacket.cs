@@ -1,4 +1,3 @@
-using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.States;
@@ -11,6 +10,10 @@ using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.Core
 {
+	/// <summary>
+	/// Host -&gt; client player name / join announcement. Clients no longer send this for ready
+	/// state - they report readiness via ReadyStateSyncer commands and a periodic heartbeat.
+	/// </summary>
 	class ClientReadyStatusPacket : IPacket
 	{
 		public ulong SenderId;
@@ -49,91 +52,31 @@ namespace ONI_Together.Networking.Packets.Core
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.IsHost)
+			if (string.IsNullOrEmpty(PlayerName))
+				return;
+
+			MultiplayerSession.KnownPlayerNames[SenderId] = PlayerName;
+
+			if (SenderId == MultiplayerSession.HostUserID)
 			{
-				if (string.IsNullOrEmpty(PlayerName))
-					return;
-
-				MultiplayerSession.KnownPlayerNames[SenderId] = PlayerName;
-
-				if (SenderId == MultiplayerSession.HostUserID)
+				var host = MultiplayerSession.GetPlayer(SenderId);
+				if (host != null)
 				{
-					var host = MultiplayerSession.GetPlayer(SenderId);
-					if (host != null)
-					{
-						host.PlayerName = PlayerName;
-					}
-				}
-				else
-				{
-					var client = NetworkConfig.TransportClient as LiteNetLibClient;
-					bool isLoading = client != null && SenderId == MultiplayerSession.LocalUserID && client.IsLoadingReconnect;
-					if (isLoading)
-					{
-						client.IsLoadingReconnect = false;
-					}
-					else
-					{
-					OxySyncChat.AddSystemMessage(
-						string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, PlayerName));
-					}
+					host.PlayerName = PlayerName;
 				}
 				return;
 			}
 
-			MultiplayerPlayer player;
-			MultiplayerSession.ConnectedPlayers.TryGetValue(SenderId, out player);
-
-			if (player == null)
+			var client = NetworkConfig.TransportClient as LiteNetLibClient;
+			bool isLoading = client != null && SenderId == MultiplayerSession.LocalUserID && client.IsLoadingReconnect;
+			if (isLoading)
 			{
-				DebugConsole.LogError("Tried to update ready state for a null player", false);
+				client.IsLoadingReconnect = false;
 				return;
 			}
 
-			if (Status == ClientReadyState.Loading)
-			{
-				var server = NetworkConfig.TransportServer as LiteNetLibServer;
-				server?.MarkClientLoading(SenderId);
-				return;
-			}
-
-			bool nameChanged = !string.IsNullOrEmpty(PlayerName) && player.PlayerName != PlayerName;
-			if (nameChanged)
-			{
-				player.PlayerName = PlayerName;
-			}
-
-            ReadyManager.SetPlayerReadyState(player, Status);
-			DebugConsole.Log($"[ClientReadyStatusPacket] {SenderId} marked as {Status}");
-
-			if (NetworkConfig.IsLanConfig() && nameChanged)
-			{
-				var server = NetworkConfig.TransportServer as LiteNetLibServer;
-				bool isLoadingReconnect = server != null && server.ConsumeReconnectFromLoad(SenderId);
-
-				if (!isLoadingReconnect)
-				{
-					OxySyncChat.AddSystemMessage(
-						string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, player.PlayerName));
-				}
-
-				PacketSender.SendToAllClients(new ClientReadyStatusPacket
-				{
-					SenderId = MultiplayerSession.HostUserID,
-					PlayerName = Utils.GetLocalPlayerName()
-				});
-
-				PacketSender.SendToAllClients(new ClientReadyStatusPacket
-				{
-					SenderId = SenderId,
-					PlayerName = player.PlayerName
-				});
-			}
-
-			ReadyManager.RefreshScreen();
-			bool allReady = ReadyManager.IsEveryoneReady();
-            DebugConsole.Log($"[ClientReadyStatusPacket] Is everyone ready? {allReady}");
-			ReadyManager.RefreshReadyState();
+			OxySyncChat.AddSystemMessage(
+				string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, PlayerName));
 		}
 	}
 }

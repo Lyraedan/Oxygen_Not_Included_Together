@@ -338,12 +338,12 @@ namespace ONI_Together.Networking.Transport.Lan
             }
         }
 
-        public bool ConsumeReconnectFromLoad(ulong id)
+        public override bool ConsumeReconnectFromLoad(ulong id)
         {
             return _reconnectedFromLoad.Remove(id);
         }
 
-        public void MarkClientLoading(ulong id)
+        public override void MarkClientLoading(ulong id)
         {
             _loadingClients[id] = UnityEngine.Time.unscaledTime;
         }

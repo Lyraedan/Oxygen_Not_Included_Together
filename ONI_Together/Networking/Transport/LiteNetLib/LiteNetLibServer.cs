@@ -36,9 +36,6 @@ namespace ONI_Together.Networking.Transport.Lan
         public int ConnectedClientCount => _server != null ? _server.ConnectedPeersCount : 0;
         public TcpFileTransferServer TcpTransfer => _tcpTransfer;
 
-        public void MarkClientLoading(ulong clientId) { }
-        public bool ConsumeReconnectFromLoad(ulong clientId) { return false; }
-
         public List<ulong> ClientList { get; internal set; } = new List<ulong>();
 
         // Bandwidth and PPS tracking
@@ -221,6 +218,12 @@ namespace ONI_Together.Networking.Transport.Lan
         private void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
         {
             using var _ = Profiler.Scope();
+
+            // Process any queued packets (e.g. a ClientReadyState Loading command) BEFORE
+            // removing the player. LiteNetLib fires the disconnect event during PollEvents(),
+            // ahead of OnMessageRecieved(), so without this the ready gate would evaluate
+            // before it knows the client is only loading.
+            OnMessageRecieved();
 
             if (_clientIdByPeerId.TryGetValue(peer.Id, out ulong clientId))
             {

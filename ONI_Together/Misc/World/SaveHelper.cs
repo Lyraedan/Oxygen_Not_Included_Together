@@ -7,6 +7,7 @@ using ONI_Together.Misc;
 using ONI_Together.Misc.World;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
+using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.States;
 using ONI_Together.Networking.Transport.Steamworks;
@@ -86,7 +87,7 @@ public static class SaveHelper
 		}
 
 		// Notify host before disconnecting so it can suppress leave/join messages
-		ReadyManager.SendReadyStatusPacket(ClientReadyState.Loading);
+		ReadyStateSyncer.Instance?.RequestSetReadyState(ClientReadyState.Loading);
 
 		GameClient.SetState(ClientState.LoadingWorld);
 		GameClient.CacheCurrentServer();
@@ -439,7 +440,7 @@ public static class SaveHelper
 		}
 
 		// Notify host before disconnecting so it can suppress leave/join messages
-		ReadyManager.SendReadyStatusPacket(ClientReadyState.Loading);
+		ReadyStateSyncer.Instance?.RequestSetReadyState(ClientReadyState.Loading);
 
 		GameClient.SetState(ClientState.LoadingWorld);
 		GameClient.CacheCurrentServer();

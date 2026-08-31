@@ -114,6 +114,7 @@ namespace ONI_Together.Networking
 
 						// Check for lost chunks and retransmit specific missing chunks
 						SaveFileTransferManager.CheckForLostChunks();
+						ReadyManager.CheckForStaleHeartbeats();
 					}
 					catch (Exception ex)
 					{

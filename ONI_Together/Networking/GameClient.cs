@@ -2,6 +2,7 @@ using ONI_Together.DebugTools;
 using ONI_Together.Menus;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Components;
+using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.Packets.Handshake;
 using ONI_Together.Networking.Packets.World;
@@ -292,7 +293,7 @@ namespace ONI_Together.Networking
 
 			DebugConsole.Log($"[GameClient] ContinueConnectionFlow - IsInMenu: {Utils.IsInMenu()}, IsInGame: {Utils.IsInGame()}, HardSyncInProgress: {IsHardSyncInProgress}");
 
-			ReadyManager.SendReadyStatusPacket(ClientReadyState.Unready);
+			ReadyStateSyncer.Instance?.RequestSetReadyState(ClientReadyState.Unready);
 
 			if (Utils.IsInMenu())
 			{
@@ -316,9 +317,9 @@ namespace ONI_Together.Networking
 				}
 				else
 				{
-					DebugConsole.Log("[GameClient] Hard sync in progress, sending ready status");
-					// Tell the host we're ready
-					ReadyManager.SendReadyStatusPacket(ClientReadyState.Ready);
+DebugConsole.Log("[GameClient] Hard sync in progress, sending ready status");
+				// Tell the host we're ready
+				ReadyStateSyncer.Instance?.RequestSetReadyState(ClientReadyState.Ready);
 				}
 			}
 			else if (Utils.IsInGame())
@@ -339,7 +340,7 @@ namespace ONI_Together.Networking
 				}
 
 				Game.Instance?.Trigger(MP_HASHES.GameClient_OnConnectedInGame);
-                ReadyManager.SendReadyStatusPacket(ClientReadyState.Ready);
+                ReadyStateSyncer.Instance?.RequestSetReadyState(ClientReadyState.Ready);
 				MultiplayerSession.CreateConnectedPlayerCursors();
 
 				//CursorManager.Instance.AssignColor();
