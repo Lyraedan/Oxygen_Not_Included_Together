@@ -432,6 +432,7 @@ namespace ONI_Together
 					public static LocString MISSING_SAVE_FILE = "Downloaded save file not found.";
 					public static LocString CONNECTING_TO_HOST = "Connecting to {0}!";
 					public static LocString WAITING_FOR_PLAYER = "Waiting for {0}...";
+					public static LocString RECONNECTING_AFTER_LOAD = "World loaded.\nReconnecting to the host...\nTools stay disabled until everyone is ready.";
 
 					public static LocString DOWNLOADING_SAVE_FILE = "Downloading Save File\n\n{0} {1}%\n({2}/{3} chunks)";
 					public static LocString TCP_DOWNLOADING_SAVE_FILE = "Downloading LAN Save File\n\n{0} {1}%\n({2} remaining)";
