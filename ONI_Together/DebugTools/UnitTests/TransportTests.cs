@@ -44,10 +44,10 @@ namespace ONI_Together.DebugTools.UnitTests
 		public static UnitTestResult ConnectionStable()
 		{
 			if (!MultiplayerSession.InActiveSession)
-				return UnitTestResult.Fail("Not in a multiplayer session");
+				return UnitTestResult.Skip("Not in a multiplayer session");
 
 			if (!NetworkConfig.IsLanConfig())
-				return UnitTestResult.Fail("Stability check only implemented for LAN/LiteNetLib transport");
+				return UnitTestResult.Skip("Only implemented for the LAN transport");
 
 			if (MultiplayerSession.IsHost)
 			{

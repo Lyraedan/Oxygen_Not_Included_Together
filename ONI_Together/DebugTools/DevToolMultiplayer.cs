@@ -441,6 +441,13 @@ namespace ONI_Together.DebugTools
 
             ImGui.SameLine();
 
+            // The category picker below only filters the table; without this the only way to
+            // exercise the session-dependent categories was to run every test in the assembly.
+            if (ImGui.Button("Run Category") && unitTestSelectedCategory != "All")
+                UnitTestRegistry.RunCategory(unitTestSelectedCategory);
+
+            ImGui.SameLine();
+
             ImGui.Checkbox("Auto Run", ref unitTestAutoRun);
             ImGui.SameLine();
             ImGui.SetNextItemWidth(100);
@@ -464,11 +471,14 @@ namespace ONI_Together.DebugTools
             var tests = UnitTestRegistry.Tests;
             int passed = tests.Count(t => t.IsPassed);
             int failed = tests.Count(t => t.IsFailed);
+            int skipped = tests.Count(t => t.IsSkipped);
             int notRun = tests.Count(t => !t.HasRun);
             double totalTime = tests.Where(t => t.HasRun).Sum(t => t.DurationMs);
             ImGui.TextColored(new Vector4(0f, 1f, 0f, 1f), $"{passed} passed");
             ImGui.SameLine();
             ImGui.TextColored(new Vector4(1f, 0f, 0f, 1f), $"{failed} failed");
+            ImGui.SameLine();
+            ImGui.TextColored(new Vector4(0.6f, 0.6f, 0.6f, 1f), $"{skipped} skipped");
             ImGui.SameLine();
             ImGui.TextColored(new Vector4(1f, 1f, 0f, 1f), $"{notRun} not run");
             ImGui.SameLine();
@@ -541,6 +551,10 @@ namespace ONI_Together.DebugTools
                             case TestState.Failed:
                                 color = new Vector4(1f, 0f, 0f, 1f);
                                 label = $"FAIL ({test.DurationMs:F2} ms)";
+                                break;
+                            case TestState.Skipped:
+                                color = new Vector4(0.6f, 0.6f, 0.6f, 1f);
+                                label = "SKIPPED";
                                 break;
                             case TestState.InProgress:
                                 color = new Vector4(0f, 1f, 1f, 1f);
