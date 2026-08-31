@@ -65,18 +65,14 @@ namespace ONI_Together.Menus
 				return;
 			}
 
-			// Make the overlay actually stop clicks reaching the world instead of merely covering
-			// it. LoadingOverlay is decorative - nothing on it blocks raycasts - so every click
-			// went straight through into a world the host had not resumed, and orders placed
-			// that way are lost: a joining client is still in the menu when the packet arrives.
-			//
-			// Blocking here rather than refusing each tool in turn. A per-tool guard has to be
-			// repeated for dig, build, deconstruct, sweep, prioritise... and silently misses
+			// LoadingOverlay is decorative - nothing on it blocks raycasts - so clicks went
+			// straight through into a world the host had not resumed, and orders placed that
+			// way are lost. Blocked here rather than refused tool by tool: a per-tool guard
+			// has to be repeated for dig, build, deconstruct, sweep... and silently misses
 			// whatever tool is added next.
 			//
-			// Keyboard input is handled separately: LoadingOverlay is a KModalScreen, so it eats
-			// every key and answers Escape by destroying itself. ReadyScreenInputPatch swallows
-			// the key instead, so Escape can no longer tear this screen down.
+			// Keys are handled separately by ReadyScreenInputPatch, which swallows them so
+			// Escape can no longer answer with Deactivate() and destroy this screen.
 			var canvasGroup = inst.gameObject.GetComponent<CanvasGroup>();
 			if (canvasGroup == null)
 				canvasGroup = inst.gameObject.AddComponent<CanvasGroup>();
@@ -143,13 +139,10 @@ namespace ONI_Together.Menus
 		{
 			using var _ = Profiler.Scope();
 
-			// Deliberately does NOT rebuild when only the backing UI is gone. That was tried:
-			// the idea was that a scene load destroys the LoadingOverlay and leaves the wrapper
-			// alive, so Show would paint nothing. Measured over a full join, the client rebuilt
-			// 0 times - the premise does not hold there - while the host rebuilt every 5s,
-			// because in game ONI tears its LoadingOverlay back down as fast as we raise it.
-			// Each rebuild calls LoadingOverlay.Load and puts a full-screen overlay back on
-			// top, which is what forced the player to hit Escape over and over.
+			// Builds only when there is no wrapper at all. Rebuilding whenever the backing UI
+			// had been destroyed was tried and reverted: in game ONI tears its LoadingOverlay
+			// down as fast as we raise it, so the host rebuilt every 5s, each time putting a
+			// fresh full-screen overlay on top of the player.
 			if (overlay == null)
 			{
 				overlay = new MultiplayerOverlay();

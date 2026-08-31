@@ -18,22 +18,13 @@ namespace ONI_Together.Misc
 {
 	public static class Utils
 	{
-		/// <summary>
-		/// Max size of a single message that we can SEND.
-		/// <para/>
-		/// Note: We might be wiling to receive larger messages, and our peer might, too.
-		/// </summary>
+		/// <summary>Max size of a single message we SEND - receiving may allow larger, on both ends.</summary>
 		public static int MaxSteamNetworkingSocketsMessageSizeSend = 512 * 1024;
 
-		/// <summary>
-		/// Maximum length of a player name sent over the network / shown in UI.
-		/// Longer names are truncated with a "..." suffix.
-		/// </summary>
+		/// <summary>Max player name length on the wire and in UI; longer names get a "..." suffix.</summary>
 		public const int MaxLocalPlayerNameLength = 16;
 
-		/// <summary>
-		/// Force quites the game without the Klei metrics that can cause crashes
-		/// </summary>
+		/// <summary>Force quits the game without the Klei metrics that can cause crashes.</summary>
 		public static void ForceQuitGame()
 		{
 			using var _ = Profiler.Scope();
@@ -163,11 +154,6 @@ namespace ONI_Together.Misc
 				}
 			return chunks;
 		}
-		/// <summary>
-		/// Checks if the mono behavior sits on a duplicant in a host game
-		/// </summary>
-		/// <param name="behavior"></param>
-		/// <returns></returns>
 		public static bool IsHostMinion(MonoBehaviour behavior)
 		{
 			using var _ = Profiler.Scope();
@@ -179,12 +165,10 @@ namespace ONI_Together.Misc
 			return true;
 		}
 		/// <summary>
-		/// Gate for host-originated broadcasts that key off NetId on the wire.
-		/// True only if: in session, is host, behavior alive, attached GameObject has a
-		/// NetworkIdentity with NetId != 0. Rejects ghost/preview/particle GameObjects
-		/// that use shared Klei components (e.g. SymbolOverrideController) but are not
-		/// registered network entities — sending for them would be wasted bandwidth
-		/// (receiver lookup would fail anyway).
+		/// Gate for host-originated broadcasts that key off NetId on the wire. Rejects
+		/// ghost/preview/particle GameObjects that use shared Klei components (e.g.
+		/// SymbolOverrideController) but are not registered network entities - the
+		/// receiver lookup would fail anyway.
 		/// </summary>
 		public static bool IsHostEntityWithNetId(MonoBehaviour behavior, out int netId)
 		{
@@ -280,10 +264,7 @@ namespace ONI_Together.Misc
 			return $"{len:0.##} {sizes[order]}";
 		}
 
-		/// <summary>
-		/// Formats a timespan nicely:
-		/// 45s, 3m 12s, 1h 15m 20s
-		/// </summary>
+		/// <summary>Formats a timespan as 45s / 3m 12s / 1h 15m 20s.</summary>
 		public static string FormatTime(double seconds)
 		{
 			using var _ = Profiler.Scope();
@@ -446,11 +427,7 @@ namespace ONI_Together.Misc
             };
         }
 
-        /// <summary>
-        /// Get a deterministic client id based off a remotes IP and PORT
-        /// </summary>
-        /// <param name="endpoint"></param>
-        /// <returns></returns>
+        /// <summary>Deterministic client id derived from a remote's IP and port.</summary>
         public static ulong GetClientId(IPEndPoint endpoint)
         {
 	        using var _ = Profiler.Scope();
@@ -461,7 +438,6 @@ namespace ONI_Together.Misc
 				ulong hash = 14695981039346656037UL; // FNV-1a 64-bit offset
                 const ulong prime = 1099511628211UL;
 
-                // IP bytes
                 byte[] ipBytes = endpoint.Address.GetAddressBytes();
                 for (int i = 0; i < ipBytes.Length; i++)
                 {
@@ -469,7 +445,6 @@ namespace ONI_Together.Misc
                     hash *= prime;
                 }
 
-                // Port
                 hash ^= (ulong)endpoint.Port;
                 hash *= prime;
 
@@ -488,38 +463,26 @@ namespace ONI_Together.Misc
         }
 
         /// <summary>
-        /// HOST ONLY - Pause the sim when a client joins / starts the ready sync so the
-        /// ready screen reflects a frozen world for everyone. Unlike PauseSimOnPlayerLeft
-        /// this is intentionally unconditional (not gated by PauseSimOnPlayerDisconnect):
-        /// the ready screen must freeze the world for correctness regardless of host prefs.
-        ///
-        /// Note: this only requests a pause when the host is currently *running* (see the
-        /// !IsPaused guard in PauseSimIfRunning). If the host is already paused nothing is
-        /// sent from here, but clients are not left to guess: GameSpeedSyncer re-broadcasts
-        /// the host's speed state on a 2s interval, so a client that is out of step converges
-        /// on the host's paused state on its own.
+        /// HOST ONLY - freeze the world for the ready screen on join. Unconditional, unlike
+        /// PauseSimOnPlayerLeft: correctness, not a pref. An already-paused host sends nothing,
+        /// which is safe - GameSpeedSyncer re-broadcasts the host's speed every 2s.
         /// </summary>
         public static void PauseSimForReadyScreen()
         {
 	        using var _ = Profiler.Scope();
 
-	        // Mirror the InActiveSession guard that RefreshScreen/RefreshReadyState already use, so a
-	        // connect that happens before the session is established (the host's own loopback
-	        // client on LAN host-start) can never pause the sim — independent of how the caller
-	        // computes its loopback flag.
+	        // The host's own loopback client on LAN host-start connects before the session
+	        // exists and must not pause the sim, whatever the caller's loopback flag says.
 	        if (!MultiplayerSession.InActiveSession) return;
 
-	        // Flagged as ours, so ResumeSimAfterReadyScreen can undo exactly this pause and
-	        // nothing else.
+	        // Flagged as ours so ResumeSimAfterReadyScreen undoes exactly this pause.
 	        PauseSimIfRunning(true);
         }
 
         /// <summary>
-        /// HOST ONLY - Pause the sim if it is currently running. Pausing via TogglePause
-        /// reuses the TogglePause postfix in SpeedControlPatch.cs, which hands the new state
-        /// to GameSpeedSyncer.RequestSetSpeed and so fans it out to every client. The !IsPaused
-        /// guard keeps repeated calls (e.g. reconnect-after-load) a no-op, and pausing is
-        /// never blocked by the resume gate.
+        /// HOST ONLY - pause the sim if running. TogglePause goes through the postfix in
+        /// SpeedControlPatch.cs, which fans the new state out via GameSpeedSyncer.RequestSetSpeed.
+        /// The !IsPaused guard keeps repeat calls a no-op; the resume gate never blocks a pause.
         /// </summary>
         private static void PauseSimIfRunning(bool forReadyScreen)
         {
@@ -540,14 +503,9 @@ namespace ONI_Together.Misc
         private static bool _pausedForReadyScreen;
 
         /// <summary>
-        /// HOST ONLY - undo the pause the ready screen made, once the gate has opened. Nothing
-        /// did this before: the automatic unpause in AllClientsReadyPacket.ProcessAllReady is
-        /// commented out upstream, so after a join the host was left staring at a frozen world
-        /// and had to toggle the speed itself to get moving again.
-        ///
-        /// Only reverses a pause THIS code made for the ready screen. A host that had paused
-        /// deliberately before anyone joined, or a pause from PauseSimOnPlayerLeft, keeps it -
-        /// resuming those would be overriding the player.
+        /// HOST ONLY - undo the ready-screen pause once the gate opens; the automatic unpause in
+        /// AllClientsReadyPacket.ProcessAllReady is commented out upstream. Only reverses a pause
+        /// THIS code made - a deliberate host pause or one from PauseSimOnPlayerLeft stays put.
         /// </summary>
         public static void ResumeSimAfterReadyScreen()
         {
@@ -593,7 +551,6 @@ namespace ONI_Together.Misc
 	        
 	        try
 	        {
-		        //return compressedText.Trim('`');
 		        byte[] gZipBuffer = Convert.FromBase64String(compressedText);
 		        using (var memoryStream = new MemoryStream())
 		        {

@@ -34,51 +34,39 @@ namespace ONI_Together.Networking.Transport
 
         #region Load-in-flight tracking
 
-        // A client disconnects to load the level and then reconnects. While it is gone the
-        // host must keep treating it as unready, or the resume gate opens and the ready
-        // screen closes mid-load. This bookkeeping lives on the base class rather than in one
-        // transport because the signal that starts it (ClientReadyState.Loading, sent from
-        // GameClient when the save is requested and again from SaveHelper before the
-        // disconnect) is transport-agnostic and every transport needs the same answer.
-        //
-        // clientId -> unscaledTime at which the client reported it started loading.
+        // A client disconnects to load the level and then reconnects. While it is gone the host
+        // must keep treating it as unready, or the resume gate opens and the ready screen closes
+        // mid-load. Lives on the base class because both start signals (host hands out a save;
+        // client sends ClientReadyState.Loading) are transport-agnostic.
+
+        // clientId -> unscaledTime at which the load was recorded.
         private readonly Dictionary<ulong, float> _loadingClients = new Dictionary<ulong, float>();
 
-        // Clients whose reconnect was matched back to a pending load, so callers can tell a
-        // returning loader apart from a genuinely new join (used to suppress the duplicate
-        // "joined" chat line). Consumed once per entry.
+        // Reconnects matched back to a pending load, so a returning loader can be told apart
+        // from a new join (suppresses a duplicate "joined" chat line). Consumed once.
         private readonly HashSet<ulong> _reconnectedFromLoad = new HashSet<ulong>();
 
         private readonly List<ulong> _expiredLoadingClients = new List<ulong>();
 
-        // A load entry is only ever dropped by a matching reconnect or by this timeout. It has
-        // to outlast a legitimately slow load, so it cannot reuse Host.TimeoutSeconds: that is
-        // a socket timeout, defaults to 30s and is floored at 30s, while a large-colony
-        // rebuild measured 20-30s on its own. Expiring at the same order as a healthy load
-        // would open the gate on exactly the client this class exists to wait for. This is a
-        // last-resort release for a client that hard crashed and is never coming back, so it
-        // is sized well past any real load rather than tuned.
+        // Entries are dropped by a matching reconnect or by this timeout. It cannot reuse
+        // Host.TimeoutSeconds (a socket timeout, defaulted and floored at 30s) because a
+        // large-colony load takes 20-30s on its own - expiring there would open the gate on
+        // exactly the client this class waits for. Sized well past any real load, not tuned.
         private const float LOAD_RECONNECT_TIMEOUT_SECONDS = 120f;
 
-        /// <summary>
-        /// HOST ONLY - record that a client reported it is loading the level (and is therefore
-        /// about to drop its connection). Repeated calls just refresh the timestamp.
-        /// </summary>
+        /// <summary>HOST ONLY - record that a client is loading the level and is about to drop
+        /// its connection. Repeated calls refresh the timestamp.</summary>
         public void MarkClientLoading(ulong clientId)
         {
-            // Logged because this lifecycle decides which chat line a departure gets (failed
-            // join vs left) and whether the gate holds through a load window - and its main
-            // caller, SaveFileRequestPacket, was otherwise silent about it.
+            // Logged: this lifecycle picks the departure chat line and holds the resume gate.
             DebugConsole.Log(
                 $"[TransportServer] {clientId} marked loading " +
                 $"(was {(_loadingClients.ContainsKey(clientId) ? "already marked" : "unmarked")})");
             _loadingClients[clientId] = UnityEngine.Time.unscaledTime;
         }
 
-        /// <summary>
-        /// HOST ONLY - true (once) if this client's connect was matched back to a pending load,
-        /// i.e. it is a returning loader rather than a new join.
-        /// </summary>
+        /// <summary>HOST ONLY - true (once) if this client's connect was matched back to a
+        /// pending load, i.e. a returning loader rather than a new join.</summary>
         public bool ConsumeReconnectFromLoad(ulong clientId)
         {
             return _reconnectedFromLoad.Remove(clientId);
@@ -91,34 +79,22 @@ namespace ONI_Together.Networking.Transport
         }
 
         /// <summary>
-        /// HOST ONLY - called from a transport's client-connected path to match a fresh
-        /// connection against the pending loads. Returns true if this connect was a returning
-        /// loader.
-        ///
-        /// Only Steamworks can match by id: it keys on the SteamID. Neither LAN transport can -
-        /// both derive the client id from the peer handle, and a returning loader is measured
-        /// to come back under a new one (a client that left as id 2 returned as id 3). So the
-        /// LAN case falls back to releasing the longest-pending entry.
-        ///
-        /// That fallback is a guess, and the guess is wrong when a brand-new client connects
-        /// while someone else is loading: it releases the loader's entry, and the gate is then
-        /// held only by the new client's Unready flag, so it opens as soon as that client
-        /// reports Ready. It needs two clients moving at once to bite, and the alternative -
-        /// leaving the entry alone - stalls the gate for the full timeout after every single
-        /// load. Restoring a stable client id across a reconnect would remove the choice.
-        ///
-        /// This base implementation is the LAN one. SteamworksServer overrides it to drop the
-        /// fallback, so the guess cannot fire on a transport that does not need it.
+        /// HOST ONLY - match a fresh connection against the pending loads; true if this connect
+        /// was a returning loader. Only Steamworks matches by id (keyed on the SteamID); both
+        /// LAN transports derive the client id from the peer handle, so a returning loader
+        /// arrives under a new id and they fall back to releasing the longest-pending entry.
+        /// That guess is wrong when a new client connects while someone else is loading, leaving
+        /// the gate held only by the new client's Unready flag - but do not "fix" it by keeping
+        /// the entry, which stalls the gate for the full timeout after every load.
+        /// SteamworksServer overrides out the fallback.
         /// </summary>
         public virtual bool ClaimLoadingReconnect(ulong clientId)
         {
             return ClaimExactLoadingReconnect(clientId) || ClaimOldestLoadingReconnect(clientId);
         }
 
-        /// <summary>
-        /// HOST ONLY - release the pending load recorded under this exact client id. Only
-        /// meaningful on a transport whose client id survives a reconnect.
-        /// </summary>
+        /// <summary>HOST ONLY - release the pending load under this exact client id. Only
+        /// meaningful on a transport whose client id survives a reconnect.</summary>
         protected bool ClaimExactLoadingReconnect(ulong clientId)
         {
             if (!_loadingClients.Remove(clientId))
@@ -129,11 +105,8 @@ namespace ONI_Together.Networking.Transport
             return true;
         }
 
-        /// <summary>
-        /// HOST ONLY - release the longest-pending load entry and credit it to
-        /// <paramref name="clientId"/>. See the warning on
-        /// <see cref="ClaimLoadingReconnect"/> for what this costs when the guess is wrong.
-        /// </summary>
+        /// <summary>HOST ONLY - release the longest-pending load entry and credit it to
+        /// <paramref name="clientId"/>. See <see cref="ClaimLoadingReconnect"/> for the cost.</summary>
         protected bool ClaimOldestLoadingReconnect(ulong clientId)
         {
             if (_loadingClients.Count == 0)
@@ -153,9 +126,7 @@ namespace ONI_Together.Networking.Transport
             _loadingClients.Remove(oldest);
             _reconnectedFromLoad.Add(clientId);
 
-            // The only branch in this mechanism that guesses. Worth a line in the log: when
-            // the gate misbehaves, this tells you whether an entry was released by an id match
-            // or by assumption, and which entry got consumed.
+            // The only branch that guesses - log it so a bad gate traces back to the assumption.
             DebugConsole.Log(
                 $"[TransportServer] {clientId} has no pending load of its own; assuming it is " +
                 $"returning loader {oldest} (pending loads left: {_loadingClients.Count}). " +
@@ -164,12 +135,9 @@ namespace ONI_Together.Networking.Transport
             return true;
         }
 
-        /// <summary>
-        /// HOST ONLY - drop a client's pending load without crediting it as a returning
-        /// loader. For a client that is not coming back: a kicked client would otherwise hold
-        /// the gate until the timeout, and its own disconnect event cannot clear it (the kick
-        /// has already removed the peer mapping that event is keyed on).
-        /// </summary>
+        /// <summary>HOST ONLY - drop a pending load without crediting a returning loader. A
+        /// kicked client would otherwise hold the gate until the timeout, and its own disconnect
+        /// event cannot clear it: the kick already removed the peer mapping that event keys on.</summary>
         public void ForgetClientLoading(ulong clientId)
         {
             if (_loadingClients.Remove(clientId))
@@ -177,23 +145,17 @@ namespace ONI_Together.Networking.Transport
             _reconnectedFromLoad.Remove(clientId);
         }
 
-        /// <summary>
-        /// HOST ONLY - drop all load bookkeeping. Call when the server stops: the transport
-        /// instance outlives a session (NetworkConfig only replaces it when the transport
-        /// itself changes), so without this a client that was mid-load when the host shut
-        /// down still holds the gate closed in the *next* session until it ages out.
-        /// </summary>
+        /// <summary>HOST ONLY - drop all load bookkeeping when the server stops. The transport
+        /// instance outlives a session (NetworkConfig replaces it only when the transport itself
+        /// changes), so a client left mid-load would hold the *next* session's gate closed.</summary>
         protected void ClearLoadTracking()
         {
             _loadingClients.Clear();
             _reconnectedFromLoad.Clear();
         }
 
-        /// <summary>
-        /// HOST ONLY - drop load entries that never came back, so a client that timed out or
-        /// hard crashed mid-load cannot hold the resume gate closed forever. Call from
-        /// Update().
-        /// </summary>
+        /// <summary>HOST ONLY - drop load entries that never came back, so a client that timed
+        /// out or crashed mid-load cannot hold the resume gate closed forever. Call from Update().</summary>
         protected void ExpireStaleLoadingClients()
         {
             if (_loadingClients.Count == 0)
@@ -214,20 +176,14 @@ namespace ONI_Together.Networking.Transport
             foreach (ulong id in _expiredLoadingClients)
                 _loadingClients.Remove(id);
 
-            // Dropping the entry is not enough on its own. Nothing else recomputes the gate on
-            // a timer, so without this refresh the safety net silently frees the count and the
-            // host still sits on the ready screen until some unrelated event happens to
-            // recalculate. Measured in a Steam session: a client left for good at 05:14:04
-            // holding one pending load, the entry expired ~05:16 with no visible effect, and
-            // the gate only reported OPEN at 05:19:28 when a late ClosedByPeer arrived -
-            // 5m24s of the world held frozen by a player who was already gone.
+            // Dropping entries is not enough - nothing else recomputes the gate on a timer, so
+            // without the refresh below the host sits on the ready screen indefinitely.
             DebugConsole.Log(
                 $"[TransportServer] Expired {_expiredLoadingClients.Count} stale load(s); " +
                 $"pending loads now {PendingLoadingClientCount}");
 
-            // Tell the table why the wait ended. A loader that never came back has failed to
-            // join, and without this the gate simply opens with no explanation of who is
-            // missing.
+            // A loader that never came back has failed to join; without this the gate just
+            // opens with no explanation of who is missing.
             foreach (ulong id in _expiredLoadingClients)
             {
                 string name = MultiplayerSession.KnownPlayerNames.TryGetValue(id, out var known)
@@ -242,18 +198,13 @@ namespace ONI_Together.Networking.Transport
         }
 
         /// <summary>
-        /// HOST ONLY - how many clients are mid "disconnect-to-load-then-reconnect" and have
-        /// therefore dropped off the live roster but are NOT gone. The resume gate and the
-        /// ready screen must keep treating them as unready/expected until they return.
+        /// HOST ONLY - clients mid "disconnect-to-load-then-reconnect": off the live roster but
+        /// NOT gone, so the resume gate and ready screen must keep expecting them.
         ///
-        /// Only off-roster loaders count: a client signals Loading just *before* it
-        /// disconnects, so for a brief window its id is in both _loadingClients and
-        /// ConnectedPlayers - where it is already counted (as Unready). Counting it here too
-        /// would inflate the ready-screen total (e.g. "1/3" for a single loading client).
-        /// This also makes the count naturally zero for a transport that keeps a
-        /// Connection==null placeholder in the roster for the whole load (Steamworks): an
-        /// in-roster loader holds the gate via its Unready state, an off-roster loader holds
-        /// it via this count - no double count, no gap.
+        /// Only off-roster loaders count. Loading is signalled just *before* the disconnect, so
+        /// the id is briefly in ConnectedPlayers too, already counted there as Unready - counting
+        /// it twice inflates the ready-screen total. That also makes this naturally zero on
+        /// Steamworks, which keeps a Connection==null roster placeholder for the whole load.
         /// </summary>
         public int PendingLoadingClientCount
         {

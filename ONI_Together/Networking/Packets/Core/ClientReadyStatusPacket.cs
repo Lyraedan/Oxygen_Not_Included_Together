@@ -83,24 +83,19 @@ namespace ONI_Together.Networking.Packets.Core
 
 			if (Status == ClientReadyState.Loading)
 			{
-				// Tracked on the base transport, not on one concrete server: the client is
-				// about to drop its connection to load, and every transport needs the host to
-				// keep it gated until it comes back.
-				//
-				// Handled BEFORE the roster lookup on purpose. The client sends this
-				// immediately before closing its connection, so the notice regularly arrives
-				// after the transport has already removed it from ConnectedPlayers - the
-				// disconnect and this packet land microseconds apart. Requiring a live roster
-				// entry here dropped the notice on exactly the path it exists for, leaving
-				// PendingLoadingClientCount at zero for the whole load window.
+				// Tracked on the base transport, not on one concrete server: every transport
+				// needs the host to keep this client gated until it comes back. Must run
+				// BEFORE the roster lookup - the client sends this immediately before closing
+				// its connection, so it often arrives after the transport already dropped it
+				// from ConnectedPlayers, and requiring a live roster entry here killed the
+				// notice on exactly the path it exists for.
 				NetworkConfig.TransportServer?.MarkClientLoading(SenderId);
 				DebugConsole.Log(
 					$"[ClientReadyStatusPacket] {SenderId} marked as Loading (pending off-roster loads: " +
 					$"{NetworkConfig.TransportServer?.PendingLoadingClientCount ?? 0})");
 
-				// The disconnect that follows (or already happened) drives its own
-				// RefreshReadyState. If it ran first it saw only the host left and took the
-				// "everyone is ready" shortcut, closing the ready screen and opening the
+				// The disconnect drives its own RefreshReadyState, but if it ran first it saw
+				// only the host left, took the "everyone is ready" shortcut and opened the
 				// resume gate. Recompute now that the pending load is on record.
 				ReadyManager.RefreshScreen();
 				ReadyManager.RefreshReadyState();
@@ -125,15 +120,10 @@ namespace ONI_Together.Networking.Packets.Core
             ReadyManager.SetPlayerReadyState(player, Status);
 			DebugConsole.Log($"[ClientReadyStatusPacket] {SenderId} marked as {Status}");
 
-			// Announce the join when the player is actually in, not when they first appear.
-			// Steam used to say it on lobby entry (SteamLobby), which is a whole join ahead of
-			// the truth - measured at 06:57:40 entering the lobby against 06:58:18 reaching the
-			// world, so the line landed while they were still watching the ready screen. Ready
-			// is the first moment the statement is true.
-			//
-			// JoinAnnounced keeps a returning loader quiet: it is already set from their first
-			// join, and it is cleared only by the roster entry being dropped, which is what
-			// leaving for real does.
+			// Ready is the first moment "joined" is true. Do not move this back to Steam lobby
+			// entry (SteamLobby): that announces a whole join early, while the player is still
+			// watching the ready screen. JoinAnnounced keeps a returning loader quiet - it is
+			// cleared only by the roster entry being dropped, i.e. by leaving for real.
 			if (!NetworkConfig.IsLanConfig()
 				&& Status == ClientReadyState.Ready
 				&& !player.JoinAnnounced)
@@ -146,10 +136,8 @@ namespace ONI_Together.Networking.Packets.Core
 			if (nameChanged)
 			{
 				// Consume on every transport, not just LAN. The flag is one-shot and only the
-				// LAN path prints the joined line, so gating the consume on IsLanConfig left
-				// Steam entries standing for the life of the session. Harmless in size - a set
-				// keyed by client id holds at most one entry per player - but it made
-				// ConsumeReconnectFromLoad answer about a reconnect that happened long ago.
+				// LAN branch below prints a joined line, so gating the consume on IsLanConfig
+				// left Steam entries standing all session, answering about a stale reconnect.
 				bool isLoadingReconnect =
 					NetworkConfig.TransportServer?.ConsumeReconnectFromLoad(SenderId) == true;
 

@@ -404,19 +404,17 @@ namespace ONI_Together.Networking
 		private const float POST_LOAD_RECONNECT_DELAY = 2f;
 
 		/// <summary>
-		/// CLIENT ONLY - a post-load reconnect died on a route/timeout race rather than on a
-		/// real refusal; start another attempt. Returns true if a retry was scheduled, false
-		/// once the attempts are spent, in which case the caller should fall back to its
-		/// normal give-up path.
+		/// CLIENT ONLY, Steamworks - a post-load reconnect died on a route race rather than a
+		/// real refusal; start another attempt. Returns false once the attempts are spent, so
+		/// the caller can fall back to its normal give-up path.
 		///
-		/// Measured in a Steam session: the reconnect after the world finished loading gave up
-		/// with ProblemDetectedLocally after ~31s, while the attempts either side of it reached
-		/// "fully established" in 15s and 25s. Steam had simply not finished finding a route in
-		/// time. Without a retry that single race threw the player back to the menu and out of
-		/// the lobby, with the host still holding a roster entry for them.
+		/// Measured: the reconnect after a world load gave up with ProblemDetectedLocally at
+		/// ~31s, while the attempts either side of it reached "fully established" in 15s and
+		/// 25s - Steam had simply not finished finding a route. That one race threw the player
+		/// back to the menu with the host still holding a roster entry for them.
 		///
-		/// HostUserID is still set at this point (ReconnectFromCache assigns it before it drops
-		/// the cache), so ConnectToHost can retry without the cached info.
+		/// ReconnectFromCache sets HostUserID before it hands off, so the retry can call
+		/// ConnectToHost with no cached info left.
 		/// </summary>
 		public static bool TryRetryPostLoadReconnect()
 		{

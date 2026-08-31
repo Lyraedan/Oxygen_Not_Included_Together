@@ -12,25 +12,16 @@ namespace ONI_Together.Patches
 	{
 		public static bool IsSyncing = false;
 
-		// Set by the resume-gate prefixes when they block a call. Harmony still runs
-		// postfixes after a prefix returns false, so the matching postfix reads this to
-		// avoid broadcasting a change that never actually happened locally. (Re-checking
-		// ResumeBlocked() in the postfix would be wrong for TogglePause: pausing while a
-		// client is unready is allowed and must still be broadcast.)
-		// Assumes non-reentrancy: SpeedControlScreen runs on the single game thread, so
-		// prefix→original→postfix completes before another patched call begins. A blocked
-		// call skips the original, so it can't trigger a nested SetSpeed/TogglePause.
+		// Set by the resume-gate prefixes when they block a call: Harmony still runs the
+		// postfix after a prefix returns false. The postfix must read this rather than
+		// re-check ResumeBlocked(), which would also suppress a legitimate pause broadcast.
+		// Safe as one field: these calls run on the game thread and cannot nest.
 		private static bool _resumeBlockedThisCall = false;
 
-		// Authority gate: while in a session, the host must not resume/unpause the sim
-		// until every connected player is ready. Pausing is always allowed; only resume
-		// is blocked. IsSyncing lets remote-applied speed changes through.
-		//
-		// Coverage: this gate hooks all three local resume entry points — SetSpeed,
-		// TogglePause (play buttons / spacebar) and Unpause (direct/programmatic).
-		// Together with the host-side rejection of client-originated resume commands (see
-		// GameSpeedSyncer.CmdSetSpeed), the host's sim cannot resume while any player is
-		// unready, whoever initiates it.
+		// HOST ONLY - in a session the sim must not resume until every player is ready;
+		// pausing is always allowed, and IsSyncing lets remote-applied changes through.
+		// All three local resume entry points are hooked (SetSpeed, TogglePause, Unpause);
+		// client-originated resumes are rejected in GameSpeedSyncer.CmdSetSpeed.
 		private static bool ResumeBlocked()
 		{
 			if (IsSyncing) return false;
@@ -88,10 +79,8 @@ namespace ONI_Together.Patches
 		{
 			using var _ = Profiler.Scope();
 
-			// Defensive: keep the gate authoritative for direct/programmatic Unpause()
-			// calls too. No flag bookkeeping needed — Unpause has no broadcasting postfix
-			// here, and a blocked call simply doesn't resume. Legitimate resumes (all
-			// ready, or the IsSyncing mirror path) pass through.
+			// Direct/programmatic Unpause() must obey the gate too. No flag bookkeeping
+			// needed: Unpause has no broadcasting postfix here.
 			if (ResumeBlocked())
 			{
 				DebugConsole.Log("[SpeedControl] Blocked Unpause: not all players are ready");
@@ -111,8 +100,8 @@ namespace ONI_Together.Patches
 				if (IsSyncing) return;
 				if (!MultiplayerSession.InActiveSession) return;
 
-				// Prefix blocked this call — the local speed never changed, so don't
-				// request it or clients would resume while the host stays paused.
+				// Blocked by the prefix: the local speed never changed, so a request here
+				// would resume clients while the host stays paused.
 				if (_resumeBlockedThisCall) { _resumeBlockedThisCall = false; return; }
 
 				GameSpeedSyncer.Instance?.RequestSetSpeed(Speed);
@@ -134,11 +123,10 @@ namespace ONI_Together.Patches
 				if (IsSyncing) return;
 				if (!MultiplayerSession.InActiveSession) return;
 
-				// Prefix blocked this resume — don't request it; the local pause state
-				// is unchanged. (Legitimate pauses are not blocked and still broadcast.)
+				// Blocked by the prefix: pause state unchanged. (Real pauses still broadcast.)
 				if (_resumeBlockedThisCall) { _resumeBlockedThisCall = false; return; }
 
-				// Original TogglePause has already run. Determine the resulting state.
+				// The original already ran, so IsPaused is the post-toggle state.
 				var newState = SpeedControlScreen.Instance.IsPaused
 					? (int)GameSpeedSyncer.SpeedState.Paused
 					: SpeedControlScreen.Instance.GetSpeed();
