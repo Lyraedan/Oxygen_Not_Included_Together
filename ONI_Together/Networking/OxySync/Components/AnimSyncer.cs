@@ -3,6 +3,7 @@ using ONI_Together.DebugTools;
 using Shared.OxySync;
 using Shared.OxySync.Attributes;
 using Shared.Profiling;
+using UnityEngine;
 
 namespace ONI_Together.Networking.OxySync.Components
 {
@@ -11,14 +12,33 @@ namespace ONI_Together.Networking.OxySync.Components
 		[MyCmpGet]
 		private KBatchedAnimController animController;
 
-		private ulong sequenceNumber;
+		[SyncVar]
+		private HashedString animName;
+		private int lastAnimName;
+		private int VAR_AnimName_HASH;
+
+		[SyncVar]
+		private KAnim.PlayMode animPlayMode;
+
+		[SyncVar]
+		private float animSpeed;
+
+		private float FASTFORWARD_THRESHOLD = 0.02f;
+		private float epsilon = 0.01f;
+
+		private const float HEARTBEAT_INTERVAL = 1f;
+		private float _lastHeartbeatTime;
 
 		public override void OnSpawn()
 		{
 			using var _ = Profiler.Scope();
 
 			base.OnSpawn();
-			sequenceNumber = 0;
+
+			if (animController == null)
+				animController = GetComponent<KBatchedAnimController>();
+
+			VAR_AnimName_HASH = nameof(animName).GetHashCode();
 		}
 
 
@@ -29,79 +49,104 @@ namespace ONI_Together.Networking.OxySync.Components
 			base.OnCleanUp();
 		}
 
-		public void RequestToSyncAnim(float timestamp, bool queueing, HashedString[] animNames, KAnim.PlayMode mode, float speed = 1f, float timeOffset = 0f)
+		[Client]
+		private void ForceAnimUpdate(KBatchedAnimController kbac)
 		{
 			using var _ = Profiler.Scope();
 
-			if (!isServer || !MultiplayerSession.IsHost)
-			{
-				return;
-			}
-
-			sequenceNumber++;
 			try
 			{
-				CallClientRpc(nameof(RpcPlayAnim), timestamp, sequenceNumber, queueing, animNames, (byte)mode, speed, timeOffset);
+				kbac.SetVisiblity(true);
+				kbac.forceRebuild = true;
+				kbac.SuspendUpdates(false);
+				kbac.ConfigureUpdateListener();
 			}
 			catch (System.Exception e)
 			{
-				DebugConsole.LogError($"[OxySync] Failed to send animation packet: {e}");
+				DebugConsole.LogError($"[AnimSyncer] Failed to force animation update on {kbac.gameObject?.GetProperName()}: {e}");
+			}
+
+		}
+
+		[Server]
+		private void ServerUpdate()
+		{
+			using var _ = Profiler.Scope();
+
+			if (!isServer || !MultiplayerSession.SessionHasPlayers)
+				return;
+
+			if (animController == null)
+			{
+				DebugConsole.LogWarning($"[AnimSyncer] AnimController was null on {gameObject?.GetProperName()}.");
+				return;
+			}
+
+			animName = animController.currentAnim;
+			animPlayMode = animController.mode;
+			animSpeed = animController.playSpeed;
+		}
+
+		private void ServerHeartbeat()
+		{
+			using var _ = Profiler.Scope();
+
+			if (!isServer || !MultiplayerSession.SessionHasPlayers)
+				return;
+
+			if (animController == null)
+			{
+				DebugConsole.LogWarning($"[AnimSyncer] AnimController was null on {gameObject?.GetProperName()}.");
+				return;
+			}
+
+			epsilon = animController.GetElapsedTime();
+			MarkSyncVarAsDirty(VAR_AnimName_HASH);
+		}
+
+		[Client]
+		private void ClientUpdate()
+		{
+			using var _ = Profiler.Scope();
+
+			if (animController.currentAnim.hash != animName.hash)
+			{
+				animController.Play(animName, animPlayMode, animSpeed, 0f);
+				lastAnimName = animName.hash;
+				ForceAnimUpdate(animController);
+			}
+
+			if (animController.PlayMode != animPlayMode || animController.playSpeed != animSpeed)
+			{
+				animController.Play(animName, animPlayMode, animSpeed, animController.GetElapsedTime());
+				ForceAnimUpdate(animController);
+			}
+
+			float fastForwardTime = animController.GetElapsedTime() + FASTFORWARD_THRESHOLD;
+			if (animName.hash == lastAnimName && fastForwardTime <= epsilon)
+			{
+				// Keep it in case 
+				// animController.SetElapsedTime(fastForwardTime);
+				// ForceAnimUpdate(animController);
 			}
 		}
 
-		[ClientRpc]
-		private void RpcPlayAnim(float timestamp, ulong sequenceNumber, bool queueing, HashedString[] animNames, byte mode, float speed, float timeOffset)
+		private void Update()
 		{
 			using var _ = Profiler.Scope();
 
-			if (!isClient || !MultiplayerSession.IsClient)
-            {
-                return;
-            }
-
-			if (sequenceNumber <= this.sequenceNumber)
+			if (animController != null && isServer && MultiplayerSession.SessionHasPlayers)
 			{
-				DebugConsole.LogWarning($"[OxySync] Ignoring out-of-order animation packet.");
-				return;
-			}
-			this.sequenceNumber = sequenceNumber;
+				ServerUpdate();
 
-			if (animController == null)
-				animController = GetComponent<KBatchedAnimController>();
-			if (animController == null || animNames == null || animNames.Length == 0)
-				return;
-
-			float currentTime = GameClock.Instance?.GetTime() ?? 0f;
-			if (currentTime < timestamp)
-			{
-				// If the packet is from the future, adjust the time offset to account for the difference.
-				// This ensures that the animation plays at the correct time relative to the game clock.
-				timeOffset += timestamp - currentTime;
+				if (Time.unscaledTime - _lastHeartbeatTime >= HEARTBEAT_INTERVAL)
+				{
+					_lastHeartbeatTime = Time.unscaledTime;
+					ServerHeartbeat();
+				}
 			}
-			else if (currentTime > timestamp)
-			{
-				// If the packet is from the past, adjust the time offset to account for the difference.
-				// This ensures that the animation plays at the correct time relative to the game clock.
-				timeOffset -= currentTime - timestamp;
-			}
-
-			// Prevent negative time offset, just play it anyway.
-			if (timeOffset < 0f)
-				timeOffset = 0f;
-
-			try
-			{
-				if (animNames.Length > 1)
-					animController.Play(animNames, (KAnim.PlayMode)mode);
-				else if (queueing)
-					animController.Queue(animNames.FirstOrDefault(), (KAnim.PlayMode)mode, speed, timeOffset);
-				else
-					animController.Play(animNames.FirstOrDefault(), (KAnim.PlayMode)mode, speed, timeOffset);
-			}
-			catch (System.Exception e)
-			{
-				DebugConsole.LogError($"[AnimSyncer] Failed to play animation on {animController?.gameObject?.GetProperName()}: {e}");
-			}
+			if (animController != null && isClient)
+				ClientUpdate();
 		}
 	}
 }

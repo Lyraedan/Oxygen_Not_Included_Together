@@ -119,12 +119,8 @@ namespace ONI_Together.Networking.Components
 					NetId = networkIdentity.NetId,
 					ActionState = state,
 					TargetCell = targetCell,
-					CurrentAnimName = animName,
-					AnimElapsedTime = animElapsedTime,
 					IsWorking = isWorking,
-					HeldItemSymbol = heldSymbol,
-					AnimPlayMode = animPlayMode,
-					AnimSpeed = animSpeed
+					HeldItemSymbol = heldSymbol
 				};
 
 				PacketSender.SendToAllClients(packet, sendType: PacketSendMode.Unreliable);
