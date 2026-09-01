@@ -48,6 +48,8 @@ namespace ONI_Together.Networking.Transport
 
         private readonly List<ulong> _expiredLoadingClients = new List<ulong>();
 
+        private readonly List<ulong> _neverReadyClients = new List<ulong>();
+
         // Entries are dropped by a matching reconnect or by this timeout. It cannot reuse
         // Host.TimeoutSeconds (a socket timeout, defaulted and floored at 30s) because a
         // large-colony load takes 20-30s on its own - expiring there would open the gate on
@@ -63,6 +65,11 @@ namespace ONI_Together.Networking.Transport
                 $"[TransportServer] {clientId} marked loading " +
                 $"(was {(_loadingClients.ContainsKey(clientId) ? "already marked" : "unmarked")})");
             _loadingClients[clientId] = UnityEngine.Time.unscaledTime;
+
+            // Entering the download/load pipeline is progress - give the ready timeout a
+            // fresh window rather than kicking a slow downloader mid-transfer.
+            if (MultiplayerSession.ConnectedPlayers.TryGetValue(clientId, out var player))
+                player.UnreadySince = UnityEngine.Time.unscaledTime;
         }
 
         /// <summary>HOST ONLY - true (once) if this client's connect was matched back to a
@@ -191,6 +198,51 @@ namespace ONI_Together.Networking.Transport
                     : id.ToString();
                 OxySyncChat.AddSystemMessage(
                     string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_FAILED, name));
+            }
+
+            ReadyManager.RefreshScreen();
+            ReadyManager.RefreshReadyState();
+        }
+
+        /// <summary>HOST ONLY - drop a connected client that has sat not-ready past the
+        /// configured timeout. The load window above covers a loader that is GONE; this covers
+        /// one that is still connected but never completes the join - nothing else bounds how
+        /// long a single joiner can hold every other player paused. 0 disables. Call from
+        /// Update().</summary>
+        protected void ExpireNeverReadyClients()
+        {
+            int timeout = Configuration.Instance.Host.Server.ReadyTimeoutSeconds;
+            if (timeout <= 0 || !MultiplayerSession.InActiveSession)
+                return;
+
+            float now = UnityEngine.Time.unscaledTime;
+            _neverReadyClients.Clear();
+
+            foreach (var kvp in MultiplayerSession.ConnectedPlayers)
+            {
+                MultiplayerPlayer player = kvp.Value;
+                if (player.PlayerId == MultiplayerSession.HostUserID)
+                    continue;
+                if (player.readyState == States.ClientReadyState.Ready || player.UnreadySince < 0f)
+                    continue;
+                if (now - player.UnreadySince > timeout)
+                    _neverReadyClients.Add(kvp.Key);
+            }
+
+            if (_neverReadyClients.Count == 0)
+                return;
+
+            foreach (ulong id in _neverReadyClients)
+            {
+                string name = MultiplayerSession.ConnectedPlayers.TryGetValue(id, out var p)
+                    ? p.PlayerName
+                    : id.ToString();
+                DebugConsole.LogWarning(
+                    $"[TransportServer] {id} connected but not ready after {timeout}s - dropping them");
+                OxySyncChat.AddSystemMessage(
+                    string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_READY_TIMEOUT, name, timeout));
+                ForgetClientLoading(id);
+                KickClient(id);
             }
 
             ReadyManager.RefreshScreen();

@@ -329,6 +329,7 @@ namespace ONI_Together.Networking.Transport.Lan
             UpdateServerBandwidth();
 
             ExpireStaleLoadingClients();
+            ExpireNeverReadyClients();
         }
 
         public void AddClientToList(ulong id)

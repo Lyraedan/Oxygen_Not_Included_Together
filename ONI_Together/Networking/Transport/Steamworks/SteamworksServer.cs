@@ -124,6 +124,7 @@ namespace ONI_Together.Networking.Transport.Steam
             SteamNetworkingSockets.RunCallbacks();
             UpdateServerBandwidth();
             ExpireStaleLoadingClients();
+            ExpireNeverReadyClients();
         }
 
         private void UpdateServerBandwidth()

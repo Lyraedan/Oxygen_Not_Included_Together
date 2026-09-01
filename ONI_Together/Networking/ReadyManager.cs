@@ -109,6 +109,10 @@ namespace ONI_Together.Networking
 				return;
 
 			player.readyState = state;
+
+			// Any not-ready transition restarts the ready-timeout clock, so each join phase
+			// (connect, save hand-out, post-load reconnect) gets a full window of its own.
+			player.UnreadySince = state == ClientReadyState.Ready ? -1f : UnityEngine.Time.unscaledTime;
 		}
 
 		public static void RefreshScreen()

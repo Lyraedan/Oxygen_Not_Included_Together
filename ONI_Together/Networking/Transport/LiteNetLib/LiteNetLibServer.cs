@@ -316,6 +316,7 @@ namespace ONI_Together.Networking.Transport.Lan
             OnMessageRecieved();
             UpdateMetrics();
             ExpireStaleLoadingClients();
+            ExpireNeverReadyClients();
         }
 
         public override void OnMessageRecieved()
