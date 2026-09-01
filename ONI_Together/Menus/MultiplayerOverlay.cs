@@ -139,6 +139,14 @@ namespace ONI_Together.Menus
 		{
 			using var _ = Profiler.Scope();
 
+			// This overlay is the only trace several user-facing failures leave behind:
+			// the paths that show a message and send the player back to the menu draw UI
+			// and log nothing, so a report of "it kicked me out" arrives with no way to
+			// tell which check rejected it. Log the transition rather than every call -
+			// the ready screen re-shows the same text constantly.
+			if (text != Text)
+				DebugConsole.Log($"[MultiplayerOverlay] {(text ?? string.Empty).Replace("\n", " | ")}");
+
 			// Builds only when there is no wrapper at all. Rebuilding whenever the backing UI
 			// had been destroyed was tried and reverted: in game ONI tears its LoadingOverlay
 			// down as fast as we raise it, so the host rebuilt every 5s, each time putting a
@@ -166,6 +174,8 @@ namespace ONI_Together.Menus
 
 			if (overlay == null)
 				return;
+
+			DebugConsole.Log("[MultiplayerOverlay] closed");
 
 			overlay?.Dispose();
 			overlay = null;
