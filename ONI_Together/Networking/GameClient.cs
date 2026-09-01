@@ -483,6 +483,13 @@ namespace ONI_Together.Networking
 
 		private static IEnumerator ShowMessageAndReturnToTitle(string reason = "", string message = "")
 		{
+			// This path ejects the player to the menu; it must never run silently. It is
+			// also the proof the coroutine started at all - its schedulers go through
+			// CoroutineRunner, whose failure would otherwise be indistinguishable from
+			// never having been scheduled.
+			DebugConsole.LogWarning(
+				$"[GameClient] Returning to title. Reason: '{reason}' Message: '{message}'");
+
 			// Auto-reconnect if still in game and under max attempts
 			//if (Utils.IsInGame() && _reconnectAttempt < MAX_RECONNECT_ATTEMPTS)
 			//{
