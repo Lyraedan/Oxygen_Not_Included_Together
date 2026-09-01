@@ -22,6 +22,10 @@ namespace Shared.Helpers
 
 			if (parent == null)
 				parent = frontend && !useScreenSpaceOverlay ? Global.Instance.globalCanvas : GameScreenManager.Instance.GetParent(GameScreenManager.UIRenderTarget.ScreenSpaceOverlay);
+			// Logged here rather than at each call site so every dialog, including
+			// future ones, is traceable from the log.
+			UnityEngine.Debug.Log($"[ONI_Together] [Dialog] {title} :: {(text ?? string.Empty).Replace("\n", " | ")}");
+
 			var dialogue = ((ConfirmDialogScreen)KScreenManager.Instance.StartScreen(ScreenPrefabs.Instance.ConfirmDialogScreen.gameObject, parent));
 
 			if (!frontend)

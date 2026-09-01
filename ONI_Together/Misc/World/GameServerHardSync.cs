@@ -37,7 +37,22 @@ namespace ONI_Together.Networking
 				return;
 			}
 
-			SpeedControlScreen.Instance?.Pause(false); // Pause the game
+			// A closed resume gate means a client is mid-join or mid-load. A hard sync fired
+			// into that window starts a second save transfer to a client already downloading
+			// one and reloads it twice. hardSyncDoneThisCycle stays false: skipping is a
+			// postponement, not this cycle's sync.
+			if (MultiplayerSession.IsHost && !ReadyManager.CanHostResume())
+			{
+				DebugConsole.LogWarning(
+					"[HardSync] Skipped: a client is still joining or loading (resume gate closed)");
+				return;
+			}
+
+			// Through the ready-screen bookkeeping, not a bare Pause: this pause has no
+			// matching Unpause of its own anywhere, so a bare call leaks one pause level per
+			// hard sync. Flagged this way, ResumeSimAfterReadyScreen reverses it when the
+			// gate reopens.
+			Misc.Utils.PauseSimForReadyScreen();
 			MultiplayerOverlay.Show(STRINGS.UI.MP_OVERLAY.SYNC.HARDSYNC_INPROGRESS);
 
             numberOfClientsAtTimeOfSync = MultiplayerSession.ConnectedPlayers.Count;

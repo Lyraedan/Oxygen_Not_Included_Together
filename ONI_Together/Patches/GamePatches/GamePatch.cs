@@ -64,7 +64,13 @@ namespace ONI_Together.Patches.GamePatches
       {
         DebugConsole.Log("[GamePatch] World fully loaded, reconnecting to host from cache...");
         GameClient.ReconnectFromCache();
-        MultiplayerOverlay.Close();
+
+        // Reset, then Show - never Close. The scene swap destroyed the backing overlay,
+        // so the stale wrapper must be dropped for Show to build a real screen; closing
+        // instead would expose a live, clickable world with nothing to raise the screen
+        // again. AllClientsReadyPacket, the gate's own signal, is what closes it.
+        MultiplayerOverlay.ResetAfterSceneSwap();
+        MultiplayerOverlay.Show(STRINGS.UI.MP_OVERLAY.CLIENT.RECONNECTING_AFTER_LOAD);
       }
 
       Game.Instance.gameObject.AddComponent<LogicPortManager>();

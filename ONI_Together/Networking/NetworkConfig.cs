@@ -1,3 +1,4 @@
+using ONI_Together.Menus;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -112,6 +113,10 @@ namespace ONI_Together.Networking
                     StopRaw();
                     break;
             }
+            // The session is over, so there is nothing left to wait for. No individual exit
+            // path closes this reliably; closing here covers them all, for both roles.
+            MultiplayerOverlay.Close();
+
             Game.Instance?.Trigger(MP_HASHES.OnDisconnected);
         }
 

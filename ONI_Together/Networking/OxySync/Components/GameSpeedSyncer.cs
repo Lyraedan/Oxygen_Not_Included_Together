@@ -1,3 +1,4 @@
+using ONI_Together.DebugTools;
 using KSerialization;
 using ONI_Together.Patches;
 using Shared.OxySync;
@@ -54,7 +55,27 @@ namespace ONI_Together.Networking.OxySync.Components
         [Command]
         private void CmdSetSpeed(int speed)
         {
-            ApplyAndBroadcast((SpeedState)speed);
+            var requested = (SpeedState)speed;
+
+            // Authority choke point for a client-originated resume: the only path a client
+            // can change sim speed (CommandPacket -> host -> InvokeCommand), and rejecting
+            // here covers apply and broadcast in one place. Pausing is always allowed - only
+            // resume is gated. The host's own resumes are stopped by the SpeedControlPatch
+            // prefixes; both layers resolve through ReadyManager.CanHostResume().
+            if (requested != SpeedState.Paused && !ReadyManager.CanHostResume())
+            {
+                DebugConsole.Log(
+                    $"[GameSpeedSyncer] Rejected remote resume to {requested}: not all players are ready");
+                ReadyManager.RefreshScreen();
+
+                // The requesting client already applied the resume to its own screen before
+                // asking. Re-assert the authoritative state now, so the rejection lands
+                // within a round trip instead of at the next force-sync tick.
+                CallClientRpc(nameof(RpcApplySpeed), (int)_currentState);
+                return;
+            }
+
+            ApplyAndBroadcast(requested);
         }
 
         private void ApplyAndBroadcast(SpeedState state)

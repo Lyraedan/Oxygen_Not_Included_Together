@@ -82,7 +82,7 @@ namespace ONI_Together.Patches.World.Buildings
                 if (!MultiplayerSession.IsClient)
                     return true;
 
-                if(__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
+                if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap) && wrap.HasHostState)
                 {
                     __result = wrap.IsOperational;
 					return false;
@@ -108,7 +108,7 @@ namespace ONI_Together.Patches.World.Buildings
 				if (!MultiplayerSession.IsClient)
 					return true;
 
-				if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
+				if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap) && wrap.HasHostState)
 				{
 					__result = wrap.IsActive;
 					return false;
@@ -132,7 +132,7 @@ namespace ONI_Together.Patches.World.Buildings
 				if (!MultiplayerSession.IsClient)
 					return true;
 
-				if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
+				if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap) && wrap.HasHostState)
 				{
 					__result = wrap.IsFunctional;
 					return false;

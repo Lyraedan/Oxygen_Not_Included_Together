@@ -72,6 +72,25 @@ namespace ONI_Together.Networking
 				DebugConsole.Log($"[NetEntityRegistry] Registered overridden NetId {netId} for {entity.name}");
 			}
 		}
+		/// <summary>
+		/// Re-register every NetworkIdentity alive in the scene. For hosting again on a world
+		/// that stayed loaded: session teardown cleared this registry, and OnSpawn - the only
+		/// other registration path - never runs again for existing entities.
+		/// </summary>
+		public static void RebuildFromScene()
+		{
+			using var _ = Profiler.Scope();
+
+			int before = Count;
+			var found = UnityEngine.Object.FindObjectsByType<NetworkIdentity>(FindObjectsSortMode.None);
+			foreach (var identity in found)
+				identity.EnsureRegistered();
+
+			DebugConsole.Log(
+				$"[NetEntityRegistry] Rebuilt from scene: {before} -> {Count} entries " +
+				$"({found.Length} identities in scene)");
+		}
+
 		public static bool Exists(int netId) => identities.ContainsKey(netId);
 
 

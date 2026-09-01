@@ -8,7 +8,6 @@ using System;
 using System.Collections;
 using System.IO;
 using Shared.Profiling;
-using ONI_Together.Menus;
 
 namespace ONI_Together.Networking.Packets.World
 {
@@ -40,7 +39,7 @@ namespace ONI_Together.Networking.Packets.World
 				return;
 
 			DebugConsole.Log($"[Packets/SaveFileRequest] Received request from {Requester}");
-			MultiplayerOverlay.Show(STRINGS.UI.MP_OVERLAY.HOST.SEND_SAVE_FILE);
+			// The ready screen (shown on connect) stays up here; no separate "sending save" overlay.
 			SendSaveFile(Requester);
 		}
 
@@ -50,6 +49,14 @@ namespace ONI_Together.Networking.Packets.World
 
 			if (!MultiplayerSession.IsHost)
 				return;
+
+			// Handing a client a save is the host's own proof that this client is about to
+			// disconnect and load, so arm the load-window gate here rather than trusting the
+			// client to say so: its Loading notice goes out just before the socket drops and
+			// is regularly lost, and on a hard sync (saves pushed with no client request)
+			// that notice is the only other signal. Marking is idempotent and costs nothing
+			// early - PendingLoadingClientCount only counts loaders already off the roster.
+			NetworkConfig.TransportServer?.MarkClientLoading(requester);
 
 			try
 			{
@@ -137,10 +144,22 @@ namespace ONI_Together.Networking.Packets.World
 
 			// SUA IDEIA: Registra transferência no manager para rastrear ACKs
 			string transferId = fileName.Replace(" ", "_").Replace(".sav", "");
-			SaveFileTransferManager.StartTransfer(steamID, transferId, fileName, data, chunkSize);
+			object transferToken = SaveFileTransferManager.StartTransfer(steamID, transferId, fileName, data, chunkSize);
 
 			for (int offset = 0; offset < data.Length; /* increments manually */)
 			{
+				// Die with the registration: a coroutine that outlives it resends into the
+				// void after the session ends, and when the same client rejoins it interleaves
+				// a second chunk stream under the same TransferId, stalling the download.
+				if (!MultiplayerSession.InActiveSession
+					|| !SaveFileTransferManager.IsTransferCurrent(transferToken))
+				{
+					DebugConsole.LogWarning(
+						$"[SaveFileRequest] Aborting transfer of '{fileName}' to {steamID} at offset {offset}: " +
+						"session ended or transfer superseded");
+					yield break;
+				}
+
 				int size = Math.Min(chunkSize, data.Length - offset);
 				byte[] chunk = new byte[size];
 				Buffer.BlockCopy(data, offset, chunk, 0, size);

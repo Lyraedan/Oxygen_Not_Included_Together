@@ -250,7 +250,15 @@ namespace ONI_Together.Networking
 
 			if (!MultiplayerSession.ConnectedPlayers.TryGetValue(steamID, out var player) || player.Connection == null)
 			{
-				DebugConsole.LogWarning($"[PacketSender] No connection found for SteamID {steamID}");
+				// A client mid load-reconnect keeps a Connection==null roster placeholder for
+				// the whole load window (see TransportServer.PendingLoadingClientCount), so
+				// sends to it are expected to fail until it returns. Stay quiet for a known
+				// loader; keep warning for anyone else, where this really is unexpected.
+				// Name the packet type: it is the only clue to WHICH system is still sending
+				// to a player who is gone.
+				if (NetworkConfig.TransportServer?.IsClientLoading(steamID) != true)
+					DebugConsole.LogWarning(
+						$"[PacketSender] No connection found for SteamID {steamID} (packet {packet.GetType().Name})");
 				return false;
 			}
 

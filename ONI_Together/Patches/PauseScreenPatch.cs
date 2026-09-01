@@ -1,5 +1,6 @@
 ﻿using HarmonyLib;
 using JetBrains.Annotations;
+using ONI_Together.Menus;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Transport.Steamworks;
 using ONI_Together.UI;
@@ -95,9 +96,22 @@ namespace ONI_Together.Patches
             }
 		}
 
-		[HarmonyPatch(typeof(KModalScreen), nameof(KModalScreen.OnShow), new[] { typeof(bool) })]
+		[HarmonyPatch]
 		public static class ModalPauseScreen_PreventPauses
 		{
+			// Both OnShow overrides that touch the pause stack: KModalButtonMenu (the pause
+			// menu's base) does not call KModalScreen.OnShow - it has its own Pause/Unpause
+			// pair. With only KModalScreen patched, a gate-blocked Unpause plus the menu's
+			// own Pause leaks one SpeedControlScreen pauseCount level per open/close.
+			[UsedImplicitly]
+			static IEnumerable<System.Reflection.MethodBase> TargetMethods()
+			{
+				yield return AccessTools.Method(
+					typeof(KModalScreen), nameof(KModalScreen.OnShow), new[] { typeof(bool) });
+				yield return AccessTools.Method(
+					typeof(KModalButtonMenu), nameof(KModalButtonMenu.OnShow), new[] { typeof(bool) });
+			}
+
             static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> insts)
 			{
 				using var _ = Profiler.Scope();

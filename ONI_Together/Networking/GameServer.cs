@@ -70,6 +70,13 @@ namespace ONI_Together.Networking
 			MultiplayerSession.IsHost = true;
 			NetworkConfig.TransportServer.Start();
 
+			// Ending a session clears NetworkIdentityRegistry, but the world stays loaded and
+			// no OnSpawn runs again - hosting a second session on the same world would serve
+			// it from an empty registry. The NetIds are still on the NetworkIdentity
+			// components ([Serialize]), so re-scan the scene.
+			if (Misc.Utils.IsInGame())
+				NetworkIdentityRegistry.RebuildFromScene();
+
 			DebugConsole.Log("[GameServer] Game Server started!");
 			//MultiplayerSession.InSession = true;
 			Game.Instance?.Trigger(MP_HASHES.OnConnected);
@@ -84,6 +91,10 @@ namespace ONI_Together.Networking
 			using var _ = Profiler.Scope();
 
 			SetState(ServerState.Stopped);
+
+			// A transfer that was mid-flight when the session ended has no client left to ACK
+			// it; without this its retry loop kept resending into the void.
+			SaveFileTransferManager.CancelAll();
 
 			NetworkConfig.TransportServer.CloseConnections();
 			NetworkConfig.TransportServer.Stop();

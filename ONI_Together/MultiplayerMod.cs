@@ -41,6 +41,22 @@ namespace ONI_Together
         public static int MainThreadId { get; private set; }
         public static SynchronizationContext MainThread { get; private set; }
 
+        /// <summary>
+        /// Best-effort startup trace. Failures are swallowed (on-access scanners race
+        /// these writes) - a diagnostic must never abort mod initialisation.
+        /// </summary>
+        private static void TraceCheckpoint(string logPath, string message)
+        {
+            try
+            {
+                System.IO.File.AppendAllText(logPath, message);
+            }
+            catch (Exception ex)
+            {
+                DebugConsole.LogWarning($"[ONI_Together] Could not write startup trace: {ex.Message}");
+            }
+        }
+
         public override void OnLoad(Harmony harmony)
 		{
 			using var _ = Profiler.Scope();
@@ -61,20 +77,20 @@ namespace ONI_Together
 				DebugConsole.Log("[ONI_Together] Loaded Oxygen Not Included Together Multiplayer Mod.");
 
                 // CHECKPOINT 1
-                System.IO.File.AppendAllText(logPath, "[Trace] Checkpoint 1: Pre-DebugMenu\n");
+                TraceCheckpoint(logPath, "[Trace] Checkpoint 1: Pre-DebugMenu\n");
 				DebugMenu.Init();
 
                 // CHECKPOINT 2
-                System.IO.File.AppendAllText(logPath, "[Trace] Checkpoint 2: Pre-SteamLobby\n");
+                TraceCheckpoint(logPath, "[Trace] Checkpoint 2: Pre-SteamLobby\n");
 				SteamLobby.Initialize();
 
 				// CHECKPOINT 3
-				System.IO.File.AppendAllText(logPath, "[Trace] Checkpoint 3: Pre-GameObjects\n");
+				TraceCheckpoint(logPath, "[Trace] Checkpoint 3: Pre-GameObjects\n");
 				var go = new GameObject("Multiplayer_Modules");
 				UnityEngine.Object.DontDestroyOnLoad(go);
 
 				// CHECKPOINT 4
-				System.IO.File.AppendAllText(logPath, "[Trace] Checkpoint 4: Pre-Components\n");
+				TraceCheckpoint(logPath, "[Trace] Checkpoint 4: Pre-Components\n");
 				go.AddComponent<NetworkingComponent>();
 				go.AddComponent<UIVisibilityController>();
 				go.AddComponent<MainThreadExecutor>();
@@ -93,11 +109,11 @@ namespace ONI_Together
 				go.AddComponent<DiscordRichPresence>();
 
 				// CHECKPOINT 5
-				System.IO.File.AppendAllText(logPath, "[Trace] Checkpoint 5: Pre-Listeners\n");
+				TraceCheckpoint(logPath, "[Trace] Checkpoint 5: Pre-Listeners\n");
 				SetupListeners();
 
 				// CHECKPOINT 6
-				System.IO.File.AppendAllText(logPath, "[Trace] Checkpoint 6: Pre-ResLoad\n");
+				TraceCheckpoint(logPath, "[Trace] Checkpoint 6: Pre-ResLoad\n");
 				LoadAssetBundles();
 
 				foreach (var res in Assembly.GetExecutingAssembly().GetManifestResourceNames())
@@ -105,7 +121,7 @@ namespace ONI_Together
 					DebugConsole.Log("Embedded Resource: " + res);
 				}
 
-				System.IO.File.AppendAllText(logPath, "[Trace] Checkpoint 7: Success\n");
+				TraceCheckpoint(logPath, "[Trace] Checkpoint 7: Success\n");
 			}
 			catch (Exception ex)
 			{

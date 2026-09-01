@@ -103,7 +103,14 @@ namespace ONI_Together.Networking
 			NetworkConfig.TransportClient.OnRequestStateOrReturn = () =>
 			{
                 PacketSender.SendToHost(GameStateRequestPacket.CreateClientRequest(MultiplayerSession.LocalUserID));
-                MP_Timer.Instance.StartDelayedAction(10, () => CoroutineRunner.RunOne(ShowMessageAndReturnToTitle()));
+                // Give-up deadline for the host's gamestate reply. Post-load replies have
+                // been measured at ~20s behind the world-sync flood, so anything tighter
+                // ejects a healthy client mid-handshake.
+                MP_Timer.Instance.StartDelayedAction(30, () =>
+                {
+                    DebugConsole.LogWarning("[GameClient] No gamestate reply from host within 30s - giving up and returning to menu.");
+                    CoroutineRunner.RunOne(ShowMessageAndReturnToTitle());
+                });
             };
             NetworkConfig.TransportClient.Prepare();
             CursorManager.Instance.AssignColor();
@@ -209,7 +216,9 @@ namespace ONI_Together.Networking
 				if (missingMods.Any())
 					text += string.Format(STRINGS.UI.MP_OVERLAY.SYNC.MODSYNC.MISSING, missingMods.Count) + "\n";
 
-				// Ignore this if we're in game already
+				// Only the menu can act on a mismatch - syncing restarts the game. An
+				// in-game client must carry on: returning here would kill the post-load
+				// reconnect before the Ready send and leave the host's gate closed forever.
 				if (Utils.IsInMenu())
 				{
 					DialogUtil.CreateConfirmDialogFrontend(STRINGS.UI.MP_OVERLAY.SYNC.MODSYNC.TITLE, text,
@@ -220,8 +229,11 @@ namespace ONI_Together.Networking
 					STRINGS.UI.MP_OVERLAY.SYNC.MODSYNC.DENY_SYNC,
 					ContinueConnectionFlow);
 					DebugConsole.Log("mods not synced!");
+					return;
 				}
-				return;
+
+				DebugConsole.LogWarning(
+					"[GameClient] Mod list differs from the host's, but we are already in game - continuing.");
 			}
 
 			ContinueConnectionFlow();
@@ -308,6 +320,7 @@ namespace ONI_Together.Networking
 				if (!IsHardSyncInProgress)
 				{
 					DebugConsole.Log("[GameClient] Requesting save file from host");
+
 					var packet = new SaveFileRequestPacket
 					{
 						Requester = MultiplayerSession.LocalUserID
@@ -395,10 +408,73 @@ namespace ONI_Together.Networking
 		{
 			_autoReconnecting = false;
 			_reconnectAttempt = 0;
+			_postLoadReconnectAttempt = 0;
+		}
+
+		private static int _postLoadReconnectAttempt = 0;
+		private const int MAX_POST_LOAD_RECONNECT_ATTEMPTS = 3;
+		private const float POST_LOAD_RECONNECT_DELAY = 2f;
+
+		/// <summary>
+		/// CLIENT ONLY, Steamworks - a post-load reconnect died on a route race rather than a
+		/// real refusal; start another attempt. Steam's route setup can outlast the failure
+		/// callback, so one local failure is not a refusal. Returns false once the attempts
+		/// are spent, so the caller can fall back to its normal give-up path.
+		///
+		/// ReconnectFromCache sets HostUserID before it hands off, so the retry can call
+		/// ConnectToHost with no cached info left.
+		/// </summary>
+		public static bool TryRetryPostLoadReconnect()
+		{
+			using var _ = Profiler.Scope();
+
+			if (_postLoadReconnectAttempt >= MAX_POST_LOAD_RECONNECT_ATTEMPTS)
+			{
+				DebugConsole.LogWarning(
+					$"[GameClient] Post-load reconnect failed {_postLoadReconnectAttempt} times; giving up");
+				_postLoadReconnectAttempt = 0;
+				return false;
+			}
+
+			_postLoadReconnectAttempt++;
+			DebugConsole.Log(
+				$"[GameClient] Post-load reconnect failed; retry " +
+				$"{_postLoadReconnectAttempt}/{MAX_POST_LOAD_RECONNECT_ATTEMPTS} " +
+				$"in {POST_LOAD_RECONNECT_DELAY}s");
+			MultiplayerOverlay.Show(
+				$"Reconnecting... {_postLoadReconnectAttempt}/{MAX_POST_LOAD_RECONNECT_ATTEMPTS}");
+
+			CoroutineRunner.RunOne(RetryPostLoadReconnectCoroutine());
+			return true;
+		}
+
+		private static IEnumerator RetryPostLoadReconnectCoroutine()
+		{
+			yield return new WaitForSecondsRealtime(POST_LOAD_RECONNECT_DELAY);
+
+			if (!Utils.IsInGame())
+			{
+				DebugConsole.Log("[GameClient] No longer in game, abandoning post-load reconnect");
+				_postLoadReconnectAttempt = 0;
+				yield break;
+			}
+
+			ConnectToHost(false);
+		}
+
+		/// <summary>CLIENT ONLY - a reconnect landed; stop counting failures.</summary>
+		public static void NotifyReconnectSucceeded()
+		{
+			_postLoadReconnectAttempt = 0;
 		}
 
 		private static IEnumerator ShowMessageAndReturnToTitle(string reason = "", string message = "")
 		{
+			// Every ejection to the menu funnels through here; log before acting so
+			// this path can never run silently.
+			DebugConsole.LogWarning(
+				$"[GameClient] Returning to title. Reason: '{reason}' Message: '{message}'");
+
 			// Auto-reconnect if still in game and under max attempts
 			//if (Utils.IsInGame() && _reconnectAttempt < MAX_RECONNECT_ATTEMPTS)
 			//{

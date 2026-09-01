@@ -92,6 +92,8 @@ namespace ONI_Together.Networking.Transport.Steam
             if (ListenSocket.m_HSteamListenSocket != 0)
                 SteamNetworkingSockets.CloseListenSocket(ListenSocket);
 
+            ClearLoadTracking();
+
             MultiplayerSession.InActiveSession = false;
         }
 
@@ -121,6 +123,8 @@ namespace ONI_Together.Networking.Transport.Steam
             SteamAPI.RunCallbacks();
             SteamNetworkingSockets.RunCallbacks();
             UpdateServerBandwidth();
+            ExpireStaleLoadingClients();
+            ExpireNeverReadyClients();
         }
 
         private void UpdateServerBandwidth()
@@ -210,6 +214,13 @@ namespace ONI_Together.Networking.Transport.Steam
 
                 case ESteamNetworkingConnectionState.k_ESteamNetworkingConnectionState_ClosedByPeer:
                 case ESteamNetworkingConnectionState.k_ESteamNetworkingConnectionState_ProblemDetectedLocally:
+                    // The end reason is the only signal telling a deliberate quit from a dead
+                    // process or a vanished peer: our client closes with "Client disconnecting"
+                    // (App range, 1xxx), the Steam client closes on a dead process's behalf,
+                    // and a vanished peer shows a Misc (5xxx) reason.
+                    DebugConsole.Log(
+                        $"[GameServer] Close reason for {clientId}: " +
+                        $"{data.m_info.m_eEndReason} \"{data.m_info.m_szEndDebug}\"");
                     OnClientClosed(conn, clientId);
                     break;
             }
@@ -278,9 +289,34 @@ namespace ONI_Together.Networking.Transport.Steam
             }
             player.Connection = conn;
 
+            // Authority: a (re)connecting client is loading and must be forced Unready the
+            // moment it begins connecting — not just at object creation. This keeps the
+            // host's all-ready check from transiently passing while the client loads.
+            // SetPlayerReadyState safely no-ops for the host's own entry.
+            ReadyManager.SetPlayerReadyState(player, ClientReadyState.Unready);
+
+            // A SteamID is stable across a load-reconnect, so a returning loader matches its
+            // pending entry exactly. Clearing it here keeps the entry from lingering until it
+            // times out - which would count against the gate if the client later left for
+            // real and dropped off the roster.
+            NetworkConfig.TransportServer?.ClaimLoadingReconnect(clientId.m_SteamID);
+
             DebugConsole.Log($"[GameServer] Connection to {clientId} fully established!");
+
+            ReadyManager.HandleClientConnected();
             //SaveFileRequestPacket.SendSaveFile(clientId); // Old method
             //GoogleDriveUtils.UploadAndSendToClient(clientId); // Upload to googledrive and send to the client
+        }
+
+        /// <summary>
+        /// Steam matches returning loaders by id and never guesses: both sides of the match
+        /// are the same account's 64-bit SteamID, so the exact branch always hits.
+        /// Inheriting the LAN fallback would only let a wrong entry be released silently -
+        /// a fallback hit on Steam means the mark went missing, a bug to see, not paper over.
+        /// </summary>
+        public override bool ClaimLoadingReconnect(ulong clientId)
+        {
+            return ClaimExactLoadingReconnect(clientId);
         }
 
         private static void OnClientClosed(HSteamNetConnection conn, CSteamID clientId)
@@ -323,6 +359,9 @@ namespace ONI_Together.Networking.Transport.Steam
             {
                 DebugConsole.Log($"[GameServer] Kicking client {clientId}");
 
+                // A kicked client is not coming back, so its pending load must not keep
+                // holding the gate. OnClientClosed below carries the refresh.
+                ForgetClientLoading(clientId);
                 SteamNetworkingSockets.CloseConnection(conn, 0, "Kicked by host", false);
                 // The connection closed callback will handle cleanup
             }

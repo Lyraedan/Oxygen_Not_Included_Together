@@ -33,7 +33,7 @@ namespace ONI_Together.Patches.World
                 if (!SkipOnClient())
                     return true;
 
-                if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
+                if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap) && wrap.HasHostState)
                 {
                     __result = wrap.IsOperational;
                     return false;
@@ -53,7 +53,7 @@ namespace ONI_Together.Patches.World
                 if (flag != EnergyConsumer.PoweredFlag)
                     return true;
 
-                if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
+                if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap) && wrap.HasHostState)
                 {
                     __result = wrap.IsOperational;
                     return false;

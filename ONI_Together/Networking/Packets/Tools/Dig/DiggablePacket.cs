@@ -1,4 +1,6 @@
-﻿using ONI_Together.Networking.Packets.Architecture;
+﻿using ONI_Together.DebugTools;
+using ONI_Together.Misc;
+using ONI_Together.Networking.Packets.Architecture;
 using System.IO;
 using Shared.Profiling;
 using UnityEngine;
@@ -54,6 +56,16 @@ namespace ONI_Together.Networking.Packets.Tools.Dig
         public void OnDispatched()
         {
             using var _ = Profiler.Scope();
+
+            // A client still in the menu or mid save-download has no world yet, and
+            // DigTool.PlaceDig throws straight through it. Dropping the order is intended:
+            // a one-line warning instead of a per-packet stack dump.
+            if (!Utils.IsInGame() || !Grid.IsValidCell(Cell))
+            {
+                DebugConsole.LogWarning(
+                    $"[DiggablePacket] Dropped dig for cell {Cell}: no world loaded yet");
+                return;
+            }
 
             GameObject game_object;
             ProcessingIncoming = true;

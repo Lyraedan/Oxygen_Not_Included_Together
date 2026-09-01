@@ -91,22 +91,38 @@ namespace UI.lib.UIcmp //Source: Aki
 		public override void OnShow(bool show)
 		{
 			base.OnShow(show);
+
+			// In a multiplayer session these dialogs must not touch the pause stack - the
+			// same policy ModalPauseScreen_PreventPauses applies to ONI's own screens.
+			// SpeedControlScreen's pause is a COUNTER and the gate blocks the Unpause half
+			// of this pair, so each open/close during a join leaks one pause level.
+			//
+			// pausedSim, not a bare session check on both sides: the unpause must mirror
+			// what the open actually did, or a dialog opened outside a session and closed
+			// inside one (or the other way round) leaks a level again.
 			if (pause && SpeedControlScreen.Instance != null)
 			{
 				if (show && !shown)
 				{
-					SpeedControlScreen.Instance.Pause(false);
+					if (!ONI_Together.Networking.MultiplayerSession.InActiveSession)
+					{
+						SpeedControlScreen.Instance.Pause(false);
+						pausedSim = true;
+					}
 				}
-				else
+				else if (!show && shown)
 				{
-					if (!show && shown)
+					if (pausedSim)
 					{
 						SpeedControlScreen.Instance.Unpause(false);
+						pausedSim = false;
 					}
 				}
 				shown = show;
 			}
 		}
+
+		private bool pausedSim = false;
 
 
 		public override void OnKeyUp(KButtonEvent e)
