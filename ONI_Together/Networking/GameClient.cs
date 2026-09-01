@@ -103,7 +103,15 @@ namespace ONI_Together.Networking
 			NetworkConfig.TransportClient.OnRequestStateOrReturn = () =>
 			{
                 PacketSender.SendToHost(GameStateRequestPacket.CreateClientRequest(MultiplayerSession.LocalUserID));
-                MP_Timer.Instance.StartDelayedAction(10, () => CoroutineRunner.RunOne(ShowMessageAndReturnToTitle()));
+                // Give-up deadline for the host's gamestate reply. 10s proved too tight: on a
+                // real post-load reconnect the reply has been measured at ~20s behind the
+                // world-sync flood, and this deadline quitting to menu would strand the host
+                // on the ready screen just as surely as getting no reply at all.
+                MP_Timer.Instance.StartDelayedAction(30, () =>
+                {
+                    DebugConsole.LogWarning("[GameClient] No gamestate reply from host within 30s - giving up and returning to menu.");
+                    CoroutineRunner.RunOne(ShowMessageAndReturnToTitle());
+                });
             };
             NetworkConfig.TransportClient.Prepare();
             CursorManager.Instance.AssignColor();
