@@ -209,7 +209,17 @@ namespace ONI_Together.Networking
 				if (missingMods.Any())
 					text += string.Format(STRINGS.UI.MP_OVERLAY.SYNC.MODSYNC.MISSING, missingMods.Count) + "\n";
 
-				// Ignore this if we're in game already
+				// Only the menu can act on this. Syncing mods restarts the game, so there is
+				// nothing to offer a client that is already in a world - it must carry on.
+				//
+				// The return used to sit outside this branch, which stranded every post-load
+				// reconnect whose mod list differed from the host's. The client reconnected,
+				// the host answered its state request, and this returned before
+				// ContinueConnectionFlow - so the client never reached InGame and never
+				// reported Ready, the host's gate never opened, and the host sat on the ready
+				// screen for good. Silent, because the only log line here is inside the menu
+				// branch. Deterministic for anyone running a mod the host does not have, on
+				// every transport, which is exactly how it was reported.
 				if (Utils.IsInMenu())
 				{
 					DialogUtil.CreateConfirmDialogFrontend(STRINGS.UI.MP_OVERLAY.SYNC.MODSYNC.TITLE, text,
@@ -220,8 +230,11 @@ namespace ONI_Together.Networking
 					STRINGS.UI.MP_OVERLAY.SYNC.MODSYNC.DENY_SYNC,
 					ContinueConnectionFlow);
 					DebugConsole.Log("mods not synced!");
+					return;
 				}
-				return;
+
+				DebugConsole.LogWarning(
+					"[GameClient] Mod list differs from the host's, but we are already in game - continuing.");
 			}
 
 			ContinueConnectionFlow();
