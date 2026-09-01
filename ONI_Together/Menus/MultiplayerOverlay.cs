@@ -163,6 +163,25 @@ namespace ONI_Together.Menus
 			Text = text;
 		}
 
+		/// <summary>
+		/// The scene swap destroys the backing LoadingOverlay but not this wrapper, leaving
+		/// IsOpen true over a screen that no longer exists - text writes go to a dead object
+		/// and the player sees a bare world. Call once after a world load so the next Show
+		/// builds a real screen again. One-shot by design: Show itself still never rebuilds
+		/// (a generic rebuild-on-destroyed stacked fresh overlays on the player).
+		/// </summary>
+		public static void ResetAfterSceneSwap()
+		{
+			using var _ = Profiler.Scope();
+
+			if (overlay == null)
+				return;
+
+			DebugConsole.Log("[MultiplayerOverlay] dropping the wrapper the scene swap orphaned");
+			overlay.Dispose();
+			overlay = null;
+		}
+
 		public static void Close()
 		{
 			using var _ = Profiler.Scope();
