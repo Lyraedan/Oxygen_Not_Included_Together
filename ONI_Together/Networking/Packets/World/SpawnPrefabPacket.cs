@@ -222,13 +222,13 @@ public class SpawnPrefabPacket : IPacket
                 if (go.GetComponent<MinionIdentity>() != null || go.HasTag(GameTags.BaseMinion))
                 {
                     go.AddOrGet<OxySyncEntityPositionHandler>();
-                    go.AddOrGet<AnimStateSyncer>();
+                    go.AddOrGet<AnimSyncer>();
                     go.AddOrGet<MinionMultiplayerInitializer>();
                 }
                 else if (go.GetComponent<CreatureBrain>() != null || go.HasTag(GameTags.Creature))
                 {
                     go.AddOrGet<OxySyncEntityPositionHandler>();
-                    go.AddOrGet<AnimStateSyncer>();
+                    go.AddOrGet<AnimSyncer>();
                     go.AddOrGet<CreatureMultiplayerInitializer>();
                 }
 

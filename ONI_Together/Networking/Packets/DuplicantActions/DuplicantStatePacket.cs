@@ -1,6 +1,6 @@
-using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Architecture;
 using System.IO;
+using System;
 using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.DuplicantActions
@@ -15,12 +15,8 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 		public int NetId;
 		public DuplicantActionState ActionState;
 		public int TargetCell;          // Cell of work target (-1 if none)
-		public string CurrentAnimName;  // specific animation override
-		public float AnimElapsedTime;   // Elapsed time in current animation
 		public bool IsWorking;          // Whether actively working on something
 		public string HeldItemSymbol;   // For syncing guns/tools/carryables current animation
-		public int AnimPlayMode;        // KAnim.PlayMode for continuous anim reconciliation
-		public float AnimSpeed;         // Playback speed for continuous anim reconciliation
 
 		public void Serialize(BinaryWriter writer)
 		{
@@ -29,12 +25,8 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 			writer.Write(NetId);
 			writer.Write((int)ActionState);
 			writer.Write(TargetCell);
-			writer.Write(CurrentAnimName ?? string.Empty);
-			writer.Write(AnimElapsedTime);
 			writer.Write(IsWorking);
 			writer.Write(HeldItemSymbol ?? string.Empty);
-			writer.Write(AnimPlayMode);
-			writer.Write(AnimSpeed);
 		}
 
 		public void Deserialize(BinaryReader reader)
@@ -44,12 +36,8 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 			NetId = reader.ReadInt32();
 			ActionState = (DuplicantActionState)reader.ReadInt32();
 			TargetCell = reader.ReadInt32();
-			CurrentAnimName = reader.ReadString();
-			AnimElapsedTime = reader.ReadSingle();
 			IsWorking = reader.ReadBoolean();
 			HeldItemSymbol = reader.ReadString();
-			AnimPlayMode = reader.ReadInt32();
-			AnimSpeed = reader.ReadSingle();
 		}
 
 		public void OnDispatched()
@@ -61,21 +49,10 @@ namespace ONI_Together.Networking.Packets.DuplicantActions
 
 			if (!NetworkIdentityRegistry.TryGetComponent<KBatchedAnimController>(NetId, out var kbac))
 				return;
-
-			if (string.IsNullOrEmpty(CurrentAnimName))
-				return;
-
-			AnimReconciliationHelper.Reconcile(
-				kbac,
-				new HashedString(CurrentAnimName),
-				(KAnim.PlayMode)AnimPlayMode,
-				AnimSpeed,
-				AnimElapsedTime,
-				nameof(DuplicantStatePacket));
 		}
 	}
 
-	/// <summary>
+	/// <summary> 
 	/// High-level action states for duplicants
 	/// </summary>
 	public enum DuplicantActionState : byte
