@@ -12,19 +12,20 @@ namespace ONI_Together.Networking.OxySync.Components
 		[MyCmpGet]
 		private KBatchedAnimController animController;
 
-		[SyncVar]
+		[SyncVar(SendMode = (int)PacketSendMode.UnreliableImmediate)]
 		private HashedString animName;
 		private int lastAnimName;
 		private int VAR_AnimName_HASH;
 
-		[SyncVar]
+		[SyncVar(SendMode = (int)PacketSendMode.UnreliableImmediate)]
 		private KAnim.PlayMode animPlayMode;
 
-		[SyncVar]
+		[SyncVar(SendMode = (int)PacketSendMode.UnreliableImmediate)]
 		private float animSpeed;
 
-		private float FASTFORWARD_THRESHOLD = 0.02f;
+		[SyncVar(SendMode = (int)PacketSendMode.UnreliableImmediate)]
 		private float epsilon = 0.01f;
+		private float FASTFORWARD_THRESHOLD = 0.02f;
 
 		private const float HEARTBEAT_INTERVAL = 1f;
 		private float _lastHeartbeatTime;
@@ -125,9 +126,8 @@ namespace ONI_Together.Networking.OxySync.Components
 			float fastForwardTime = animController.GetElapsedTime() + FASTFORWARD_THRESHOLD;
 			if (animName.hash == lastAnimName && fastForwardTime <= epsilon)
 			{
-				// Keep it in case 
-				// animController.SetElapsedTime(fastForwardTime);
-				// ForceAnimUpdate(animController);
+				animController.SetElapsedTime(fastForwardTime);
+				ForceAnimUpdate(animController);
 			}
 		}
 
