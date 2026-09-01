@@ -12,7 +12,7 @@ namespace ONI_Together.Networking.Components
 		public int NetId = 0;
 
 		[SkipSaveFileSerialization]
-		private bool IsRegistered = false;
+		public bool IsRegistered { get; private set; } = false;
 
 		public override void OnSpawn()
 		{
