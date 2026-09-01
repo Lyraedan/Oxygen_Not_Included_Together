@@ -22,10 +22,8 @@ namespace Shared.Helpers
 
 			if (parent == null)
 				parent = frontend && !useScreenSpaceOverlay ? Global.Instance.globalCanvas : GameScreenManager.Instance.GetParent(GameScreenManager.UIRenderTarget.ScreenSpaceOverlay);
-			// One of the two places the mod puts a message in front of a player; the other is
-			// MultiplayerOverlay, which is logged the same way. Between them a report of "it
-			// popped an error" is traceable without asking the player to remember the wording.
-			// Log here rather than at each call site so a dialog added later is covered too.
+			// Logged here rather than at each call site so every dialog, including
+			// future ones, is traceable from the log.
 			UnityEngine.Debug.Log($"[ONI_Together] [Dialog] {title} :: {(text ?? string.Empty).Replace("\n", " | ")}");
 
 			var dialogue = ((ConfirmDialogScreen)KScreenManager.Instance.StartScreen(ScreenPrefabs.Instance.ConfirmDialogScreen.gameObject, parent));

@@ -77,10 +77,9 @@ namespace ONI_Together.Networking
 			};
 			PacketSender.SendToHost(packet);
 
-			// Every status transition matters when reading a report's log: Loading arms the
-			// host's load-window gate moments before this client tears its connection down,
-			// and Ready is the only thing that ever opens the gate after the reload - its
-			// absence from a client log is how a stuck host gets diagnosed.
+			// Log every send: Loading goes out just before this client drops its
+			// connection to load, and Ready is the only thing that opens the host's
+			// gate after the reload.
 			DebugConsole.Log($"[ReadyManager] Sent {state} notice to host as {packet.SenderId}");
 		}
 

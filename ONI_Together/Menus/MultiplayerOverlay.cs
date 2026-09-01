@@ -139,11 +139,9 @@ namespace ONI_Together.Menus
 		{
 			using var _ = Profiler.Scope();
 
-			// This overlay is the only trace several user-facing failures leave behind:
-			// the paths that show a message and send the player back to the menu draw UI
-			// and log nothing, so a report of "it kicked me out" arrives with no way to
-			// tell which check rejected it. Log the transition rather than every call -
-			// the ready screen re-shows the same text constantly.
+			// Several rejection paths surface to the player only through this overlay.
+			// Log transitions, not every call - the ready screen re-shows the same
+			// text constantly.
 			if (text != Text)
 				DebugConsole.Log($"[MultiplayerOverlay] {(text ?? string.Empty).Replace("\n", " | ")}");
 

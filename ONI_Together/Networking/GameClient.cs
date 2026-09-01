@@ -103,10 +103,9 @@ namespace ONI_Together.Networking
 			NetworkConfig.TransportClient.OnRequestStateOrReturn = () =>
 			{
                 PacketSender.SendToHost(GameStateRequestPacket.CreateClientRequest(MultiplayerSession.LocalUserID));
-                // Give-up deadline for the host's gamestate reply. 10s proved too tight: on a
-                // real post-load reconnect the reply has been measured at ~20s behind the
-                // world-sync flood, and this deadline quitting to menu would strand the host
-                // on the ready screen just as surely as getting no reply at all.
+                // Give-up deadline for the host's gamestate reply. Post-load replies have
+                // been measured at ~20s behind the world-sync flood, so anything tighter
+                // ejects a healthy client mid-handshake.
                 MP_Timer.Instance.StartDelayedAction(30, () =>
                 {
                     DebugConsole.LogWarning("[GameClient] No gamestate reply from host within 30s - giving up and returning to menu.");
@@ -217,17 +216,9 @@ namespace ONI_Together.Networking
 				if (missingMods.Any())
 					text += string.Format(STRINGS.UI.MP_OVERLAY.SYNC.MODSYNC.MISSING, missingMods.Count) + "\n";
 
-				// Only the menu can act on this. Syncing mods restarts the game, so there is
-				// nothing to offer a client that is already in a world - it must carry on.
-				//
-				// The return used to sit outside this branch, which stranded every post-load
-				// reconnect whose mod list differed from the host's. The client reconnected,
-				// the host answered its state request, and this returned before
-				// ContinueConnectionFlow - so the client never reached InGame and never
-				// reported Ready, the host's gate never opened, and the host sat on the ready
-				// screen for good. Silent, because the only log line here is inside the menu
-				// branch. Deterministic for anyone running a mod the host does not have, on
-				// every transport, which is exactly how it was reported.
+				// Only the menu can act on a mismatch - syncing restarts the game. An
+				// in-game client must carry on: returning here would kill the post-load
+				// reconnect before the Ready send and leave the host's gate closed forever.
 				if (Utils.IsInMenu())
 				{
 					DialogUtil.CreateConfirmDialogFrontend(STRINGS.UI.MP_OVERLAY.SYNC.MODSYNC.TITLE, text,
@@ -483,10 +474,8 @@ namespace ONI_Together.Networking
 
 		private static IEnumerator ShowMessageAndReturnToTitle(string reason = "", string message = "")
 		{
-			// This path ejects the player to the menu; it must never run silently. It is
-			// also the proof the coroutine started at all - its schedulers go through
-			// CoroutineRunner, whose failure would otherwise be indistinguishable from
-			// never having been scheduled.
+			// Every ejection to the menu funnels through here; log before acting so
+			// this path can never run silently.
 			DebugConsole.LogWarning(
 				$"[GameClient] Returning to title. Reason: '{reason}' Message: '{message}'");
 

@@ -42,14 +42,8 @@ namespace ONI_Together
         public static SynchronizationContext MainThread { get; private set; }
 
         /// <summary>
-        /// Best-effort checkpoint trace. The file sits in the game install directory and is
-        /// opened, appended to and closed once per checkpoint, seven times in quick
-        /// succession - which loses races with on-access virus scanners often enough to
-        /// matter. Those writes used to run bare inside OnLoad's try, so a single
-        /// IOException on the trace file aborted the rest of initialisation: the
-        /// Multiplayer_Modules object and every component below it were never created, the
-        /// mod came up dead, and the log blamed whatever the aborted thread happened to be
-        /// parsing at the time. A diagnostic must never be able to do that.
+        /// Best-effort startup trace. Failures are swallowed (on-access scanners race
+        /// these writes) - a diagnostic must never abort mod initialisation.
         /// </summary>
         private static void TraceCheckpoint(string logPath, string message)
         {
