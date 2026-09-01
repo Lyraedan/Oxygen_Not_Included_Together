@@ -65,11 +65,9 @@ namespace ONI_Together.Menus
 				return;
 			}
 
-			// LoadingOverlay is decorative - nothing on it blocks raycasts - so clicks went
-			// straight through into a world the host had not resumed, and orders placed that
-			// way are lost. Blocked here rather than refused tool by tool: a per-tool guard
-			// has to be repeated for dig, build, deconstruct, sweep... and silently misses
-			// whatever tool is added next.
+			// LoadingOverlay is decorative - nothing on it blocks raycasts - so without this
+			// clicks land in a world the host has not resumed. Blocked here rather than tool
+			// by tool: a per-tool guard silently misses whatever tool is added next.
 			//
 			// Keys are handled separately by ReadyScreenInputPatch, which swallows them so
 			// Escape can no longer answer with Deactivate() and destroy this screen.
@@ -145,10 +143,9 @@ namespace ONI_Together.Menus
 			if (text != Text)
 				DebugConsole.Log($"[MultiplayerOverlay] {(text ?? string.Empty).Replace("\n", " | ")}");
 
-			// Builds only when there is no wrapper at all. Rebuilding whenever the backing UI
-			// had been destroyed was tried and reverted: in game ONI tears its LoadingOverlay
-			// down as fast as we raise it, so the host rebuilt every 5s, each time putting a
-			// fresh full-screen overlay on top of the player.
+			// Builds only when there is no wrapper at all. Do not rebuild when the backing UI
+			// was destroyed: in game ONI tears LoadingOverlay down as fast as we raise it, and
+			// a rebuild loop stacks a fresh full-screen overlay on the player every few seconds.
 			if (overlay == null)
 			{
 				overlay = new MultiplayerOverlay();

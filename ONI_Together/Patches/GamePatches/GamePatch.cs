@@ -65,11 +65,10 @@ namespace ONI_Together.Patches.GamePatches
         DebugConsole.Log("[GamePatch] World fully loaded, reconnecting to host from cache...");
         GameClient.ReconnectFromCache();
 
-        // Show, not Close. ReconnectFromCache only starts the reconnect - measured at 21s
-        // on a Steam join - and the host's gate stays shut for all of it. Closing here left
-        // the client looking at a live, clickable world with no ready screen, and nothing
-        // raises one again until the host's next broadcast. AllClientsReadyPacket, the
-        // gate's own signal, is what should close this screen.
+        // Show, not Close. ReconnectFromCache only starts the reconnect, and the host's
+        // gate stays shut for all of it - closing here exposes a live, clickable world
+        // with nothing to raise the screen again. AllClientsReadyPacket, the gate's own
+        // signal, is what closes this screen.
         MultiplayerOverlay.Show(STRINGS.UI.MP_OVERLAY.CLIENT.RECONNECTING_AFTER_LOAD);
       }
 

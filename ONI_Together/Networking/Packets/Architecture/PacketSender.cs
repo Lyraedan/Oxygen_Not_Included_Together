@@ -250,11 +250,9 @@ namespace ONI_Together.Networking
 
 			if (!MultiplayerSession.ConnectedPlayers.TryGetValue(steamID, out var player) || player.Connection == null)
 			{
-				// A client that is mid load-reconnect keeps a Connection==null placeholder in
-				// the roster for the whole load window - that is by design on Steamworks, see
-				// TransportServer.PendingLoadingClientCount. Sends to it are expected to fail
-				// until it comes back, and warning once per call turned a normal 30s load into
-				// hundreds of log lines a second in a real session. Stay quiet for a known
+				// A client mid load-reconnect keeps a Connection==null roster placeholder for
+				// the whole load window (see TransportServer.PendingLoadingClientCount), so
+				// sends to it are expected to fail until it returns. Stay quiet for a known
 				// loader; keep warning for anyone else, where this really is unexpected.
 				// Name the packet type: it is the only clue to WHICH system is still sending
 				// to a player who is gone.

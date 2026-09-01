@@ -57,17 +57,9 @@ namespace ONI_Together.Networking.Packets.Tools.Dig
         {
             using var _ = Profiler.Scope();
 
-            // A client still in the menu, or part way through downloading the save, has no world
-            // yet and DigTool.PlaceDig throws straight through it. Measured over one join: 64
-            // "Failed to handle incoming packet: NullReferenceException at DigTool.PlaceDig"
-            // before this guard, 0 after - with the guard itself hit 78 times, so the condition
-            // is just as frequent either way.
-            //
-            // The dig order is lost either way, and nothing else is: PacketHandler.HandleIncoming
-            // is called inside a per-message try/catch (SteamworksClient.ProcessIncomingMessages),
-            // so a throwing packet costs only itself. What this buys is a one-line warning in
-            // place of a multi-frame stack dump, and an explicit statement that dropping the
-            // order is the intended behaviour rather than an accident.
+            // A client still in the menu or mid save-download has no world yet, and
+            // DigTool.PlaceDig throws straight through it. Dropping the order is intended:
+            // a one-line warning instead of a per-packet stack dump.
             if (!Utils.IsInGame() || !Grid.IsValidCell(Cell))
             {
                 DebugConsole.LogWarning(

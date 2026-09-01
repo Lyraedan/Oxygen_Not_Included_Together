@@ -271,17 +271,15 @@ namespace ONI_Together.Networking.Transport.Steamworks
 
 				MultiplayerSession.ConnectedPlayers.Remove(userId);
 
-				// Someone who leaves is not coming back from a load, so drop their pending load
-				// entry too: off the roster it still counts (see PendingLoadingClientCount) and
-				// holds the resume gate closed on behalf of a player who is already gone, until
-				// the 120s expiry. Whether they were mid-load also picks the chat line -
-				// vanishing while loading is a failed join, not a choice to leave.
+				// Someone who leaves is not coming back from a load, so drop their pending
+				// load entry too - off the roster it still counts (see
+				// PendingLoadingClientCount) and holds the gate for a player who is gone.
+				// Whether they were mid-load also picks the chat line: vanishing while
+				// loading is a failed join, not a choice to leave.
 				//
-				// NOTE: every transport calls ForgetClientLoading from its KICK path, but only
-				// Steam clears it on a voluntary leave - LiteNetLibServer.OnPeerDisconnected and
-				// RiptideServer.ServerOnClientDisconnected do not. Left unfixed because it stays
-				// invisible on LAN: a returning loader arrives under a NEW client id, so
-				// ClaimOldestLoadingReconnect consumes the entry anyway.
+				// Only Steam clears this on a voluntary leave; the LAN transports clear it
+				// only on kick - invisible there, because a returning loader arrives under a
+				// new id and ClaimOldestLoadingReconnect consumes the entry anyway.
 				bool failedWhileJoining = false;
 				if (MultiplayerSession.IsHost)
 				{

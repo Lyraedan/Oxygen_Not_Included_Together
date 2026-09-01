@@ -38,11 +38,9 @@ namespace ONI_Together.Networking
 			}
 
 			// A closed resume gate means a client is mid-join or mid-load. A hard sync fired
-			// into that window starts a SECOND save transfer to a client already downloading
-			// one and reloads it twice - measured in a Steam session, where the cycle-start
-			// auto sync (GameClockPatch queues it on a 5s realtime delay, so it lands even
-			// after the join paused the sim) hit 8s into a join. hardSyncDoneThisCycle is
-			// deliberately left false: skipping is a postponement, not this cycle's sync.
+			// into that window starts a second save transfer to a client already downloading
+			// one and reloads it twice. hardSyncDoneThisCycle stays false: skipping is a
+			// postponement, not this cycle's sync.
 			if (MultiplayerSession.IsHost && !ReadyManager.CanHostResume())
 			{
 				DebugConsole.LogWarning(
@@ -51,10 +49,9 @@ namespace ONI_Together.Networking
 			}
 
 			// Through the ready-screen bookkeeping, not a bare Pause: this pause has no
-			// matching Unpause of its own anywhere (the automatic one in ProcessAllReady is
-			// commented out upstream), so it leaked one pause level per hard sync and left
-			// the host hammering the pause button afterwards. Flagged this way,
-			// ResumeSimAfterReadyScreen reverses it when the gate reopens.
+			// matching Unpause of its own anywhere, so a bare call leaks one pause level per
+			// hard sync. Flagged this way, ResumeSimAfterReadyScreen reverses it when the
+			// gate reopens.
 			Misc.Utils.PauseSimForReadyScreen();
 			MultiplayerOverlay.Show(STRINGS.UI.MP_OVERLAY.SYNC.HARDSYNC_INPROGRESS);
 

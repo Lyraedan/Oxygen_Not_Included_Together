@@ -52,15 +52,10 @@ namespace ONI_Together.Networking.Packets.World
 
 			// Handing a client a save is the host's own proof that this client is about to
 			// disconnect and load, so arm the load-window gate here rather than trusting the
-			// client to say so. The client's own Loading notice is sent immediately before it
-			// tears the socket down and is regularly lost - a two-instance capture showed the
-			// client sending it twice and the host recording only the earlier one. On a hard
-			// sync that late notice is the ONLY signal (GameServerHardSync pushes saves
-			// without any client request), so losing it left the host with no pending entry:
-			// the client dropped off the roster, RefreshReadyState saw "only the host left"
-			// and resumed the sim while the client was still 20-30s into loading.
-			// Marking is idempotent and costs nothing early - PendingLoadingClientCount only
-			// counts loaders that have already left the roster.
+			// client to say so: its Loading notice goes out just before the socket drops and
+			// is regularly lost, and on a hard sync (saves pushed with no client request)
+			// that notice is the only other signal. Marking is idempotent and costs nothing
+			// early - PendingLoadingClientCount only counts loaders already off the roster.
 			NetworkConfig.TransportServer?.MarkClientLoading(requester);
 
 			try
@@ -153,12 +148,9 @@ namespace ONI_Together.Networking.Packets.World
 
 			for (int offset = 0; offset < data.Length; /* increments manually */)
 			{
-				// Die with the registration. Without this the loop's retry branch spun forever
-				// after a session ended (~60 sends/s of SecureTransferPacket into the void,
-				// measured for 4+ minutes), and worse: when the same client rejoined a NEW
-				// session, the old coroutine's sends started SUCCEEDING again and interleaved
-				// a second chunk stream into the new transfer under the same TransferId - the
-				// client's download hung at 30% on exactly that.
+				// Die with the registration: a coroutine that outlives it resends into the
+				// void after the session ends, and when the same client rejoins it interleaves
+				// a second chunk stream under the same TransferId, stalling the download.
 				if (!MultiplayerSession.InActiveSession
 					|| !SaveFileTransferManager.IsTransferCurrent(transferToken))
 				{

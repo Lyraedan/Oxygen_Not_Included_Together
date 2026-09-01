@@ -57,16 +57,11 @@ namespace ONI_Together.Networking.OxySync.Components
         {
             var requested = (SpeedState)speed;
 
-            // Authority choke point for a client-originated resume. This method is the only
-            // way a client can change the sim speed (CommandPacket.OnDispatched -> host ->
-            // InvokeCommand), and rejecting here covers both halves in one place: the host
-            // neither applies the speed locally nor fans it out via RpcApplySpeed, because
-            // ApplyAndBroadcast does both. Pausing is always allowed - only resume is gated.
-            //
-            // The host's own resume attempts are already stopped upstream by the
-            // SpeedControlPatch prefixes, so this is a second, independent layer rather than
-            // a duplicate: both resolve through the single ReadyManager.CanHostResume()
-            // predicate, and a blocked call here simply leaves the sim as it was.
+            // Authority choke point for a client-originated resume: the only path a client
+            // can change sim speed (CommandPacket -> host -> InvokeCommand), and rejecting
+            // here covers apply and broadcast in one place. Pausing is always allowed - only
+            // resume is gated. The host's own resumes are stopped by the SpeedControlPatch
+            // prefixes; both layers resolve through ReadyManager.CanHostResume().
             if (requested != SpeedState.Paused && !ReadyManager.CanHostResume())
             {
                 DebugConsole.Log(
@@ -74,9 +69,8 @@ namespace ONI_Together.Networking.OxySync.Components
                 ReadyManager.RefreshScreen();
 
                 // The requesting client already applied the resume to its own screen before
-                // asking (the postfix runs after the original). Re-assert the authoritative
-                // state now instead of letting it run until the next force-sync tick, so the
-                // rejection lands within a round trip rather than up to FORCE_SYNC_INTERVAL.
+                // asking. Re-assert the authoritative state now, so the rejection lands
+                // within a round trip instead of at the next force-sync tick.
                 CallClientRpc(nameof(RpcApplySpeed), (int)_currentState);
                 return;
             }

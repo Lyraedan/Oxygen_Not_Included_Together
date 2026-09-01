@@ -83,12 +83,10 @@ namespace ONI_Together.Networking.Packets.Core
 
 			if (Status == ClientReadyState.Loading)
 			{
-				// Tracked on the base transport, not on one concrete server: every transport
-				// needs the host to keep this client gated until it comes back. Must run
-				// BEFORE the roster lookup - the client sends this immediately before closing
-				// its connection, so it often arrives after the transport already dropped it
-				// from ConnectedPlayers, and requiring a live roster entry here killed the
-				// notice on exactly the path it exists for.
+				// Tracked on the base transport: every transport needs the host to keep this
+				// client gated until it comes back. Must run BEFORE the roster lookup - the
+				// client sends this immediately before closing its connection, so it often
+				// arrives after the transport already dropped it from ConnectedPlayers.
 				NetworkConfig.TransportServer?.MarkClientLoading(SenderId);
 				DebugConsole.Log(
 					$"[ClientReadyStatusPacket] {SenderId} marked as Loading (pending off-roster loads: " +

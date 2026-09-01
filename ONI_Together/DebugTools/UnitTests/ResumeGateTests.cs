@@ -5,10 +5,9 @@ using ONI_Together.Networking.Transport;
 namespace ONI_Together.DebugTools.UnitTests
 {
 	/// <summary>
-	/// Drives the host-side resume gate without needing a second machine or a client that
-	/// happens to be mid-load. A load window lasts a handful of seconds and cannot be timed
-	/// by hand, which is why the host-side prefixes had no coverage at all - so these tests
-	/// fabricate the pending load instead of waiting for one.
+	/// Drives the host-side resume gate without a second machine: a real load window lasts
+	/// seconds and cannot be timed by hand, so these tests fabricate the pending load
+	/// instead of waiting for one.
 	///
 	/// HOST ONLY, and they move the sim: each test records the speed and pause state up
 	/// front and restores it in a finally block, and the fabricated loader is always removed.

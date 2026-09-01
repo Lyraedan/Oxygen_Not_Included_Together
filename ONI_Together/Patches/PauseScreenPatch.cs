@@ -99,14 +99,10 @@ namespace ONI_Together.Patches
 		[HarmonyPatch]
 		public static class ModalPauseScreen_PreventPauses
 		{
-			// Both OnShow overrides that touch the pause stack. KModalButtonMenu (the pause
+			// Both OnShow overrides that touch the pause stack: KModalButtonMenu (the pause
 			// menu's base) does not call KModalScreen.OnShow - it has its own Pause/Unpause
-			// pair - so patching only KModalScreen left the pause menu pausing for real. On the
-			// host that leaked a pause level whenever the menu was closed while the resume gate
-			// was shut: OnShow(false) calls Unpause, the gate prefix blocks it, and the
-			// SpeedControlScreen pauseCount the menu's own Pause had incremented never comes
-			// back down - so when the gate finally opened, ResumeSimAfterReadyScreen's single
-			// unpause left the sim still paused with no indication why.
+			// pair. With only KModalScreen patched, a gate-blocked Unpause plus the menu's
+			// own Pause leaks one SpeedControlScreen pauseCount level per open/close.
 			[UsedImplicitly]
 			static IEnumerable<System.Reflection.MethodBase> TargetMethods()
 			{

@@ -417,13 +417,9 @@ namespace ONI_Together.Networking
 
 		/// <summary>
 		/// CLIENT ONLY, Steamworks - a post-load reconnect died on a route race rather than a
-		/// real refusal; start another attempt. Returns false once the attempts are spent, so
-		/// the caller can fall back to its normal give-up path.
-		///
-		/// Measured: the reconnect after a world load gave up with ProblemDetectedLocally at
-		/// ~31s, while the attempts either side of it reached "fully established" in 15s and
-		/// 25s - Steam had simply not finished finding a route. That one race threw the player
-		/// back to the menu with the host still holding a roster entry for them.
+		/// real refusal; start another attempt. Steam's route setup can outlast the failure
+		/// callback, so one local failure is not a refusal. Returns false once the attempts
+		/// are spent, so the caller can fall back to its normal give-up path.
 		///
 		/// ReconnectFromCache sets HostUserID before it hands off, so the retry can call
 		/// ConnectToHost with no cached info left.

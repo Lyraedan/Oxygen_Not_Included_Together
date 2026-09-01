@@ -252,11 +252,8 @@ namespace ONI_Together.Networking
 			bool canResume = CanHostResume();
 
 			// Whether the host counts itself in ConnectedPlayers differs per transport:
-			// LiteNetLibServer inserts it as ConnectedPlayers[1]; a Steam host is absent from
-			// its own roster (measured - one client connected logs "roster: 1, others: 1").
-			// Raw roster size therefore cannot answer "is anyone else here", and reading it
-			// that way let a Steam host with one client resume alone, never send the all-ready
-			// broadcast, and strand that client on the ready screen.
+			// LiteNetLibServer inserts it as ConnectedPlayers[1]; a Steam host is absent
+			// from its own roster. Raw roster size cannot answer "is anyone else here".
 			int otherPlayers = MultiplayerSession.ConnectedPlayers.Count
 				- (MultiplayerSession.ConnectedPlayers.ContainsKey(MultiplayerSession.HostUserID) ? 1 : 0);
 

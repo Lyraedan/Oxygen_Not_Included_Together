@@ -7,17 +7,12 @@ using UnityEngine;
 namespace ONI_Together.DebugTools.UnitTests
 {
 	/// <summary>
-	/// The HasHostState gate stopped a client building reporting itself as running before the
-	/// host had said anything, which is what was crashing SweepBotStation. That the crash went
-	/// away was verified; that operational status still *displays* correctly afterwards was
-	/// not, and it is the likeliest place for that change to have introduced a regression.
+	/// Owns the HasHostState gate: without host state a client building must not report
+	/// itself as running. Whether that state reaches every building belongs to the delivery
+	/// layer, so coverage is reported rather than asserted.
 	///
-	/// What this branch owns is the gate: without host state a building must not report itself
-	/// as running. Whether that state reaches every building belongs to the delivery layer, so
-	/// the coverage number is reported rather than asserted.
-	///
-	/// CLIENT ONLY, read-only, and worth running a few seconds after the world has settled -
-	/// immediately after a join every building is legitimately still waiting.
+	/// CLIENT ONLY, read-only. Run a few seconds after the world settles - right after a
+	/// join every building is legitimately still waiting.
 	/// </summary>
 	public static class OperationalStateCoverageTests
 	{
@@ -61,9 +56,7 @@ namespace ONI_Together.DebugTools.UnitTests
 				return UnitTestResult.Fail(
 					$"{claimingWithoutState} of {receivers.Length} buildings claim a state the host never sent");
 
-			// Coverage is reported, not asserted. Whether host state reaches every building is
-			// the delivery layer's business, and it was already unreliable before this gate -
-			// the old default of true simply hid it.
+			// Coverage is reported, not asserted - delivery is the delivery layer's business.
 			return UnitTestResult.Pass(
 				$"no building claims unsent state; {withState}/{receivers.Length} have it "
 				+ $"(operational {operational}, functional {functional}, active {active})");

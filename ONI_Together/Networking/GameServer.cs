@@ -71,11 +71,9 @@ namespace ONI_Together.Networking
 			NetworkConfig.TransportServer.Start();
 
 			// Ending a session clears NetworkIdentityRegistry, but the world stays loaded and
-			// no OnSpawn runs again - so hosting a SECOND session on the same world served it
-			// from an empty registry. Measured on a LAN re-host: the previous session ran with
-			// 11,106 entries, the new one at "Count: 0" with 3,500+ NetId lookup failures in
-			// seconds - connected, but nothing entity-based synced. The NetIds themselves are
-			// still on the NetworkIdentity components ([Serialize]), so re-scan the scene.
+			// no OnSpawn runs again - hosting a second session on the same world would serve
+			// it from an empty registry. The NetIds are still on the NetworkIdentity
+			// components ([Serialize]), so re-scan the scene.
 			if (Misc.Utils.IsInGame())
 				NetworkIdentityRegistry.RebuildFromScene();
 

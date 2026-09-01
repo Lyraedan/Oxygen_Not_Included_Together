@@ -81,9 +81,8 @@ namespace ONI_Together.Networking
         /// <summary>
         /// True while the given registration token is still the live transfer for this
         /// client+file. Identity, not key, on purpose: a rejoin re-registers under the SAME
-        /// key, and a key check would let the previous session's zombie coroutine resume the
-        /// moment the client reconnects - measured as two interleaved chunk streams with one
-        /// TransferId, which stalled the client's download for good.
+        /// key, and a key check would let the previous session's zombie coroutine resume
+        /// the moment the client reconnects.
         /// </summary>
         public static bool IsTransferCurrent(object token)
         {
@@ -149,9 +148,8 @@ namespace ONI_Together.Networking
         }
 
         /// <summary>
-        /// HOST ONLY - drop every in-flight transfer. Call when the server stops: nothing else
-        /// ends a transfer whose client never ACKs again, so a shutdown mid-transfer left the
-        /// retry loop sending chunks to a session that no longer existed.
+        /// HOST ONLY - drop every in-flight transfer. Call when the server stops: nothing
+        /// else ends a transfer whose client never ACKs again.
         /// </summary>
         public static void CancelAll()
         {
@@ -224,10 +222,9 @@ namespace ONI_Together.Networking
 
                 PacketSender.SendToPlayer(transfer.ClientID, securePacket);
 
-                // Update send timestamp. Deliberately NOT LastActivity: that must only move on
-                // evidence the CLIENT is alive (an ACK). Refreshing it on our own resend meant
-                // the 2-minute timeout below never fired - a transfer to a dead client resent
-                // forever, measured as 4+ minutes of send attempts after a session had ended.
+                // Update send timestamp. Deliberately NOT LastActivity: that must only move
+                // on evidence the CLIENT is alive (an ACK), or the 2-minute timeout below
+                // never fires and a transfer to a dead client resends forever.
                 transfer.ChunkSentTime[chunkIndex] = System.DateTime.Now;
 
                 DebugConsole.Log($"[TransferManager] Resent chunk {chunkIndex} to {transfer.ClientID}");
