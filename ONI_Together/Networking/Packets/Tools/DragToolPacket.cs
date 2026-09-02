@@ -43,14 +43,10 @@ namespace ONI_Together.Networking.Packets.Tools
 		HashSet<string> currentFilterTargets = [];
 		public Vector3 downPos, upPos;
 		public int cell, distFromOrigin;
-		private PrioritySetting Priority;
 
 		public virtual void Serialize(BinaryWriter writer)
 		{
 			using var _ = Profiler.Scope();
-
-			if (ToolMenu.Instance?.PriorityScreen != null)
-				Priority = ToolMenu.Instance.PriorityScreen.GetLastSelectedPriority();
 
 			if(ToolInstance is FilteredDragTool filteredToolInstance)
 				StoreFilterData(filteredToolInstance);
@@ -75,9 +71,6 @@ namespace ONI_Together.Networking.Packets.Tools
 					writer.Write(upPos.x); writer.Write(upPos.y); writer.Write(upPos.z);
 					break;
 			}
-
-			writer.Write((int)Priority.priority_class);
-			writer.Write(Priority.priority_value);
 		}
 
 		public virtual void Deserialize(BinaryReader reader)
@@ -105,8 +98,6 @@ namespace ONI_Together.Networking.Packets.Tools
 					upPos = new Vector3(reader.ReadSingle(), reader.ReadSingle(), reader.ReadSingle());
 					break;
 			}
-
-			Priority = new PrioritySetting((PriorityScreen.PriorityClass)reader.ReadInt32(), reader.ReadInt32());
 		}
 
 		public virtual void OnDispatched()
@@ -129,20 +120,6 @@ namespace ONI_Together.Networking.Packets.Tools
 					.Select(t => t.name)
 					.ToHashSet(); ;
 				ApplyFilterData(filteredToolInstance, currentFilterTargets);
-			}
-
-			var priorityScreen = ToolMenu.Instance?.PriorityScreen;
-			PrioritySetting prioritySetting = default;
-			bool hasPriorityScreen = priorityScreen != null;
-			if (hasPriorityScreen)
-			{
-				prioritySetting = priorityScreen.lastSelectedPriority;
-				if (MultiplayerSession.IsHost)
-					priorityScreen.lastSelectedPriority = Priority;
-			}
-			else
-			{
-				DebugConsole.LogWarning("[FilteredDragToolPacket] PriorityScreen is null in OnDispatched; applying tool without overriding priority");
 			}
 
 			Vector3 cachedDownPos = ToolInstance.downPos;
@@ -179,8 +156,6 @@ namespace ONI_Together.Networking.Packets.Tools
 					if (n <= 5 || n % 100 == 0)
 						DebugConsole.LogWarning($"[DragTool] ProcessingIncoming restored after exception #{n}");
 				}
-				if (hasPriorityScreen && MultiplayerSession.IsHost)
-					priorityScreen.lastSelectedPriority = prioritySetting;
 
 				if (isFilteredTool)
 					ApplyFilterData(filteredToolInstance, cachedFilters);
