@@ -89,6 +89,7 @@ namespace ONI_Together
 				go.AddComponent<BulkPacketMonitor>();
 				go.AddComponent<LogicStateSyncer>();
 				go.AddComponent<OxySyncManager>();
+				go.AddComponent<ONI_Together.Networking.Synchronization.ResourceSyncer>();
 				go.AddComponent<NetIdActivityTracker>();
 				go.AddComponent<DiscordRichPresence>();
 
