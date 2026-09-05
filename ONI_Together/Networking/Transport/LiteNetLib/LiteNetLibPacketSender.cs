@@ -61,6 +61,8 @@ namespace ONI_Together.Networking.Transport.Lan
         /// <summary>
         /// LiteNetLib orders reliable packets per channel, so a second channel is a lane the
         /// world stream cannot block. Both server and client open four (ChannelsCount = 4).
+        /// Unreliable sends ignore the channel number; they never queue behind reliable
+        /// traffic anyway.
         /// </summary>
         private const byte DefaultChannel = 0;
         private const byte PriorityChannel = 1;
