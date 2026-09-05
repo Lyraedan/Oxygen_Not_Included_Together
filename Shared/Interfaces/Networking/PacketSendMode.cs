@@ -56,6 +56,19 @@ namespace ONI_Together.Networking
         /// Sends the packet reliably and flushes it immediately,
         /// bypassing buffering to reduce latency.
         /// </summary>
-        ReliableImmediate = Reliable | Immediate
+        ReliableImmediate = Reliable | Immediate,
+
+        /// <summary>
+        /// Carry the packet on the transport's control lane, apart from the ordered world
+        /// traffic (LiteNetLib: channel 1 instead of 0). A reliable packet on the default
+        /// channel is delivered after everything queued before it, and with the world
+        /// stream minutes deep that is where hard-sync, ready, pause and clock packets sat.
+        /// Other transports ignore the flag.
+        /// </summary>
+        Priority = 16,
+
+        ReliablePriority = Reliable | Priority,
+
+        ReliableImmediatePriority = Reliable | Immediate | Priority
     }
 }

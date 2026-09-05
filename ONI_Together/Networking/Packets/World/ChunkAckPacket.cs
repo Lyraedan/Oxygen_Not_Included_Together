@@ -11,7 +11,7 @@ namespace ONI_Together.Networking.Packets.World
     /// Client sends ACK to confirm that it received a specific chunk
     /// Server uses this to detect lost chunks and resend only the necessary ones
     /// </summary>
-    public class ChunkAckPacket : IPacket, IAllowedWithoutWorldPacket
+    public class ChunkAckPacket : IPacket, IPriorityPacket, IAllowedWithoutWorldPacket
     {
         public int SequenceNumber;       // ID of chunk that was received (0, 1, 2, 3...)
         public string TransferId;        // Transfer ID (same as SecureTransferPacket)
