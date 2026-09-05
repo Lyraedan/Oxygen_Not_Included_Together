@@ -1,4 +1,4 @@
-﻿using ONI_Together.Misc;
+using ONI_Together.Misc;
 using ONI_Together.Networking;
 using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.UI.Components;
@@ -27,10 +27,23 @@ namespace ONI_Together.UI
 		public static void DestroyInstance()
 		{
 			Instance = null;
+			ChatToggle = null;
 		}
 
+		public override void OnCleanUp()
+		{
+			Instance = null;
+			ChatToggle = null;
+			base.OnCleanUp();
+		}
 
 		public static MultiToggle ChatToggle = null;
+
+		public static bool IsToggleValid()
+		{
+			return ChatToggle != null && ChatToggle.gameObject != null && ChatToggle.states != null && ChatToggle.states.Length > 0;
+		}
+
 		public UnityChatBoxUI() : base()
 		{
 			ConsumeMouseScroll = true;
@@ -52,22 +65,32 @@ namespace ONI_Together.UI
 		
 		public static void InitToggle()
 		{
-			ChatToggle?.onClick = () => OnToggleClicked();
-			ChatToggle?.ChangeState(0);
+			if (IsToggleValid())
+			{
+				ChatToggle.onClick = () => OnToggleClicked();
+				try
+				{
+					ChatToggle.ChangeState(0);
+				}
+				catch { }
+			}
 		}
 
 		static void OnToggleClicked()
 		{
+			if (!IsToggleValid()) return;
+
 			if (!MultiplayerSession.InActiveSession)
 			{
 				KMonoBehaviour.PlaySound(GlobalAssets.GetSound("Negative"));
-				ChatToggle.ChangeState(0);
+				try { ChatToggle.ChangeState(0); } catch { }
 				return;
 			}
 			else
 			{
 				InitScreen();
-				Instance.Show(ChatToggle.state == 1);
+				if (Instance != null && IsToggleValid())
+					Instance.Show(ChatToggle.state == 1);
 			}
 		}
 
@@ -75,17 +98,27 @@ namespace ONI_Together.UI
 		{
 			if (Instance == null)
 			{
-				Instance = Util.KInstantiateUI<UnityChatBoxUI>(ModAssets.MP_Chatbox, GameObject.Find("ScreenSpaceOverlayCanvas"), true);
+				var parentCanvas = GameObject.Find("ScreenSpaceOverlayCanvas");
+				if (parentCanvas == null)
+					return;
+
+				Instance = Util.KInstantiateUI<UnityChatBoxUI>(ModAssets.MP_Chatbox, parentCanvas, true);
+				if (Instance == null)
+					return;
+
 				//under build menu, above notifications
 				Instance.transform.SetSiblingIndex(4);
 				Instance.Init();
 
-				Game.Instance.Subscribe(MP_HASHES.OnInSessionChanged, OnSessionChanged);
+				Game.Instance?.Subscribe(MP_HASHES.OnInSessionChanged, OnSessionChanged);
 				//Game.Instance.Subscribe(MP_HASHES.GameClient_OnConnectedInGame, ShowOnNewSession);
 				//Game.Instance.Subscribe(MP_HASHES.GameServer_OnServerStarted, ShowOnNewSession);
 				//Game.Instance.Subscribe(MP_HASHES.OnDisconnected, HideOnDisconnect);
 				Instance.Show(false);
-				ChatToggle?.ChangeState(0);
+				if (IsToggleValid())
+				{
+					try { ChatToggle.ChangeState(0); } catch { }
+				}
 			}
 		}
 
@@ -368,7 +401,15 @@ namespace ONI_Together.UI
 				state = 2;
 			else if (MultiplayerSession.InActiveSession)
 				state = 1;
-			ChatToggle?.ChangeState(state);
+
+			if (IsToggleValid() && state < ChatToggle.states.Length)
+			{
+				try
+				{
+					ChatToggle.ChangeState(state);
+				}
+				catch { }
+			}
 		}
 
 		private void SaveChatWindowSize()

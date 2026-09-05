@@ -19,7 +19,6 @@ using static DistributionPlatform;
 using Epic.OnlineServices;
 using PeterHan.PLib.Core;
 using PeterHan.PLib.Options;
-using ONI_Together.Integrations;
 using ONI_Together.Networking.OxySync.Components;
 using System.Linq;
 using System.Threading;
@@ -274,30 +273,7 @@ namespace ONI_Together
 
         public static void InitializeAllIntegrations()
         {
-            var integrationType = typeof(Integration);
-
-            var assembly = integrationType.Assembly;
-
-            var integrations = assembly
-                .GetTypes()
-                .Where(t =>
-                    t != null &&
-                    !t.IsAbstract &&
-                    integrationType.IsAssignableFrom(t))
-                .ToList();
-
-            foreach (var type in integrations)
-            {
-                try
-                {
-                    var instance = (Integration)Activator.CreateInstance(type);
-                    instance.Initialize();
-                }
-                catch (Exception e)
-                {
-                    Console.WriteLine($"[IntegrationLoader] Failed to init {type.Name}: {e}");
-                }
-            }
+            // Integrations API removed - was unused (0 implementations). Keep as no-op for compatibility.
         }
     }
 }

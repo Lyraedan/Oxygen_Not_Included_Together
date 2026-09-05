@@ -190,4 +190,3 @@ public class PlayAnimPacket : IPacket
 
 	}
 }
-

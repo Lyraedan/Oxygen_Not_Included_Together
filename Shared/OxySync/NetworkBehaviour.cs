@@ -17,21 +17,23 @@ namespace Shared.OxySync
         public static Func<bool>? IsClientQuery;
         public static Func<bool>? InSessionQuery;
 
-        public static Func<int, int, byte[], int, bool>? SendCommandToHost;
-        public static Func<int, int, byte[], int, bool>? SendClientRpcToAll;
-        public static Func<int, int, int, byte[], int, bool>? SendClientRpcToGroup;
-        public static Func<ulong, int, int, byte[], int, bool>? SendTargetRpcToPlayer;
+        public static Func<int, int, int, byte[], int, bool>? SendCommandToHost;
+        public static Func<int, int, int, byte[], int, bool>? SendClientRpcToAll;
+        public static Func<int, int, int, int, byte[], int, bool>? SendClientRpcToGroup;
+        public static Func<ulong, int, int, int, byte[], int, bool>? SendTargetRpcToPlayer;
 
         public static Func<NetworkBehaviour, int>? NetIdQuery;
         public static Action<NetworkBehaviour, int>? NetIdSetter;
         public static Action<string>? LogWarning;
         public static Func<ulong>? LocalUserIdQuery;
 
+        private static readonly Dictionary<Type, int> BehaviourIdCache = new();
+
         private List<SyncVarField>? _syncVarFields;
         private Dictionary<int, CachedMethod>? _commandMethods;
         private Dictionary<int, CachedMethod>? _clientRpcMethods;
         private Dictionary<int, CachedMethod>? _targetRpcMethods;
-        private uint _syncVarDirtyBits;
+        private ulong _syncVarDirtyBits;
         private Dictionary<int, int>? _syncVarHashToIndex;
 
         protected bool isServer => IsHostQuery?.Invoke() ?? false;
@@ -48,6 +50,7 @@ namespace Shared.OxySync
         public float _lastSyncTime;
         public float _lastActiveSyncTime;
         public int InterestGroup { get; set; } = -1;
+        public int BehaviourId { get; set; } = -1;
 
         public IReadOnlyList<SyncVarField> SyncVarFields =>
             _syncVarFields ?? (IReadOnlyList<SyncVarField>)Array.Empty<SyncVarField>();
@@ -85,9 +88,18 @@ namespace Shared.OxySync
         public override void OnSpawn()
         {
             base.OnSpawn();
+            BehaviourId = ResolveBehaviourId(GetType());
             DiscoverSyncVars();
             DiscoverRpcs();
             OnSpawned?.Invoke(this);
+        }
+
+        private static int ResolveBehaviourId(Type type)
+        {
+            if (BehaviourIdCache.TryGetValue(type, out int id)) return id;
+            id = (type.FullName ?? type.Name).GetHashCode();
+            BehaviourIdCache[type] = id;
+            return id;
         }
 
         public override void OnCleanUp()
@@ -140,6 +152,9 @@ namespace Shared.OxySync
             }
 
             _syncVarFields = list;
+
+            if (list.Count > 64)
+                throw new InvalidOperationException($"[OxySync] {GetType().Name} declares {list.Count} [SyncVar] fields; the limit is 64.");
 
             _syncVarHashToIndex = new Dictionary<int, int>();
             for (int i = 0; i < list.Count; i++)
@@ -258,7 +273,7 @@ namespace Shared.OxySync
             }
 
             var sendMode = GetCommandSendMode(hash);
-            SendCommandToHost?.Invoke(NetId, hash, serialized, sendMode);
+            SendCommandToHost?.Invoke(NetId, BehaviourId, hash, serialized, sendMode);
         }
 
         protected void CallCommand(Expression<Action> expr)
@@ -307,9 +322,9 @@ namespace Shared.OxySync
             if (group == -1) group = InterestGroup;
             var sendMode = GetClientRpcSendMode(hash);
             if (group == -1)
-                SendClientRpcToAll?.Invoke(NetId, hash, serialized, sendMode);
+                SendClientRpcToAll?.Invoke(NetId, BehaviourId, hash, serialized, sendMode);
             else
-                SendClientRpcToGroup?.Invoke(group, NetId, hash, serialized, sendMode);
+                SendClientRpcToGroup?.Invoke(group, NetId, BehaviourId, hash, serialized, sendMode);
 
             if (GetClientRpcIncludeHost(hash))
                 InvokeClientRpc(hash, serialized);
@@ -343,9 +358,9 @@ namespace Shared.OxySync
 
             var sendMode = GetClientRpcSendMode(hash);
             if (interestGroup == -1)
-                SendClientRpcToAll?.Invoke(NetId, hash, serialized, sendMode);
+                SendClientRpcToAll?.Invoke(NetId, BehaviourId, hash, serialized, sendMode);
             else
-                SendClientRpcToGroup?.Invoke(interestGroup, NetId, hash, serialized, sendMode);
+                SendClientRpcToGroup?.Invoke(interestGroup, NetId, BehaviourId, hash, serialized, sendMode);
 
             if (GetClientRpcIncludeHost(hash))
                 InvokeClientRpc(hash, serialized);
@@ -378,7 +393,7 @@ namespace Shared.OxySync
             var serialized = RpcSerializer.Serialize(args, argTypes);
 
             var sendMode = GetTargetRpcSendMode(hash);
-            SendTargetRpcToPlayer?.Invoke(targetPlayer, NetId, hash, serialized, sendMode);
+            SendTargetRpcToPlayer?.Invoke(targetPlayer, NetId, BehaviourId, hash, serialized, sendMode);
         }
 
         protected void CallTargetRpc(ulong targetPlayer, Expression<Action> expr)
@@ -544,7 +559,7 @@ namespace Shared.OxySync
                 var updated = field;
                 updated.LastSentValue = value;
                 _syncVarFields[i] = updated;
-                SetSyncVarDirty(fieldHash);
+                MarkSyncVarAsDirty(fieldHash);
                 return;
             }
         }
@@ -559,24 +574,36 @@ namespace Shared.OxySync
                 _syncVarFields[i] = field;
             }
         }
-
-        protected void SetSyncVarDirty(int fieldHash)
+        
+        /// <summary>
+        ///  Flags a specific field hash as dirty
+        /// </summary>
+        /// <param name="fieldHash"></param>
+        protected void MarkSyncVarAsDirty(int fieldHash)
         {
             if (_syncVarHashToIndex != null && _syncVarHashToIndex.TryGetValue(fieldHash, out int idx))
-                _syncVarDirtyBits |= 1u << idx;
+                _syncVarDirtyBits |= 1UL << idx;
         }
 
-        public uint GetAndClearDirtyBits()
+        public ulong GetAndClearDirtyBits()
         {
-            uint bits = _syncVarDirtyBits;
+            ulong bits = _syncVarDirtyBits;
             _syncVarDirtyBits = 0;
             return bits;
         }
 
+        /// <summary>
+        /// Current 64-bit SyncVar dirty mask; bit i = SyncVar index i (0-63).
+        /// Read-only — the mask is consumed and cleared by the sync manager each tick
+        /// via <see cref="GetAndClearDirtyBits"/>, so this is the state pending since
+        /// the last sync.
+        /// </summary>
+        public ulong SyncVarDirtyBits => _syncVarDirtyBits;
+
         public void MarkAllDirty()
         {
             if (_syncVarFields != null)
-                _syncVarDirtyBits = _syncVarFields.Count < 32 ? (1u << _syncVarFields.Count) - 1 : ~0u;
+                _syncVarDirtyBits = _syncVarFields.Count < 64 ? (1UL << _syncVarFields.Count) - 1 : ulong.MaxValue;
         }
     }
 }

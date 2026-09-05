@@ -30,6 +30,9 @@ namespace ONI_Together.Patches.World
             {
                 //EnergyGeneratorSyncer egenSyncer = __instance.gameObject.AddOrGet<EnergyGeneratorSyncer>();
                 __instance.gameObject.AddOrGet<EnergyGeneratorSyncer>();
+				// Fuel is real Storage state, not only a visual percentage. Replicating the
+				// storage also fixes the amount shown by generator details side screens.
+				__instance.gameObject.AddOrGet<StorageSyncer>();
                 return;
             }
 
@@ -54,6 +57,7 @@ namespace ONI_Together.Patches.World
             const string name = nameof(KMonoBehaviour.OnSpawn);
             yield return AccessTools.Method(typeof(StorageLocker), name);
             yield return AccessTools.Method(typeof(RationBox), name);
+			yield return AccessTools.Method(typeof(Refrigerator), name);
             yield return AccessTools.Method(typeof(CargoBay), name);
             yield return AccessTools.Method(typeof(CargoBayCluster), name);
             //yield return AccessTools.Method(typeof(LiquidReservoir), name); // LiquidReservoir needs its actual class setting here
@@ -110,6 +114,10 @@ namespace ONI_Together.Patches.World
         public static void Postfix(Growing __instance)
         {
             using var _ = Profiler.Scope();
+
+			var identity = __instance.gameObject.AddOrGet<NetworkIdentity>();
+			identity.RegisterIdentity();
+			__instance.gameObject.AddOrGet<AnimStateSyncer>().EnsureRegistered();
             __instance.gameObject.AddOrGet<PlantSyncer>();
         }
     }

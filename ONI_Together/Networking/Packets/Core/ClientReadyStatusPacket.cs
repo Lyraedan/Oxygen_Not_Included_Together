@@ -1,4 +1,4 @@
-﻿using ONI_Together.DebugTools;
+using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.States;
@@ -66,7 +66,7 @@ namespace ONI_Together.Networking.Packets.Core
 				}
 				else
 				{
-					var client = NetworkConfig.TransportClient as RiptideClient;
+					var client = NetworkConfig.TransportClient as LiteNetLibClient;
 					bool isLoading = client != null && SenderId == MultiplayerSession.LocalUserID && client.IsLoadingReconnect;
 					if (isLoading)
 					{
@@ -92,7 +92,7 @@ namespace ONI_Together.Networking.Packets.Core
 
 			if (Status == ClientReadyState.Loading)
 			{
-				var server = NetworkConfig.TransportServer as RiptideServer;
+				var server = NetworkConfig.TransportServer as LiteNetLibServer;
 				server?.MarkClientLoading(SenderId);
 				return;
 			}
@@ -108,7 +108,7 @@ namespace ONI_Together.Networking.Packets.Core
 
 			if (NetworkConfig.IsLanConfig() && nameChanged)
 			{
-				var server = NetworkConfig.TransportServer as RiptideServer;
+				var server = NetworkConfig.TransportServer as LiteNetLibServer;
 				bool isLoadingReconnect = server != null && server.ConsumeReconnectFromLoad(SenderId);
 
 				if (!isLoadingReconnect)

@@ -26,6 +26,12 @@ namespace ONI_Together.Misc
 		public static int MaxSteamNetworkingSocketsMessageSizeSend = 512 * 1024;
 
 		/// <summary>
+		/// Maximum length of a player name sent over the network / shown in UI.
+		/// Longer names are truncated with a "..." suffix.
+		/// </summary>
+		public const int MaxLocalPlayerNameLength = 16;
+
+		/// <summary>
 		/// Force quites the game without the Klei metrics that can cause crashes
 		/// </summary>
 		public static void ForceQuitGame()
@@ -386,11 +392,33 @@ namespace ONI_Together.Misc
         {
 	        using var _ = Profiler.Scope();
 
-            if (SteamManager.Initialized)
+            string name;
+            if (NetworkConfig.IsLanConfig())
             {
-                return Steamworks.SteamFriends.GetPersonaName();
+                string displayName = Configuration.Instance.Host.LanSettings.DisplayName;
+                name = !string.IsNullOrWhiteSpace(displayName) ? displayName : $"Player {NetworkConfig.GetLocalID()}";
             }
-            return $"Player {NetworkConfig.GetLocalID()}";
+            else if (SteamManager.Initialized)
+            {
+                name = Steamworks.SteamFriends.GetPersonaName();
+            }
+            else
+            {
+                name = $"Player {NetworkConfig.GetLocalID()}";
+            }
+            return TruncateLocalPlayerName(name);
+        }
+
+        public static string TruncateLocalPlayerName(string name)
+        {
+            if (string.IsNullOrEmpty(name) || name.Length <= MaxLocalPlayerNameLength)
+                return name;
+
+            int end = MaxLocalPlayerNameLength - 3;
+            if (char.IsHighSurrogate(name[end - 1]))
+                end--;
+
+            return name.Substring(0, end) + "...";
         }
 
         public static ulong NilUlong()

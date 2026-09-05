@@ -17,10 +17,10 @@ using ONI_Together.Misc;
 using Shared.Profiling;
 using System.Text;
 using ONI_Together.Patches.ToolPatches;
-using ONI_Together.Tests;
+using ONI_Together.Networking.Transport;
 using ONI_Together.Networking.Transport.Lan;
+using ONI_Together.Tests;
 using static STRINGS.BUILDINGS.PREFABS;
-using Riptide;
 using Steamworks;
 using ONI_Together.Networking.Transport.Steamworks;
 using ONI_Together.Networking.OxySync;
@@ -49,7 +49,7 @@ namespace ONI_Together.DebugTools
 
         // Network transport
         private int selectedTransportType = 0; // 0 = Steam, 1 = LAN
-        private int selectedLanType = 0; // 0 = Riptide, 1 = LiteNetLib
+        private int selectedLanType = 0; // 0 = LiteNetLib
         private string hostIP = "";
         private int hostPort = 7777;
         private string clientIP = "";
@@ -73,6 +73,8 @@ namespace ONI_Together.DebugTools
         private string[] _oxySyncWorldOptions = new[] { "All", "Group -1 (Broadcast)" };
         private int[] _oxySyncWorldIds = new[] { -2, -1 };
         private bool _oxySyncShowSyncingOnly = false;
+        private int _oxySyncNetIdPage = 0;
+        private const int OxySyncNetIdPageSize = 100;
 
         // Independent popout windows
         private struct PopoutWindow
@@ -108,6 +110,7 @@ namespace ONI_Together.DebugTools
             OnUninit += () => UnInit();
 
             selectedTransportType = Configuration.Instance.Host.NetworkTransport;
+            selectedLanType = (int)Configuration.Instance.Host.LanSettings.Transport - 1;
             hostIP = Configuration.Instance.Host.LanSettings.Ip;
             hostPort = Configuration.Instance.Host.LanSettings.Port;
             settings_host.Ip = hostIP;
@@ -288,7 +291,7 @@ namespace ONI_Together.DebugTools
                     if (ImGui.Button("Leave Lobby"))
                         SteamLobby.LeaveLobby();
                     break;
-                case NetworkConfig.NetworkTransport.RIPTIDE:
+                case NetworkConfig.NetworkTransport.LITENETLIB:
                     if (ImGui.Button("Start Lan"))
                     {
                         MultiplayerSession.Clear();
@@ -319,6 +322,7 @@ namespace ONI_Together.DebugTools
                         MultiplayerSession.Clear();
 
                         SelectToolPatch.UpdateColor();
+                        Game.Instance.Trigger(MP_HASHES.OnDisconnected);
                     }
                     break;
                 default:
@@ -391,11 +395,6 @@ namespace ONI_Together.DebugTools
         {
             using var _ = Profiler.Scope();
 
-            if (ImGui.Button("Riptide Smoke Test"))
-            {
-                RiptideSmokeTest.Run();
-            }
-            ImGui.SameLine();
             if (ImGui.Button("Start Current Config Server"))
             {
                 NetworkConfig.TransportServer.Start();
@@ -608,8 +607,8 @@ namespace ONI_Together.DebugTools
                 case NetworkConfig.NetworkTransport.STEAMWORKS:
                     SteamworksPlayerList();
                     break;
-                case NetworkConfig.NetworkTransport.RIPTIDE:
-                    RiptidePlayerList();
+                case NetworkConfig.NetworkTransport.LITENETLIB:
+                    LiteNetLibPlayerList();
                     break;
             }
         }
@@ -621,7 +620,7 @@ namespace ONI_Together.DebugTools
             var players = SteamLobby.GetAllLobbyMembers();
             string self = $"[You] {SteamFriends.GetPersonaName()} | {MultiplayerSession.LocalUserID}";
 
-            RiptideServer server = null;
+            TransportServer server = null;
 
             foreach (CSteamID player in players)
             {
@@ -658,21 +657,21 @@ namespace ONI_Together.DebugTools
                     ImGui.SameLine();
                     if (ImGui.Button($"Kick##{player.m_SteamID}")) // ensure unique ID
                     {
-                        server = NetworkConfig.GetTransportServer() as RiptideServer;
+                        server = NetworkConfig.GetTransportServer();
                         server?.KickClient(player.m_SteamID);
                     }
                 }
             }
         }
 
-        void RiptidePlayerList()
+        void LiteNetLibPlayerList()
         {
             using var _ = Profiler.Scope();
 
             if(MultiplayerSession.IsHost)
             {
                 var players = MultiplayerSession.ConnectedPlayers;
-                var server = NetworkConfig.GetTransportServer() as RiptideServer;
+                var server = NetworkConfig.GetTransportServer() as LiteNetLibServer;
 
                 foreach (var player in players)
                 {
@@ -680,7 +679,7 @@ namespace ONI_Together.DebugTools
                     {
                         if (ImGui.Button("Kick"))
                         {
-                            server.KickClient(player.Value.PlayerId);
+                            server?.KickClient(player.Value.PlayerId);
                         }
                         ImGui.SameLine();
                         ImGui.Text($"{player.Value.PlayerName}");
@@ -692,8 +691,7 @@ namespace ONI_Together.DebugTools
             }
             else if(MultiplayerSession.IsClient)
             {
-                var client = NetworkConfig.GetTransportClient() as RiptideClient;
-                var players = client.ClientList;
+                var players = MultiplayerSession.ConnectedPlayers.Keys;
                 foreach(ulong player in players)
                 {
                     if(player == MultiplayerSession.LocalUserID)
@@ -833,8 +831,9 @@ namespace ONI_Together.DebugTools
 
             ImGui.Text("Network Transport Settings");
 
-            string[] display_options = new string[] { "Steam", "LAN/Riptide" };
-            ImGui.Text($"Currently used transport: {display_options[(int)NetworkConfig.transport]}");
+            string[] display_options = new string[] { "Steam", "LAN (LiteNetLib)" };
+            int currentTransportIndex = Mathf.Clamp((int)NetworkConfig.transport, 0, display_options.Length - 1);
+            ImGui.Text($"Currently used transport: {display_options[currentTransportIndex]}");
 
             string[] options = new string[] { "Steam", "LAN" };
             // Dropdown for Steam/LAN
@@ -846,7 +845,7 @@ namespace ONI_Together.DebugTools
                 ImGui.Indent();
                 ImGui.Separator();
 
-                string[] lan_options = new string[] { "Riptide" };
+                string[] lan_options = new string[] { "LiteNetLib (UDP)", "Riptide" };
                 ImGui.Combo("Lan Type", ref selectedLanType, lan_options, lan_options.Length);
                 ImGui.Separator();
 
@@ -875,17 +874,16 @@ namespace ONI_Together.DebugTools
                 Configuration.Instance.Client.LanSettings.Ip = clientIP;
                 Configuration.Instance.Client.LanSettings.Port = clientPort;
 
-                NetworkConfig.NetworkTransport selected_transport = NetworkConfig.NetworkTransport.STEAMWORKS;
-                if (selectedTransportType == 0)
-                {
-                    selected_transport = NetworkConfig.NetworkTransport.STEAMWORKS;
-                }
-                else
-                {
-                    selected_transport = NetworkConfig.NetworkTransport.RIPTIDE;
-                }
+                NetworkConfig.NetworkTransport selected_transport = selectedTransportType == 0
+                    ? NetworkConfig.NetworkTransport.STEAMWORKS
+                    : (NetworkConfig.NetworkTransport)(selectedLanType + 1);
+
                 Configuration.Instance.Host.NetworkTransport = (int)selected_transport;
-                NetworkConfig.UpdateTransport(selected_transport);
+                Configuration.Instance.Host.LanSettings.Transport = (LanTransportType)(selectedLanType + 1);
+                if (selectedTransportType == 1)
+                    NetworkConfig.UpdateLanTransport();
+                else
+                    NetworkConfig.UpdateTransport(selected_transport);
                 Configuration.Instance.Save();
             }
         }
@@ -1026,13 +1024,15 @@ namespace ONI_Together.DebugTools
                 if (hasTextFilter)
                 {
                     string netIdStr = b.NetId.ToString();
+                    string behaviourIdStr = b.BehaviourId.ToString();
                     string groupStr = b.InterestGroup.ToString();
                     string goName = b.gameObject?.name ?? "?";
                     bool matchesType = typeName.IndexOf(_oxySyncFilter, StringComparison.OrdinalIgnoreCase) >= 0;
                     bool matchesId = netIdStr.IndexOf(_oxySyncFilter, StringComparison.OrdinalIgnoreCase) >= 0;
+                    bool matchesBehaviourId = behaviourIdStr.IndexOf(_oxySyncFilter, StringComparison.OrdinalIgnoreCase) >= 0;
                     bool matchesGroup = groupStr.IndexOf(_oxySyncFilter, StringComparison.OrdinalIgnoreCase) >= 0;
                     bool matchesName = goName.IndexOf(_oxySyncFilter, StringComparison.OrdinalIgnoreCase) >= 0;
-                    if (!matchesType && !matchesId && !matchesGroup && !matchesName) continue;
+                    if (!matchesType && !matchesId && !matchesBehaviourId && !matchesGroup && !matchesName) continue;
                 }
 
                 if (_oxySyncShowSyncingOnly && MultiplayerSession.IsHost &&
@@ -1069,8 +1069,16 @@ namespace ONI_Together.DebugTools
 
                 ImGui.BeginChild("OxySyncNetIdList", new Vector2(0, 0), true);
 
-                foreach (int netId in sortedNetIds)
+                int totalGroups = sortedNetIds.Count;
+                int totalPages = Mathf.Max(1, (totalGroups + OxySyncNetIdPageSize - 1) / OxySyncNetIdPageSize);
+                _oxySyncNetIdPage = Mathf.Clamp(_oxySyncNetIdPage, 0, totalPages - 1);
+
+                int startIdx = _oxySyncNetIdPage * OxySyncNetIdPageSize;
+                int endIdx = Mathf.Min(startIdx + OxySyncNetIdPageSize, totalGroups);
+
+                for (int g = startIdx; g < endIdx; g++)
                 {
+                    int netId = sortedNetIds[g];
                     var group = netIdGroups[netId];
                     var first = group[0];
                     string goName = first.gameObject?.name ?? "?";
@@ -1102,6 +1110,14 @@ namespace ONI_Together.DebugTools
                     }
                 }
 
+                ImGui.Separator();
+                ImGui.Text($"Page {_oxySyncNetIdPage + 1} / {totalPages} ({totalGroups} NetIds)");
+                if (ImGui.Button("◀ Prev") && _oxySyncNetIdPage > 0)
+                    _oxySyncNetIdPage--;
+                ImGui.SameLine();
+                if (ImGui.Button("Next ▶") && _oxySyncNetIdPage < totalPages - 1)
+                    _oxySyncNetIdPage++;
+
                 ImGui.EndChild();
 
                 ImGui.TableSetColumnIndex(1);
@@ -1118,7 +1134,7 @@ namespace ONI_Together.DebugTools
                     {
                         string typeName = b.GetType().Name;
                         string goName = b.gameObject?.name ?? "?";
-                        string label = $"{typeName}";
+                        string label = $"{typeName}  (BehaviourId: {b.BehaviourId})";
                         bool isSelected = b == _selectedBehaviour;
 
                         if (MultiplayerSession.IsHost && (Time.unscaledTime - b._lastActiveSyncTime) <= 2f)
@@ -1192,7 +1208,7 @@ namespace ONI_Together.DebugTools
         {
             string goName = behaviour.gameObject?.name ?? "?";
             ImGui.TextColored(new Vector4(1f, 1f, 0.3f, 1f),
-                $"{behaviour.GetType().Name}  (NetId: {behaviour.NetId}, Sync: {behaviour.SyncInterval:F2}s)  [{goName}]");
+                $"{behaviour.GetType().Name}  (NetId: {behaviour.NetId}, BehaviourId: {behaviour.BehaviourId}, Sync: {behaviour.SyncInterval:F2}s)  [{goName}]");
 
             if (MultiplayerSession.IsHost)
             {
@@ -1239,6 +1255,48 @@ namespace ONI_Together.DebugTools
             ImGui.Separator();
 
             var syncVars = behaviour.SyncVarFields;
+
+            ulong dirtyMask = behaviour.SyncVarDirtyBits;
+            int dirtyCount = 0;
+            for (int b = 0; b < 64; b++)
+                if ((dirtyMask & (1UL << b)) != 0) dirtyCount++;
+
+            ImGui.Spacing();
+            ImGui.TextColored(new Vector4(1f, 0.8f, 0.3f, 1f),
+                $"Dirty Mask: 0x{dirtyMask:X16}  ({dirtyCount} / {syncVars.Count} dirty)");
+            ImGui.TextDisabled("Bit i = SyncVar index i. Cleared each sync tick.");
+
+            ImGui.Spacing();
+            for (int bit = 0; bit < 64; bit++)
+            {
+                bool isDirty = (dirtyMask & (1UL << bit)) != 0;
+                bool registered = bit < syncVars.Count;
+                var color = isDirty
+                    ? new Vector4(1f, 0.3f, 0.2f, 1f)
+                    : registered
+                        ? new Vector4(0.3f, 1f, 0.3f, 1f)
+                        : new Vector4(0.45f, 0.45f, 0.45f, 0.5f);
+
+                ImGui.PushID($"dirtybit_{bit}");
+                ImGui.TextColored(color, $"{bit:D2}");
+                if (ImGui.IsItemHovered())
+                {
+                    string fieldName = registered ? syncVars[bit].Info.Name : "unregistered";
+                    ImGui.SetTooltip($"Bit {bit}: {(isDirty ? "DIRTY" : "clean")}\n{fieldName}");
+                }
+                ImGui.PopID();
+
+                if ((bit % 8) != 7)
+                    ImGui.SameLine();
+            }
+
+            ImGui.Spacing();
+            if (ImGui.SmallButton("Mark All Dirty"))
+                behaviour.MarkAllDirty();
+            ImGui.SameLine();
+            ImGui.TextDisabled("(consumed on next sync tick)");
+            ImGui.Separator();
+
             if (syncVars.Count > 0)
             {
                 ImGui.TextColored(new Vector4(0.3f, 1f, 0.3f, 1f), "SyncVars:");
@@ -1254,6 +1312,12 @@ namespace ONI_Together.DebugTools
 
                     ImGui.PushID($"detail_syncvar_{i}");
                     ImGui.Text($"{field.Info.Name}{groupLabel} ({typeName}): {valueStr}");
+                    ImGui.SameLine();
+
+                    bool isDirty = (behaviour.SyncVarDirtyBits & (1UL << i)) != 0;
+                    ImGui.TextColored(
+                        isDirty ? new Vector4(1f, 0.3f, 0.2f, 1f) : new Vector4(0.4f, 0.6f, 0.4f, 1f),
+                        isDirty ? $"● dirty (bit {i})" : $"○ clean (bit {i})");
                     ImGui.SameLine();
 
                     if (field.Info.FieldType == typeof(bool))

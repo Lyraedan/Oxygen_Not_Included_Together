@@ -28,6 +28,7 @@ namespace ONI_Together.Networking.Components
 		private const long QueueTimeBackoffUsec = 100000;
 
 		private static readonly HashSet<AnimStateSyncer> TrackedSyncers = [];
+		private static readonly HashSet<AnimStateSyncer> PendingAnimationChanges = [];
 
 		public static AnimSyncCoordinator Instance { get; private set; }
 
@@ -74,8 +75,15 @@ namespace ONI_Together.Networking.Components
 			if (syncer != null)
 			{
 				TrackedSyncers.Remove(syncer);
+				PendingAnimationChanges.Remove(syncer);
 				Instance?._syncStates.Remove(syncer);
 			}
+		}
+
+		public static void NotifyAnimationChanged(AnimStateSyncer syncer)
+		{
+			if (syncer != null)
+				PendingAnimationChanges.Add(syncer);
 		}
 
 		public static List<AnimStateSyncer> GetTrackedSyncers()
@@ -137,6 +145,7 @@ namespace ONI_Together.Networking.Components
 			using var _ = Profiler.Scope();
 
 			ProcessPendingRequests();
+			ProcessPendingAnimationChanges();
 
 			var trackedSyncers = GetTrackedSyncers();
 			if (trackedSyncers.Count == 0)
@@ -156,6 +165,31 @@ namespace ONI_Together.Networking.Components
 			_currentShard = (_currentShard + 1) % ShardCount;
 
 			MaybeLogStats(Time.unscaledTime);
+		}
+
+		private void ProcessPendingAnimationChanges()
+		{
+			if (PendingAnimationChanges.Count == 0)
+				return;
+
+			var changed = new List<AnimStateSyncer>(PendingAnimationChanges);
+			PendingAnimationChanges.Clear();
+			float now = Time.unscaledTime;
+
+			foreach (var syncer in changed)
+			{
+				if (syncer == null || !syncer.EnsureRegistered())
+					continue;
+				if (!syncer.TryBuildSnapshot(out var packet, out var activityKey))
+					continue;
+
+				UpdateObservedState(syncer, activityKey, now);
+				if (!TryCollectVisibleRecipients(syncer))
+					continue;
+
+				SendSnapshotToVisibleClients(packet, syncer, now);
+				_sendsActivity++;
+			}
 		}
 
 		private void ProcessPendingRequests()

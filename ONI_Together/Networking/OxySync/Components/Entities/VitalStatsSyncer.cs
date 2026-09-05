@@ -12,6 +12,7 @@ using UnityEngine;
 
 namespace ONI_Together.Networking.OxySync.Components
 {
+    [FixedInterestGroup]
     public class VitalStatsSyncer : NetworkBehaviour
     {
         [MyCmpReq]
@@ -29,6 +30,7 @@ namespace ONI_Together.Networking.OxySync.Components
         {
             base.OnSpawn();
             _amounts = gameObject.GetAmounts();
+            InterestGroup = -1;
         }
 
         private void Update()

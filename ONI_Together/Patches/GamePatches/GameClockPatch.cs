@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.OxySync.Components;
@@ -38,28 +38,12 @@ namespace ONI_Together.Patches.GamePatches
             _lastCycle = __instance.GetCycle();
         }
 
-		// Prevent clients from running AddTime
+		// Allow clients to advance time smoothly locally; host sync will correct drift
 		[HarmonyPatch(nameof(GameClock.AddTime))]
 		[HarmonyPrefix]
 		public static bool AddTime_Prefix()
 		{
-			using var _ = Profiler.Scope();
-
-			try
-			{
-				if (!MultiplayerSession.InActiveSession)
-					return true;
-
-				if (MultiplayerSession.IsClient && !allowAddTimeForSetTime)
-					return false;
-
-				return true;
-			}
-			catch (Exception ex)
-			{
-				DebugConsole.LogError($"[GameClockPatch.AddTime_Prefix] {ex}");
-				return true;
-			}
+			return true;
 		}
 
 		// Host logic: send WorldCyclePacket every 1s and trigger HardSync at cycle start

@@ -58,7 +58,8 @@ namespace ONI_Together.Patches
 					code.ToLowerInvariant(),
 					code.Split('-')[0],
 					code.Split('_')[0],
-					(code.ToLowerInvariant().Contains("de") || code.ToLowerInvariant().Contains("german")) ? "de" : null
+					(code.ToLowerInvariant().Contains("de") || code.ToLowerInvariant().Contains("german")) ? "de" : null,
+					(code.ToLowerInvariant().Contains("pl") || code.ToLowerInvariant().Contains("polish")) ? "pl" : null
 				}.Where(c => !string.IsNullOrEmpty(c)).Distinct().ToArray();
 
 				string[] candidateDirs = new[]

@@ -174,7 +174,14 @@ namespace ONI_Together.Networking.Transport.Steam
                 byte[] bytes = new byte[msg.m_cbSize];
                 Marshal.Copy(msg.m_pData, bytes, 0, msg.m_cbSize);
 
-                PacketHandler.HandleIncoming(bytes);
+                try
+                {
+                    PacketHandler.HandleIncoming(bytes);
+                }
+                catch (Exception ex)
+                {
+                    DebugConsole.LogWarning($"[GameServer] Rejected invalid incoming packet: {ex}");
+                }
 
                 SteamNetworkingMessage_t.Release(messages[i]);
             }

@@ -1,22 +1,119 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using System.Text;
 using ONI_Together.Misc;
+using ONI_Together.Networking;
+using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Networking.OxySync.Packets;
 using Shared.OxySync;
+using Shared.OxySync.Attributes;
 using UnityEngine;
 
 namespace ONI_Together.DebugTools.UnitTests
 {
     public static class OxySyncTests
     {
+        private enum TestEnum
+        {
+            HighValue = 1000,
+        }
+
+		[UnitTest(name: "OxySync protocol hashes are deterministic", category: "OxySync")]
+		public static UnitTestResult OxySyncProtocolHashIsDeterministic()
+		{
+			if (ProtocolCompatibility.CurrentProtocolVersion < 2)
+				return UnitTestResult.Fail("The handshake still permits pre-stable-hash OxySync peers");
+
+			int a1 = "CmdSetSpeed".GetHashCode();
+			int a2 = "CmdSetSpeed".GetHashCode();
+			if (a1 != a2)
+				return UnitTestResult.Fail($"Hash not deterministic: {a1} != {a2}");
+			if (a1 != "CmdSetSpeed".GetHashCode())
+				return UnitTestResult.Fail($"OxySyncHash should delegate to GetHashCode: got {a1} vs { "CmdSetSpeed".GetHashCode()}");
+            int b = "OtherMethod".GetHashCode();
+			if (a1 == b)
+				return UnitTestResult.Fail("Different strings produced same hash");
+
+			return UnitTestResult.Pass("OxySync identifiers use GetHashCode (deterministic on Unity Mono)");
+		}
+
+        [UnitTest(name: "Snapshot timeline ignores clock skew and arrival jitter", category: "OxySync")]
+        public static UnitTestResult SnapshotTimelineNormalizesRemoteTime()
+        {
+            var timeline = new SnapshotTimeline();
+
+            double first = timeline.ToLocalTime(1_700_000_000_000L, 1_000.0);
+            double second = timeline.ToLocalTime(1_700_000_000_050L, 1_135.0);
+            double third = timeline.ToLocalTime(1_700_000_000_100L, 1_155.0);
+
+            if (Math.Abs(first - 1_000.0) > 0.001)
+                return UnitTestResult.Fail($"Initial local anchor mismatch: {first}");
+            if (Math.Abs(second - 1_050.0) > 0.001)
+                return UnitTestResult.Fail($"Remote cadence was changed by arrival jitter: {second}");
+            if (Math.Abs(third - 1_100.0) > 0.001)
+                return UnitTestResult.Fail($"Remote cadence was changed by clock skew: {third}");
+
+            return UnitTestResult.Pass("Remote snapshots use a stable local monotonic timeline");
+        }
+
+		[UnitTest(name: "Snapshot timeline adapts its buffer to arrival jitter", category: "OxySync")]
+		public static UnitTestResult SnapshotTimelineAdaptsToJitter()
+		{
+			var timeline = new SnapshotTimeline();
+			timeline.ToLocalTime(1_000L, 1_000.0);
+			timeline.ToLocalTime(1_050L, 1_140.0);
+			timeline.ToLocalTime(1_100L, 1_160.0);
+
+			double adaptive = timeline.GetAdaptiveBufferMilliseconds(150.0, 350.0);
+			if (adaptive <= 150.0 || adaptive > 350.0)
+				return UnitTestResult.Fail($"Adaptive buffer out of range: {adaptive}");
+
+			timeline.Reset();
+			if (timeline.EstimatedJitterMilliseconds != 0.0)
+				return UnitTestResult.Fail("Reset did not clear estimated jitter");
+
+			return UnitTestResult.Pass("Arrival jitter increases the interpolation buffer within its cap");
+		}
+
+		[UnitTest(name: "Snapshot timeline ignores reordered arrivals", category: "OxySync")]
+		public static UnitTestResult SnapshotTimelineIgnoresReorderedArrivalForJitter()
+		{
+			var timeline = new SnapshotTimeline();
+			timeline.ToLocalTime(1_000L, 1_000.0);
+			timeline.ToLocalTime(1_100L, 1_100.0);
+			double olderMapped = timeline.ToLocalTime(1_050L, 1_150.0);
+			timeline.ToLocalTime(1_150L, 1_150.0);
+
+			if (Math.Abs(olderMapped - 1_050.0) > 0.001)
+				return UnitTestResult.Fail("Reordered packet did not retain the anchor mapping");
+			if (timeline.EstimatedJitterMilliseconds > 0.001)
+				return UnitTestResult.Fail($"Reordered packet poisoned jitter estimate: {timeline.EstimatedJitterMilliseconds}");
+
+			return UnitTestResult.Pass("Reordered channels do not inflate the adaptive buffer");
+		}
+
+		[UnitTest(name: "Realtime snapshots bypass the optional packet queue", category: "OxySync")]
+		public static UnitTestResult RealtimeSnapshotsBypassPacketQueue()
+		{
+			if (!Networking.Transport.TransportPacketSender.IsLatencySensitive(PacketSendMode.UnreliableNoDelay))
+				return UnitTestResult.Fail("UnreliableNoDelay should bypass the queue");
+			if (Networking.Transport.TransportPacketSender.IsLatencySensitive(PacketSendMode.Unreliable))
+				return UnitTestResult.Fail("Regular unreliable traffic should retain configured queue behavior");
+			if (Networking.Transport.TransportPacketSender.IsLatencySensitive(PacketSendMode.ReliableImmediate))
+				return UnitTestResult.Fail("Reliable traffic must retain ordering through the queue");
+
+			return UnitTestResult.Pass("Only latency-sensitive unreliable snapshots bypass the queue");
+		}
+
         [UnitTest(name: "SyncVarPacket round-trip", category: "OxySync")]
         public static UnitTestResult SyncVarPacketRoundTrip()
         {
             var input = new SyncVarPacket
             {
                 NetId = 12345,
+                BehaviourId = 2,
                 FieldHash = "health".GetHashCode(),
                 Value = (Variant)100f,
                 Timestamp = 987654321098L,
@@ -33,6 +130,8 @@ namespace ONI_Together.DebugTools.UnitTests
 
             if (output.NetId != 12345)
                 return UnitTestResult.Fail($"NetId mismatch: {output.NetId}");
+            if (output.BehaviourId != 2)
+                return UnitTestResult.Fail($"BehaviourId mismatch: {output.BehaviourId}");
             if (output.FieldHash != input.FieldHash)
                 return UnitTestResult.Fail("FieldHash mismatch");
             if (Mathf.Abs(output.Value.Float - 100f) > 0.001f)
@@ -54,7 +153,7 @@ namespace ONI_Together.DebugTools.UnitTests
                 ("count".GetHashCode(), (Variant)42),
             };
 
-            var input = new SyncVarBatchPacket(999, updates)
+            var input = new SyncVarBatchPacket(999, 3, updates)
             {
                 Timestamp = 1234567890123L,
             };
@@ -70,6 +169,8 @@ namespace ONI_Together.DebugTools.UnitTests
 
             if (output.NetId != 999)
                 return UnitTestResult.Fail($"NetId mismatch: {output.NetId}");
+            if (output.BehaviourId != 3)
+                return UnitTestResult.Fail($"BehaviourId mismatch: {output.BehaviourId}");
             if (output.Timestamp != 1234567890123L)
                 return UnitTestResult.Fail($"Timestamp mismatch: {output.Timestamp}");
             if (output.Count != 4)
@@ -92,6 +193,7 @@ namespace ONI_Together.DebugTools.UnitTests
             var input = new CommandPacket
             {
                 NetId = 777,
+                BehaviourId = 1,
                 MethodHash = "TakeDamage".GetHashCode(),
                 Args = new byte[] { 0x01, 0x02, 0x03 },
             };
@@ -107,6 +209,8 @@ namespace ONI_Together.DebugTools.UnitTests
 
             if (output.NetId != 777)
                 return UnitTestResult.Fail($"NetId mismatch: {output.NetId}");
+            if (output.BehaviourId != 1)
+                return UnitTestResult.Fail($"BehaviourId mismatch: {output.BehaviourId}");
             if (output.MethodHash != input.MethodHash)
                 return UnitTestResult.Fail("MethodHash mismatch");
             if (output.Args.Length != 3 || output.Args[0] != 0x01)
@@ -121,6 +225,7 @@ namespace ONI_Together.DebugTools.UnitTests
             var input = new ClientRpcPacket
             {
                 NetId = 555,
+                BehaviourId = 2,
                 MethodHash = "RpcHealed".GetHashCode(),
                 Args = new byte[] { 0x0A },
                 TargetPlayerId = ulong.MaxValue,
@@ -137,6 +242,8 @@ namespace ONI_Together.DebugTools.UnitTests
 
             if (output.NetId != 555)
                 return UnitTestResult.Fail($"NetId mismatch: {output.NetId}");
+            if (output.BehaviourId != 2)
+                return UnitTestResult.Fail($"BehaviourId mismatch: {output.BehaviourId}");
             if (output.MethodHash != input.MethodHash)
                 return UnitTestResult.Fail("MethodHash mismatch");
             if (output.Args.Length != 1 || output.Args[0] != 0x0A)
@@ -153,6 +260,7 @@ namespace ONI_Together.DebugTools.UnitTests
             var input = new ClientRpcPacket
             {
                 NetId = 444,
+                BehaviourId = 3,
                 MethodHash = "RpcPrivateMsg".GetHashCode(),
                 Args = Array.Empty<byte>(),
                 TargetPlayerId = 9001,
@@ -167,6 +275,10 @@ namespace ONI_Together.DebugTools.UnitTests
             using (var r = new BinaryReader(ms, Encoding.UTF8, true))
                 output.Deserialize(r);
 
+            if (output.NetId != 444)
+                return UnitTestResult.Fail($"NetId mismatch: {output.NetId}");
+            if (output.BehaviourId != 3)
+                return UnitTestResult.Fail($"BehaviourId mismatch: {output.BehaviourId}");
             if (output.TargetPlayerId != 9001)
                 return UnitTestResult.Fail($"TargetPlayerId mismatch: {output.TargetPlayerId}");
 
@@ -191,6 +303,7 @@ namespace ONI_Together.DebugTools.UnitTests
                 new byte[] { 0xAA, 0xBB, 0xCC },
                 new HashedString(55555),
                 new KAnimHashedString(66666),
+                TestEnum.HighValue,
             };
 
             Type[] types = {
@@ -199,6 +312,7 @@ namespace ONI_Together.DebugTools.UnitTests
                 typeof(Vector2), typeof(Vector3), typeof(Color),
                 typeof(Quaternion), typeof(byte[]),
                 typeof(HashedString), typeof(KAnimHashedString),
+                typeof(TestEnum),
             };
 
             var data = RpcSerializer.Serialize(args, types);
@@ -247,7 +361,10 @@ namespace ONI_Together.DebugTools.UnitTests
             if (khs.hash != 66666)
                 return UnitTestResult.Fail("KAnimHashedString mismatch");
 
-            return UnitTestResult.Pass("All 14 RPC types round-trip correctly");
+            if ((TestEnum)result[14] != TestEnum.HighValue)
+                return UnitTestResult.Fail("enum mismatch");
+
+            return UnitTestResult.Pass("All 15 RPC types round-trip correctly");
         }
 
         [UnitTest(name: "RpcSerializer empty args", category: "OxySync")]
@@ -261,6 +378,52 @@ namespace ONI_Together.DebugTools.UnitTests
 
             return UnitTestResult.Pass("Empty args round-trip correctly");
         }
+        
+		[UnitTest(name: "SyncVar Variant rejects invalid data", category: "OxySync")]
+		public static UnitTestResult SyncVarVariantRejectsInvalidData()
+		{
+			Variant nullVariant = VariantHelper.ObjectToVariant(null);
+			if (nullVariant.Type != Variant.TypeCode.Null ||
+				VariantHelper.VariantToObject(nullVariant, typeof(string)) != null)
+				return UnitTestResult.Fail("A null SyncVar did not preserve its null state");
+
+			Variant testEnum = VariantHelper.ObjectToVariant(TestEnum.HighValue);
+			if ((TestEnum)VariantHelper.VariantToObject(testEnum, typeof(TestEnum)) != TestEnum.HighValue)
+				return UnitTestResult.Fail("An enum SyncVar did not round-trip");
+
+			const decimal decimalInput = 1234567890.123456789m;
+			Variant decimalVariant = VariantHelper.ObjectToVariant(decimalInput);
+			if ((decimal)VariantHelper.VariantToObject(decimalVariant, typeof(decimal)) != decimalInput)
+				return UnitTestResult.Fail("A decimal SyncVar did not round-trip");
+
+			try
+			{
+				VariantHelper.ObjectToVariant(new object());
+				return UnitTestResult.Fail("An unsupported SyncVar value silently serialized");
+			}
+			catch (NotSupportedException)
+			{
+			}
+
+			using var stream = new MemoryStream();
+			using (var writer = new BinaryWriter(stream, Encoding.UTF8, true))
+			{
+				writer.Write((byte)Variant.TypeCode.ByteArray);
+				writer.Write(Variant.MaxBinaryBytes + 1);
+			}
+			stream.Position = 0;
+			try
+			{
+				using var reader = new BinaryReader(stream, Encoding.UTF8, true);
+				Variant.Read(reader);
+				return UnitTestResult.Fail("An oversized SyncVar byte array was accepted");
+			}
+			catch (InvalidDataException)
+			{
+			}
+
+			return UnitTestResult.Pass("Unsupported and oversized SyncVar values are rejected explicitly");
+		}
 
         [UnitTest(name: "RpcSerializer string handles null", category: "OxySync")]
         public static UnitTestResult RpcSerializerNullString()
@@ -943,6 +1106,450 @@ namespace ONI_Together.DebugTools.UnitTests
             }
 
             return UnitTestResult.Pass("IsSupportedType correctly validates all types");
+        }
+    }
+
+    public class WideSyncVarBehaviour : NetworkBehaviour
+    {
+        [SyncVar] private int _field0;
+        [SyncVar] private int _field1;
+        [SyncVar] private int _field2;
+        [SyncVar] private int _field3;
+        [SyncVar] private int _field4;
+        [SyncVar] private int _field5;
+        [SyncVar] private int _field6;
+        [SyncVar] private int _field7;
+        [SyncVar] private int _field8;
+        [SyncVar] private int _field9;
+        [SyncVar] private int _field10;
+        [SyncVar] private int _field11;
+        [SyncVar] private int _field12;
+        [SyncVar] private int _field13;
+        [SyncVar] private int _field14;
+        [SyncVar] private int _field15;
+        [SyncVar] private int _field16;
+        [SyncVar] private int _field17;
+        [SyncVar] private int _field18;
+        [SyncVar] private int _field19;
+        [SyncVar] private int _field20;
+        [SyncVar] private int _field21;
+        [SyncVar] private int _field22;
+        [SyncVar] private int _field23;
+        [SyncVar] private int _field24;
+        [SyncVar] private int _field25;
+        [SyncVar] private int _field26;
+        [SyncVar] private int _field27;
+        [SyncVar] private int _field28;
+        [SyncVar] private int _field29;
+        [SyncVar] private int _field30;
+        [SyncVar] private int _field31;
+        [SyncVar] private int _field32;
+        [SyncVar] private int _field33;
+        [SyncVar] private int _field34;
+        [SyncVar] private int _field35;
+        [SyncVar] private int _field36;
+        [SyncVar] private int _field37;
+        [SyncVar] private int _field38;
+        [SyncVar] private int _field39;
+        [SyncVar] private int _field40;
+        [SyncVar] private int _field41;
+        [SyncVar] private int _field42;
+        [SyncVar] private int _field43;
+        [SyncVar] private int _field44;
+        [SyncVar] private int _field45;
+        [SyncVar] private int _field46;
+        [SyncVar] private int _field47;
+        [SyncVar] private int _field48;
+        [SyncVar] private int _field49;
+        [SyncVar] private int _field50;
+        [SyncVar] private int _field51;
+        [SyncVar] private int _field52;
+        [SyncVar] private int _field53;
+        [SyncVar] private int _field54;
+        [SyncVar] private int _field55;
+        [SyncVar] private int _field56;
+        [SyncVar] private int _field57;
+        [SyncVar] private int _field58;
+        [SyncVar] private int _field59;
+        [SyncVar] private int _field60;
+        [SyncVar] private int _field61;
+        [SyncVar] private int _field62;
+        [SyncVar] private int _field63;
+    }
+
+    public class FewSyncVarBehaviour : NetworkBehaviour
+    {
+        [SyncVar] private int _field0;
+        [SyncVar] private int _field1;
+        [SyncVar] private int _field2;
+        [SyncVar] private int _field3;
+        [SyncVar] private int _field4;
+    }
+
+    public class OverflowSyncVarBehaviour : NetworkBehaviour
+    {
+        [SyncVar] private int _field0;
+        [SyncVar] private int _field1;
+        [SyncVar] private int _field2;
+        [SyncVar] private int _field3;
+        [SyncVar] private int _field4;
+        [SyncVar] private int _field5;
+        [SyncVar] private int _field6;
+        [SyncVar] private int _field7;
+        [SyncVar] private int _field8;
+        [SyncVar] private int _field9;
+        [SyncVar] private int _field10;
+        [SyncVar] private int _field11;
+        [SyncVar] private int _field12;
+        [SyncVar] private int _field13;
+        [SyncVar] private int _field14;
+        [SyncVar] private int _field15;
+        [SyncVar] private int _field16;
+        [SyncVar] private int _field17;
+        [SyncVar] private int _field18;
+        [SyncVar] private int _field19;
+        [SyncVar] private int _field20;
+        [SyncVar] private int _field21;
+        [SyncVar] private int _field22;
+        [SyncVar] private int _field23;
+        [SyncVar] private int _field24;
+        [SyncVar] private int _field25;
+        [SyncVar] private int _field26;
+        [SyncVar] private int _field27;
+        [SyncVar] private int _field28;
+        [SyncVar] private int _field29;
+        [SyncVar] private int _field30;
+        [SyncVar] private int _field31;
+        [SyncVar] private int _field32;
+        [SyncVar] private int _field33;
+        [SyncVar] private int _field34;
+        [SyncVar] private int _field35;
+        [SyncVar] private int _field36;
+        [SyncVar] private int _field37;
+        [SyncVar] private int _field38;
+        [SyncVar] private int _field39;
+        [SyncVar] private int _field40;
+        [SyncVar] private int _field41;
+        [SyncVar] private int _field42;
+        [SyncVar] private int _field43;
+        [SyncVar] private int _field44;
+        [SyncVar] private int _field45;
+        [SyncVar] private int _field46;
+        [SyncVar] private int _field47;
+        [SyncVar] private int _field48;
+        [SyncVar] private int _field49;
+        [SyncVar] private int _field50;
+        [SyncVar] private int _field51;
+        [SyncVar] private int _field52;
+        [SyncVar] private int _field53;
+        [SyncVar] private int _field54;
+        [SyncVar] private int _field55;
+        [SyncVar] private int _field56;
+        [SyncVar] private int _field57;
+        [SyncVar] private int _field58;
+        [SyncVar] private int _field59;
+        [SyncVar] private int _field60;
+        [SyncVar] private int _field61;
+        [SyncVar] private int _field62;
+        [SyncVar] private int _field63;
+        [SyncVar] private int _field64;
+    }
+
+    public static class OxySyncDirtyBitTests
+    {
+        private static readonly BindingFlags NonPublicInstance = BindingFlags.NonPublic | BindingFlags.Instance;
+
+        private static T CreateBehaviour<T>() where T : NetworkBehaviour
+        {
+            var go = new GameObject("OxySyncUnitTest");
+            var behaviour = go.AddComponent<T>();
+            try
+            {
+                typeof(NetworkBehaviour).GetMethod("DiscoverSyncVars", NonPublicInstance)
+                    .Invoke(behaviour, null);
+            }
+            catch
+            {
+                UnityEngine.Object.Destroy(go);
+                throw;
+            }
+            return behaviour;
+        }
+
+        private static int[] FieldHashes(NetworkBehaviour behaviour)
+        {
+            var fields = behaviour.SyncVarFields;
+            var hashes = new int[fields.Count];
+            for (int i = 0; i < fields.Count; i++)
+                hashes[i] = fields[i].Hash;
+            return hashes;
+        }
+
+        private static void MarkDirty(NetworkBehaviour behaviour, int fieldIndex)
+        {
+            typeof(NetworkBehaviour).GetMethod("MarkSyncVarAsDirty", NonPublicInstance,
+                    null, new[] { typeof(int) }, null)
+                .Invoke(behaviour, new object[] { behaviour.SyncVarFields[fieldIndex].Hash });
+        }
+
+        [UnitTest(name: "SyncVar dirty bits cover boundaries 0,31,32,63", category: "OxySync")]
+        public static UnitTestResult SyncVarDirtyBitsCoverBoundaries()
+        {
+            var behaviour = CreateBehaviour<WideSyncVarBehaviour>();
+            try
+            {
+                var fields = behaviour.SyncVarFields;
+                if (fields.Count != 64)
+                    return UnitTestResult.Fail($"Expected 64 SyncVars, got {fields.Count}");
+                for (int i = 0; i < fields.Count; i++)
+                    for (int j = i + 1; j < fields.Count; j++)
+                        if (fields[i].Hash == fields[j].Hash)
+                            return UnitTestResult.Fail($"Field hash collision between {i} and {j}");
+
+                var hashes = FieldHashes(behaviour);
+                behaviour.SetSyncVarValue(hashes[0], 1);
+                behaviour.SetSyncVarValue(hashes[31], 1);
+                behaviour.SetSyncVarValue(hashes[32], 1);
+                behaviour.SetSyncVarValue(hashes[63], 1);
+
+                ulong expected = (1UL << 0) | (1UL << 31) | (1UL << 32) | (1UL << 63);
+                ulong actual = behaviour.GetAndClearDirtyBits();
+                if (actual != expected)
+                    return UnitTestResult.Fail($"Expected 0x{expected:X16}, got 0x{actual:X16}");
+
+                if (behaviour.GetAndClearDirtyBits() != 0)
+                    return UnitTestResult.Fail("Dirty bits were not cleared after read");
+
+                return UnitTestResult.Pass("Bits 0,31,32,63 are independently tracked and cleared");
+            }
+            finally { UnityEngine.Object.Destroy(behaviour.gameObject); }
+        }
+
+        [UnitTest(name: "SyncVar regression: first 32 dirty bits unchanged", category: "OxySync")]
+        public static UnitTestResult SyncVarRegressionFirst32()
+        {
+            var behaviour = CreateBehaviour<WideSyncVarBehaviour>();
+            try
+            {
+                var hashes = FieldHashes(behaviour);
+                ulong expected = 0;
+                for (int i = 0; i < 32; i++)
+                {
+                    behaviour.SetSyncVarValue(hashes[i], i);
+                    expected |= 1UL << i;
+                }
+
+                ulong actual = behaviour.GetAndClearDirtyBits();
+                if (actual != expected)
+                    return UnitTestResult.Fail($"Expected 0x{expected:X8}, got 0x{actual:X8}");
+
+                return UnitTestResult.Pass("SyncVars 0-31 map to bits 0-31 exactly as before");
+            }
+            finally { UnityEngine.Object.Destroy(behaviour.gameObject); }
+        }
+
+        [UnitTest(name: "MarkAllDirty marks all 64 registered fields", category: "OxySync")]
+        public static UnitTestResult MarkAllDirtyMarksAll64()
+        {
+            var behaviour = CreateBehaviour<WideSyncVarBehaviour>();
+            try
+            {
+                behaviour.MarkAllDirty();
+                ulong actual = behaviour.GetAndClearDirtyBits();
+                if (actual != ulong.MaxValue)
+                    return UnitTestResult.Fail($"Expected 0xFFFFFFFFFFFFFFFF, got 0x{actual:X16}");
+                return UnitTestResult.Pass("MarkAllDirty sets all 64 bits");
+            }
+            finally { UnityEngine.Object.Destroy(behaviour.gameObject); }
+        }
+
+        [UnitTest(name: "MarkAllDirty sets only registered bits below 64", category: "OxySync")]
+        public static UnitTestResult MarkAllDirtyFewFields()
+        {
+            var behaviour = CreateBehaviour<FewSyncVarBehaviour>();
+            try
+            {
+                behaviour.MarkAllDirty();
+                ulong actual = behaviour.GetAndClearDirtyBits();
+                if (actual != 0x1FUL)
+                    return UnitTestResult.Fail($"Expected 0x1F, got 0x{actual:X}");
+                return UnitTestResult.Pass("MarkAllDirty sets only the 5 registered bits");
+            }
+            finally { UnityEngine.Object.Destroy(behaviour.gameObject); }
+        }
+
+        [UnitTest(name: "SyncVar set-bit iteration processes only dirty indices", category: "OxySync")]
+        public static UnitTestResult SyncVarSetBitIteration()
+        {
+            var behaviour = CreateBehaviour<WideSyncVarBehaviour>();
+            try
+            {
+                int[] dirty = { 3, 47, 63 };
+                ulong mask = 0;
+                foreach (int i in dirty)
+                    mask |= 1UL << i;
+
+                var hashes = FieldHashes(behaviour);
+                var expected = new HashSet<int> { hashes[3], hashes[47], hashes[63] };
+
+                var changes = new Dictionary<(int Group, PacketSendMode Mode), List<(int Hash, Variant Value)>>();
+                OxySyncManager.CollectChanges(behaviour, mask, changes);
+
+                var collected = new HashSet<int>();
+                int total = 0;
+                foreach (var list in changes.Values)
+                    foreach (var update in list)
+                    {
+                        total++;
+                        collected.Add(update.Hash);
+                    }
+
+                if (total != 3)
+                    return UnitTestResult.Fail($"Expected 3 dirty fields processed, got {total}");
+                if (!collected.SetEquals(expected))
+                    return UnitTestResult.Fail("Processed hashes do not match indices {3,47,63}");
+
+                return UnitTestResult.Pass("Only set bits 3,47,63 were processed");
+            }
+            finally { UnityEngine.Object.Destroy(behaviour.gameObject); }
+        }
+
+        [UnitTest(name: "SyncVars 32 and 63 synchronize correctly", category: "OxySync")]
+        public static UnitTestResult SyncVarHighIndexSynchronize()
+        {
+            var behaviour = CreateBehaviour<WideSyncVarBehaviour>();
+            try
+            {
+                var hashes = FieldHashes(behaviour);
+
+                behaviour.SetSyncVarValue(hashes[32], 100);
+                behaviour.SetSyncVarValue(hashes[63], 200);
+
+                ulong expected = (1UL << 32) | (1UL << 63);
+                ulong actual = behaviour.GetAndClearDirtyBits();
+                if (actual != expected)
+                    return UnitTestResult.Fail($"Expected 0x{expected:X16}, got 0x{actual:X16}");
+
+                if ((int)behaviour.SyncVarFields[32].Info.GetValue(behaviour) != 100)
+                    return UnitTestResult.Fail("Field 32 value not set");
+                if ((int)behaviour.SyncVarFields[63].Info.GetValue(behaviour) != 200)
+                    return UnitTestResult.Fail("Field 63 value not set");
+
+                behaviour.ApplySyncVar(hashes[63], 300);
+                if ((int)behaviour.SyncVarFields[63].Info.GetValue(behaviour) != 300)
+                    return UnitTestResult.Fail("ApplySyncVar did not update field 63");
+
+                return UnitTestResult.Pass("SyncVars 32 and 63 map, set, dirty and apply correctly");
+            }
+            finally { UnityEngine.Object.Destroy(behaviour.gameObject); }
+        }
+
+        [UnitTest(name: "Manually dirty + auto-detected SyncVar serialized once", category: "OxySync")]
+        public static UnitTestResult SyncVarManualAndAutomaticSerializedOnce()
+        {
+            var behaviour = CreateBehaviour<WideSyncVarBehaviour>();
+            try
+            {
+                int targetIndex = 5;
+                behaviour.SyncVarFields[targetIndex].Info.SetValue(behaviour, 999);
+                MarkDirty(behaviour, targetIndex);
+
+                ulong manualDirty = behaviour.GetAndClearDirtyBits();
+                var changes = new Dictionary<(int Group, PacketSendMode Mode), List<(int Hash, Variant Value)>>();
+                OxySyncManager.CollectChanges(behaviour, manualDirty, changes);
+
+                int total = 0;
+                int matches = 0;
+                int targetHash = behaviour.SyncVarFields[targetIndex].Hash;
+                Variant emitted = default;
+                foreach (var list in changes.Values)
+                    foreach (var update in list)
+                    {
+                        total++;
+                        if (update.Hash == targetHash)
+                        {
+                            matches++;
+                            emitted = update.Value;
+                        }
+                    }
+
+                if (total != 1)
+                    return UnitTestResult.Fail($"Expected exactly 1 emitted SyncVar, got {total}");
+                if (matches != 1)
+                    return UnitTestResult.Fail($"Field {targetIndex} emitted {matches} times");
+                if (emitted.Int != 999)
+                    return UnitTestResult.Fail("Emitted value was not the current field value");
+
+                return UnitTestResult.Pass("Doubly-triggered field is serialized exactly once");
+            }
+            finally { UnityEngine.Object.Destroy(behaviour.gameObject); }
+        }
+
+        [UnitTest(name: "More than 64 SyncVars throws at registration", category: "OxySync")]
+        public static UnitTestResult SyncVarOverCapacityThrows()
+        {
+            var go = new GameObject("OxySyncUnitTest");
+            var behaviour = go.AddComponent<OverflowSyncVarBehaviour>();
+            try
+            {
+                try
+                {
+                    typeof(NetworkBehaviour).GetMethod("DiscoverSyncVars", NonPublicInstance)
+                        .Invoke(behaviour, null);
+                    return UnitTestResult.Fail("Expected InvalidOperationException for 65 SyncVars");
+                }
+                catch (TargetInvocationException ex) when (ex.InnerException is InvalidOperationException)
+                {
+                    return UnitTestResult.Pass("65 SyncVars rejected at registration");
+                }
+                catch (TargetInvocationException ex)
+                {
+                    return UnitTestResult.Fail($"Unexpected exception: {ex.InnerException?.GetType().Name}");
+                }
+            }
+            finally { UnityEngine.Object.Destroy(go); }
+        }
+    }
+
+    public static class OxySyncBehaviourIdTests
+    {
+        [UnitTest(name: "Duplicate behaviour types on one object get unique BehaviourIds", category: "OxySync")]
+        public static UnitTestResult DuplicateBehaviourTypesGetUniqueIds()
+        {
+            var go = new GameObject("MultiNetworkBehaviourTestObject");
+            try
+            {
+                const int count = 3;
+                var behaviours = new List<NetworkBehaviour>();
+                for (int i = 0; i < count; i++)
+                {
+                    var behaviour = go.AddComponent<FewSyncVarBehaviour>();
+                    behaviour.OnSpawn();
+                    behaviours.Add(behaviour);
+                }
+
+                var ids = new HashSet<int>();
+                foreach (var b in behaviours)
+                    ids.Add(b.BehaviourId);
+
+                if (ids.Count != count)
+                    return UnitTestResult.Fail(
+                        $"Expected {count} unique BehaviourIds for {behaviours[0].GetType().Name}, got {string.Join(", ", ids)}");
+
+                foreach (var b in behaviours)
+                {
+                    if (!OxySyncManager.TryGetBehaviour(b.NetId, b.BehaviourId, out var found) || found != b)
+                        return UnitTestResult.Fail(
+                            $"Lookup failed for {b.GetType().Name} with BehaviourId {b.BehaviourId} on NetId {b.NetId}");
+                }
+
+                return UnitTestResult.Pass(
+                    $"{count} identical behaviours on one object resolved to unique ids: {string.Join(", ", ids)}");
+            }
+            finally
+            {
+                UnityEngine.Object.Destroy(go);
+            }
         }
     }
 }

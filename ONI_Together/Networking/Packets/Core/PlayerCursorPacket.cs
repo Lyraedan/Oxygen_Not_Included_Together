@@ -17,6 +17,7 @@ namespace ONI_Together.Networking.Packets.Core
 	public class PlayerCursorPacket : IPacket
 	{
 		public ulong PlayerID;
+		public string PlayerName;
 		public Vector3 Position;
 		public Color Color;
 		public CursorState CursorState;
@@ -31,6 +32,8 @@ namespace ONI_Together.Networking.Packets.Core
 		public Vector3 AreaDownPos;
 		public DragTool.Mode DragMode = DragTool.Mode.Box;
 		public Vector2 LengthLimit = Vector2.zero;
+		public bool HasBrushPreview;
+		public byte BrushRadius;
 
         // Utility path visualizer
         public bool HasUtilityPath = false;
@@ -44,6 +47,7 @@ namespace ONI_Together.Networking.Packets.Core
 		    using var _ = Profiler.Scope();
 
 		    writer.Write(PlayerID);
+		    writer.Write(PlayerName);
 		    writer.Write(Position);
 		    writer.Write(Color);
 
@@ -61,6 +65,9 @@ namespace ONI_Together.Networking.Packets.Core
 		    if (HasUtilityPath)
 		        flags |= 1 << 13;
 
+		    if (HasBrushPreview)
+		        flags |= 1 << 14;
+
 		    writer.Write(flags);
 
 		    uint viewMin = ((uint)(ushort)ViewMinX << 16) | (ushort)ViewMinY;
@@ -77,6 +84,9 @@ namespace ONI_Together.Networking.Packets.Core
 		        writer.Write(LengthLimit);
 		    }
 
+		    if (HasBrushPreview)
+		        writer.Write(BrushRadius);
+
 		    if (HasUtilityPath)
 		    {
 		        writer.Write(UtilityPathData.Length);
@@ -90,6 +100,7 @@ namespace ONI_Together.Networking.Packets.Core
 		    using var _ = Profiler.Scope();
 
 		    PlayerID = reader.ReadUInt64();
+		    PlayerName = reader.ReadString();
 		    Position = reader.ReadVector3();
 		    Color = reader.ReadColor();
 
@@ -100,6 +111,7 @@ namespace ONI_Together.Networking.Packets.Core
 		    BuildingAllowed = (flags & (1 << 11)) != 0;
 		    Dragging = (flags & (1 << 12)) != 0;
 		    HasUtilityPath = (flags & (1 << 13)) != 0;
+		    HasBrushPreview = (flags & (1 << 14)) != 0;
 
 		    uint viewMin = reader.ReadUInt32();
 		    uint viewMax = reader.ReadUInt32();
@@ -117,6 +129,11 @@ namespace ONI_Together.Networking.Packets.Core
 		        AreaDownPos = reader.ReadVector3();
 		        LengthLimit = reader.ReadVector2();
 		    }
+
+		    if (HasBrushPreview)
+		        BrushRadius = reader.ReadByte();
+		    else
+		        BrushRadius = 0;
 
 		    if (HasUtilityPath)
 		    {
@@ -137,6 +154,7 @@ namespace ONI_Together.Networking.Packets.Core
 
 			if (MultiplayerSession.TryGetCursorObject(PlayerID, out PlayerCursor cursor))
 			{
+				cursor.SetPlayerName(PlayerName);
 				cursor.SetState(CursorState);
 				cursor.SetColor(Color);
 				cursor.SetVisibility(true);
@@ -202,7 +220,7 @@ namespace ONI_Together.Networking.Packets.Core
 		private void UpdateVisualizers(PlayerCursor cursor, Vector3 position)
 		{
 			cursor.buildingVisualiser.UpdateVisualizer(BuildingPrefabId, position, BuildingOrientation, Color, BuildingAllowed);
-			cursor.areaVisualizer.UpdateArea(Color, AreaDownPos, Position, Dragging, DragMode, LengthLimit);
+			cursor.areaVisualizer.UpdateArea(Color, AreaDownPos, position, Dragging, DragMode, LengthLimit, HasBrushPreview, BrushRadius);
 			cursor.utilityVisualizer.UpdatePath(BuildingPrefabId, UtilityPathData, Color);
 
 			// Dynamically adjust the player's chunk subscriptions based off their cursor position

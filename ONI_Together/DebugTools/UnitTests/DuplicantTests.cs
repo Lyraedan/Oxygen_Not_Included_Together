@@ -57,7 +57,7 @@ namespace ONI_Together.DebugTools.UnitTests
             if (!selected.TryGetComponent<ClientReceiver_ChoreErrands>(out _))
                 return UnitTestResult.Fail("ClientReceiver_ChoreErrands not found");
 
-            return UnitTestResult.Pass("AI disabled, ClientReceiver_ChoreErrands present");
+			return UnitTestResult.Pass("AI disabled; one navigation-aware visual playback controller is active");
         }
 
         [UnitTest(name: "Host init adds sync components", category: "Duplicant")]

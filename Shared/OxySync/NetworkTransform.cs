@@ -47,12 +47,13 @@ namespace Shared.OxySync
         }
 
         private List<SnapshotEntry> _snapshots;
-        private int _netPositionHash;
-        private int _netRotationHash;
-        private int _netScaleHash;
         private Vector3 _interpolatedPosition;
         private Quaternion _interpolatedRotation;
         private Vector3 _interpolatedScale;
+        
+        public int NetPositionHash { get; private set; }
+        public int NetRotationHash { get; private set; }
+        public int NetScaleHash { get; private set; }
 
         protected float _lastRequestTime;
         protected const float REQUEST_COOLDOWN = 0.5f;
@@ -66,9 +67,9 @@ namespace Shared.OxySync
             _netScale = target.localScale;
             SyncInterval = 0.05f;
             _snapshots = new List<SnapshotEntry>(16);
-            _netPositionHash = nameof(_netPosition).GetHashCode();
-            _netRotationHash = nameof(_netRotation).GetHashCode();
-            _netScaleHash = nameof(_netScale).GetHashCode();
+            NetPositionHash = nameof(_netPosition).GetHashCode();
+            NetRotationHash = nameof(_netRotation).GetHashCode();
+            NetScaleHash = nameof(_netScale).GetHashCode();
         }
 
         public override void ApplySyncVar(int fieldHash, object value, long timestamp)
@@ -77,7 +78,7 @@ namespace Shared.OxySync
 
             if (!useSnapshotInterpolation || timestamp == 0) return;
 
-            if (fieldHash == _netPositionHash || fieldHash == _netRotationHash || fieldHash == _netScaleHash)
+            if (fieldHash == NetPositionHash || fieldHash == NetRotationHash || fieldHash == NetScaleHash)
             {
                 AddSnapshot(timestamp);
             }

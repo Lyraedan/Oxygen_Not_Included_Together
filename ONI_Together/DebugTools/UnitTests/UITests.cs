@@ -1,9 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 using ONI_Together.Misc;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
+using ONI_Together.Networking.Packets.Core;
+using ONI_Together.Networking.States;
 using ONI_Together.UI;
 using UnityEngine;
 
@@ -52,6 +55,38 @@ namespace ONI_Together.DebugTools.UnitTests
                 return UnitTestResult.Fail("Cursor synchronization does not appear to be running (CursorManager instance missing or not in game session)");
 
             return UnitTestResult.Pass("Number of player cursors matches number of clients");
+        }
+
+        [UnitTest(name: "Brush cursor preview packet round-trip", category: "UI")]
+        public static UnitTestResult BrushCursorPreviewPacketRoundTrip()
+        {
+            var original = new PlayerCursorPacket
+            {
+                PlayerID = 42,
+                Position = new Vector3(12.5f, 7.25f, 0f),
+                Color = Color.cyan,
+                CursorState = CursorState.SANDBOX_BRUSH,
+                BuildingPrefabId = string.Empty,
+                HasBrushPreview = true,
+                BrushRadius = 6
+            };
+
+            using var stream = new MemoryStream();
+            using (var writer = new BinaryWriter(stream, Encoding.UTF8, true))
+                original.Serialize(writer);
+
+            stream.Position = 0;
+            var copy = new PlayerCursorPacket();
+            using (var reader = new BinaryReader(stream, Encoding.UTF8, true))
+                copy.Deserialize(reader);
+
+            if (!copy.HasBrushPreview || copy.BrushRadius != original.BrushRadius)
+                return UnitTestResult.Fail("Brush preview flag or radius was not preserved");
+
+            if (copy.CursorState != original.CursorState || copy.Position != original.Position)
+                return UnitTestResult.Fail("Cursor state or position changed during serialization");
+
+            return UnitTestResult.Pass("Brush cursor preview survives packet serialization");
         }
     }
 }

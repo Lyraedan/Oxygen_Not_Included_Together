@@ -1,4 +1,4 @@
-﻿using ONI_Together.Networking.Components;
+using ONI_Together.Networking.Components;
 using Steamworks;
 using System;
 using System.Collections.Generic;
@@ -33,9 +33,15 @@ namespace ONI_Together.Networking
 			}
 
 			if (go.TryGetComponent<NetworkIdentity>(out var identity))
+			{
+				if (identity.NetId == 0)
+					identity.RegisterIdentity();
 				return identity;
+			}
 
-			return go.AddComponent<NetworkIdentity>();
+			var newIdentity = go.AddComponent<NetworkIdentity>();
+			newIdentity.RegisterIdentity();
+			return newIdentity;
 		}
 
 		public static bool TryGetNetIdentity(this GameObject go, out NetworkIdentity identity)
