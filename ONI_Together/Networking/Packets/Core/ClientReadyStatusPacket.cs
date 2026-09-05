@@ -11,7 +11,7 @@ using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.Core
 {
-	class ClientReadyStatusPacket : IPacket, IAllowedWithoutWorldPacket
+	class ClientReadyStatusPacket : IPacket, IPriorityPacket, IAllowedWithoutWorldPacket
 	{
 		public ulong SenderId;
 		public ClientReadyState Status = ClientReadyState.Unready;

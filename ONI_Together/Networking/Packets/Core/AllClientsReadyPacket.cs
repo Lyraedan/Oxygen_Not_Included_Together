@@ -8,7 +8,7 @@ using UnityEngine;
 
 namespace ONI_Together.Networking.Packets.Core
 {
-	public class AllClientsReadyPacket : IPacket, IAllowedWithoutWorldPacket
+	public class AllClientsReadyPacket : IPacket, IPriorityPacket, IAllowedWithoutWorldPacket
 	{
 
 		public void Serialize(BinaryWriter writer)

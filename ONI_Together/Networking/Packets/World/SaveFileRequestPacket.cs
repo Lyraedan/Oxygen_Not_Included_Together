@@ -12,7 +12,7 @@ using ONI_Together.Menus;
 
 namespace ONI_Together.Networking.Packets.World
 {
-	public class SaveFileRequestPacket : IPacket, IAllowedWithoutWorldPacket
+	public class SaveFileRequestPacket : IPacket, IPriorityPacket, IAllowedWithoutWorldPacket
 	{
 		public ulong Requester;
 
