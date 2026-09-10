@@ -363,6 +363,16 @@ namespace ONI_Together.DebugTools
 					int r = a.Length > 2 ? int.Parse(a[2]) : 2;
 					return Marks(cell, r);
 				}
+				case "filter":
+				{
+					int cell = ParseCell(a[1]);
+					var go = Grid.Objects[cell, (int)ObjectLayer.Building];
+					var filterable = go != null ? go.GetComponent<TreeFilterable>() : null;
+					if (filterable == null) return "no TreeFilterable at cell";
+					if (a.Length > 2 && a[2] == "clear") filterable.UpdateFilters(new HashSet<Tag>());
+					var tags = filterable.AcceptedTags;
+					return $"{Describe(go)} filter tags={tags.Count}: {string.Join(",", tags.Take(6).Select(t => t.Name))}";
+				}
 				case "copysettings":
 				{
 					// copysettings SRC_CELL DST_CELL: the copy-settings tool from the building at SRC onto DST.
@@ -375,6 +385,7 @@ namespace ONI_Together.DebugTools
 					tool.SetSourceObject(source);
 					PlayerController.Instance.ActivateTool(tool);
 					tool.OnDragTool(dst, 0);
+					tool.OnDragComplete(Vector3.zero, Vector3.zero);
 					PlayerController.Instance.ActivateTool(SelectTool.Instance);
 					return $"copied from {Describe(source)} to {Describe(Grid.Objects[dst, (int)ObjectLayer.Building])}";
 				}
@@ -488,16 +499,19 @@ namespace ONI_Together.DebugTools
 		{
 			Grid.CellToXY(cell, out int x, out int y);
 			var rows = new List<string>();
-			foreach (var brain in global::Components.Brains.Items)
-			{
-				if (brain == null) continue;
-				int c = Grid.PosToCell(brain);
-				Grid.CellToXY(c, out int cx, out int cy);
-				if (cx < x - r || cx > x + r || cy < y - r || cy > y + r) continue;
-				var faction = brain.GetComponent<FactionAlignment>();
-				var capturable = brain.GetComponent<Capturable>();
-				rows.Add($"{Describe(brain.gameObject)} attack={(faction != null && faction.IsPlayerTargeted() ? "y" : "n")} capture={(capturable != null && capturable.IsMarkedForCapture ? "y" : "n")}");
-			}
+			for (int cy = y - r; cy <= y + r; cy++)
+				for (int cx = x - r; cx <= x + r; cx++)
+				{
+					int c = Grid.XYToCell(cx, cy);
+					if (!Grid.IsValidCell(c)) continue;
+					foreach (var go in ItemsAt(c))
+					{
+						var faction = go.GetComponent<FactionAlignment>();
+						var capturable = go.GetComponent<Capturable>();
+						if (faction == null && capturable == null) continue;
+						rows.Add($"{Describe(go)} attack={(faction != null && faction.IsPlayerTargeted() ? "y" : "n")} capture={(capturable != null && capturable.IsMarkedForCapture ? "y" : "n")}");
+					}
+				}
 			return rows.Count == 0 ? "no creatures in box" : string.Join("; ", rows);
 		}
 
