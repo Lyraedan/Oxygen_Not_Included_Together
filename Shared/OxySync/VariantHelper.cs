@@ -157,6 +157,10 @@ namespace Shared.OxySync
                 return null;
             }
 
+            Type nullableUnderlying = Nullable.GetUnderlyingType(targetType);
+            if (nullableUnderlying != null)
+                return VariantToObject(v, nullableUnderlying);
+
             if (targetType == typeof(int)) return v.Int;
             if (targetType == typeof(float)) return v.Float;
             if (targetType == typeof(byte)) return v.Byte;

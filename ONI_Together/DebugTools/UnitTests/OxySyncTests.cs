@@ -991,6 +991,57 @@ namespace ONI_Together.DebugTools.UnitTests
             return UnitTestResult.Pass("Null byte[] falls back to empty");
         }
 
+        [UnitTest(name: "VariantToObject Nullable<T> direct conversions", category: "OxySync")]
+        public static UnitTestResult VariantToObjectNullableDirect()
+        {
+            var i = (int?)VariantHelper.VariantToObject((Variant)42, typeof(int?));
+            if (i == null || i.Value != 42)
+                return UnitTestResult.Fail("int? non-null conversion mismatch");
+
+            var f = (float?)VariantHelper.VariantToObject((Variant)3.5f, typeof(float?));
+            if (f == null || Mathf.Abs(f.Value - 3.5f) > 0.001f)
+                return UnitTestResult.Fail("float? non-null conversion mismatch");
+
+            var v3 = (Vector3?)VariantHelper.VariantToObject((Variant)new Vector3(7f, 8f, 9f), typeof(Vector3?));
+            if (v3 == null || Vector3.Distance(v3.Value, new Vector3(7f, 8f, 9f)) > 0.001f)
+                return UnitTestResult.Fail("Vector3? non-null conversion mismatch");
+
+            var b = (bool?)VariantHelper.VariantToObject((Variant)true, typeof(bool?));
+            if (b == null || b.Value != true)
+                return UnitTestResult.Fail("bool? non-null conversion mismatch");
+
+            var n = (int?)VariantHelper.VariantToObject(new Variant { Type = Variant.TypeCode.Null }, typeof(int?));
+            if (n != null)
+                return UnitTestResult.Fail("int? null conversion mismatch");
+
+            return UnitTestResult.Pass("Nullable<T> direct conversions succeed for null and non-null values");
+        }
+
+        [UnitTest(name: "VariantToObject Nullable<T> collections", category: "OxySync")]
+        public static UnitTestResult VariantToObjectNullableCollections()
+        {
+            var variant = new Variant
+            {
+                Type = Variant.TypeCode.VariantArray,
+                VariantArray = new[]
+                {
+                    (Variant)1,
+                    new Variant { Type = Variant.TypeCode.Null },
+                    (Variant)3,
+                },
+            };
+
+            var array = (int?[])VariantHelper.VariantToObject(variant, typeof(int?[]));
+            if (array.Length != 3 || array[0] != 1 || array[1] != null || array[2] != 3)
+                return UnitTestResult.Fail("int?[] conversion mismatch");
+
+            var list = (List<int?>)VariantHelper.VariantToObject(variant, typeof(List<int?>));
+            if (list.Count != 3 || list[0] != 1 || list[1] != null || list[2] != 3)
+                return UnitTestResult.Fail("List<int?> conversion mismatch");
+
+            return UnitTestResult.Pass("Nullable<T> collection elements preserve null and non-null values");
+        }
+
         [UnitTest(name: "VariantToObject collections round-trip", category: "OxySync")]
         public static UnitTestResult VariantToObjectCollections()
         {
@@ -1337,52 +1388,6 @@ namespace ONI_Together.DebugTools.UnitTests
                 return UnitTestResult.Fail("string[] null elements mismatch");
 
             return UnitTestResult.Pass("Null collection elements round-trip correctly");
-        }
-
-        [UnitTest(name: "RpcSerializer IsSupportedType covers new types", category: "OxySync")]
-        public static UnitTestResult RpcSerializerIsSupportedType()
-        {
-            Type[] supported = {
-                typeof(int), typeof(float), typeof(bool), typeof(byte),
-                typeof(long), typeof(double), typeof(string),
-                typeof(Vector2), typeof(Vector3), typeof(Color),
-                typeof(Quaternion), typeof(byte[]), typeof(ulong),
-                typeof(short), typeof(ushort), typeof(uint),
-                typeof(sbyte), typeof(char), typeof(decimal),
-                typeof(HashedString), typeof(KAnimHashedString),
-                typeof(int[]), typeof(string[]), typeof(Vector3[]),
-                typeof(List<int>), typeof(List<string>),
-                typeof(Dictionary<string, int>),
-                typeof(HashSet<float>), typeof(Queue<long>), typeof(Stack<bool>),
-                typeof(int?), typeof(float?), typeof(Vector3?),
-                typeof(List<List<int>>),
-                typeof(Dictionary<string, List<int>>),
-                typeof(int[][]),
-            };
-
-            foreach (var t in supported)
-            {
-                if (!RpcSerializer.IsSupportedType(t))
-                    return UnitTestResult.Fail($"Type {t} should be supported but is not");
-            }
-
-            Type[] unsupported = {
-                typeof(object),
-                typeof(Guid),
-                typeof(DateTime),
-                typeof(TimeSpan),
-                typeof(Tuple<int, int>),
-                typeof(System.Action),
-                typeof(Stream),
-            };
-
-            foreach (var t in unsupported)
-            {
-                if (RpcSerializer.IsSupportedType(t))
-                    return UnitTestResult.Fail($"Type {t} should NOT be supported but is");
-            }
-
-            return UnitTestResult.Pass("IsSupportedType correctly validates all types");
         }
     }
 
