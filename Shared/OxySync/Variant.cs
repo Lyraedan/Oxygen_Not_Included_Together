@@ -1,10 +1,8 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.IO;
-using System.Text;
 using UnityEngine;
 
-namespace ONI_Together.Misc
+namespace Shared.OxySync
 {
     /// <summary>
     /// A type-safe tagged union that holds one value of multiple possible types (Float, Int, Byte, String, Boolean, Vector3, Vector2) at a time,
