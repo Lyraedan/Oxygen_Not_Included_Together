@@ -1,16 +1,11 @@
 ﻿using HarmonyLib;
 using ONI_Together.DebugTools;
 using ONI_Together.Networking.Packets.Architecture;
-using System;
 using System.Collections;
-using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Shared.Profiling;
 using UnityEngine;
-using static RancherChore;
+using ONI_Together.Networking.OxySync.Components.Entities;
 
 namespace ONI_Together.Networking.Packets.Animation
 {
@@ -92,7 +87,18 @@ namespace ONI_Together.Networking.Packets.Animation
 			GameObject workableGO = null;
 			if (!StartingToWork)
 			{
-				worker.StopWork();
+				var animSyncer = worker.GetComponent<AnimSyncer>();
+				animSyncer?.EnterSyncedPlaybackScope();
+				animSyncer?.EnterOverrideScope();
+				try
+				{
+					worker.StopWork();
+				}
+				finally
+				{
+					animSyncer?.ExitOverrideScope();
+					animSyncer?.ExitSyncedPlaybackScope();
+				}
 				DebugConsole.Log("[StandardWorker_WorkingState_Packet] workable change triggered for " + worker.name + ": stopped working");
 				return true;
 			}
@@ -130,11 +136,22 @@ namespace ONI_Together.Networking.Packets.Animation
 
 			try
 			{
-				if (!worker.state.Equals(StandardWorker.State.Idle))
+				var animSyncer = worker.GetComponent<AnimSyncer>();
+				animSyncer?.EnterSyncedPlaybackScope();
+				animSyncer?.EnterOverrideScope();
+				try
 				{
-					worker.StopWork();
+					if (!worker.state.Equals(StandardWorker.State.Idle))
+					{
+						worker.StopWork();
+					}
+					worker.StartWork(new(workable));
 				}
-				worker.StartWork(new(workable));
+				finally
+				{
+					animSyncer?.ExitOverrideScope();
+					animSyncer?.ExitSyncedPlaybackScope();
+				}
 			}
 			catch (System.Exception ex)
 			{

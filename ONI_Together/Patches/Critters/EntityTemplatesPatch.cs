@@ -22,7 +22,6 @@ namespace ONI_Together.Patches.Critters
 						return;
 
 					__result.AddOrGet<NetworkIdentity>();
-					__result.AddOrGet<AnimStateSyncer>();
 					__result.AddOrGet<CreatureMultiplayerInitializer>();
 				}
 				catch (Exception ex)

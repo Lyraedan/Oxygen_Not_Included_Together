@@ -57,9 +57,6 @@ namespace ONI_Together.Patches.World
                 return;
 
 			go.AddOrGet<NetworkIdentity>().RegisterIdentity();
-
-			if (AnimSyncEligibility.IsAnimatedBuilding(go))
-				go.AddOrGet<AnimStateSyncer>().EnsureRegistered();
         }
 
         private static bool RequiresNetworkIdentity(GameObject go)

@@ -1,57 +1,96 @@
 ﻿using HarmonyLib;
-using Klei.AI;
 using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking;
-using ONI_Together.Networking.Components;
-using ONI_Together.Networking.Packets.Animation;
-using ONI_Together.Networking.Packets.Core;
-using ONI_Together.Networking.Packets.DuplicantActions;
 using System;
 using System.Linq;
 using Shared.Profiling;
-using static STRINGS.UI.CLUSTERMAP.ROCKETS;
+using ONI_Together.Networking.OxySync.Components.Entities;
 
 namespace ONI_Together.Patches.KleiPatches
 {
 	class KAnimControllerBase_Patches
 	{
-		/// Playing Overrides
+		internal static bool ShouldSyncAnim(KAnimControllerBase controller, KPrefabID prefabID)
+		{
+			// Only sync animations for creatures and minions.
+			// This is to avoid syncing animations for things like buildings,
+			// which can cause issues with the game.
+			if (prefabID.HasTag(GameTags.Creature) || prefabID.HasTag(GameTags.BaseMinion))
+				return true;
+			
+			return false;
+		}
 
-		static bool _allowedToPlayAnims = false;
-		public static void AllowAnims() => _allowedToPlayAnims = true;
-		public static void ForbidAnims() => _allowedToPlayAnims = false;
-		public static bool CanPlayAnims => true;// (MultiplayerSession.InSession && MultiplayerSession.IsClient) ? _allowedToPlayAnims : true;
-
-
-
-		///Play() has internal calls to "Queue", prevent duplicate entries
-		static bool LockAnimSending = false;
-		static void Unlock() => LockAnimSending = false;
-		static void SendAnimPacketToClients(KAnimControllerBase __instance, bool queueing, HashedString[] anims, KAnim.PlayMode mode = KAnim.PlayMode.Once, float speed = 1f, float time_offset = 0f)
+		private static bool IsNavigatorAnim(KAnimControllerBase controller, HashedString animName)
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InActiveSession || MultiplayerSession.IsClient)
-				return;
-			if (__instance.gameObject.IsNullOrDestroyed() || !__instance.gameObject.TryGetComponent<KPrefabID>(out var id))
-				return;
+			if (!controller.TryGetComponent<Navigator>(out var navigator) || navigator == null)
+				return false;
 
-			if (!id.HasTag(GameTags.BaseMinion) && !id.HasTag(GameTags.Creature)) // Allow BaseMinion and Creature
-				return;
+			// Check if the current animation is the idle animation for the navigator.
+			if (navigator.NavGrid != null &&navigator.NavGrid.GetIdleAnim(navigator.CurrentNavType) == animName)
+				return true;
+			
+			// If the current animation is not the idle animation, check if it is part of an active transition.
+			var activeTransition = navigator.transitionDriver?.GetTransition;
+			if (activeTransition == null)
+				return false;
 
-			int netId = __instance.GetNetId();
-			if(netId == 0)
+			return animName == activeTransition.anim || animName == activeTransition.preAnim;
+		}
+
+		internal static bool CanPlayAnim(KAnimControllerBase controller, out AnimSyncer animSyncer, HashedString[] animNames)
+		{
+			using var _ = Profiler.Scope();
+			animSyncer = null;
+
+			if (animNames == null || animNames.Length == 0 || animNames.FirstOrDefault() == default)
+				return true;
+
+			if (!MultiplayerSession.InActiveSession || (MultiplayerSession.IsHost && !MultiplayerSession.SessionHasPlayers))
+				return true;
+
+			if (controller == null || controller.gameObject.IsNullOrDestroyed())
+				return true;
+
+			if (!controller.TryGetComponent<KPrefabID>(out var prefabId))
+				return true;
+			
+			if (!ShouldSyncAnim(controller, prefabId))
+				return true;
+			
+			if (!controller.TryGetComponent<AnimSyncer>(out var _animSyncer))
 			{
-				DebugConsole.LogWarning("no netId found on " + __instance.GetProperName());
-				return;
+				// Allow the animation to play anyway, but log a warning.
+				// This should never happen, as the AnimSyncer is added to all creatures and minions in MinionMultiplayerInitializer and CreatureMultiplayerInitializer.
+				// On the client, we may be able to see this log during the initialize process.
+				// Therefore, we can ignore warnings at the beginning of the log file.
+				DebugConsole.LogAssert($"[KAnimControllerBase_Patches] AnimSyncer not found on {controller.gameObject.GetProperName()}");
+				return true;
 			}
 
-			if (LockAnimSending)
-				return;
+			// If the animate is from the navigator, allow it to play on the client.
+			// Meanwhile, return here so the host would not send this request to the client.
+			// these animations are controlled by 'navigator.BeginTransition' and 'navigator.EndTransition' on the client.
+			if (IsNavigatorAnim(controller, animNames.FirstOrDefault()))
+				return true;
 
-			LockAnimSending = true;
-			PacketSender.SendToAllClients(new PlayAnimPacket(netId, anims, queueing,mode,speed,time_offset));
+			if (MultiplayerSession.IsClient)
+			{
+				// If the animate is from the host, we should allow it to play on the client.
+				if (_animSyncer.IsInSyncedPlaybackScope())
+					return true;
+
+				// For all other animations on the client, block them from playing directly.
+				return false;
+			}
+			
+			// Host with active session, and has players: use the local anim syncer.
+			animSyncer = _animSyncer;
+
+			return true;
 		}
 
 		[HarmonyPatch(typeof(KAnimControllerBase), nameof(KAnimControllerBase.Play), [typeof(HashedString), typeof(KAnim.PlayMode), typeof(float), typeof(float)])]
@@ -61,24 +100,13 @@ namespace ONI_Together.Patches.KleiPatches
 			{
 				using var _ = Profiler.Scope();
 
-				try
-				{
-					if (!MultiplayerSession.InActiveSession)
-						return true;
-					if (__instance.IsNullOrDestroyed() || !__instance.enabled) return CanPlayAnims;
+				if (!CanPlayAnim(__instance, out AnimSyncer animSyncer, [anim_name]))
+					return false;
 
-					if(MultiplayerSession.IsHost)
-						SendAnimPacketToClients(__instance, false, [anim_name],mode,speed,time_offset);
-					return CanPlayAnims;
-				}
-				catch (Exception ex)
-				{
-					DebugConsole.LogError($"[KAnimControllerBase_Play_Patch.Prefix] {ex}");
-					return true;
-				}
+				animSyncer?.RequestToPlayAnim(false, [anim_name], mode, speed, time_offset);
+
+				return true;
 			}
-
-			public static void Postfix(KAnimControllerBase __instance) => Unlock();
 		}
 
 		[HarmonyPatch(typeof(KAnimControllerBase), nameof(KAnimControllerBase.Play), [typeof(HashedString[]), typeof(KAnim.PlayMode)])]
@@ -88,23 +116,13 @@ namespace ONI_Together.Patches.KleiPatches
 			{
 				using var _ = Profiler.Scope();
 
-				try
-				{
-					if (!MultiplayerSession.InActiveSession)
-						return true;
-					if (__instance.IsNullOrDestroyed() || !__instance.enabled) return CanPlayAnims;
-					if (MultiplayerSession.IsHost)
-						SendAnimPacketToClients(__instance, false, anim_names, mode);
-					return CanPlayAnims;
-				}
-				catch (Exception ex)
-				{
-					DebugConsole.LogError($"[KAnimControllerBase_PlayRange_Patch.Prefix] {ex}");
-					return true;
-				}
-			}
+				if (!CanPlayAnim(__instance, out AnimSyncer animSyncer, anim_names))
+					return false;
 
-			public static void Postfix(KAnimControllerBase __instance) => Unlock();
+				animSyncer?.RequestToPlayAnim(false, anim_names, mode);
+				
+				return true;
+			}
 		}
 
 		[HarmonyPatch(typeof(KAnimControllerBase), nameof(KAnimControllerBase.Queue))]
@@ -114,23 +132,13 @@ namespace ONI_Together.Patches.KleiPatches
 			{
 				using var _ = Profiler.Scope();
 
-				try
-				{
-					if (!MultiplayerSession.InActiveSession)
-						return true;
-					if (__instance.IsNullOrDestroyed() || !__instance.enabled) return CanPlayAnims;
-					if (MultiplayerSession.IsHost)
-						SendAnimPacketToClients(__instance, true, [anim_name], mode, speed, time_offset);
-					return CanPlayAnims;
-				}
-				catch (Exception ex)
-				{
-					DebugConsole.LogError($"[KAnimControllerBase_Queue_Patch.Prefix] {ex}");
-					return true;
-				}
-			}
+				if (!CanPlayAnim(__instance, out AnimSyncer animSyncer, [anim_name]))
+					return false;
 
-			public static void Postfix(KAnimControllerBase __instance) => Unlock();
+				animSyncer?.RequestToPlayAnim(true, [anim_name], mode, speed, time_offset);
+				
+				return true;
+			}
 		}
 
 		/// Kanim Overrides
@@ -184,10 +192,15 @@ namespace ONI_Together.Patches.KleiPatches
 						return kanim_file != null;
 
 					if (MultiplayerSession.IsClient)
+					{
+						if (__instance.gameObject.GetComponent<AnimSyncer>() is AnimSyncer animSyncer && animSyncer.IsInOverrideScope())
+							return true;
 						return TogglingOverrideFromPacket;
+					}
 
-					Console.WriteLine("sending addAnimOveridePacket");
-					PacketSender.SendToAllClients(new ToggleAnimOverridePacket(__instance.gameObject, kanim_file, priority));
+					// Animation patch disabled globally.
+					// Console.WriteLine("sending addAnimOveridePacket");
+					// PacketSender.SendToAllClients(new ToggleAnimOverridePacket(__instance.gameObject, kanim_file, priority));
 					return kanim_file != null;
 				}
 				catch (Exception ex)
@@ -214,10 +227,15 @@ namespace ONI_Together.Patches.KleiPatches
 						return kanim_file != null;
 
 					if (MultiplayerSession.IsClient)
+					{
+						if (__instance.gameObject.GetComponent<AnimSyncer>() is AnimSyncer animSyncer && animSyncer.IsInOverrideScope())
+							return true;
 						return TogglingOverrideFromPacket;
+					}
 
-					Console.WriteLine("sending removeAnimOveridePacket");
-					PacketSender.SendToAllClients(new ToggleAnimOverridePacket(__instance.gameObject, kanim_file));
+					// Animation patch disabled globally.
+					// Console.WriteLine("sending removeAnimOveridePacket");
+					// PacketSender.SendToAllClients(new ToggleAnimOverridePacket(__instance.gameObject, kanim_file));
 					return kanim_file != null;
 				}
 				catch (Exception ex)
@@ -242,7 +260,8 @@ namespace ONI_Together.Patches.KleiPatches
 					if (!Utils.IsHostMinion(__instance))
 						return;
 
-					PacketSender.SendToAllClients(new SymbolVisibilityTogglePacket(__instance, symbol, is_visible));
+					// Animation patch disabled globally.
+					// PacketSender.SendToAllClients(new SymbolVisibilityTogglePacket(__instance, symbol, is_visible));
 				}
 				catch (Exception ex)
 				{

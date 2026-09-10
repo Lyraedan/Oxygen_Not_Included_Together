@@ -24,6 +24,7 @@ namespace ONI_Together.Scripts.Creatures
 
 			// Animate related component should be initialized before the prefab is fully spawned.
 			gameObject.AddOrGet<NavigatorSyncer>();
+			gameObject.AddOrGet<AnimSyncer>();
         }
 
 
