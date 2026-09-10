@@ -2,6 +2,7 @@ using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.OxySync.Components;
+using ONI_Together.Networking.OxySync.Components.Entities;
 using System.Collections;
 using Shared.Profiling;
 using UnityEngine;
@@ -14,6 +15,16 @@ namespace ONI_Together.Scripts.Duplicants
 		[MyCmpGet] KPrefabID kpref;
 
 		private bool HasInit = false;
+
+        public override void OnPrefabInit()
+        {
+			using var _ = Profiler.Scope();
+            base.OnPrefabInit();
+
+			// Animate related component should be initialized before the prefab is fully spawned.
+			gameObject.AddOrGet<NavigatorSyncer>();
+        }
+
 
 		public override void OnSpawn()
 		{
@@ -68,7 +79,7 @@ namespace ONI_Together.Scripts.Duplicants
 
 		void InitializeHost(GameObject go)
 		{
-			go.AddOrGet<DuplicantStateSender>();
+			// go.AddOrGet<DuplicantStateSender>();
 			go.AddOrGet<DuplicantChoreBroadcaster>();
 			go.AddOrGet<StatusItemsSyncer>();
 		}

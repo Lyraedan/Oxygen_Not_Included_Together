@@ -2,9 +2,7 @@ using HarmonyLib;
 using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
-using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Networking.Packets.Tools.Sandbox;
-using ONI_Together.Networking.Packets.World;
 using ONI_Together.Scripts.Creatures;
 using Shared.Profiling;
 using UnityEngine;
@@ -149,7 +147,6 @@ namespace ONI_Together.Patches.ToolPatches.Sandbox
                         var minionIdentity = spawned.GetComponent<MinionIdentity>();
                         if (minionIdentity != null)
                         {
-                            spawned.AddOrGet<OxySyncEntityPositionHandler>();
                             spawned.AddOrGet<AnimStateSyncer>();
                             spawned.AddOrGet<Scripts.Duplicants.MinionMultiplayerInitializer>();
 
@@ -207,7 +204,6 @@ namespace ONI_Together.Patches.ToolPatches.Sandbox
 
                         if (spawned.GetComponent<CreatureBrain>() != null || spawned.HasTag(GameTags.Creature))
                         {
-                            spawned.AddOrGet<OxySyncEntityPositionHandler>();
                             spawned.AddOrGet<AnimStateSyncer>();
                             spawned.AddOrGet<CreatureMultiplayerInitializer>();
                         }

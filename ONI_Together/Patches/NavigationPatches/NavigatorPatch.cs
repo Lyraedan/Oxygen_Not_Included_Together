@@ -1,7 +1,13 @@
 using HarmonyLib;
+using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
+using ONI_Together.Networking.OxySync.Components.Entities;
+using ONI_Together.Networking.Packets.Core;
+using ONI_Together.Networking.Packets.DuplicantActions;
 using Shared.Profiling;
+using System.Collections.Generic;
+using UnityEngine;
 
 namespace ONI_Together.Patches.Navigation
 {
@@ -12,14 +18,26 @@ namespace ONI_Together.Patches.Navigation
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InActiveSession)
+			if (NavigatorPatchUtil.AllowDefault(__instance, out var _))
 				return true;
 
-			if (!__instance.TryGetComponent<NetworkIdentity>(out var ni))
-				return true;
+			if (MultiplayerSession.IsClient)
+			{
+				// Host-driven transitions can complete while Navigator still reports moving,
+				// but transitionDriver has already been ended. If target is stale/non-null,
+				// blocking AdvancePath here leaves the client stuck in moving forever with
+				// no active transition updates. Force cleanup path only.
+				if (__instance.IsMoving() && __instance.transitionDriver?.GetTransition == null)
+				{
+					__instance.target = null;
+					return true;
+				}
 
-			if (MultiplayerSession.IsHost)
-				return true;
+				// If target is already null, allow Stop/fail cleanup but keep blocking
+				// local pathfinding for client authorization.
+				if (__instance.target == null)
+					return true;
+			}
 
 			return false;
 		}
@@ -34,17 +52,9 @@ namespace ONI_Together.Patches.Navigation
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InActiveSession)
-				return true;
-
-			if (__instance.TryGetComponent<NetworkIdentity>(out var netIdentity))
-				return MultiplayerSession.IsHost;
-
-			return true;
+			return NavigatorPatchUtil.AllowDefault(__instance, out var _);
 		}
 	}
-
-	/*
 
 	[HarmonyPatch(typeof(Navigator), nameof(Navigator.BeginTransition))]
 	public static class Navigator_BeginTransition_Patch
@@ -53,39 +63,37 @@ namespace ONI_Together.Patches.Navigation
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost)
+			if (!NavigatorPatchUtil.AllowDefault(__instance, out var syncer) || syncer == null)
 				return;
 
-			if (MultiplayerSession.ConnectedPlayers.Count == 0)
-				return;
-
-			if (!__instance.TryGetComponent<NetworkIdentity>(out var identity))
-				return;
-
-			if (!__instance.TryGetComponent<KPrefabID>(out var prefabId) || !prefabId.HasTag(GameTags.BaseMinion))
-				return;
-
-			var activeTransition = __instance.transitionDriver.GetTransition;
+			var activeTransition = __instance.transitionDriver?.GetTransition;
 			if (activeTransition == null)
 				return;
 
-			var packet = new NavigatorTransitionPacket
+			syncer.RequestSyncTransition(false, new NavigatorSyncer.Transition
 			{
-				NetId = identity.NetId,
-				IsStop = false,
-				SourcePosition = __instance.transform.GetPosition(),
-				TransitionX = (sbyte)transition.x,
-				TransitionY = (sbyte)transition.y,
+				Id = transition.id,
+				StartPosition = __instance.transform.position,
 				Speed = activeTransition.speed,
 				AnimSpeed = activeTransition.animSpeed,
-				Anim = transition.anim,
-				PreAnim = transition.preAnim,
-				IsLooping = transition.isLooping,
-				StartNavType = (byte)transition.start,
-				EndNavType = (byte)transition.end
-			};
+				StartNavType = (byte)transition.start
+			});
 
-			PacketSender.SendToAllClients(packet, sendType: PacketSendMode.Unreliable);
+			// var packet = new NavigatorTransitionPacket
+			// {
+			// 	NetId = identity.NetId,
+			// 	Sequence = NavigatorPatchUtil.NextSequence(identity.NetId),
+			// 	IsStop = false,
+			// 	PosX = __instance.transform.position.x,
+			// 	PosY = __instance.transform.position.y,
+			// 	TransitionId = transition.id,
+			// 	Speed = activeTransition.speed,
+			// 	AnimSpeed = activeTransition.animSpeed,
+			// 	StartNavType = (byte)transition.start,
+			// 	EndNavType = (byte)transition.end
+			// };
+
+			// PacketSender.SendToAllClients(packet, sendType: PacketSendMode.Unreliable);
 		}
 	}
 
@@ -96,31 +104,85 @@ namespace ONI_Together.Patches.Navigation
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost)
-				return;
-
-			if (MultiplayerSession.ConnectedPlayers.Count == 0)
-				return;
-
-			if (!__instance.TryGetComponent<NetworkIdentity>(out var identity))
-				return;
-
-			if (!__instance.TryGetComponent<KPrefabID>(out var prefabId) || !prefabId.HasTag(GameTags.BaseMinion))
-				return;
-
+			// Not sure why this is needed, keep it for now.
 			if (!play_idle)
 				return;
 
-			var packet = new NavigatorTransitionPacket
-			{
-				NetId = identity.NetId,
-				IsStop = true,
-				EndNavType = (byte)__instance.CurrentNavType
-			};
+			if (!NavigatorPatchUtil.AllowDefault(__instance, out var syncer) || syncer == null)
+				return;
 
-			PacketSender.SendToAllClients(packet, sendType: PacketSendMode.Reliable);
+			syncer.RequestSyncTransition(true, new NavigatorSyncer.Transition
+			{
+				StartPosition = __instance.transform.position,
+				StartNavType = (byte)__instance.CurrentNavType
+			});
+
+			// var packet = new NavigatorTransitionPacket
+			// {
+			// 	NetId = identity.NetId,
+			// 	Sequence = NavigatorPatchUtil.NextSequence(identity.NetId),
+			// 	IsStop = true,
+			// 	PosX = __instance.transform.position.x,
+			// 	PosY = __instance.transform.position.y,
+			// 	EndNavType = (byte)__instance.CurrentNavType
+			// };
+
+			// PacketSender.SendToAllClients(packet, sendType: PacketSendMode.Reliable);
 		}
 	}
 
-	*/
+	[HarmonyPatch(typeof(Navigator), "SimEveryTick")]
+	public static class Navigator_ClientDrainPendingTransitions_Patch
+	{
+		static void Postfix(Navigator __instance)
+		{
+			using var _ = Profiler.Scope();
+
+			// if (!MultiplayerSession.InActiveSession || MultiplayerSession.IsHost)
+			if (!MultiplayerSession.IsClient)
+				return;
+
+			if (!__instance.TryGetComponent<NavigatorSyncer>(out var syncer) || syncer == null)
+				return;
+
+			syncer.TryDispatchPending();
+		}
+	}
+
+	internal static class NavigatorPatchUtil
+	{
+		public static bool AllowDefault(Navigator navigator, out NavigatorSyncer syncer)
+		{
+			using var _ = Profiler.Scope();
+
+			syncer = null;
+
+			if (navigator == null)
+				return true;
+
+			if (!MultiplayerSession.InActiveSession)
+				return true;
+
+			if (!navigator.TryGetComponent<KPrefabID>(out var prefabId) || prefabId == null)
+				return true;
+
+			if (!prefabId.HasTag(GameTags.BaseMinion) && !prefabId.HasTag(GameTags.Creature) && navigator.GetComponent<CreatureBrain>() == null)
+				return true;
+
+			if (!navigator.TryGetComponent<NavigatorSyncer>(out var sync))
+			{
+				DebugConsole.LogAssert($"[NavigatorPatchUtil] NavigatorSyncer is missing on {navigator.gameObject?.GetProperName()}");
+				return true;
+			}
+
+			// The client machine should ignore their own navigation and use the host's authorization.
+			if (MultiplayerSession.IsClient)
+				return false;
+			
+			if (MultiplayerSession.IsHost && MultiplayerSession.SessionHasPlayers)
+				syncer = sync;
+
+			return true;
+		}
+	}
 }
