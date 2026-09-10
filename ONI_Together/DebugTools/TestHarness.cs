@@ -309,6 +309,14 @@ namespace ONI_Together.DebugTools
 					var orientation = a.Length > 4 ? (Orientation)int.Parse(a[4]) : Orientation.Neutral;
 					var tool = BuildTool.Instance;
 					if (tool == null) return "no BuildTool";
+					// BuildTool.PostProcessBuild reads the priority from the product info screen's
+					// material panel, which only exists once that screen was shown for a building.
+					var info = PlanScreen.Instance != null ? PlanScreen.Instance.ProductInfoScreen : null;
+					if (info == null) return "no ProductInfoScreen";
+					info.ConfigureScreen(def);
+					info.Show(true);
+					if (info.materialSelectionPanel == null) return "no materialSelectionPanel after Show";
+					if (info.materialSelectionPanel.PriorityScreen == null) return "no PriorityScreen on the material panel";
 					tool.Activate(def, elements);
 					tool.buildingOrientation = orientation;
 					tool.lastDragCell = -1;
@@ -316,6 +324,7 @@ namespace ONI_Together.DebugTools
 					var built = Grid.Objects[cell, (int)def.ObjectLayer];
 					if (built == null && def.ReplacementLayer != ObjectLayer.NumLayers) built = Grid.Objects[cell, (int)def.ReplacementLayer];
 					PlayerController.Instance.ActivateTool(SelectTool.Instance);
+					info.Show(false);
 					return built != null ? $"placed {Describe(built)}" : "nothing at cell after TryBuild (invalid location?)";
 				}
 				case "buildraw":
