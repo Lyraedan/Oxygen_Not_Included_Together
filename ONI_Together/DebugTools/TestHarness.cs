@@ -311,12 +311,8 @@ namespace ONI_Together.DebugTools
 					if (tool == null) return "no BuildTool";
 					// BuildTool.PostProcessBuild reads the priority from the product info screen's
 					// material panel, which only exists once that screen was shown for a building.
-					var info = PlanScreen.Instance != null ? PlanScreen.Instance.ProductInfoScreen : null;
-					if (info == null) return "no ProductInfoScreen";
-					info.ConfigureScreen(def);
-					info.Show(true);
-					if (info.materialSelectionPanel == null) return "no materialSelectionPanel after Show";
-					if (info.materialSelectionPanel.PriorityScreen == null) return "no PriorityScreen on the material panel";
+					// CopyBuildingOrder is the game's own "select this building in the menu" path.
+					if (!SelectInPlanScreen(def, out string why)) return why;
 					tool.Activate(def, elements);
 					tool.buildingOrientation = orientation;
 					tool.lastDragCell = -1;
@@ -324,8 +320,107 @@ namespace ONI_Together.DebugTools
 					var built = Grid.Objects[cell, (int)def.ObjectLayer];
 					if (built == null && def.ReplacementLayer != ObjectLayer.NumLayers) built = Grid.Objects[cell, (int)def.ReplacementLayer];
 					PlayerController.Instance.ActivateTool(SelectTool.Instance);
-					info.Show(false);
 					return built != null ? $"placed {Describe(built)}" : "nothing at cell after TryBuild (invalid location?)";
+				}
+				case "ubuild":
+				{
+					// ubuild PREFAB ELEMENT CELL CELL ... : a wire/pipe path through the utility build tool.
+					var def = Assets.GetBuildingDef(a[1]);
+					if (def == null) return $"unknown def {a[1]}";
+					var elements = new List<Tag> { TagManager.Create(a[2]) };
+					var path = new List<BaseUtilityBuildTool.PathNode>();
+					for (int i = 3; i < a.Length; i++) path.Add(new BaseUtilityBuildTool.PathNode { cell = ParseCell(a[i]), valid = true });
+					if (path.Count == 0) return "no cells";
+					if (!SelectInPlanScreen(def, out string why)) return why;
+					BaseUtilityBuildTool tool = def.BuildingComplete.GetComponent<Wire>() != null ? (BaseUtilityBuildTool)WireBuildTool.Instance : UtilityBuildTool.Instance;
+					if (tool == null) return "no utility build tool";
+					tool.Activate(def, elements);
+					tool.path = path;
+					tool.BuildPath();
+					PlayerController.Instance.ActivateTool(SelectTool.Instance);
+					var placed = path.Select(n => Grid.Objects[n.cell, (int)def.TileLayer]).Where(g => g != null).ToList();
+					return $"path {path.Count} cells -> {placed.Count} objects: {string.Join(", ", placed.Select(Describe))}";
+				}
+				case "attack":
+				case "capture":
+				{
+					// attack|capture CELL [R]: the drag box a player would draw around the cell.
+					int cell = ParseCell(a[1]);
+					int r = a.Length > 2 ? int.Parse(a[2]) : 2;
+					Grid.CellToXY(cell, out int x, out int y);
+					Vector3 down = Grid.CellToPosCCC(Grid.XYToCell(x - r, y - r), Grid.SceneLayer.Move);
+					Vector3 up = Grid.CellToPosCCC(Grid.XYToCell(x + r, y + r), Grid.SceneLayer.Move);
+					DragTool tool = cmd == "attack" ? FindTool<AttackTool>() : (DragTool)FindTool<CaptureTool>();
+					if (tool == null) return $"no {cmd} tool";
+					PlayerController.Instance.ActivateTool(tool);
+					tool.OnDragComplete(down, up);
+					PlayerController.Instance.ActivateTool(SelectTool.Instance);
+					return $"{cmd} box {x - r},{y - r}..{x + r},{y + r}: " + Marks(cell, r);
+				}
+				case "marks":
+				{
+					int cell = ParseCell(a[1]);
+					int r = a.Length > 2 ? int.Parse(a[2]) : 2;
+					return Marks(cell, r);
+				}
+				case "copysettings":
+				{
+					// copysettings SRC_CELL DST_CELL: the copy-settings tool from the building at SRC onto DST.
+					int src = ParseCell(a[1]);
+					int dst = ParseCell(a[2]);
+					var source = Grid.Objects[src, (int)ObjectLayer.Building];
+					if (source == null) return "no building at source cell";
+					var tool = CopySettingsTool.Instance;
+					if (tool == null) return "no CopySettingsTool";
+					tool.SetSourceObject(source);
+					PlayerController.Instance.ActivateTool(tool);
+					tool.OnDragTool(dst, 0);
+					PlayerController.Instance.ActivateTool(SelectTool.Instance);
+					return $"copied from {Describe(source)} to {Describe(Grid.Objects[dst, (int)ObjectLayer.Building])}";
+				}
+				case "sandbox":
+				{
+					// sandbox on | brush CELL ELEMENT [MASS] | spawn CELL PREFAB | destroy CELL
+					switch (a[1])
+					{
+						case "on":
+							SaveGame.Instance.sandboxEnabled = true;
+							Game.Instance.SandboxModeActive = true;
+							return $"sandbox active={Game.Instance.SandboxModeActive} menu={(SandboxToolParameterMenu.instance != null)} settings={(SandboxToolParameterMenu.instance?.settings != null)}";
+						case "brush":
+						{
+							var settings = SandboxToolParameterMenu.instance?.settings;
+							if (settings == null) return "no sandbox settings (sandbox on first)";
+							var element = ElementLoader.FindElementByName(a[3]);
+							if (element == null) return $"unknown element {a[3]}";
+							settings.SetIntSetting(SandboxSettings.KEY_SELECTED_ELEMENT, ElementLoader.GetElementIndex(element.id));
+							if (a.Length > 4) settings.SetFloatSetting(SandboxSettings.KEY_MASS, float.Parse(a[4]));
+							var tool = SandboxBrushTool.instance;
+							if (tool == null) return "no SandboxBrushTool";
+							tool.OnPaintCell(ParseCell(a[2]), 0);
+							return $"brushed {element.id} at {ParseCell(a[2])}";
+						}
+						case "spawn":
+						{
+							var settings = SandboxToolParameterMenu.instance?.settings;
+							if (settings == null) return "no sandbox settings (sandbox on first)";
+							settings.SetStringSetting(SandboxSettings.KEY_SELECTED_ENTITY, a[3]);
+							var spawner = FindTool<SandboxSpawnerTool>();
+							if (spawner == null) return "no SandboxSpawnerTool";
+							int cell = ParseCell(a[2]);
+							spawner.currentCell = cell;
+							spawner.Place(cell);
+							return $"spawned {a[3]} at {cell}: {string.Join(", ", ItemsAt(cell).Select(Describe))}";
+						}
+						case "destroy":
+						{
+							var tool = SandboxDestroyerTool.instance;
+							if (tool == null) return "no SandboxDestroyerTool";
+							tool.OnPaintCell(ParseCell(a[2]), 0);
+							return $"destroyed at {ParseCell(a[2])}";
+						}
+						default: return "sandbox on|brush|spawn|destroy";
+					}
 				}
 				case "buildraw":
 				{
@@ -365,6 +460,45 @@ namespace ONI_Together.DebugTools
 				default:
 					return "unknown command";
 			}
+		}
+
+		private static T FindTool<T>() where T : InterfaceTool
+		{
+			var tools = PlayerController.Instance != null ? PlayerController.Instance.tools : null;
+			if (tools != null)
+				foreach (var t in tools)
+					if (t is T match) return match;
+			return UnityEngine.Object.FindFirstObjectByType<T>(FindObjectsInactive.Include);
+		}
+
+		/// <summary>Selects the building in the build menu the way a player does, so the product info screen and its material panel exist.</summary>
+		private static bool SelectInPlanScreen(BuildingDef def, out string why)
+		{
+			why = null;
+			if (PlanScreen.Instance == null) { why = "no PlanScreen"; return false; }
+			PlanScreen.Instance.CopyBuildingOrder(def, "DEFAULT_FACADE");
+			var info = PlanScreen.Instance.ProductInfoScreen;
+			if (info == null) { why = "no ProductInfoScreen"; return false; }
+			if (info.materialSelectionPanel == null) { why = "no materialSelectionPanel after CopyBuildingOrder"; return false; }
+			if (info.materialSelectionPanel.PriorityScreen == null) { why = "no PriorityScreen on the material panel"; return false; }
+			return true;
+		}
+
+		private static string Marks(int cell, int r)
+		{
+			Grid.CellToXY(cell, out int x, out int y);
+			var rows = new List<string>();
+			foreach (var brain in global::Components.Brains.Items)
+			{
+				if (brain == null) continue;
+				int c = Grid.PosToCell(brain);
+				Grid.CellToXY(c, out int cx, out int cy);
+				if (cx < x - r || cx > x + r || cy < y - r || cy > y + r) continue;
+				var faction = brain.GetComponent<FactionAlignment>();
+				var capturable = brain.GetComponent<Capturable>();
+				rows.Add($"{Describe(brain.gameObject)} attack={(faction != null && faction.IsPlayerTargeted() ? "y" : "n")} capture={(capturable != null && capturable.IsMarkedForCapture ? "y" : "n")}");
+			}
+			return rows.Count == 0 ? "no creatures in box" : string.Join("; ", rows);
 		}
 
 		private static int ParseCell(string s)
