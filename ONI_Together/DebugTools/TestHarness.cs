@@ -181,6 +181,8 @@ namespace ONI_Together.DebugTools
 			string cmd = a[0].ToLowerInvariant();
 			switch (cmd)
 			{
+				case "seed":
+					return $"seed={CustomGameSettings.Instance?.GetCurrentWorldgenSeed()} save={SaveGame.Instance?.BaseName} world={ClusterManager.Instance?.activeWorld?.name} grid={Grid.WidthInCells}x{Grid.HeightInCells}";
 				case "status":
 					return $"host={MultiplayerSession.IsHost} loss={DropUnreliableChance} dropped={_droppedUnreliable} inSession={MultiplayerSession.InActiveSession} client={GameClient.State} players={MultiplayerSession.PlayerCount} inGame={Utils.IsInGame()} speed={SpeedControlScreen.Instance?.GetSpeed()} paused={SpeedControlScreen.Instance?.IsPaused} cycle={GameClock.Instance?.GetCycle()} time={GameClock.Instance?.GetTime():F1} ids={NetworkIdentityRegistry.Count} grid={Grid.WidthInCells}x{Grid.HeightInCells}";
 				case "xy":
@@ -297,6 +299,28 @@ namespace ONI_Together.DebugTools
 				}
 				case "build":
 				{
+					// The path a click takes: BuildTool.Activate creates the visualizer and
+					// TryBuild places, so whatever the mod patches on the tool runs as well.
+					string prefab = a[1];
+					int cell = ParseCell(a[2]);
+					var def = Assets.GetBuildingDef(prefab);
+					if (def == null) return $"unknown def {prefab}";
+					var elements = new List<Tag> { TagManager.Create(a[3]) };
+					var orientation = a.Length > 4 ? (Orientation)int.Parse(a[4]) : Orientation.Neutral;
+					var tool = BuildTool.Instance;
+					if (tool == null) return "no BuildTool";
+					tool.Activate(def, elements);
+					tool.buildingOrientation = orientation;
+					tool.lastDragCell = -1;
+					tool.TryBuild(cell);
+					var built = Grid.Objects[cell, (int)def.ObjectLayer];
+					if (built == null && def.ReplacementLayer != ObjectLayer.NumLayers) built = Grid.Objects[cell, (int)def.ReplacementLayer];
+					PlayerController.Instance.ActivateTool(SelectTool.Instance);
+					return built != null ? $"placed {Describe(built)}" : "nothing at cell after TryBuild (invalid location?)";
+				}
+				case "buildraw":
+				{
+					// Places without the tool and sends the packet by hand; kept for branches where TryBuild is not patched.
 					string prefab = a[1];
 					int cell = ParseCell(a[2]);
 					var def = Assets.GetBuildingDef(prefab);
