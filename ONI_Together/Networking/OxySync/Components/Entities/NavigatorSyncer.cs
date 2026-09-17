@@ -5,12 +5,15 @@ using Shared.OxySync.Attributes;
 using Shared.Profiling;
 using UnityEngine;
 using System;
+using System.Linq;
 
 namespace ONI_Together.Networking.OxySync.Components.Entities
 {
     [FixedInterestGroup]
 	public class NavigatorSyncer : NetworkBehaviour
 	{
+        private const bool ENABLE_LOG = true;
+
         // Accelerate the movement speed on client side to compensate for network latency.
         // Ideally, this should be dynamically adjusted based on network conditions. but out of scope now.
         private const float BASE_SPEED_MULTIPLIER = 1.02f;
@@ -18,7 +21,7 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
         private const float CATCHUP_PER_PENDING = 0.12f;
         private const float MAX_CATCHUP_MULTIPLIER = 1.45f;
         private const float MISSING_SEQUENCE_GRACE_SECONDS = 0.2f;
-        private const float ACTIVE_TRANSITION_STUCK_SECONDS = 0.9f;
+        private const float ACTIVE_TRANSITION_STUCK_SECONDS = 0.4f;
         private const float STUCK_POSITION_EPSILON = 0.01f;
 
         [Serializable]
@@ -39,22 +42,21 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
         [MyCmpGet]
         private Navigator navigator;
 
-        private string EntityName { get {
-            return gameObject?.GetProperName() ?? "";
-        }}
+        [MyCmpGet]
+        private KBatchedAnimController animController;
+
+        private string EntityName => gameObject?.GetProperName() ?? "Unknown Entity";
 
         uint ServerNextSequence = 1;
         uint ClientNextSequence = 1;
         float LastClientSequenceAdvanceTime;
         float LastClientMovementTime;
         Vector3 LastClientPosition;
-        SortedDictionary<uint, Transition> PendingTransitions = new();
+        readonly SortedDictionary<uint, Transition> PendingTransitions = new();
 
-		public override void OnSpawn()
+		public override void OnPrefabInit()
 		{
-			using var _ = Profiler.Scope();
-
-			base.OnSpawn();
+			base.OnPrefabInit();
 
             // When focusing an minions or creature, the interest group does not work as expected.
             // Packets would not be send to those clients watching the minion/creature.
@@ -81,9 +83,9 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
 		{
 			using var _ = Profiler.Scope();
 
-			base.OnCleanUp();
-
             PendingTransitions.Clear();
+
+			base.OnCleanUp();
 		}
 
         public void RequestSyncTransition(bool isStop, Transition transition)
@@ -100,14 +102,14 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
                 else
                     CallClientRpc(nameof(RpcNextTransition), time, ServerNextSequence, transition);
 
-                // Suppress the log until we have a flag to control it.
-                // DebugConsole.LogSuccess($"[NavigatorSyncer] RequestSyncTransition called with sequence: {ServerNextSequence}, timestamp: {time}, name: {EntityName}");
+                if (ENABLE_LOG)
+                    DebugConsole.LogSuccess($"[NavigatorSyncer][SEND_TRANSITION]{EntityName}:{NetId} sequence: {ServerNextSequence}, timestamp: {time}");
                 
                 ServerNextSequence++;
             }
             catch (Exception e)
             {
-                DebugConsole.LogError($"[NavigatorSyncer] Failed to request sync transition: {e}");
+                DebugConsole.LogError($"[NavigatorSyncer][SEND_TRANSITION]{EntityName}:{NetId} Failed to request sync transition: {e}");
             }
         }
 
@@ -116,13 +118,17 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
 		{
 			using var _ = Profiler.Scope();
 
-            // Suppress the log until we have a flag to control it.
-            // DebugConsole.LogSuccess($"[NavigatorSyncer][RpcNextTransition] sequence: {sequence}, timestamp: {timestamp}, name: {EntityName}, NetId: {NetId}");
+            if (ENABLE_LOG)
+                DebugConsole.LogSuccess($"[NavigatorSyncer][RECEIVE_TRANSITION]{EntityName}:{NetId} sequence: {sequence}, timestamp: {timestamp}");
 
 			// We ignore stale transitions,
             // but we still want to keep track of the latest sequence number so we can prune pending transitions.
             if (sequence < ClientNextSequence)
+            {
+                if (ENABLE_LOG)
+                    DebugConsole.LogWarning($"[NavigatorSyncer][RECEIVE_TRANSITION]{EntityName}:{NetId} sequence: {sequence}, timestamp: {timestamp} is stale, ignoring");
                 return;
+            }
 
             // Late-join/bootstrap case: if first sequence we ever see is not 1,
             // initialize expected sequence so pending dispatch can progress.
@@ -145,12 +151,16 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
 		{
 			using var _ = Profiler.Scope();
 
-            // Suppress the log until we have a flag to control it.
-            // DebugConsole.LogSuccess($"[NavigatorSyncer][RpcStopTransition] sequence: {sequence}, timestamp: {timestamp}, name: {EntityName}, NetId: {NetId}");
+            if (ENABLE_LOG)
+                DebugConsole.LogSuccess($"[NavigatorSyncer][RECEIVE_TRANSITION]{EntityName}:{NetId} sequence: {sequence}, timestamp: {timestamp}");
 
             // If it is stale, we ignore older stop transitions.
             if (sequence < ClientNextSequence)
+            {
+                if (ENABLE_LOG)
+                    DebugConsole.LogWarning($"[NavigatorSyncer][RECEIVE_TRANSITION]{EntityName}:{NetId} sequence: {sequence}, timestamp: {timestamp} is stale, ignoring");
                 return;
+            }
 
             ClientNextSequence = sequence + 1;
             LastClientSequenceAdvanceTime = Time.unscaledTime;
@@ -167,39 +177,25 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
 
 			if (navigator == null)
             {
-                DebugConsole.LogAssert($"[NavigatorSyncer] Navigator is null on {EntityName}");
+                DebugConsole.LogAssert(
+                    $"[NavigatorSyncer]{EntityName}:{NetId} " +
+                    $"Navigator is null while trying to dispatch pending transitions");
                 return;
-            }
-
-            if (!isClient)
-                return;
-
-            if (navigator.transitionDriver?.GetTransition != null)
-            {
-                // We are receiving transitions, but if the active transition never
-                // completes locally, dispatch is permanently blocked and the entity freezes.
-                // Recover by forcing transition teardown after a short stall window.
-                if (PendingTransitions.Count > 0 && IsActiveTransitionStuck())
-                {
-                    DebugConsole.LogWarning(
-                        $"[NavigatorSyncer] Recovering stuck transition on {EntityName} " +
-                        $"(NetId={NetId}, pending={PendingTransitions.Count}, expectedSeq={ClientNextSequence})");
-
-                    navigator.transitionDriver.EndTransition();
-                    navigator.Stop(arrived_at_destination: false, play_idle: true);
-                }
-
-				return;
             }
             
             if (PendingTransitions.Count == 0)
                 return;
 
+            // Check if the next expected sequence is missing and attempt to recover if necessary.
+            var lowestPending = PendingTransitions.First().Key;
             if (!PendingTransitions.ContainsKey(ClientNextSequence)
-                && TryGetLowestPendingSequence(out var lowestPending)
                 && lowestPending > ClientNextSequence
                 && Time.unscaledTime - LastClientSequenceAdvanceTime >= MISSING_SEQUENCE_GRACE_SECONDS)
             {
+                if (ENABLE_LOG)
+                    DebugConsole.LogWarning(
+                        $"[NavigatorSyncer]{EntityName}:{NetId} Missing sequence {ClientNextSequence}, jumping to {lowestPending}");
+
                 // Unreliable transition may be permanently lost. Jump to the next available
                 // host-anchored transition so client movement can recover.
                 ClientNextSequence = lowestPending;
@@ -218,37 +214,6 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
 					break;
             }
 		}
-
-        [Client]
-        private bool IsActiveTransitionStuck()
-        {
-            if (navigator == null)
-                return false;
-
-            float now = Time.unscaledTime;
-            Vector3 currentPos = navigator.transform.position;
-            if ((currentPos - LastClientPosition).sqrMagnitude > STUCK_POSITION_EPSILON * STUCK_POSITION_EPSILON)
-            {
-                LastClientPosition = currentPos;
-                LastClientMovementTime = now;
-                return false;
-            }
-
-            return now - LastClientMovementTime >= ACTIVE_TRANSITION_STUCK_SECONDS;
-        }
-
-        [Client]
-        private bool TryGetLowestPendingSequence(out uint sequence)
-        {
-            foreach (var key in PendingTransitions.Keys)
-            {
-                sequence = key;
-                return true;
-            }
-
-            sequence = 0;
-            return false;
-        }
 
         [Client]
         private void PrunePendingUpTo(uint sequence)
@@ -302,7 +267,8 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
 
                 activeTransition.speed = speed;
                 activeTransition.animSpeed = animSpeed;
-                navigator.animController?.PlaySpeedMultiplier = animSpeed;
+                if (navigator.animController != null)
+                    navigator.animController.PlaySpeedMultiplier = animSpeed;
 			}
 
 			return true;
@@ -315,7 +281,7 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
 
             if (navigator == null)
             {
-                DebugConsole.LogAssert($"[NavigatorSyncer] Navigator is null on {gameObject?.GetProperName()}");
+                DebugConsole.LogAssert($"[NavigatorSyncer]{EntityName}:{NetId} Navigator is null.");
                 return;
             }
 
@@ -324,28 +290,23 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
 				var currentPos = navigator.transform.position;
 				navigator.transform.SetPosition(new Vector3(pos.x, pos.y, currentPos.z));
 			}
-			catch (System.Exception e)
+			catch (Exception e)
 			{
-				DebugConsole.LogError(
-                    $"[NavigatorSyncer] Failed to set position "+
-                    $"on {navigator.gameObject?.GetProperName()}: {e}");
+				DebugConsole.LogError($"[NavigatorSyncer]{EntityName}:{NetId} Failed to set position. {e}");
 			}
-
 		}
 
 		private void Update()
 		{
-            // Fallback dispatch only when not moving. While moving, SimEveryTick
-            // patch is the primary dispatch path to align with sim timing.
-            if (!isClient || PendingTransitions.Count == 0 || navigator == null)
+            if (!isClient || navigator == null)
                 return;
 
-            if (navigator.IsMoving())
+            // Fallback dispatch only when not moving. While moving, SimEveryTick
+            // patch is the primary dispatch path to align with sim timing.
+            if (navigator.IsMoving() || PendingTransitions.Count == 0)
                 return;
 
             TryDispatchPending();
-
-			return;
 		}
 	}
 }
