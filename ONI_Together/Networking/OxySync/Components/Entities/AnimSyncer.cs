@@ -12,6 +12,8 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
 	[FixedInterestGroup]
 	public class AnimSyncer : NetworkBehaviour
 	{
+		private const bool ENABLE_LOG = false;
+
 		[Serializable]
 		private sealed class AnimRequest
 		{
@@ -24,33 +26,34 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
 			public bool IsLocomotion;
 		}
 
+		[Serializable]
+		private sealed class SymbolVisibility
+		{
+			public KAnimHashedString Symbol;
+			public bool IsVisible;
+		}
+
 		[MyCmpGet]
 		private KBatchedAnimController animController;
 		[MyCmpGet]
 		private Navigator navigator;
-		[MyCmpGet]
-		private NavigatorSyncer navigatorSyncer;
 
-		private string EntityName => gameObject.GetProperName();
+		[SyncVar(Hook = nameof(OnSymbolVisibilityChanged))]
+		SymbolVisibility Symbol;
+
+		public string EntityName => gameObject?.GetProperName() ?? "Unknown Entity";
 
 		private uint NextSequence = 1;
 		private uint ExpectedSequence = 1;
 		private float MissingSequenceSince = -1f;
-		private HashedString LastTransitionAnim = default;
-		private HashedString LastTransitionPreAnim = default;
-		private float LastTransitionSeenAt = -1f;
 
-		// Keep skip enabled for recovery, but be conservative because RpcPlayAnim is reliable.
 		private const float MISSING_SEQUENCE_GRACE_SECONDS = 0.75f;
-		private const float TRANSITION_HANDOFF_WINDOW_SECONDS = 1.5f;
 
-		private readonly SortedDictionary<uint, AnimRequest> PendingAnims = new();
+		private readonly SortedDictionary<uint, AnimRequest> PendingAnims = [];
 
-		public override void OnSpawn()
+		public override void OnPrefabInit()
 		{
-			using var _ = Profiler.Scope();
-
-			base.OnSpawn();
+			base.OnPrefabInit();
 
 			// For the same reason as NavigatorSyncer,
 			// we need to set the interest group to -1 to sync anim to those clients actually watching this entity.
@@ -58,21 +61,14 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
 
 			NextSequence = 1;
 			ExpectedSequence = 1;
-			LastTransitionAnim = default;
-			LastTransitionPreAnim = default;
-			LastTransitionSeenAt = -1f;
 			PendingAnims.Clear();
 		}
 
-
 		public override void OnCleanUp()
 		{
-			using var _ = Profiler.Scope();
-
 			PendingAnims.Clear();
-			LastTransitionAnim = default;
-			LastTransitionPreAnim = default;
-			LastTransitionSeenAt = -1f;
+			ExpectedSequence = 1;
+			NextSequence = 1;
 			base.OnCleanUp();
 		}
 
@@ -80,17 +76,19 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
 		{
 			using var _ = Profiler.Scope();
 			if (!isServer || !MultiplayerSession.SessionHasPlayers)
-			{
 				return;
-			}
 
 			if (animNames == null || animNames.Length == 0 || animNames[0] == default)
 				return;
 
 			// Locomotion animations will be handled by the clients' transition,
 			// so we don't want to send them through the AnimSyncer.
-			if (ShouldIgnoreLocomotionFromAnimSyncer(animNames))
+			if (IsNavigatorAnim(animNames.FirstOrDefault()))
+			{
+				if (ENABLE_LOG)
+					DebugConsole.LogNonImportant($"[AnimSyncer][SEND_ANIM_SKIP_NAV]{EntityName}:{NetId} anim: {ResolveAnimName(animNames.FirstOrDefault())}");
 				return;
+			}
 
 			try
 			{
@@ -104,16 +102,58 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
 				};
 				CallClientRpc(nameof(RpcPlayAnim), NextSequence, request);
 
-				string animName = ResolveAnimName(animNames.FirstOrDefault());
-				DebugConsole.LogSuccess($"[AnimSyncer] Sent animation packet: {NextSequence} for {EntityName} with NetId {NetId}: {animName}");
+				if (ENABLE_LOG)
+				{
+					string animName = ResolveAnimName(animNames.FirstOrDefault());
+					DebugConsole.LogSuccess($"[AnimSyncer][SEND_ANIM]{EntityName}:{NetId} seq: {NextSequence} anim: {animName}");
+				}
 
 				NextSequence++;
 
 			}
 			catch (Exception e)
 			{
-				DebugConsole.LogError($"[AnimSyncer] Failed to send animation packet to {EntityName} with NetId {NetId}: {e}");
+				DebugConsole.LogError($"[AnimSyncer][SEND_ANIM]{EntityName}:{NetId} Failed to send animation packet. {e}");
 			}
+		}
+
+		public void RequestUpdateKanimOverride(string kanim_name, bool isAdding, float priority = 0f)
+		{
+			using var _ = Profiler.Scope();
+			if (!isServer || !MultiplayerSession.SessionHasPlayers)
+				return;
+
+			if (string.IsNullOrEmpty(kanim_name))
+				return;
+			
+			try
+			{
+				CallClientRpc(nameof(RpcUpdateKAnimOverrides), kanim_name, isAdding, priority);
+				if (ENABLE_LOG)
+					DebugConsole.LogSuccess($"[AnimSyncer][SEND_OVERRIDE]{EntityName}:{NetId} {(isAdding ? "Add" : "Remove")} {kanim_name}");
+			}
+			catch (Exception ex)
+			{
+				DebugConsole.LogError($"[AnimSyncer][SEND_OVERRIDE]{EntityName}:{NetId} Failed to send kanim override update {kanim_name}. {ex}");
+			}
+		}
+
+		public void RequestSymbolVisibilityChange(KAnimHashedString symbol, bool isVisible)
+		{
+			using var _ = Profiler.Scope();
+			if (!isServer || !MultiplayerSession.SessionHasPlayers)
+				return;
+
+			Symbol = new SymbolVisibility
+			{
+				Symbol = symbol,
+				IsVisible = isVisible
+			};
+
+			if (ENABLE_LOG)
+				DebugConsole.LogNonImportant(
+					$"[AnimSyncer][SymbolVisibility]{EntityName}:{NetId} " +
+					$"Hash: {symbol} visiable: {isVisible} sent");
 		}
 
 		[ClientRpc(SendMode = (int)PacketSendMode.Reliable)]
@@ -125,27 +165,64 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
 				return;
 
 			string animName = ResolveAnimName(request?.AnimNames?.FirstOrDefault() ?? default);
-			DebugConsole.LogSuccess($"[AnimSyncer] Received animation packet: {sequence} for {EntityName} with NetId {NetId}: {animName}");
+			if (ENABLE_LOG)
+				DebugConsole.LogSuccess($"[AnimSyncer][RECEIVE_ANIM]{EntityName}:{NetId} seq: {sequence} anim: {animName}");
 
 			if (request == null || request.AnimNames == null || request.AnimNames.Length == 0 || request.AnimNames[0] == default)
 				return;
 
 			if (sequence != 0 && sequence < ExpectedSequence)
+			{
+				DebugConsole.LogWarning($"[AnimSyncer][RECEIVE_ANIM_STALE]{EntityName}:{NetId} seq: {sequence} expected: {ExpectedSequence} anim: {animName}");
 				return;
+			}
 
 			// If the first packet received is not the first sequence, we will accept it and set the expected sequence to it.
 			if (ExpectedSequence == 1 && PendingAnims.Count == 0 && sequence > 1)
-			{
 				ExpectedSequence = sequence;
-			}
-
+			
 			if (!PendingAnims.ContainsKey(sequence))
 			{
 				PendingAnims[sequence] = request;
-				PendingAnims[sequence].IsLocomotion = IsCurrentNavigatorTransitionAnim(request.AnimNames[0]);
+				PendingAnims[sequence].IsLocomotion = IsNavigatorAnim(request.AnimNames[0]);
 			}
 
 			TryDispatchPending();
+		}
+
+		[ClientRpc(SendMode = (int)PacketSendMode.Reliable)]
+		private void RpcUpdateKAnimOverrides(string kanim_name, bool isAdding, float priority)
+		{
+			using var _ = Profiler.Scope();
+
+			if (!isClient)
+				return;
+
+			try
+			{
+				if (!Assets.TryGetAnim(kanim_name, out var anim) || anim == null)
+				{
+					DebugConsole.LogWarning($"[AnimSyncer][RECEIVE_OVERRIDE]{EntityName}:{NetId} Could not find anim {kanim_name}");
+					return;
+				}
+
+				EnterOverrideScope();
+				if (ENABLE_LOG)
+					DebugConsole.LogNonImportant($"[AnimSyncer][RECEIVE_OVERRIDE]{EntityName}:{NetId} {(isAdding ? "Add" : "Remove")} {kanim_name}");
+		
+				if (isAdding)
+					animController?.AddAnimOverrides(anim, priority);
+				else
+					animController?.RemoveAnimOverrides(anim);
+			}
+			catch (Exception e)
+			{
+				DebugConsole.LogError($"[AnimSyncer][RECEIVE_OVERRIDE]{EntityName}:{NetId} Failed to process kanim override. {e}");
+			}
+			finally
+			{
+				ExitOverrideScope();
+			}
 		}
 
 		// This is the lock to allow animations to be played in a synchronized manner on the client.
@@ -176,23 +253,16 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
 			if (!CanSyncAnim(animNames, out var kbac))
 				return;
 
-			if (ShouldIgnoreLocomotionFromAnimSyncer(animNames))
-				return;
+			string animName = ResolveAnimName(animNames.FirstOrDefault());
 
 			try
 			{
 				EnterSyncedPlaybackScope();
 
 				HashedString primaryAnim = animNames.FirstOrDefault();
-				bool forcePlayAfterTransition = queueing
-					&& animNames.Length == 1
-					&& !IsMovementActive()
-					&& IsRecentNavigatorTransitionAnim(kbac.currentAnim);
 
 				if (animNames.Length > 1)
 					kbac.Play(animNames, mode);
-				else if (forcePlayAfterTransition)
-					kbac.Play(primaryAnim, mode, speed, timeOffset);
 				else if (queueing)
 					kbac.Queue(primaryAnim, mode, speed, timeOffset);
 				else if (!isSync)
@@ -208,12 +278,12 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
 					kbac.SetElapsedTime(timeOffset);
 				}
 
-				string animName = ResolveAnimName(animNames.FirstOrDefault());
-				DebugConsole.LogSuccess($"[AnimSyncer] played animation for {EntityName} with NetId {NetId}: {animName}");
+				if (ENABLE_LOG)
+					DebugConsole.LogSuccess($"[AnimSyncer][PLAY_ANIM]{EntityName}:{NetId} played {animName}.");
 			}
 			catch (Exception e)
 			{
-				DebugConsole.LogError($"[AnimSyncer] Failed to play animation for {EntityName} with NetId {NetId}: {e}");
+				DebugConsole.LogError($"[AnimSyncer][PLAY_ANIM]{EntityName}:{NetId} Failed to play animate {animName}. {e}");
 			}
 			finally
 			{
@@ -235,13 +305,12 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
 			}
 			catch (Exception e)
 			{
-				DebugConsole.LogError($"[AnimSyncer] Failed to force animation update for {EntityName} with NetId {NetId}: {e}");
+				DebugConsole.LogError($"[AnimSyncer][FORCE_ANIM_UPDATE]{EntityName}:{NetId} Failed to force animation update. {e}");
 			}
 
 		}
 
 		// Check if the animation can be synced and get the KBatchedAnimController
-		// We should only allow the clients to manually change the animation state.
 		private bool CanSyncAnim(HashedString[] animNames, out KBatchedAnimController kbc)
 		{
 			using var _ = Profiler.Scope();
@@ -255,83 +324,40 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
 			if (animController == null || animNames == null || animNames.Length == 0 || animNames[0] == default)
 				return false;
 
+			// animates created by the navigator, it should be controlled by the navigator.
+			if (IsNavigatorAnim(animNames.FirstOrDefault()))
+				return false;
+			
+			if (animNames.Length == 1 && animNames[0] == animController.currentAnim)
+				return false;
+
 			kbc = animController;
 			return true;
 		}
 
-		private bool IsMovementActive()
+		public bool IsNavigatorAnim(HashedString animName)
 		{
+			using var _ = Profiler.Scope();
+
 			if (navigator == null)
 				navigator = GetComponent<Navigator>();
 
-			if (navigator == null)
+			if (navigator == null || animName == null || animName == default)
 				return false;
 
-			if (navigator.transitionDriver?.GetTransition != null)
+			// Check if the current animation is the idle animation for the navigator.
+			if (navigator.NavGrid != null && navigator.NavGrid.GetIdleAnim(navigator.CurrentNavType) == animName)
 				return true;
-
-			return navigator.IsMoving();
-		}
-
-		private bool IsCurrentNavigatorTransitionAnim(HashedString animName)
-		{
-			if (animName == default)
-				return false;
-
-			if (navigator == null)
-				navigator = GetComponent<Navigator>();
 
 			var activeTransition = navigator?.transitionDriver?.GetTransition;
 			if (activeTransition == null)
 				return false;
-
-			LastTransitionAnim = activeTransition.anim;
-			LastTransitionPreAnim = activeTransition.preAnim;
-			LastTransitionSeenAt = Time.unscaledTime;
-
+			
+			// Check if the current animation is part of an active transition.
 			return animName == activeTransition.anim || animName == activeTransition.preAnim;
 		}
 
-		private bool IsRecentNavigatorTransitionAnim(HashedString animName)
-		{
-			if (animName == default || LastTransitionSeenAt < 0f)
-				return false;
-
-			if (Time.unscaledTime - LastTransitionSeenAt > TRANSITION_HANDOFF_WINDOW_SECONDS)
-				return false;
-
-			return animName == LastTransitionAnim || animName == LastTransitionPreAnim;
-		}
-
-		private bool IsCurrentOrRecentNavigatorTransitionAnim(HashedString animName)
-		{
-			return IsCurrentNavigatorTransitionAnim(animName) || IsRecentNavigatorTransitionAnim(animName);
-		}
-
-		[Client]
-		private bool ShouldIgnoreLocomotionFromAnimSyncer(HashedString[] animNames)
-		{
-			if (animNames == null || animNames.Length == 0 || animNames[0] == default)
-				return true;
-
-			if (navigatorSyncer == null)
-				navigatorSyncer = GetComponent<NavigatorSyncer>();
-
-			if (navigatorSyncer == null)
-				return false;
-
-			HashedString primaryAnim = animNames.FirstOrDefault();
-			if (IsCurrentOrRecentNavigatorTransitionAnim(primaryAnim))
-			{
-				string transitionAnimName = ResolveAnimName(primaryAnim);
-				DebugConsole.LogNonImportant($"[AnimSyncer] Ignoring navigator transition animation for {EntityName} with NetId {NetId}: {transitionAnimName}");
-				return true;
-			}
-
-			return false;
-		}
-
-		private string ResolveAnimName(HashedString animName)
+		public string ResolveAnimName(HashedString animName)
 		{
 			if (animName == default)
 				return string.Empty;
@@ -352,9 +378,7 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
 			if (!isClient || PendingAnims.Count == 0)
 				return;
 
-			if (IsMovementActive())
-				return;
-
+			// Wait for the right anim for a short period. Some anim should play before the other.
 			var lowestPendingSequence = PendingAnims.Keys.Min();
 			if (!PendingAnims.ContainsKey(ExpectedSequence) && lowestPendingSequence > ExpectedSequence)
 			{
@@ -377,18 +401,16 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
 
 			while (PendingAnims.TryGetValue(ExpectedSequence, out var pending))
 			{
-				uint currentSequence = ExpectedSequence;
-
-				if (IsMovementActive())
-					break;
-
 				PendingAnims.Remove(ExpectedSequence);
 				ExpectedSequence++;
 
 				if (pending.IsLocomotion)
+				{
+					string animName = ResolveAnimName(pending.AnimNames.FirstOrDefault());
+					DebugConsole.Log($"[AnimSyncer]{EntityName}:{NetId} Drop {animName}:{pending.AnimNames.FirstOrDefault()} because it is a locomotion animation");
 					continue;
+				}
 			
-
 				PlayAnim(pending.Queueing, pending.AnimNames, pending.Mode, pending.Speed, pending.TimeOffset, false, true);
 			}
 
@@ -396,12 +418,25 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
 				MissingSequenceSince = -1f;
 		}
 
+		[Client]
+		private void OnSymbolVisibilityChanged(SymbolVisibility oldValue, SymbolVisibility newValue)
+		{
+			if (ENABLE_LOG)
+				DebugConsole.LogNonImportant(
+					$"[AnimSyncer][SymbolVisibility]{EntityName}:{NetId} " +
+					$"Hash: {newValue.Symbol} visiable: {newValue.IsVisible} received");
+
+			// Caution: the typo may be fixed in future game updates, but hope they would not.
+			animController?.SetSymbolVisiblity(newValue.Symbol, newValue.IsVisible);
+		}
+
 		private void Update()
 		{
 			using var _ = Profiler.Scope();
-			if (isClient && navigator != null)
-				IsCurrentNavigatorTransitionAnim(navigator.transitionDriver?.GetTransition?.anim ?? default);
-			if (isClient)
+			if (!isClient || navigator == null)
+				return;
+
+			if (!navigator.IsMoving())
 				TryDispatchPending();
 		}
 	}

@@ -26,7 +26,6 @@ namespace ONI_Together.Scripts.Duplicants
 			gameObject.AddOrGet<AnimSyncer>();
         }
 
-
 		public override void OnSpawn()
 		{
 			using var _ = Profiler.Scope();

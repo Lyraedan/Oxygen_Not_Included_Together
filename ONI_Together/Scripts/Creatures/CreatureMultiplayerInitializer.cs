@@ -27,7 +27,6 @@ namespace ONI_Together.Scripts.Creatures
 			gameObject.AddOrGet<AnimSyncer>();
         }
 
-
 		public override void OnSpawn()
 		{
 			using var _ = Profiler.Scope();
