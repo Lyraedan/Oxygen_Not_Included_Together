@@ -1,5 +1,4 @@
-using KSerialization;
-using ONI_Together.Patches;
+using ONI_Together.DebugTools;
 using Shared.OxySync;
 using Shared.OxySync.Attributes;
 using UnityEngine;
@@ -10,7 +9,9 @@ namespace ONI_Together.Networking.OxySync.Components
     [FixedInterestGroup]
     public class GameSpeedSyncer : NetworkBehaviour
     {
-        public enum SpeedState
+        private static readonly bool ENABLE_LOG = false;
+
+        public enum SpeedState: int
         {
             Paused = -1,
             Normal = 0,
@@ -18,111 +19,253 @@ namespace ONI_Together.Networking.OxySync.Components
             Triple = 2
         }
 
-        public static GameSpeedSyncer? Instance { get; private set; }
+        public static GameSpeedSyncer Instance { get; private set; }
 
-        private SpeedState _currentState;
-        private float _lastForceSyncTime;
-        private const float FORCE_SYNC_INTERVAL = 2f;
+        // Use a counter instead of a boolean so nested/re-entrant vanilla calls
+        // cannot clear the applying-state flag before the outer operation completes.
+        // More importantly, the vanilla game's logic would call our patched methods many times,
+        // so using a counter avoids losing the IsApplyingNetworkState state.
+        // Similar to the vanilla game's pause logic, but adapted for network synchronization.
+        public bool IsApplyingNetworkState => _applyDepth > 0;
+        private int _applyDepth = 0;
+
+        // Current synchronized game speed.
+        //
+        // We intentionally do not use [SyncVar] here.
+        // SyncVar changes are detected by the server controller on a heartbeat,
+        // which introduces unnecessary delay for time-sensitive operations such
+        // as game-speed changes.
+        //
+        // Game-speed changes are therefore propagated immediately through
+        // Command -> ClientRpc instead of waiting for SyncVar change detection.
+        //
+        // This also ensures that each accepted speed change is sent at the time
+        // it is processed by the server, rather than relying on periodically
+        // observed state.
+        private uint _revision = 0;
+        private uint _lastAppliedRevision = 0;
+        private SpeedState _authoritativeState;
+
+        public override void OnPrefabInit()
+        {
+            base.OnPrefabInit();
+            Instance = this;
+            _applyDepth = 0;
+            _revision = 0;
+            _lastAppliedRevision = 0;
+
+            NetId = nameof(SpeedControlScreen).GetHashCode();
+            InterestGroup = -1;
+
+            if (ENABLE_LOG)
+                DebugConsole.Log("[GameSpeedSyncer][OnPrefabInit] Prefab initialized.");
+        }
 
         public override void OnSpawn()
         {
             base.OnSpawn();
-            Instance = this;
-            NetId = nameof(SpeedControlScreen).GetHashCode();
-            InterestGroup = -1;
 
-            if (SpeedControlScreen.Instance != null)
-            {
-                _currentState = SpeedControlScreen.Instance.IsPaused
-                    ? SpeedState.Paused
-                    : (SpeedState)SpeedControlScreen.Instance.GetSpeed();
-            }
+            _authoritativeState = GetGameSpeed();
+            
+            if (ENABLE_LOG)
+                DebugConsole.Log($"[GameSpeedSyncer][OnSpawn] set speed to {_authoritativeState}.");
         }
 
         public override void OnCleanUp()
         {
+            if (ENABLE_LOG)
+                DebugConsole.Log("[GameSpeedSyncer][OnCleanUp] Cleaning up instance.");
+
             if (Instance == this)
                 Instance = null;
             base.OnCleanUp();
         }
 
-        public void RequestSetSpeed(int speed)
+        public static SpeedState GetGameSpeed()
         {
-            CallCommand(nameof(CmdSetSpeed), speed);
+            if (SpeedControlScreen.Instance == null)
+            {
+                DebugConsole.LogWarning("[GameSpeedSyncer][GetGameSpeed] SpeedControlScreen is not available. default to paused.");
+                return SpeedState.Paused;
+            }
+
+            if (SpeedControlScreen.Instance.IsPaused)
+                return SpeedState.Paused;
+
+            return (SpeedState)SpeedControlScreen.Instance.GetSpeed();
         }
 
-        [Command]
-        private void CmdSetSpeed(int speed)
+        public void RequestSetSpeed(SpeedState speed)
         {
-            ApplyAndBroadcast((SpeedState)speed);
-        }
-
-        private void ApplyAndBroadcast(SpeedState state)
-        {
-            SpeedControlScreen_SendSpeedPacketPatch.IsSyncing = true;
             try
             {
-                if (SpeedControlScreen.Instance == null) return;
+                if (ENABLE_LOG)
+                    DebugConsole.Log(
+                        $"[GameSpeedSyncer][RequestSetSpeed] {_authoritativeState} -> {speed}, isApplying: {IsApplyingNetworkState}");
+
+                // The game itself would call to set to same speed, we can ignore those.
+                if (IsStateSynchronized(speed))
+                    return;
+
+                CallCommand(nameof(CmdSetSpeed), speed);
+
+                if (ENABLE_LOG)
+                    DebugConsole.Log($"[GameSpeedSyncer][RequestSetSpeed] request sent. Current: {_authoritativeState}.");
+            }
+            catch (System.Exception ex)
+            {
+                DebugConsole.LogError($"[GameSpeedSyncer][RequestSetSpeed] {ex}");
+            }
+        }
+
+        [Command(SendMode = (int)PacketSendMode.ReliableImmediate)]
+        private void CmdSetSpeed(SpeedState speed)
+        {
+            if (!isServer)
+                return;
+            
+            if (!IsValidSpeed(speed))
+                return;
+
+            if (ENABLE_LOG)
+                DebugConsole.Log(
+                    $"[GameSpeedSyncer][CmdSetSpeed] {_authoritativeState} -> {speed}, " +
+                    $"isApplying: {IsApplyingNetworkState}, currentRevision: {_revision}");
+
+            try
+            {
+                if (!ApplySpeed(speed))
+                    return;
+
+                _revision++;
+                _lastAppliedRevision = _revision;
+                
+                if (MultiplayerSession.SessionHasPlayers)
+                    CallClientRpc(nameof(RpcApplySpeed), _revision, speed);
+
+                if (ENABLE_LOG)
+                    DebugConsole.Log(
+                        $"[GameSpeedSyncer][CmdSetSpeed] complete setting speed. " +
+                        $"CurrentState: {_authoritativeState}, currentRevision: {_revision}.");
+            }
+            catch (System.Exception ex)
+            {
+                DebugConsole.LogError(
+                    $"[GameSpeedSyncer][CmdSetSpeed] Failed to set speed to {speed}, " +
+                    $"isApplying: {IsApplyingNetworkState}, currentRevision: {_revision}. {ex}");
+            }
+        }
+
+        [ClientRpc(SendMode = (int)PacketSendMode.ReliableImmediate)]
+        private void RpcApplySpeed(uint revision, SpeedState state)
+        {
+            if (!IsValidSpeed(state))
+                return;
+
+            if (ENABLE_LOG)
+                DebugConsole.Log(
+                    $"[GameSpeedSyncer][RpcApplySpeed] " +
+                    $"{_authoritativeState} -> {state}, " +
+                    $"revision: {_lastAppliedRevision} -> {revision}, " +
+                    $"isApplying: {IsApplyingNetworkState}.");
+
+            if (revision <= _lastAppliedRevision)
+                return;
+
+            if (!ApplySpeed(state))
+                return;
+
+            _lastAppliedRevision = revision;
+            
+            if (ENABLE_LOG)
+                DebugConsole.Log($"[GameSpeedSyncer][RpcApplySpeed] RPC complete applying speed. Current: {_authoritativeState}.");
+        }
+
+        private bool ApplySpeed(SpeedState state)
+        {
+            _applyDepth++;
+            try
+            {
+                SpeedControlScreen screen = SpeedControlScreen.Instance;
+                if (screen == null)
+                    return false;
+
+                if (ENABLE_LOG)
+                    DebugConsole.LogNonImportant(
+                        $"[GameSpeedSyncer][ApplySpeed] " +
+                        $"[{_authoritativeState} -> {state}, " +
+                        $"isApplying: {IsApplyingNetworkState}, " +
+                        $"isGamePaused: {screen.IsPaused}, " +
+                        $"gameSpeed: {screen.GetSpeed()}, "
+                    );
+
+                // The caller may already have changed the local vanilla state
+                // before requesting synchronization (e.g. TogglePause postfix).
+                // Accept the state without executing vanilla behavior again.
+                if (GetGameSpeed() == state)
+                {
+                    _authoritativeState = state;
+                    return true;
+                }
 
                 if (state == SpeedState.Paused)
                 {
-                    if (!SpeedControlScreen.Instance.IsPaused)
-                        SpeedControlScreen.Instance.TogglePause();
+                    if (!screen.IsPaused)
+                        screen.TogglePause();
                 }
                 else
                 {
-                    if (SpeedControlScreen.Instance.IsPaused)
-                        SpeedControlScreen.Instance.TogglePause();
-                    SpeedControlScreen.Instance.SetSpeed((int)state);
+                    screen.SetSpeed((int)state);
+                    if (screen.IsPaused)
+                        screen.TogglePause();
                 }
 
-                _currentState = state;
-                CallClientRpc(nameof(RpcApplySpeed), (int)state);
+                // Respect vanilla's pause counter. A single TogglePause may not
+                // actually unpause the game if multiple pause requests are active.
+                if (GetGameSpeed() != state)
+                {
+                    if (ENABLE_LOG)
+                    {
+                        DebugConsole.Log(
+                            $"[GameSpeedSyncer][ApplySpeed] " +
+                            $"Could not reach requested state {state}. " +
+                            $"Actual state: {GetGameSpeed()}.");
+                    }
+
+                    return false;
+                }
+
+                if (ENABLE_LOG)
+                    DebugConsole.LogNonImportant($"[GameSpeedSyncer][ApplySpeed] Applied speed {state}, origin: {_authoritativeState}.");
+
+                _authoritativeState = state;
+                return true;
+            }
+            catch (System.Exception ex)
+            {
+                DebugConsole.LogError(
+                    $"[GameSpeedSyncer][ApplySpeed] " +
+                    $"Current: {_authoritativeState}, Expected: {state}. {ex}");
+
+                return false;
             }
             finally
             {
-                SpeedControlScreen_SendSpeedPacketPatch.IsSyncing = false;
+                _applyDepth = Mathf.Max(0, _applyDepth - 1);
             }
         }
 
-        [ClientRpc]
-        private void RpcApplySpeed(int state)
+        public bool IsStateSynchronized(SpeedState state)
         {
-            SpeedControlScreen_SendSpeedPacketPatch.IsSyncing = true;
-            try
-            {
-                var speedState = (SpeedState)state;
-                if (SpeedControlScreen.Instance == null) return;
-
-                if (speedState == SpeedState.Paused)
-                {
-                    if (!SpeedControlScreen.Instance.IsPaused)
-                        SpeedControlScreen.Instance.TogglePause();
-                }
-                else
-                {
-                    if (SpeedControlScreen.Instance.IsPaused)
-                        SpeedControlScreen.Instance.TogglePause();
-                    SpeedControlScreen.Instance.SetSpeed((int)speedState);
-                }
-
-                _currentState = speedState;
-            }
-            finally
-            {
-                SpeedControlScreen_SendSpeedPacketPatch.IsSyncing = false;
-            }
+            return _authoritativeState == state && GetGameSpeed() == state;
         }
 
-        private void Update()
+        public static bool IsValidSpeed(SpeedState state)
         {
-            if (!isServer) return;
-
-            if (Time.unscaledTime - _lastForceSyncTime >= FORCE_SYNC_INTERVAL)
-            {
-                _lastForceSyncTime = Time.unscaledTime;
-                CallClientRpc(nameof(RpcApplySpeed), (int)_currentState);
-            }
+            return state == SpeedState.Paused
+                || state == SpeedState.Normal
+                || state == SpeedState.Double
+                || state == SpeedState.Triple;
         }
     }
 }
