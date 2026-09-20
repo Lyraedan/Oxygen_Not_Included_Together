@@ -10,10 +10,13 @@ namespace ONI_Together.Patches.KleiPatches
 {
 	class KAnimControllerBase_Patches
 	{
-		internal static bool ENABLE_LOG = false;
+		internal static readonly bool ENABLE_LOG = false;
 
-		internal static bool ShouldSyncAnim(KAnimControllerBase controller, KPrefabID prefabID)
+		internal static bool ShouldSyncAnim(KAnimControllerBase controller)
 		{
+			if (!controller.TryGetComponent<KPrefabID>(out var prefabID))
+				return false;
+
 			// Only sync animations for creatures and minions.
 			// This is to avoid syncing animations for things like buildings,
 			// which can cause issues with the game.
@@ -36,11 +39,8 @@ namespace ONI_Together.Patches.KleiPatches
 
 			if (controller == null || controller.gameObject.IsNullOrDestroyed())
 				return true;
-
-			if (!controller.TryGetComponent<KPrefabID>(out var prefabId))
-				return true;
 			
-			if (!ShouldSyncAnim(controller, prefabId))
+			if (!ShouldSyncAnim(controller))
 				return true;
 			
 			if (!controller.TryGetComponent<AnimSyncer>(out var _animSyncer))
@@ -160,7 +160,8 @@ namespace ONI_Together.Patches.KleiPatches
 		{
 			using var _ = Profiler.Scope();
 
-			DebugConsole.Log($"[KAnimControllerBase_Patches][OVERRIDE]{kbac.gameObject.GetProperName()} Start Processing kanim file {kanim_file?.name}");
+			if (ENABLE_LOG)
+				DebugConsole.Log($"[KAnimControllerBase_Patches][OVERRIDE]{kbac.gameObject.GetProperName()} Start Processing kanim file {kanim_file?.name}");
 
 			if (!MultiplayerSession.InActiveSession || (MultiplayerSession.IsHost && !MultiplayerSession.SessionHasPlayers))
 				return true;
@@ -168,7 +169,10 @@ namespace ONI_Together.Patches.KleiPatches
 			if (kanim_file == null || string.IsNullOrEmpty(kanim_file.name))
 				return true;
 
-			if (kbac == null || kbac.gameObject.IsNullOrDestroyed() || (!kbac.HasTag(GameTags.BaseMinion) && !kbac.HasTag(GameTags.Creature)))
+			if (kbac == null || kbac.gameObject.IsNullOrDestroyed())
+				return true;
+			
+			if (!ShouldSyncAnim(kbac))
 				return true;
 			
 			if (!kbac.TryGetComponent<AnimSyncer>(out var syncer))
@@ -176,6 +180,7 @@ namespace ONI_Together.Patches.KleiPatches
 				DebugConsole.LogAssert($"[KAnimControllerBase_Patches][OVERRIDE]{kbac.gameObject.GetProperName()} AnimSyncer not found.");
 				return true;
 			}
+
 			if (MultiplayerSession.IsClient)
 			{
 				bool result = syncer.IsInOverrideScope();
@@ -183,9 +188,12 @@ namespace ONI_Together.Patches.KleiPatches
 					DebugConsole.LogNonImportant(
 						$"[KAnimControllerBase_Patches][OVERRIDE]{syncer.EntityName}:{syncer.NetId} " +
 						$"Client processing kanim file {kanim_file.name}, IsInOverrideScope: {result}");
+				
+				// For the client, we only process the override if we are currently in the override scope.
 				return result;
 			}
-			DebugConsole.Log($"[KAnimControllerBase_Patches][OVERRIDE]{syncer.EntityName}:{syncer.NetId} Host processing kanim file {kanim_file.name}");
+			if (ENABLE_LOG)
+				DebugConsole.Log($"[KAnimControllerBase_Patches][OVERRIDE]{syncer.EntityName}:{syncer.NetId} Host processing kanim file {kanim_file.name}");
 			
 			// Host with active session, and has players: set the syncer to send animations to clients.
 			// Meanwhile, we do not need to sync those animations that are handled by the client locally.
@@ -214,7 +222,6 @@ namespace ONI_Together.Patches.KleiPatches
 		}
 
 		/// Symbol Visibility
-
 		[HarmonyPatch(typeof(KAnimControllerBase), nameof(KAnimControllerBase.SetSymbolVisiblity))]
 		public class KAnimControllerBase_SetSymbolVisiblity_Patch
 		{
@@ -229,7 +236,10 @@ namespace ONI_Together.Patches.KleiPatches
 							$"[KAnimControllerBase_Patches][SYMBOL_VISIBILITY]{__instance.gameObject.GetProperName()} " +
 							$"SetSymbolVisiblity called for symbol {symbol} with is_visible={is_visible}");
 
-					if (__instance == null || __instance.gameObject.IsNullOrDestroyed() || (!__instance.HasTag(GameTags.BaseMinion) && !__instance.HasTag(GameTags.Creature)))
+					if (__instance == null || __instance.gameObject.IsNullOrDestroyed())
+						return;
+					
+					if (!ShouldSyncAnim(__instance))
 						return;
 
 					if (__instance.gameObject.GetComponent<AnimSyncer>() is AnimSyncer animSyncer)
