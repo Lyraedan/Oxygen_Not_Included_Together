@@ -1,9 +1,6 @@
-using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using HarmonyLib;
-using ONI_Together.DebugTools;
-using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Networking.OxySync.StateMachines;
@@ -117,7 +114,6 @@ namespace ONI_Together.Patches.World
 
 			var identity = __instance.gameObject.AddOrGet<NetworkIdentity>();
 			identity.RegisterIdentity();
-			__instance.gameObject.AddOrGet<AnimStateSyncer>().EnsureRegistered();
             __instance.gameObject.AddOrGet<PlantSyncer>();
         }
     }

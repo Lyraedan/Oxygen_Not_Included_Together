@@ -84,8 +84,6 @@ namespace ONI_Together
 				go.AddComponent<WorldStateSyncer>();
 				go.AddComponent<PlantLifecycleSyncer>();
 				go.AddComponent<ConduitFlowSyncer>();
-				go.AddComponent<AnimSyncCoordinator>();
-				go.AddComponent<AnimResyncRequester>();
 				go.AddComponent<BulkPacketMonitor>();
 				go.AddComponent<LogicStateSyncer>();
 				go.AddComponent<OxySyncManager>();

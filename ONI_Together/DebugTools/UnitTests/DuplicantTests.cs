@@ -1,8 +1,6 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using ONI_Together.Networking;
+﻿using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
+using ONI_Together.Networking.OxySync.Components.Entities;
 using ONI_Together.Scripts.Duplicants;
 
 namespace ONI_Together.DebugTools.UnitTests
@@ -74,12 +72,12 @@ namespace ONI_Together.DebugTools.UnitTests
             if (!selected.TryGetComponent(out MinionMultiplayerInitializer _))
                 return UnitTestResult.Fail("MinionMultiplayerInitializer not found");
 
-            if (!selected.TryGetComponent<DuplicantStateSender>(out _))
-                return UnitTestResult.Fail("DuplicantStateSender not found");
+            if (!selected.TryGetComponent<AnimSyncer>(out _))
+                return UnitTestResult.Fail("AnimSyncer not found");
             if (!selected.TryGetComponent<DuplicantChoreBroadcaster>(out _))
                 return UnitTestResult.Fail("DuplicantChoreBroadcaster not found");
 
-            return UnitTestResult.Pass("DuplicantStateSender and DuplicantChoreBroadcaster present");
+            return UnitTestResult.Pass("Duplicant AnimSyncer and DuplicantChoreBroadcaster present");
         }
 
         [UnitTest(name: "BaseMinion tag guard", category: "Duplicant")]
