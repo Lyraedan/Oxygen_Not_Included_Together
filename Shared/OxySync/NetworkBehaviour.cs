@@ -85,13 +85,30 @@ namespace Shared.OxySync
             public bool IncludeHost;
         }
 
-        public override void OnSpawn()
+        public override void OnPrefabInit()
         {
-            base.OnSpawn();
+            base.OnPrefabInit();
+            
             BehaviourId = ResolveBehaviourId(GetType());
             DiscoverSyncVars();
             DiscoverRpcs();
+        }
+
+        public override void OnSpawn()
+        {
+            base.OnSpawn();
             OnSpawned?.Invoke(this);
+        }
+
+        public override void OnCleanUp()
+        {
+            OnBehaviourCleanUp?.Invoke(this);
+            _syncVarFields?.Clear();
+            _commandMethods?.Clear();
+            _clientRpcMethods?.Clear();
+            _targetRpcMethods?.Clear();
+
+            base.OnCleanUp();
         }
 
         private static int ResolveBehaviourId(Type type)
@@ -100,12 +117,6 @@ namespace Shared.OxySync
             id = (type.FullName ?? type.Name).GetHashCode();
             BehaviourIdCache[type] = id;
             return id;
-        }
-
-        public override void OnCleanUp()
-        {
-            OnBehaviourCleanUp?.Invoke(this);
-            base.OnCleanUp();
         }
 
         private static IEnumerable<FieldInfo> GetFieldsIncludingBaseTypes(Type type)
@@ -117,6 +128,32 @@ namespace Shared.OxySync
                     yield return field;
 
                 type_ = type_.BaseType;
+            }
+        }
+
+        private static void InvokeWithExceptionLogging(System.Action action)
+        {
+            try
+            {
+                action();
+            }
+            catch (Exception ex)
+            {
+                LogWarning?.Invoke($"[OxySync] Exception in InvokeWithExceptionLogging: {ex}");
+                throw;
+            }
+        }
+
+        private static T InvokeWithExceptionLogging<T>(Func<T> func)
+        {
+            try
+            {
+                return func();
+            }
+            catch (Exception ex)
+            {
+                LogWarning?.Invoke($"[OxySync] Exception in InvokeWithExceptionLogging: {ex}");
+                throw;
             }
         }
 
@@ -253,6 +290,11 @@ namespace Shared.OxySync
 
         protected void CallCommand(string methodName, params object[] args)
         {
+            InvokeWithExceptionLogging(() => InternalCallCommand(methodName, args));
+        }
+
+        protected void InternalCallCommand(string methodName, params object[] args)
+        {
             if (!inSession) return;
 
             var hash = methodName.GetHashCode();
@@ -305,6 +347,11 @@ namespace Shared.OxySync
 
         protected void CallClientRpc(string methodName, params object[] args)
         {
+            InvokeWithExceptionLogging(() => InternalCallClientRpc(methodName, args));
+        }
+
+        protected void InternalCallClientRpc(string methodName, params object[] args)
+        {
             if (!inSession || !isServer) return;
 
             var hash = methodName.GetHashCode();
@@ -341,6 +388,7 @@ namespace Shared.OxySync
             CallClientRpc(method.Method.Name, args);
         }
 
+        // TODO: discuss whether this overload is necessary
         protected void CallClientRpc(int interestGroup, string methodName, params object[] args)
         {
             if (!inSession || !isServer) return;
@@ -379,6 +427,10 @@ namespace Shared.OxySync
 
         protected void CallTargetRpc(ulong targetPlayer, string methodName, params object[] args)
         {
+            InvokeWithExceptionLogging(() => InternalCallTargetRpc(targetPlayer, methodName, args));
+        }
+        protected void InternalCallTargetRpc(ulong targetPlayer, string methodName, params object[] args)
+        {
             if (!inSession || !isServer) return;
 
             var hash = methodName.GetHashCode();
@@ -407,15 +459,25 @@ namespace Shared.OxySync
             CallTargetRpc(targetPlayer, method.Method.Name, args);
         }
 
+        // TODO: Discuss whether we could apply the same design pattern as vanilla ONI game do
+        // Use InternalApplySyncerVar here, so we can have ApplySyncVar non virtual
+        // Reference: Reactable.cs in the decompiled code
+        // TODO: Should try to catch errors and re-throw in case no one catches it.
+        // Currently there exists crash we don't know where it from.
+        // I do identified a few places calling these without a catch block.
+        // game crashes, and no log. ex: game speed control
         public virtual void ApplySyncVar(int fieldHash, object value, long timestamp = 0)
         {
             if (_syncVarFields == null) return;
 
+            // TODO: discuss why we are not using dictionary here.
             for (int i = 0; i < _syncVarFields.Count; i++)
             {
                 var field = _syncVarFields[i];
                 if (field.Hash != fieldHash) continue;
 
+                // TODO: Discuss if we can check timestamp here
+                // I do experienced tons of incorrect update from network messages arriving out of order.
                 var oldValue = field.Info.GetValue(this);
                 field.Info.SetValue(this, value);
 
@@ -453,6 +515,11 @@ namespace Shared.OxySync
         }
 
         private void InvokeMethod(CachedMethod method, byte[] args)
+        {
+            InvokeWithExceptionLogging(() => InternalInvokeMethod(method, args));
+        }
+
+        private void InternalInvokeMethod(CachedMethod method, byte[] args)
         {
             if (method.Info.GetCustomAttribute<ServerAttribute>() != null && !isServer)
             {
