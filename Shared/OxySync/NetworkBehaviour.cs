@@ -427,7 +427,7 @@ namespace Shared.OxySync
 
         protected void CallTargetRpc(ulong targetPlayer, string methodName, params object[] args)
         {
-            InternalCallTargetRpc(targetPlayer, methodName, args);
+            InvokeWithExceptionLogging(() => InternalCallTargetRpc(targetPlayer, methodName, args));
         }
         protected void InternalCallTargetRpc(ulong targetPlayer, string methodName, params object[] args)
         {
