@@ -81,6 +81,7 @@ namespace ONI_Together.DebugTools
         private int _oxySyncForeignSelectedNetId = int.MinValue;
         private int _oxySyncForeignNetIdPage = 0;
         private string _oxySyncForeignFilter = string.Empty;
+        private string _oxySyncForeignSourceFilter = string.Empty;
         private int _oxySyncForeignSelectedWorldIdx = 0;
         private int _oxySyncForeignSelectedTypeIdx = 0;
         private List<string> _oxySyncForeignTypeNames = new() { "All" };
@@ -1561,11 +1562,16 @@ namespace ONI_Together.DebugTools
             ImGui.InputText("Search##foreign", ref _oxySyncForeignFilter, 128);
 
             ImGui.SameLine();
+            ImGui.SetNextItemWidth(180);
+            ImGui.InputText("Source mod##foreign", ref _oxySyncForeignSourceFilter, 128);
+
+            ImGui.SameLine();
             ImGui.Checkbox("Syncing only##foreign", ref _oxySyncForeignShowSyncingOnly);
 
             ImGui.Separator();
 
             bool hasTextFilter = !string.IsNullOrEmpty(_oxySyncForeignFilter);
+            bool hasSourceFilter = !string.IsNullOrEmpty(_oxySyncForeignSourceFilter);
             int selectedWorldId = _oxySyncForeignWorldIds[_oxySyncForeignSelectedWorldIdx];
             string selectedTypeName = _oxySyncForeignTypeNames[_oxySyncForeignSelectedTypeIdx];
             bool hasTypeFilter = _oxySyncForeignSelectedTypeIdx > 0;
@@ -1589,6 +1595,12 @@ namespace ONI_Together.DebugTools
 
                 string typeName = b.UnderlyingType.Name;
                 if (hasTypeFilter && typeName != selectedTypeName) continue;
+
+                if (hasSourceFilter)
+                {
+                    string sourceName = Networking.OxySync.OxySync_API_Helper.GetSourceName(b.SourceAssembly) ?? string.Empty;
+                    if (sourceName.IndexOf(_oxySyncForeignSourceFilter, StringComparison.OrdinalIgnoreCase) < 0) continue;
+                }
 
                 if (hasTextFilter)
                 {
