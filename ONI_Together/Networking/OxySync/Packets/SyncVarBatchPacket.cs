@@ -71,22 +71,22 @@ namespace ONI_Together.Networking.OxySync.Packets
 
             if (MultiplayerSession.IsHost) return;
 
-            OxySyncManager.TryGetBehaviour(NetId, BehaviourId, out NetworkBehaviour behaviour);
-
-            if (behaviour == null && !NetworkIdentityRegistry.TryGetComponent<NetworkBehaviour>(NetId, out behaviour))
+            if (!SyncBehaviourResolver.TryResolve(NetId, BehaviourId, out var behaviour))
                 return;
 
-            var fields = behaviour.SyncVarFields;
+            behaviour.RefreshSyncVars();
+            int fieldCount = behaviour.SyncVarCount;
             for (int i = 0; i < Count; i++)
             {
                 int hash = FieldHashes[i];
                 var val = Values[i];
 
-                for (int j = 0; j < fields.Count; j++)
+                for (int j = 0; j < fieldCount; j++)
                 {
-                    if (fields[j].Hash == hash)
+                    var field = behaviour.GetSyncVar(j);
+                    if (field.Hash == hash)
                     {
-                        var obj = VariantHelper.VariantToObject(val, fields[j].Info.FieldType);
+                        var obj = VariantHelper.VariantToObject(val, field.FieldType);
                         behaviour.ApplySyncVar(hash, obj, Timestamp);
                         break;
                     }

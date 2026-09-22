@@ -18,20 +18,94 @@ namespace ONI_Together.Networking.OxySync.Components
     {
         public static OxySyncManager? Instance { get; private set; }
 
-        private readonly List<NetworkBehaviour> _behaviours = new();
+        private readonly List<ISyncBehaviour> _behaviours = new();
         private readonly Dictionary<(int Group, PacketSendMode Mode), List<(int Hash, Variant Value)>> _changedByGroup = new();
         private readonly HashSet<Type> _explicitGroupTypes = new();
-        private readonly Dictionary<int, HashSet<NetworkBehaviour>> _behavioursByGroup = new();
+        private readonly Dictionary<int, HashSet<ISyncBehaviour>> _behavioursByGroup = new();
 
-        private readonly Dictionary<(int, int), NetworkBehaviour> _behaviourLookup = new();
+        private readonly Dictionary<(int, int), ISyncBehaviour> _behaviourLookup = new();
         private readonly Dictionary<(int NetId, int TypeHash), int> _typeOrdinals = new();
 
         private float _tickAccumulator;
 
         public int RegisteredCount => _behaviours.Count;
-        public IReadOnlyList<NetworkBehaviour> AllBehaviours => _behaviours;
+        public IReadOnlyList<ISyncBehaviour> AllBehaviours => _behaviours;
+
+        /// <summary>
+        /// Native (ONI Together) behaviours only, for tooling that needs the typed
+        /// <see cref="Shared.OxySync.NetworkBehaviour"/> surface (e.g. the debug inspector).
+        /// </summary>
+        public IReadOnlyList<NetworkBehaviour> NativeBehaviours
+        {
+            get
+            {
+                var result = new List<NetworkBehaviour>(_behaviours.Count);
+                for (int i = 0; i < _behaviours.Count; i++)
+                {
+                    if (_behaviours[i] is NativeSyncBehaviour native && !native.IsDestroyed)
+                        result.Add(native.Native);
+                }
+                return result;
+            }
+        }
+
+        /// <summary>
+        /// Behaviours that came from the ONI_Together_API assembly, exposed for the debug inspector.
+        /// </summary>
+        public IReadOnlyList<ForeignSyncBehaviour> ForeignBehaviours
+        {
+            get
+            {
+                var result = new List<ForeignSyncBehaviour>(_behaviours.Count);
+                for (int i = 0; i < _behaviours.Count; i++)
+                {
+                    if (_behaviours[i] is ForeignSyncBehaviour foreign && !foreign.IsDestroyed)
+                        result.Add(foreign);
+                }
+                return result;
+            }
+        }
+
+        /// <summary>
+        /// Adds or fetches a <see cref="NetworkIdentity"/> on a GameObject and resolves its NetId,
+        /// preferring a supplied override. Shared by the native OxySync path and the API bridge.
+        /// </summary>
+        public static int SetOrGetIdentity(GameObject go, int netId)
+        {
+            var identity = go.AddOrGet<NetworkIdentity>();
+            if (netId != 0)
+                identity.OverrideNetId(netId);
+            else if (identity.NetId == 0)
+                identity.RegisterIdentity();
+            return identity.NetId;
+        }
+
+        /// <summary>
+        /// Forces a <see cref="NetworkIdentity"/> on a GameObject to a specific NetId.
+        /// </summary>
+        public static int OverrideIdentity(GameObject go, int netId)
+        {
+            var identity = go.AddOrGet<NetworkIdentity>();
+            identity.OverrideNetId(netId);
+            return identity.NetId;
+        }
 
         public static bool TryGetBehaviour(int NetId, int BehaviourId, out NetworkBehaviour behaviour)
+        {
+            behaviour = null;
+            if (Instance == null)
+                return false;
+
+            if (Instance._behaviourLookup.TryGetValue((NetId, BehaviourId), out var syncBehaviour)
+                && syncBehaviour is NativeSyncBehaviour native)
+            {
+                behaviour = native.Native;
+                return true;
+            }
+            return false;
+        }
+
+        public static bool TryGetSyncBehaviour(int NetId, int BehaviourId, out ISyncBehaviour behaviour)
         {
             if (Instance == null)
             {
@@ -53,22 +127,8 @@ namespace ONI_Together.Networking.OxySync.Components
 
             NetworkBehaviour.NetIdSetter = (behaviour, newNetId) => behaviour.gameObject.AddOrGet<NetworkIdentity>().OverrideNetId(newNetId);
 
-            NetIdentityHelper.SetIdentity = (go, netId) =>
-            {
-                var identity = go.AddOrGet<NetworkIdentity>();
-                if (netId != 0)
-                    identity.OverrideNetId(netId);
-                else if (identity.NetId == 0)
-                    identity.RegisterIdentity();
-                return identity.NetId;
-            };
-
-            NetIdentityHelper.OverrideIdentity = (go, netId) =>
-            {
-                var identity = go.AddOrGet<NetworkIdentity>();
-                identity.OverrideNetId(netId);
-                return identity.NetId;
-            };
+            NetIdentityHelper.SetIdentity = SetOrGetIdentity;
+            NetIdentityHelper.OverrideIdentity = OverrideIdentity;
 
             NetworkBehaviour.LogWarning = (msg) => DebugConsole.LogWarning(msg);
 
@@ -141,37 +201,73 @@ namespace ONI_Together.Networking.OxySync.Components
 
 		private void Register(NetworkBehaviour behaviour)
 		{
-			if (!_behaviours.Contains(behaviour))
-				_behaviours.Add(behaviour);
+            if (behaviour == null) return;
+            RegisterSyncBehaviour(new NativeSyncBehaviour(behaviour));
+		}
+
+        /// <summary>
+        /// Registers an already-adapted behaviour. Used by the native path (via <see cref="Register"/>)
+        /// and by <c>OxySync_API_Helper</c> for behaviours loaded from the ONI Together API assembly.
+        /// </summary>
+        public void RegisterSyncBehaviour(ISyncBehaviour behaviour)
+        {
+            if (behaviour == null) return;
+
+            if (!_behaviours.Contains(behaviour))
+                _behaviours.Add(behaviour);
+
+            behaviour.RefreshSyncVars();
 
             ResolveBehaviourId(behaviour);
             _behaviourLookup[(behaviour.NetId, behaviour.BehaviourId)] = behaviour;
 
-			if (behaviour.GetType().GetCustomAttribute<FixedInterestGroupAttribute>() != null)
-				_explicitGroupTypes.Add(behaviour.GetType());
+            var behaviourType = behaviour.UnderlyingType;
+            if (behaviourType.GetCustomAttribute<FixedInterestGroupAttribute>() != null)
+                _explicitGroupTypes.Add(behaviourType);
 
-			if (behaviour.InterestGroup == -1 && !_explicitGroupTypes.Contains(behaviour.GetType()))
-			{
-				int worldId = behaviour.GetMyWorldId();
-				if (worldId >= 0)
-					behaviour.InterestGroup = WorldChunkHelper.GetGroupId(worldId,
-						Grid.PosToCell(behaviour.transform.position));
-			}
+            if (behaviour.InterestGroup == -1 && !_explicitGroupTypes.Contains(behaviourType))
+            {
+                int worldId = behaviour.GetMyWorldId();
+                if (worldId >= 0 && behaviour.GameObject != null)
+                    behaviour.InterestGroup = WorldChunkHelper.GetGroupId(worldId,
+                        Grid.PosToCell(behaviour.GameObject.transform.position));
+            }
 
-			IndexBehaviour(behaviour);
-		}
+            IndexBehaviour(behaviour);
+        }
 
         private void Unregister(NetworkBehaviour behaviour)
         {
+            if (behaviour == null) return;
+            if (Instance == null) return;
+
+            for (int i = 0; i < _behaviours.Count; i++)
+            {
+                if (_behaviours[i] is NativeSyncBehaviour native && native.Native == behaviour)
+                {
+                    UnregisterSyncBehaviour(_behaviours[i]);
+                    return;
+                }
+            }
+        }
+
+        /// <summary>
+        /// Unregisters an adapted behaviour. Used by the native path and the API bridge.
+        /// </summary>
+        public void UnregisterSyncBehaviour(ISyncBehaviour behaviour)
+        {
+            if (behaviour == null) return;
+
             _behaviours.Remove(behaviour);
 
             _behaviourLookup.Remove((behaviour.NetId, behaviour.BehaviourId));
 
             RemoveBehaviourFromGroupIndex(behaviour, behaviour.InterestGroup);
-            var fields = behaviour.SyncVarFields;
-            for (int i = 0; i < fields.Count; i++)
+            behaviour.RefreshSyncVars();
+            int fieldCount = behaviour.SyncVarCount;
+            for (int i = 0; i < fieldCount; i++)
             {
-                int g = fields[i].InterestGroup;
+                int g = behaviour.GetSyncVar(i).InterestGroup;
                 if (g != -1)
                     RemoveBehaviourFromGroupIndex(behaviour, g);
             }
@@ -194,16 +290,17 @@ namespace ONI_Together.Networking.OxySync.Components
             for (int i = _behaviours.Count - 1; i >= 0; i--)
             {
                 var behaviour = _behaviours[i];
-                if (behaviour.IsNullOrDestroyed())
+                if (behaviour.IsDestroyed)
                 {
                     _behaviours.RemoveAt(i);
                     continue;
                 }
 
-                if (Time.unscaledTime - behaviour._lastSyncTime < behaviour.SyncInterval)
+                if (Time.unscaledTime - behaviour.LastSyncTime < behaviour.SyncInterval)
                     continue;
 
-                behaviour._lastSyncTime = Time.unscaledTime;
+                behaviour.LastSyncTime = Time.unscaledTime;
+                behaviour.RefreshSyncVars();
 
                 ulong manualDirty = behaviour.GetAndClearDirtyBits();
 
@@ -212,7 +309,9 @@ namespace ONI_Together.Networking.OxySync.Components
 
                 if (_changedByGroup.Count == 0) continue;
 
-                var identity = behaviour.GetComponent<NetworkIdentity>();
+                var identity = behaviour.GameObject != null
+                    ? behaviour.GameObject.GetComponent<NetworkIdentity>()
+                    : null;
                 if (identity == null || identity.NetId == 0)
                     continue;
 
@@ -260,16 +359,16 @@ namespace ONI_Together.Networking.OxySync.Components
                 }
 
                 if (hasSubscribers)
-                    behaviour._lastActiveSyncTime = Time.unscaledTime;
+                    behaviour.LastActiveSyncTime = Time.unscaledTime;
 
                 behaviour.SyncLastSentValues();
 
-				if (!_explicitGroupTypes.Contains(behaviour.GetType()))
+				if (!_explicitGroupTypes.Contains(behaviour.UnderlyingType))
 				{
 					int currentWorld = behaviour.GetMyWorldId();
-					if (currentWorld >= 0)
+					if (currentWorld >= 0 && behaviour.GameObject != null)
 					{
-						int newGroup = WorldChunkHelper.GetGroupId(currentWorld, Grid.PosToCell(behaviour.transform.position));
+						int newGroup = WorldChunkHelper.GetGroupId(currentWorld, Grid.PosToCell(behaviour.GameObject.transform.position));
 						if (newGroup != behaviour.InterestGroup)
                         {
                             RemoveBehaviourFromGroupIndex(behaviour, behaviour.InterestGroup);
@@ -290,7 +389,12 @@ namespace ONI_Together.Networking.OxySync.Components
 
         internal static void CollectChanges(NetworkBehaviour behaviour, ulong manualDirty, Dictionary<(int Group, PacketSendMode Mode), List<(int Hash, Variant Value)>> changes)
         {
-            var fields = behaviour.SyncVarFields;
+            CollectChanges(new NativeSyncBehaviour(behaviour), manualDirty, changes);
+        }
+
+        internal static void CollectChanges(ISyncBehaviour behaviour, ulong manualDirty, Dictionary<(int Group, PacketSendMode Mode), List<(int Hash, Variant Value)>> changes)
+        {
+            int fieldCount = behaviour.SyncVarCount;
 
             ulong remaining = manualDirty;
             while (remaining != 0)
@@ -298,18 +402,18 @@ namespace ONI_Together.Networking.OxySync.Components
                 int index = BitUtils.TrailingZeroCount(remaining);
                 remaining &= remaining - 1;
 
-                if (index >= fields.Count) continue;
+                if (index >= fieldCount) continue;
 
-                var field = fields[index];
-                AddChange(changes, behaviour, field, VariantHelper.ObjectToVariant(field.Info.GetValue(behaviour)));
+                var field = behaviour.GetSyncVar(index);
+                AddChange(changes, behaviour, field, VariantHelper.ObjectToVariant(field.GetValue()));
             }
 
-            for (int j = 0; j < fields.Count; j++)
+            for (int j = 0; j < fieldCount; j++)
             {
                 if ((manualDirty & (1UL << j)) != 0) continue;
 
-                var field = fields[j];
-                var currentValue = field.Info.GetValue(behaviour);
+                var field = behaviour.GetSyncVar(j);
+                var currentValue = field.GetValue();
                 var currentVariant = VariantHelper.ObjectToVariant(currentValue);
                 var lastVariant = VariantHelper.ObjectToVariant(field.LastSentValue);
                 if (!VariantHelper.ValuesDiffer(currentVariant, lastVariant, field.Epsilon))
@@ -319,7 +423,7 @@ namespace ONI_Together.Networking.OxySync.Components
             }
         }
 
-        private static void AddChange(Dictionary<(int Group, PacketSendMode Mode), List<(int Hash, Variant Value)>> changes, NetworkBehaviour behaviour, NetworkBehaviour.SyncVarField field, Variant value)
+        private static void AddChange(Dictionary<(int Group, PacketSendMode Mode), List<(int Hash, Variant Value)>> changes, ISyncBehaviour behaviour, SyncVarDescriptor field, Variant value)
         {
             int group = field.InterestGroup;
             if (group == -1) group = behaviour.InterestGroup;
@@ -332,35 +436,35 @@ namespace ONI_Together.Networking.OxySync.Components
             list.Add((field.Hash, value));
         }
 
-        private void IndexBehaviour(NetworkBehaviour behaviour)
+        private void IndexBehaviour(ISyncBehaviour behaviour)
         {
-            var fields = behaviour.SyncVarFields;
             var grouped = new HashSet<int>();
 
             int primaryGroup = behaviour.InterestGroup;
             if (primaryGroup != -1 && grouped.Add(primaryGroup))
                 AddBehaviourToGroupIndex(behaviour, primaryGroup);
 
-            for (int i = 0; i < fields.Count; i++)
+            int fieldCount = behaviour.SyncVarCount;
+            for (int i = 0; i < fieldCount; i++)
             {
-                int g = fields[i].InterestGroup;
+                int g = behaviour.GetSyncVar(i).InterestGroup;
                 if (g == -1) continue;
                 if (grouped.Add(g))
                     AddBehaviourToGroupIndex(behaviour, g);
             }
         }
 
-        private void AddBehaviourToGroupIndex(NetworkBehaviour behaviour, int groupId)
+        private void AddBehaviourToGroupIndex(ISyncBehaviour behaviour, int groupId)
         {
             if (!_behavioursByGroup.TryGetValue(groupId, out var set))
             {
-                set = new HashSet<NetworkBehaviour>();
+                set = new HashSet<ISyncBehaviour>();
                 _behavioursByGroup[groupId] = set;
             }
             set.Add(behaviour);
         }
 
-        private void RemoveBehaviourFromGroupIndex(NetworkBehaviour behaviour, int groupId)
+        private void RemoveBehaviourFromGroupIndex(ISyncBehaviour behaviour, int groupId)
         {
             if (_behavioursByGroup.TryGetValue(groupId, out var set))
             {
@@ -380,24 +484,25 @@ namespace ONI_Together.Networking.OxySync.Components
 
             foreach (var behaviour in behavioursInGroup)
             {
-                if (behaviour.IsNullOrDestroyed()) continue;
+                if (behaviour.IsDestroyed) continue;
 
                 int netId = behaviour.NetId;
                 if (netId == 0) continue;
                 int behaviourId = behaviour.BehaviourId;
 
-                var fields = behaviour.SyncVarFields;
-                if (fields.Count == 0) continue;
+                behaviour.RefreshSyncVars();
+                int fieldCount = behaviour.SyncVarCount;
+                if (fieldCount == 0) continue;
 
                 var updates = new List<(int Hash, Variant Value)>();
-                for (int i = 0; i < fields.Count; i++)
+                for (int i = 0; i < fieldCount; i++)
                 {
-                    var field = fields[i];
+                    var field = behaviour.GetSyncVar(i);
                     int fieldGroup = field.InterestGroup;
                     if (fieldGroup == -1) fieldGroup = behaviour.InterestGroup;
                     if (fieldGroup != groupId) continue;
 
-                    updates.Add((field.Hash, VariantHelper.ObjectToVariant(field.Info.GetValue(behaviour))));
+                    updates.Add((field.Hash, VariantHelper.ObjectToVariant(field.GetValue())));
                 }
 
                 if (updates.Count == 0) continue;
@@ -426,7 +531,7 @@ namespace ONI_Together.Networking.OxySync.Components
             }
         }
 
-        private void ResolveBehaviourId(NetworkBehaviour behaviour)
+        private void ResolveBehaviourId(ISyncBehaviour behaviour)
         {
             int netId = behaviour.NetId;
             int id = behaviour.BehaviourId;

@@ -76,6 +76,18 @@ namespace ONI_Together.DebugTools
         private int _oxySyncNetIdPage = 0;
         private const int OxySyncNetIdPageSize = 100;
 
+        // OxySync - API (Foreign) behaviours
+        private Networking.OxySync.ForeignSyncBehaviour? _oxySyncForeignSelectedBehaviour = null;
+        private int _oxySyncForeignSelectedNetId = int.MinValue;
+        private int _oxySyncForeignNetIdPage = 0;
+        private string _oxySyncForeignFilter = string.Empty;
+        private int _oxySyncForeignSelectedWorldIdx = 0;
+        private int _oxySyncForeignSelectedTypeIdx = 0;
+        private List<string> _oxySyncForeignTypeNames = new() { "All" };
+        private string[] _oxySyncForeignWorldOptions = new[] { "All", "Group -1 (Broadcast)" };
+        private int[] _oxySyncForeignWorldIds = new[] { -2, -1 };
+        private bool _oxySyncForeignShowSyncingOnly = false;
+
         // Independent popout windows
         private struct PopoutWindow
         {
@@ -895,7 +907,82 @@ namespace ONI_Together.DebugTools
                 return;
             }
 
-            var behaviours = OxySyncManager.Instance.AllBehaviours;
+            if (ImGui.CollapsingHeader("Interest Groups", ImGuiTreeNodeFlags.DefaultOpen))
+            {
+                DrawOxySyncInterestGroups();
+            }
+
+            ImGui.Separator();
+
+            DrawOxySyncNativeSection();
+
+            ImGui.Separator();
+
+            DrawOxySyncForeignSection();
+        }
+
+        private void DrawOxySyncInterestGroups()
+        {
+            if (ClusterManager.Instance != null)
+            {
+                int activeWorld = ClusterManager.Instance.activeWorldId;
+                ImGui.TextColored(new Vector4(0.3f, 1f, 1f, 1f), $"Active World ID: {activeWorld}");
+            }
+
+            ImGui.Separator();
+            ImGui.Text("Player Group Memberships:");
+            if (MultiplayerSession.InActiveSession)
+            {
+                foreach (var player in MultiplayerSession.ConnectedPlayers)
+                {
+                    ulong pid = player.Key;
+                    string name = player.Value.PlayerName ?? pid.ToString();
+                    ImGui.Text($"  {name} ({pid}):");
+                    ImGui.SameLine();
+                    ImGui.PushID($"ig_player_{pid}");
+                    for (int i = 0; i < 5; i++)
+                    {
+                        ImGui.SameLine();
+                        if (ImGui.SmallButton($"+{i}"))
+                        {
+                            InterestGroupManager.AddPlayerToGroup(pid, i);
+                        }
+                    }
+                    ImGui.SameLine();
+                    ImGui.Spacing();
+                    for (int i = 0; i < 5; i++)
+                    {
+                        ImGui.SameLine();
+                        if (ImGui.SmallButton($"-{i}"))
+                        {
+                            InterestGroupManager.RemovePlayerFromGroup(pid, i);
+                        }
+                    }
+
+                    var groups = InterestGroupManager.GetGroupsPlayerIsIn(pid);
+                    if (groups.Count > 0)
+                        ImGui.Text($"  Groups: {string.Join(", ", groups)}");
+                    else if (pid == MultiplayerSession.HostUserID)
+                        ImGui.TextDisabled("  Host — no groups needed");
+                    else
+                        ImGui.TextDisabled("  No groups");
+                    ImGui.PopID();
+                }
+            }
+            else
+            {
+                ImGui.TextDisabled("  Not in a multiplayer session.");
+            }
+            ImGui.TextDisabled("  (-1 = broadcast to all)");
+        }
+
+        private void DrawOxySyncNativeSection()
+        {
+            var behaviours = OxySyncManager.Instance.NativeBehaviours;
+
+            string header = $"Native Behaviours: {behaviours.Count}";
+            if (!ImGui.CollapsingHeader(header, ImGuiTreeNodeFlags.DefaultOpen))
+                return;
 
             BuildOxySyncWorldOptions();
             BuildOxySyncTypeOptions(behaviours);
@@ -930,68 +1017,11 @@ namespace ONI_Together.DebugTools
             ImGui.SameLine();
             ImGui.Checkbox("Syncing only", ref _oxySyncShowSyncingOnly);
 
-            ImGui.Text($"Registered Behaviours: {behaviours.Count}");
-
-            if (ImGui.CollapsingHeader("Interest Groups", ImGuiTreeNodeFlags.DefaultOpen))
-            {
-                if (ClusterManager.Instance != null)
-                {
-                    int activeWorld = ClusterManager.Instance.activeWorldId;
-                    ImGui.TextColored(new Vector4(0.3f, 1f, 1f, 1f), $"Active World ID: {activeWorld}");
-                }
-
-                ImGui.Separator();
-                ImGui.Text("Player Group Memberships:");
-                if (MultiplayerSession.InActiveSession)
-                {
-                    foreach (var player in MultiplayerSession.ConnectedPlayers)
-                    {
-                        ulong pid = player.Key;
-                        string name = player.Value.PlayerName ?? pid.ToString();
-                        ImGui.Text($"  {name} ({pid}):");
-                        ImGui.SameLine();
-                        ImGui.PushID($"ig_player_{pid}");
-                        for (int i = 0; i < 5; i++)
-                        {
-                            ImGui.SameLine();
-                            if (ImGui.SmallButton($"+{i}"))
-                            {
-                                InterestGroupManager.AddPlayerToGroup(pid, i);
-                            }
-                        }
-                        ImGui.SameLine();
-                        ImGui.Spacing();
-                        for (int i = 0; i < 5; i++)
-                        {
-                            ImGui.SameLine();
-                            if (ImGui.SmallButton($"-{i}"))
-                            {
-                                InterestGroupManager.RemovePlayerFromGroup(pid, i);
-                            }
-                        }
-
-                        var groups = InterestGroupManager.GetGroupsPlayerIsIn(pid);
-                        if (groups.Count > 0)
-                            ImGui.Text($"  Groups: {string.Join(", ", groups)}");
-                        else if (pid == MultiplayerSession.HostUserID)
-                            ImGui.TextDisabled("  Host — no groups needed");
-                        else
-                            ImGui.TextDisabled("  No groups");
-                        ImGui.PopID();
-                    }
-                }
-                else
-                {
-                    ImGui.TextDisabled("  Not in a multiplayer session.");
-                }
-                ImGui.TextDisabled("  (-1 = broadcast to all)");
-            }
-
             ImGui.Separator();
 
             if (behaviours.Count == 0)
             {
-                ImGui.TextDisabled("No OxySync NetworkBehaviours registered.");
+                ImGui.TextDisabled("No native OxySync NetworkBehaviours registered.");
                 return;
             }
 
@@ -1209,6 +1239,7 @@ namespace ONI_Together.DebugTools
             string goName = behaviour.gameObject?.name ?? "?";
             ImGui.TextColored(new Vector4(1f, 1f, 0.3f, 1f),
                 $"{behaviour.GetType().Name}  (NetId: {behaviour.NetId}, BehaviourId: {behaviour.BehaviourId}, Sync: {behaviour.SyncInterval:F2}s)  [{goName}]");
+            ImGui.TextColored(new Vector4(0.6f, 0.8f, 1f, 1f), $"Source mod: {behaviour.GetType().Assembly.GetName().Name}");
 
             if (MultiplayerSession.IsHost)
             {
@@ -1473,6 +1504,497 @@ namespace ONI_Together.DebugTools
             }
         }
 
+        /// <summary>
+        /// Read-only inspector for behaviours bridged in from the ONI_Together_API assembly.
+        /// These live in a different runtime type identity and cannot use the native dev-tool surface.
+        /// Mirrors the native OxySync layout: NetId groups / behaviours / detail.
+        /// </summary>
+        private void DrawOxySyncForeignSection()
+        {
+            var foreign = OxySyncManager.Instance?.ForeignBehaviours;
+            int count = foreign?.Count ?? 0;
+
+            int bridgedCopies = Networking.OxySync.OxySync_API_Helper.BridgedAssemblyCount;
+
+            string header = $"API (Foreign) Behaviours: {count}"
+                + (bridgedCopies > 0 ? $"  [{bridgedCopies} API mod(s) bridged]" : "  [no API mod loaded]");
+
+            if (!ImGui.CollapsingHeader(header, ImGuiTreeNodeFlags.DefaultOpen))
+                return;
+
+            if (count == 0)
+            {
+                ImGui.TextDisabled(bridgedCopies > 0
+                    ? "  No API behaviours registered yet."
+                    : "  No mod using the ONI Together API is loaded. Nothing to display.");
+                return;
+            }
+
+            BuildOxySyncForeignWorldOptions();
+            BuildOxySyncForeignTypeOptions(foreign);
+
+            ImGui.SetNextItemWidth(140);
+            if (ImGui.BeginCombo("World##foreign", _oxySyncForeignWorldOptions[_oxySyncForeignSelectedWorldIdx]))
+            {
+                for (int i = 0; i < _oxySyncForeignWorldOptions.Length; i++)
+                {
+                    if (ImGui.Selectable(_oxySyncForeignWorldOptions[i], _oxySyncForeignSelectedWorldIdx == i))
+                        _oxySyncForeignSelectedWorldIdx = i;
+                }
+                ImGui.EndCombo();
+            }
+
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(160);
+            if (ImGui.BeginCombo("Type##foreign", _oxySyncForeignTypeNames[_oxySyncForeignSelectedTypeIdx]))
+            {
+                for (int i = 0; i < _oxySyncForeignTypeNames.Count; i++)
+                {
+                    if (ImGui.Selectable(_oxySyncForeignTypeNames[i], _oxySyncForeignSelectedTypeIdx == i))
+                        _oxySyncForeignSelectedTypeIdx = i;
+                }
+                ImGui.EndCombo();
+            }
+
+            ImGui.SameLine();
+            ImGui.SetNextItemWidth(200);
+            ImGui.InputText("Search##foreign", ref _oxySyncForeignFilter, 128);
+
+            ImGui.SameLine();
+            ImGui.Checkbox("Syncing only##foreign", ref _oxySyncForeignShowSyncingOnly);
+
+            ImGui.Separator();
+
+            bool hasTextFilter = !string.IsNullOrEmpty(_oxySyncForeignFilter);
+            int selectedWorldId = _oxySyncForeignWorldIds[_oxySyncForeignSelectedWorldIdx];
+            string selectedTypeName = _oxySyncForeignTypeNames[_oxySyncForeignSelectedTypeIdx];
+            bool hasTypeFilter = _oxySyncForeignSelectedTypeIdx > 0;
+
+            // Group live foreign behaviours by NetId, honouring the filters.
+            var netIdGroups = new Dictionary<int, List<Networking.OxySync.ForeignSyncBehaviour>>();
+            for (int i = 0; i < count; i++)
+            {
+                var b = foreign[i];
+                if (b == null || b.IsDestroyed) continue;
+
+                if (selectedWorldId == -1)
+                {
+                    if (b.InterestGroup != -1) continue;
+                }
+                else if (selectedWorldId >= 0)
+                {
+                    int myWorldId = b.GetMyWorldId();
+                    if (myWorldId < 0 || myWorldId != selectedWorldId) continue;
+                }
+
+                string typeName = b.UnderlyingType.Name;
+                if (hasTypeFilter && typeName != selectedTypeName) continue;
+
+                if (hasTextFilter)
+                {
+                    string netIdStr = b.NetId.ToString();
+                    string behaviourIdStr = b.BehaviourId.ToString();
+                    string groupStr = b.InterestGroup.ToString();
+                    string goName = b.GameObject?.name ?? "?";
+                    bool matchesType = typeName.IndexOf(_oxySyncForeignFilter, StringComparison.OrdinalIgnoreCase) >= 0;
+                    bool matchesId = netIdStr.IndexOf(_oxySyncForeignFilter, StringComparison.OrdinalIgnoreCase) >= 0;
+                    bool matchesBehaviourId = behaviourIdStr.IndexOf(_oxySyncForeignFilter, StringComparison.OrdinalIgnoreCase) >= 0;
+                    bool matchesGroup = groupStr.IndexOf(_oxySyncForeignFilter, StringComparison.OrdinalIgnoreCase) >= 0;
+                    bool matchesName = goName.IndexOf(_oxySyncForeignFilter, StringComparison.OrdinalIgnoreCase) >= 0;
+                    if (!matchesType && !matchesId && !matchesBehaviourId && !matchesGroup && !matchesName) continue;
+                }
+
+                if (_oxySyncForeignShowSyncingOnly && MultiplayerSession.IsHost &&
+                    (Time.unscaledTime - b.LastActiveSyncTime) > 2f) continue;
+
+                int netId = b.NetId;
+                if (!netIdGroups.TryGetValue(netId, out var list))
+                {
+                    list = new List<Networking.OxySync.ForeignSyncBehaviour>();
+                    netIdGroups[netId] = list;
+                }
+                list.Add(b);
+            }
+
+            if (netIdGroups.Count == 0)
+            {
+                ImGui.TextDisabled("No API behaviours match the current filters.");
+                return;
+            }
+
+            var sortedNetIds = netIdGroups.Keys.OrderBy(id => id).ToList();
+            var available = ImGui.GetContentRegionAvail();
+
+            if (ImGui.BeginTable("OxySyncForeignTable", 3, ImGuiTableFlags.Resizable | ImGuiTableFlags.NoSavedSettings,
+                new Vector2(available.x, available.y - 30f)))
+            {
+                ImGui.TableSetupColumn("NetId Groups", ImGuiTableColumnFlags.WidthFixed, 350);
+                ImGui.TableSetupColumn("Behaviours", ImGuiTableColumnFlags.WidthFixed, 300);
+                ImGui.TableSetupColumn("Detail", ImGuiTableColumnFlags.WidthStretch);
+
+                ImGui.TableNextRow();
+                ImGui.TableSetColumnIndex(0);
+
+                ImGui.BeginChild("OxySyncForeignNetIdList", new Vector2(0, 0), true);
+
+                int totalGroups = sortedNetIds.Count;
+                int totalPages = Mathf.Max(1, (totalGroups + OxySyncNetIdPageSize - 1) / OxySyncNetIdPageSize);
+                _oxySyncForeignNetIdPage = Mathf.Clamp(_oxySyncForeignNetIdPage, 0, totalPages - 1);
+
+                int startIdx = _oxySyncForeignNetIdPage * OxySyncNetIdPageSize;
+                int endIdx = Mathf.Min(startIdx + OxySyncNetIdPageSize, totalGroups);
+
+                for (int g = startIdx; g < endIdx; g++)
+                {
+                    int netId = sortedNetIds[g];
+                    var group = netIdGroups[netId];
+                    var first = group[0];
+                    string goName = first.GameObject?.name ?? "?";
+                    int groupCount = group.Count;
+                    int interestGroup = first.InterestGroup;
+
+                    string displayName = string.Format(global::STRINGS.UI.StripLinkFormatting(goName));
+                    string label = $"{displayName} ({groupCount} behaviours) (NetID: {netId}, Group: {interestGroup})";
+                    bool isSelected = netId == _oxySyncForeignSelectedNetId;
+
+                    if (MultiplayerSession.IsHost)
+                    {
+                        bool anySyncing = group.Any(b => (Time.unscaledTime - b.LastActiveSyncTime) <= 2f);
+                        if (anySyncing)
+                            ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.3f, 1f, 0.3f, 1f));
+                    }
+
+                    if (ImGui.Selectable(label, isSelected))
+                    {
+                        _oxySyncForeignSelectedNetId = netId;
+                        _oxySyncForeignSelectedBehaviour = null;
+                    }
+
+                    if (MultiplayerSession.IsHost)
+                    {
+                        bool anySyncing = group.Any(b => (Time.unscaledTime - b.LastActiveSyncTime) <= 2f);
+                        if (anySyncing)
+                            ImGui.PopStyleColor();
+                    }
+                }
+
+                ImGui.Separator();
+                ImGui.Text($"Page {_oxySyncForeignNetIdPage + 1} / {totalPages} ({totalGroups} NetIds)");
+                if (ImGui.Button("◀ Prev") && _oxySyncForeignNetIdPage > 0)
+                    _oxySyncForeignNetIdPage--;
+                ImGui.SameLine();
+                if (ImGui.Button("Next ▶") && _oxySyncForeignNetIdPage < totalPages - 1)
+                    _oxySyncForeignNetIdPage++;
+
+                ImGui.EndChild();
+
+                ImGui.TableSetColumnIndex(1);
+
+                ImGui.BeginChild("OxySyncForeignBehaviourList", new Vector2(0, 0), true);
+
+                if (_oxySyncForeignSelectedNetId == int.MinValue)
+                {
+                    ImGui.TextDisabled("Select a NetId group from the left panel");
+                }
+                else if (netIdGroups.TryGetValue(_oxySyncForeignSelectedNetId, out var selectedGroup))
+                {
+                    foreach (var b in selectedGroup)
+                    {
+                        string typeName = b.UnderlyingType.Name;
+                        string label = $"{typeName}  (BehaviourId: {b.BehaviourId})";
+                        bool isSelected = b == _oxySyncForeignSelectedBehaviour;
+
+                        if (MultiplayerSession.IsHost && (Time.unscaledTime - b.LastActiveSyncTime) <= 2f)
+                            ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0.3f, 1f, 0.3f, 1f));
+
+                        if (ImGui.Selectable(label, isSelected))
+                            _oxySyncForeignSelectedBehaviour = b;
+
+                        if (MultiplayerSession.IsHost && (Time.unscaledTime - b.LastActiveSyncTime) <= 2f)
+                            ImGui.PopStyleColor();
+                    }
+                }
+
+                ImGui.EndChild();
+
+                ImGui.TableSetColumnIndex(2);
+
+                ImGui.BeginChild("OxySyncForeignDetail", new Vector2(0, 0), true);
+
+                if (_oxySyncForeignSelectedBehaviour != null && !_oxySyncForeignSelectedBehaviour.IsDestroyed)
+                {
+                    DrawOxySyncForeignDetail(_oxySyncForeignSelectedBehaviour);
+                }
+                else
+                {
+                    if (_oxySyncForeignSelectedBehaviour != null)
+                        _oxySyncForeignSelectedBehaviour = null;
+                    if (_oxySyncForeignSelectedNetId != int.MinValue)
+                        ImGui.TextDisabled("Select a behaviour from the centre panel to inspect.");
+                    else
+                        ImGui.TextDisabled("Select a NetId group from the left panel.");
+                }
+
+                ImGui.EndChild();
+
+                ImGui.EndTable();
+            }
+        }
+
+        private void DrawOxySyncForeignDetail(Networking.OxySync.ForeignSyncBehaviour behaviour)
+        {
+            behaviour.RefreshSyncVars();
+
+            string goName = behaviour.GameObject?.name ?? "?";
+            string sourceName = Networking.OxySync.OxySync_API_Helper.GetSourceName(behaviour.SourceAssembly);
+            ImGui.TextColored(new Vector4(1f, 1f, 0.3f, 1f),
+                $"{behaviour.UnderlyingType.Name}  (NetId: {behaviour.NetId}, BehaviourId: {behaviour.BehaviourId}, Sync: {behaviour.SyncInterval:F2}s)  [{goName}]");
+            ImGui.TextColored(new Vector4(0.6f, 0.8f, 1f, 1f), $"Source mod: {sourceName}");
+
+            if (MultiplayerSession.IsHost)
+            {
+                bool isSyncing = (Time.unscaledTime - behaviour.LastActiveSyncTime) <= 2f;
+                if (isSyncing)
+                    ImGui.TextColored(new Vector4(0.3f, 1f, 0.3f, 1f), "● Syncing");
+                else
+                    ImGui.TextColored(new Vector4(0.5f, 0.5f, 0.5f, 1f), "○ Idle");
+            }
+            else
+            {
+                ImGui.TextDisabled("Sync status only available on host");
+            }
+
+            if (MultiplayerSession.IsHost)
+            {
+                float lastActive = Time.unscaledTime - behaviour.LastActiveSyncTime;
+                float lastCheck = Time.unscaledTime - behaviour.LastSyncTime;
+                ImGui.Text($"Last synced: {lastActive:F1}s ago  |  Last check: {lastCheck:F1}s ago");
+            }
+            else
+            {
+                ImGui.TextDisabled("Last synced: N/A (client)");
+            }
+
+            int ig = behaviour.InterestGroup;
+            ImGui.TextColored(new Vector4(0.3f, 1f, 1f, 1f),
+                ig == -1 ? "Interest Group: -1 (broadcast)" : $"Interest Group: {ig}");
+
+            ImGui.Separator();
+
+            int fieldCount = behaviour.SyncVarCount;
+
+            ulong dirtyMask = behaviour.SyncVarDirtyBits;
+            int dirtyCount = 0;
+            for (int b = 0; b < 64; b++)
+                if ((dirtyMask & (1UL << b)) != 0) dirtyCount++;
+
+            ImGui.Spacing();
+            ImGui.TextColored(new Vector4(1f, 0.8f, 0.3f, 1f),
+                $"Dirty Mask: 0x{dirtyMask:X16}  ({dirtyCount} / {fieldCount} dirty)");
+            ImGui.TextDisabled("Bit i = SyncVar index i. Cleared each sync tick.");
+
+            ImGui.Spacing();
+            for (int bit = 0; bit < 64; bit++)
+            {
+                bool isDirty = (dirtyMask & (1UL << bit)) != 0;
+                bool registered = bit < fieldCount;
+                var color = isDirty
+                    ? new Vector4(1f, 0.3f, 0.2f, 1f)
+                    : registered
+                        ? new Vector4(0.3f, 1f, 0.3f, 1f)
+                        : new Vector4(0.45f, 0.45f, 0.45f, 0.5f);
+
+                ImGui.PushID($"foreign_dirtybit_{bit}");
+                ImGui.TextColored(color, $"{bit:D2}");
+                if (ImGui.IsItemHovered())
+                {
+                    string fieldName = registered ? behaviour.GetSyncVar(bit).Name : "unregistered";
+                    ImGui.SetTooltip($"Bit {bit}: {(isDirty ? "DIRTY" : "clean")}\n{fieldName}");
+                }
+                ImGui.PopID();
+
+                if ((bit % 8) != 7)
+                    ImGui.SameLine();
+            }
+
+            ImGui.Spacing();
+            if (ImGui.SmallButton("Mark All Dirty") && MultiplayerSession.IsHost)
+                behaviour.MarkAllDirty();
+            ImGui.SameLine();
+            ImGui.TextDisabled("(consumed on next sync tick)");
+            ImGui.Separator();
+
+            if (fieldCount > 0)
+            {
+                ImGui.TextColored(new Vector4(0.3f, 1f, 0.3f, 1f), "SyncVars:");
+                ImGui.Separator();
+
+                for (int i = 0; i < fieldCount; i++)
+                {
+                    var field = behaviour.GetSyncVar(i);
+                    var value = field.GetValue();
+                    string groupLabel = field.InterestGroup == -1 ? "" : $" [Group: {field.InterestGroup}]";
+
+                    ImGui.PushID($"foreign_syncvar_{i}");
+                    ImGui.Text($"{field.Name}{groupLabel} ({field.FieldType.Name}): {value?.ToString() ?? "null"}");
+                    ImGui.SameLine();
+
+                    bool isDirty = (behaviour.SyncVarDirtyBits & (1UL << i)) != 0;
+                    ImGui.TextColored(
+                        isDirty ? new Vector4(1f, 0.3f, 0.2f, 1f) : new Vector4(0.4f, 0.6f, 0.4f, 1f),
+                        isDirty ? $"● dirty (bit {i})" : $"○ clean (bit {i})");
+                    ImGui.SameLine();
+
+                    if (field.FieldType == typeof(bool))
+                    {
+                        if (ImGui.SmallButton("Toggle"))
+                        {
+                            field.SetValue(!(bool)(value ?? false));
+                            behaviour.MarkSyncVarDirty(field.Hash);
+                            behaviour.RefreshSyncVars();
+                        }
+                    }
+                    else
+                    {
+                        string popupId = $"foreign_detail_set_{i}";
+                        if (ImGui.SmallButton("Set"))
+                        {
+                            ImGui.OpenPopup(popupId);
+                        }
+
+                        bool openModal = true;
+                        if (ImGui.BeginPopupModal(popupId, ref openModal, ImGuiWindowFlags.AlwaysAutoResize))
+                        {
+                            string input = value?.ToString() ?? "";
+                            ImGui.Text($"Set {field.Name}:");
+                            ImGui.SetNextItemWidth(200);
+                            if (ImGui.InputText("##value", ref input, 256, ImGuiInputTextFlags.EnterReturnsTrue))
+                            {
+                                object? newVal = ParseValue(input, field.FieldType);
+                                if (newVal != null)
+                                {
+                                    field.SetValue(newVal);
+                                    behaviour.MarkSyncVarDirty(field.Hash);
+                                    behaviour.RefreshSyncVars();
+                                }
+                                ImGui.CloseCurrentPopup();
+                            }
+                            if (ImGui.Button("Cancel"))
+                                ImGui.CloseCurrentPopup();
+                            ImGui.EndPopup();
+                        }
+                    }
+                    ImGui.PopID();
+                }
+            }
+
+            DrawOxySyncForeignRpcSection(behaviour, "Commands", new Vector4(1f, 0.8f, 0.3f, 1f), OxySyncRpcKind.Command);
+            DrawOxySyncForeignRpcSection(behaviour, "ClientRpcs", new Vector4(0.3f, 0.8f, 1f, 1f), OxySyncRpcKind.ClientRpc);
+            DrawOxySyncForeignRpcSection(behaviour, "TargetRpcs", new Vector4(0.8f, 0.3f, 1f, 1f), OxySyncRpcKind.TargetRpc);
+        }
+
+        private enum OxySyncRpcKind
+        {
+            Command,
+            ClientRpc,
+            TargetRpc,
+        }
+
+        private void DrawOxySyncForeignRpcSection(Networking.OxySync.ForeignSyncBehaviour behaviour, string title, Vector4 color, OxySyncRpcKind kind)
+        {
+            var methods = kind switch
+            {
+                OxySyncRpcKind.Command => behaviour.Commands,
+                OxySyncRpcKind.ClientRpc => behaviour.ClientRpcs,
+                _ => behaviour.TargetRpcs,
+            };
+
+            if (methods == null || methods.Count == 0)
+                return;
+
+            ImGui.Spacing();
+            ImGui.TextColored(color, $"{title}:");
+            ImGui.Separator();
+
+            foreach (var method in methods)
+            {
+                string groupLabel = method.InterestGroup == -1 ? "" : $" [Group: {method.InterestGroup}]";
+                string label = $"[{title.TrimEnd('s')}] {method.Name}{groupLabel}({string.Join(", ", method.ArgTypes.Select(t => t.Name))})";
+
+                ImGui.PushID($"foreign_detail_{title}_{method.Hash}");
+                ImGui.Text(label);
+                ImGui.SameLine();
+
+                bool canCall = kind == OxySyncRpcKind.Command || MultiplayerSession.IsHost;
+
+                if (canCall)
+                {
+                    if (ImGui.SmallButton("Call"))
+                    {
+                        byte[] args = Shared.OxySync.RpcSerializer.Serialize(System.Array.Empty<object>(), method.ArgTypes);
+
+                        switch (kind)
+                        {
+                            case OxySyncRpcKind.Command:
+                                if (MultiplayerSession.IsHost)
+                                {
+                                    behaviour.InvokeCommand(method.Hash, args);
+                                }
+                                else
+                                {
+                                    PacketSender.SendToHost(new Networking.OxySync.Packets.CommandPacket
+                                    {
+                                        NetId = behaviour.NetId,
+                                        BehaviourId = behaviour.BehaviourId,
+                                        MethodHash = method.Hash,
+                                        Args = args,
+                                    });
+                                }
+                                break;
+
+                            case OxySyncRpcKind.ClientRpc:
+                                if (MultiplayerSession.IsHost)
+                                {
+                                    PacketSender.SendToAllClients(new Networking.OxySync.Packets.ClientRpcPacket
+                                    {
+                                        NetId = behaviour.NetId,
+                                        BehaviourId = behaviour.BehaviourId,
+                                        MethodHash = method.Hash,
+                                        Args = args,
+                                        TargetPlayerId = ulong.MaxValue,
+                                    });
+                                }
+                                break;
+
+                            case OxySyncRpcKind.TargetRpc:
+                                if (MultiplayerSession.IsHost)
+                                {
+                                    foreach (var player in MultiplayerSession.ConnectedPlayers)
+                                    {
+                                        if (player.Value.PlayerId == MultiplayerSession.HostUserID) continue;
+
+                                        PacketSender.SendToPlayer(player.Value.PlayerId, new Networking.OxySync.Packets.ClientRpcPacket
+                                        {
+                                            NetId = behaviour.NetId,
+                                            BehaviourId = behaviour.BehaviourId,
+                                            MethodHash = method.Hash,
+                                            Args = args,
+                                            TargetPlayerId = player.Value.PlayerId,
+                                        });
+                                    }
+                                }
+                                break;
+                        }
+                    }
+                }
+                else
+                {
+                    ImGui.TextDisabled("(host only)");
+                }
+                ImGui.PopID();
+            }
+        }
+
         private static object? ParseValue(string input, Type targetType)
         {
             try
@@ -1530,6 +2052,49 @@ namespace ONI_Together.DebugTools
 
             if (_oxySyncSelectedTypeIdx >= _oxySyncTypeNames.Count)
                 _oxySyncSelectedTypeIdx = 0;
+        }
+
+        private void BuildOxySyncForeignWorldOptions()
+        {
+            var worldList = new List<string> { "All", "Group -1 (Broadcast)" };
+            var idList = new List<int> { -2, -1 };
+
+            if (ClusterManager.Instance != null)
+            {
+                foreach (var world in ClusterManager.Instance.WorldContainers)
+                {
+                    if (world != null)
+                    {
+                        string name = world.GetProperName();
+                        if (name.Length > 30)
+                            name = name[..30] + "…";
+                        worldList.Add($"World {world.id}: {name}");
+                        idList.Add(world.id);
+                    }
+                }
+            }
+
+            _oxySyncForeignWorldOptions = worldList.ToArray();
+            _oxySyncForeignWorldIds = idList.ToArray();
+
+            if (_oxySyncForeignSelectedWorldIdx >= _oxySyncForeignWorldOptions.Length)
+                _oxySyncForeignSelectedWorldIdx = 0;
+        }
+
+        private void BuildOxySyncForeignTypeOptions(IReadOnlyList<Networking.OxySync.ForeignSyncBehaviour> behaviours)
+        {
+            var types = new HashSet<string>();
+            for (int i = 0; i < behaviours.Count; i++)
+            {
+                if (behaviours[i] != null && !behaviours[i].IsDestroyed)
+                    types.Add(behaviours[i].UnderlyingType.Name);
+            }
+
+            _oxySyncForeignTypeNames = new List<string> { "All" };
+            _oxySyncForeignTypeNames.AddRange(types.OrderBy(t => t));
+
+            if (_oxySyncForeignSelectedTypeIdx >= _oxySyncForeignTypeNames.Count)
+                _oxySyncForeignSelectedTypeIdx = 0;
         }
     }
 }

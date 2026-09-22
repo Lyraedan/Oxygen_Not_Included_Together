@@ -51,9 +51,7 @@ namespace ONI_Together.Networking.OxySync.Packets
             if (TargetPlayerId != ulong.MaxValue && TargetPlayerId != MultiplayerSession.LocalUserID)
                 return;
 
-            OxySyncManager.TryGetBehaviour(NetId, BehaviourId, out NetworkBehaviour behaviour);
-            
-            if (behaviour == null &&  !NetworkIdentityRegistry.TryGetComponent<NetworkBehaviour>(NetId, out behaviour))
+            if (!SyncBehaviourResolver.TryResolve(NetId, BehaviourId, out var behaviour))
                 return;
 
             behaviour.InvokeClientRpc(MethodHash, Args);
