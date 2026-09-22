@@ -83,6 +83,38 @@ public void SendMyCoolPacket()
 }
 ```
 
+### Spawning networked entities
+
+Only the host can spawn entities. Call `SpawnUtilsAPI.KNetInstantiate` and the spawn is replicated to all clients automatically. Both methods return `null` when ONI Together is not loaded.
+
+```csharp
+using ONI_Together_API.Misc;
+using UnityEngine;
+
+// Spawn a prefab by GameObject
+GameObject spawned = SpawnUtilsAPI.KNetInstantiate(somePrefab, position);
+
+// Spawn an element resource (e.g. ore) with mass, temperature and disease data preserved
+GameObject ore = SpawnUtilsAPI.KNetInstantiate((int)SimHashes.IronOre, position, 100f, 293.15f, 0, 0);
+```
+
+### Looking up networked entities
+
+```csharp
+using ONI_Together_API.Networking;
+using UnityEngine;
+
+if (NetworkIdentityRegistryAPI.TryGet(netId, out GameObject entity))
+{
+    // ...
+}
+
+if (NetworkIdentityRegistryAPI.TryGetComponent<PrimaryElement>(netId, out var primaryElement))
+{
+    // ...
+}
+```
+
 ## Requirements
 
 - Oxygen Not Included (with ONI Together mod installed)
