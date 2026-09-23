@@ -12,6 +12,7 @@ namespace ONI_Together.Networking.OxySync.Components
     [FixedInterestGroup]
     public class WorkableSyncer : NetworkBehaviour
     {
+        private static readonly bool ENABLE_LOG = false;
 
         private string GetWorkableTypeId(Workable workable)
         {
@@ -85,10 +86,11 @@ namespace ONI_Together.Networking.OxySync.Components
         }
 
         public static void RegisterNetId(GameObject parent = null) {
-            var root = parent == null ? Game.Instance.gameObject : parent;
+            var root = parent ?? Game.Instance.gameObject;
             if (Instance == null)
             {
-                DebugConsole.LogWarning("[WorkableSyncer] Initializing WorkableSyncer instance.");
+                if (ENABLE_LOG)
+                    DebugConsole.LogWarning("[WorkableSyncer] Initializing WorkableSyncer instance.");
                 var syncerRoot = new GameObject("WorkableSyncer");
                 syncerRoot.transform.SetParent(root.transform);
                 Instance = syncerRoot.AddComponent<WorkableSyncer>();
@@ -174,6 +176,10 @@ namespace ONI_Together.Networking.OxySync.Components
                 return;
             }
 
+            // Ignore Pickupables as they are synchronized through a moving/storing/consuming manager.
+            if (workable is Pickupable)
+                return;
+
             int workableNetId = workable.GetNetId();
             int workerNetId = worker.GetNetId();
             if (workableNetId == 0 || workerNetId == 0)
@@ -189,7 +195,8 @@ namespace ONI_Together.Networking.OxySync.Components
             try
             {
                 string workableTypeId = GetWorkableTypeId(workable);
-                DebugConsole.Log($"[WorkableSyncer] Worker has NetId {workerNetId} '{method}' on workable {workableNetId} : {workableTypeId}");
+                if (ENABLE_LOG)
+                    DebugConsole.Log($"[WorkableSyncer] Worker has NetId {workerNetId} '{method}' on workable {workableNetId} : {workableTypeId}");
                 CallClientRpc(nameof(RpcUpdateWorkable), method, workableNetId, workableTypeId, workerNetId);
             }
             catch (System.Exception ex)
@@ -231,6 +238,13 @@ namespace ONI_Together.Networking.OxySync.Components
                 return;
             }
 
+            if (workable is Pickupable)
+            {
+                if (ENABLE_LOG)
+                    DebugConsole.Log($"[WorkableSyncer]{workable.gameObject.GetProperName()};{workableNetId} Skipping update for Pickupable workable.");
+                return;
+            }
+
             if (workerNetId == 0 || !NetworkIdentityRegistry.TryGetComponent<WorkerBase>(workerNetId, out var worker) || worker == null || worker.gameObject.IsNullOrDestroyed())
             {
                 return;
@@ -238,7 +252,8 @@ namespace ONI_Together.Networking.OxySync.Components
 
             workableAuthorization[BuildAuthKey(workableNetId, workableTypeId, method)] = workerNetId;
 
-            DebugConsole.Log($"[WorkableSyncer] [Client] Worker has NetId {workerNetId} '{method}' on workable {workableNetId} : {workableTypeId}");
+            if (ENABLE_LOG)
+                DebugConsole.Log($"[WorkableSyncer] [Client] Worker has NetId {workerNetId} '{method}' on workable {workableNetId} : {workableTypeId}");
 
             switch (method)
             {

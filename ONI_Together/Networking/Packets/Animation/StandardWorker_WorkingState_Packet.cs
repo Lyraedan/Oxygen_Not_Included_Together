@@ -128,6 +128,19 @@ namespace ONI_Together.Networking.Packets.Animation
 				return false;
 			}
 
+			// Pickupables are synchronized through the dedicated
+			// pickup/storage/item-state networking path.
+			// Do not replay their Workable lifecycle on clients.
+			if (workable is Pickupable)
+			{
+				DebugConsole.Log(
+					$"[StandardWorker_WorkingState_Packet] " +
+					$"Skipping StartWork replay for Pickupable " +
+					$"{workableGO.name} ({WorkableNetId})");
+
+				return true;
+			}
+
 			try
 			{
 				if (!worker.state.Equals(StandardWorker.State.Idle))
