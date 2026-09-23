@@ -81,6 +81,32 @@ namespace ONI_Together.Networking.OxySync.Components
         }
 
         /// <summary>
+        /// Adds a <see cref="NetworkIdentity"/> to a GameObject and registers it if it has no NetId,
+        /// returning the resolved NetId. Equivalent to <see cref="SetOrGetIdentity"/> with no override.
+        /// </summary>
+        public static int AddIdentity(GameObject go)
+        {
+            var identity = go.AddOrGet<NetworkIdentity>();
+            if (identity.NetId == 0)
+                identity.RegisterIdentity();
+            return identity.NetId;
+        }
+
+        /// <summary>
+        /// Reads the NetId of an existing <see cref="NetworkIdentity"/> on a GameObject without
+        /// creating or registering one. Returns 0 when none exists.
+        /// </summary>
+        public static int GetIdentity(GameObject go)
+        {
+            if (go == null)
+                return 0;
+
+            return go.TryGetComponent<NetworkIdentity>(out var identity) && identity != null
+                ? identity.NetId
+                : 0;
+        }
+
+        /// <summary>
         /// Forces a <see cref="NetworkIdentity"/> on a GameObject to a specific NetId.
         /// </summary>
         public static int OverrideIdentity(GameObject go, int netId)
@@ -128,6 +154,8 @@ namespace ONI_Together.Networking.OxySync.Components
             NetworkBehaviour.NetIdSetter = (behaviour, newNetId) => behaviour.gameObject.AddOrGet<NetworkIdentity>().OverrideNetId(newNetId);
 
             NetIdentityHelper.SetIdentity = SetOrGetIdentity;
+            NetIdentityHelper.AddIdentity = AddIdentity;
+            NetIdentityHelper.GetIdentity = GetIdentity;
             NetIdentityHelper.OverrideIdentity = OverrideIdentity;
 
             NetworkBehaviour.LogWarning = (msg) => DebugConsole.LogWarning(msg);

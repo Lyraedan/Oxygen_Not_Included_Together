@@ -287,6 +287,10 @@ namespace ONI_Together.Networking.OxySync
 
             SetStaticDelegateOnType(bridge.NetIdentityHelperType, "SetIdentity",
                 (Func<GameObject, int, int>)((go, netId) => OxySyncManager.SetOrGetIdentity(go, netId)));
+            SetStaticDelegateOnType(bridge.NetIdentityHelperType, "AddIdentity",
+                (Func<GameObject, int>)(go => OxySyncManager.AddIdentity(go)));
+            SetStaticDelegateOnType(bridge.NetIdentityHelperType, "GetIdentity",
+                (Func<GameObject, int>)(go => OxySyncManager.GetIdentity(go)));
             SetStaticDelegateOnType(bridge.NetIdentityHelperType, "OverrideIdentity",
                 (Func<GameObject, int, int>)((go, netId) => OxySyncManager.OverrideIdentity(go, netId)));
         }
