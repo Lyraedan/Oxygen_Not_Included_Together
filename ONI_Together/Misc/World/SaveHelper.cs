@@ -395,6 +395,11 @@ public static class SaveHelper
 	{
 		using var _ = Profiler.Scope();
 
+		// We shall pause the game before capturing the save to ensure consistency
+		// Especially, when a client is joining.
+		if (SpeedControlScreen.Instance != null && !SpeedControlScreen.Instance.IsPaused)
+			SpeedControlScreen.Instance.TogglePause();
+
 		var path = SaveLoader.GetActiveSaveFilePath();
 		SaveLoader.Instance.Save(path); // Saves current state to that file
 		return File.ReadAllBytes(path);
