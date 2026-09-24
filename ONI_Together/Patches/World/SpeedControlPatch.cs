@@ -2,7 +2,6 @@
 using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.OxySync.Components;
-using UnityEngine;
 
 namespace ONI_Together.Patches.World
 {
@@ -10,8 +9,6 @@ namespace ONI_Together.Patches.World
 	public static class SpeedControlPatch
 	{
 		private static readonly bool ENABLE_LOG = false;
-
-		private static int _togglePauseDepth;
 
 		[HarmonyPostfix]
 		[HarmonyPatch(nameof(SpeedControlScreen.OnPrefabInit))]
@@ -26,36 +23,13 @@ namespace ONI_Together.Patches.World
 		[HarmonyPatch(nameof(SpeedControlScreen.SetSpeed))]
 		public static bool SetSpeed_Prefix(int Speed)
 		{
-			if (!MultiplayerSession.InActiveSession || (MultiplayerSession.IsHost && !MultiplayerSession.SessionHasPlayers))
-				return true;
-			
-			if (GameSpeedSyncer.Instance == null )
-			{
-				DebugConsole.LogWarning("[SpeedControlPatch][SetSpeed_Prefix] GameSpeedSyncer instance is null, allowing vanilla behavior.");
-				return true;
-			}
-			
-			if (GameSpeedSyncer.Instance.IsApplyingNetworkState)
-			{
-				if (ENABLE_LOG)
-					DebugConsole.LogNonImportant("[SpeedControlPatch][SetSpeed_Prefix] GameSpeedSyncer instance is syncing, allowing vanilla behavior.");
-				return true;
-			}
-
-			// Unpause() calls SetSpeed internally.
-			// Let that vanilla SetSpeed happen, but don't create a separate network request.
-			// TogglePause_Postfix will synchronize the final state.
-			if (_togglePauseDepth > 0)
+			if (!ShouldInterceptForSync())
 				return true;
 
-			// The enum model cannot represent "paused with a selected resume speed".
-			// Preserve vanilla behavior locally while paused. The chosen speed will
-			// be synchronized when TogglePause actually resumes the game.
-			if (SpeedControlScreen.Instance.IsPaused)
-				return true;
+			SpeedControlScreen screen = SpeedControlScreen.Instance;
 
 			// Preserve vanilla SetSpeed's normalization.
-			// The vanilla game would keep adding to the speed,
+			// The vanilla game would keep adding to the speed, ex: Tab
 			// so the Speed can be > 2 when SetSpeed is called.
 			int normalizedSpeed = Speed % 3;
 
@@ -68,73 +42,57 @@ namespace ONI_Together.Patches.World
 				return true;
 			}
 
-			var state = (GameSpeedSyncer.SpeedState)normalizedSpeed;
+			var state = (GameSpeedSyncer.SpeedMode)normalizedSpeed;
 
 			// The vanilla game would proceed to set the speed even if it is already the current speed.
 			// We intercept this to avoid unnecessary network requests, while still allowing the vanilla behavior to proceed.
-			if (GameSpeedSyncer.Instance.IsStateSynchronized(state))
+			if (GameSpeedSyncer.Instance.IsStateSynchronized(state, screen.IsPaused))
 				return true;
 
 			if (ENABLE_LOG)
 				DebugConsole.LogNonImportant($"[SpeedControlPatch][SetSpeed_Prefix] Requesting speed {Speed} -> normalized {normalizedSpeed}.");
 
-			GameSpeedSyncer.Instance.RequestSetSpeed(state);
+			GameSpeedSyncer.Instance.RequestSetSpeed(state, screen.IsPaused);
 			return false;
 		}
 
 		[HarmonyPrefix]
 		[HarmonyPatch(nameof(SpeedControlScreen.TogglePause))]
-		public static void TogglePause_Prefix()
+		public static bool TogglePause_Prefix()
 		{
-			_togglePauseDepth++;
+			if (!ShouldInterceptForSync())
+				return true;
+			
+			SpeedControlScreen screen = SpeedControlScreen.Instance;
+			bool isPaused = screen.IsPaused;
+			GameSpeedSyncer.SpeedMode state = (GameSpeedSyncer.SpeedMode)screen.GetSpeed();
+
+
+			if (ENABLE_LOG)
+				DebugConsole.LogNonImportant($"[SpeedControlPatch][TogglePause_Prefix] request setting speed to {state}, isPaused: {!isPaused}.");
+
+			GameSpeedSyncer.Instance.RequestSetSpeed(state, !isPaused);
+			return false;
 		}
 
-		[HarmonyPostfix]
-		[HarmonyPatch(nameof(SpeedControlScreen.TogglePause))]
-		public static void TogglePause_Postfix()
-		{
+		public static bool ShouldInterceptForSync() {
 			if (!MultiplayerSession.InActiveSession || (MultiplayerSession.IsHost && !MultiplayerSession.SessionHasPlayers))
-				return;
+				return false;
 
 			if (GameSpeedSyncer.Instance == null)
 			{
-				DebugConsole.LogWarning("[SpeedControlPatch][TogglePause_Postfix] GameSpeedSyncer instance is null.");
-				return;
+				DebugConsole.LogWarning("[SpeedControlPatch][ShouldInterceptForSync] GameSpeedSyncer instance is null.");
+				return false;
 			}
 
 			if (GameSpeedSyncer.Instance.IsApplyingNetworkState)
 			{
 				if (ENABLE_LOG)
-					DebugConsole.LogNonImportant("[SpeedControlPatch][TogglePause_Postfix] GameSpeedSyncer instance is syncing.");
-				return;
+					DebugConsole.LogNonImportant("[SpeedControlPatch][ShouldInterceptForSync] GameSpeedSyncer instance is syncing.");
+				return false;
 			}
-			
-			GameSpeedSyncer.SpeedState state = SpeedControlScreen.Instance.IsPaused
-				? GameSpeedSyncer.SpeedState.Paused
-				: (GameSpeedSyncer.SpeedState)SpeedControlScreen.Instance.GetSpeed();
-			
-			// Calling TogglePause would not always change the pause state in vanilla because of the internal counter.
-			// Players would hit TogglePause multiple times if the 'Space' key not properly unpause the game.
-			// It is annoying when a player joined the game and try to unpause, but repeatedly send the pause to everyone else.
-			// When others trying to unpause at the same time,
-			// plus arriving time and order of network packets are not guaranteed,
-			// it make the experience frustrating for players as long as a new player joins the game.
-			//
-			// To mitigate this, we check if the desired state is already synchronized before sending a network request.
-			if (GameSpeedSyncer.Instance.IsStateSynchronized(state))
-				return;
 
-			if (ENABLE_LOG)
-				DebugConsole.LogNonImportant($"[SpeedControlPatch][TogglePause_Postfix] request setting speed to {state}.");
-
-			GameSpeedSyncer.Instance.RequestSetSpeed(state);
-		}
-
-		[HarmonyFinalizer]
-		[HarmonyPatch(nameof(SpeedControlScreen.TogglePause))]
-		public static void TogglePause_Finalizer()
-		{
-			_togglePauseDepth = Mathf.Max(0, _togglePauseDepth - 1);
+			return true;
 		}
 	}
 }
