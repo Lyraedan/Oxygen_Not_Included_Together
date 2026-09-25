@@ -100,6 +100,49 @@ namespace ONI_Together.Networking.OxySync.Components
             Instance.NetId = nameof(WorkableSyncer).GetHashCode();
         }
 
+        private static bool ShouldSkipWorkable(Workable workable)
+        {
+            if (workable == null)
+                return true;
+            
+            if(workable is DefragmentationZone)
+            {
+                if (ENABLE_LOG)
+                    DebugConsole.LogNonImportant($"[WorkableSyncer]{workable.gameObject.GetProperName()} Skipping update for defragmentation zone workable.");
+                return true;
+            }
+
+            if (workable is Pickupable)
+            {
+                if (ENABLE_LOG)
+                    DebugConsole.LogNonImportant($"[WorkableSyncer]{workable.gameObject.GetProperName()} Skipping update for pickupable workable.");
+                return true;
+            }
+
+            if (workable is LiquidPumpingStation)
+            {
+                if (ENABLE_LOG)
+                    DebugConsole.LogNonImportant($"[WorkableSyncer]{workable.gameObject.GetProperName()} Skipping update for liquid pumping station workable.");
+                return true;
+            }
+
+            if (workable is RancherChore.RancherWorkable)
+            {
+                if (ENABLE_LOG)
+                    DebugConsole.LogNonImportant($"[WorkableSyncer]{workable.gameObject.GetProperName()} Skipping update for rancher workable.");
+                return true;
+            }
+
+            if (workable is Bottler)
+            {
+                if (ENABLE_LOG)
+                    DebugConsole.LogNonImportant($"[WorkableSyncer]{workable.gameObject.GetProperName()} Skipping update for bottler workable.");
+                return true;
+            }
+
+            return false;
+        }
+
         public static bool IsAuthorized(int workableNetId, string workableTypeId, MethodType method)
         {
             if (Instance == null)
@@ -170,14 +213,13 @@ namespace ONI_Together.Networking.OxySync.Components
                 return;
             }
 
-            if (workable.IsNullOrDestroyed() || worker.IsNullOrDestroyed())
+            if (worker.IsNullOrDestroyed())
             {
                 DebugConsole.LogWarning($"[WorkableSyncer] Skip sync for method {method}: WorkableNullOrDestroyed={workable.IsNullOrDestroyed()}, WorkerNullOrDestroyed={worker.IsNullOrDestroyed()}");
                 return;
             }
 
-            // Ignore Pickupables as they are synchronized through a moving/storing/consuming manager.
-            if (workable is Pickupable)
+            if (ShouldSkipWorkable(workable))
                 return;
 
             int workableNetId = workable.GetNetId();
@@ -233,17 +275,8 @@ namespace ONI_Together.Networking.OxySync.Components
             }
 
             workable ??= identity.gameObject.GetComponent<Workable>();
-            if (workable == null)
-            {
+            if (ShouldSkipWorkable(workable))
                 return;
-            }
-
-            if (workable is Pickupable)
-            {
-                if (ENABLE_LOG)
-                    DebugConsole.Log($"[WorkableSyncer]{workable.gameObject.GetProperName()};{workableNetId} Skipping update for Pickupable workable.");
-                return;
-            }
 
             if (workerNetId == 0 || !NetworkIdentityRegistry.TryGetComponent<WorkerBase>(workerNetId, out var worker) || worker == null || worker.gameObject.IsNullOrDestroyed())
             {
