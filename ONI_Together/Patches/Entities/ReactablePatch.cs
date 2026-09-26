@@ -10,7 +10,7 @@ namespace ONI_Together.Patches.Entities
 {
     class Reactable_Patches
     {
-        private static readonly bool ENABLE_LOG = false;
+        private static readonly bool ENABLE_LOG = true;
 
         [HarmonyPatch(typeof(Reactable), nameof(Reactable.Initialize))]
         public static class Reactable_Initialize_Patch
@@ -30,43 +30,94 @@ namespace ONI_Together.Patches.Entities
                     );
                     return;
                 }
-                
+
                 ReactableSyncer syncer = __instance.gameObject.AddOrGet<ReactableSyncer>();
                 syncer.RegisterReactable(__instance);
             }
         }
 
+        [HarmonyPatch(typeof(Reactable), nameof(Reactable.CanBegin))]
+        public static class Reactable_CanBegin_SuitMarker_Patch
+        {
+            static bool Postfix(bool __result, Reactable __instance, GameObject reactor, Navigator.ActiveTransition transition)
+            {
+                if (!__instance.gameObject.TryGetComponent<ReactableSyncer>(out var syncer))
+                {
+                    DebugConsole.LogWarning(
+                        $"[ReactablePatch][Postfix]{__instance.gameObject.GetProperName()} Failed to get ReactableSyncer.");
+
+                    return __result;
+                }
+
+                if (MultiplayerSession.IsHostInSession && MultiplayerSession.SessionHasPlayers && __result)
+                {
+                    syncer.RequestSyncAuthorization(__instance, reactor);
+                    return __result;
+                }
+
+                if (MultiplayerSession.IsClient)
+                {
+                    bool internalResult = __instance.InternalCanBegin(reactor, transition);
+                    return internalResult && syncer.IsAuthorized(__instance, reactor);
+                }
+
+                return __result;
+            }
+        }
 
         [HarmonyPatch(typeof(Reactable), nameof(Reactable.Begin))]
         public static class Reactable_Begin_Patch
         {
             static void Prefix(Reactable __instance, out AnimSyncer __state,  GameObject reactor)
             {
-                __state = null;
-                DebugConsole.Log($"[WE_NEED_THIS][PATCH_BEGIN]{__instance.GetType().Name}:{__instance.GetType().FullName.GetHashCode()} Attempting to sync reactable.");
-                if(!CanSyncReactable(false, __instance, reactor, out var reactableSyncer, out var animSyncer))
-                    return;
+                string EntityName = __instance.gameObject.GetProperName();
+                string ReactableName = __instance.GetType().Name;
+                int ReactableId = __instance.id.hash;
+                string ReactorName = reactor != null ? reactor.gameObject.GetProperName() : "<unknown reactor>";
 
-                if (animSyncer != null)
+                if (ENABLE_LOG)
                 {
-                    __state = animSyncer;
-                    animSyncer.EnterSyncedPlaybackScope();
-                    animSyncer.EnterOverrideScope();
+                    DebugConsole.Log(
+                        $"[ReactablePatch][ENTER_BEGIN_PREFIX]" +
+                        $"[{EntityName}:<unknown entity netId> " +
+                        $"{ReactableName}:{ReactableId} " +
+                        $"{ReactorName}:<unknown reactor NetId>, " +
+                        $"networkReactionReplayStatic={ReactableSyncer.networkReactionReplayStatic}.");
                 }
 
-                reactableSyncer?.RequestSyncReactable(__instance, animSyncer.NetId, animSyncer.EntityName);
-            }
-        }
+                __state = null;
 
-        [HarmonyPatch(typeof(Reactable), nameof(Reactable.Begin))]
-        public static class Reactable_Begin_Postfix_Patch
-        {
-            static void Postfix(Reactable __instance, AnimSyncer __state, GameObject reactor)
+                if (reactor == null || !reactor.TryGetComponent<AnimSyncer>(out var animSyncer) || animSyncer == null)
+                {
+                    // If we got this case, we may need to check the entity's initialization process.
+                    DebugConsole.LogWarning($"[ReactablePatch][ENTER_BEGIN_PREFIX] AnimSyncer not found or invalid for reactor: {ReactorName}");
+                
+                    return;
+                }
+
+                __state = animSyncer;
+                animSyncer.EnterSyncedPlaybackScope();
+                animSyncer.EnterOverrideScope();
+
+                if (ENABLE_LOG)
+                {
+                    DebugConsole.Log(
+                        $"[ReactablePatch][END_BEGIN_PREFIX]" +
+                        $"[{EntityName}:<unknown NetId> " +
+                        $"{ReactableName}:{ReactableId} " +
+                        $"ReactableId:{ReactableId}, " +
+                        $"{ReactorName}:{animSyncer?.NetId ?? 0}, " +
+                        $"networkReactionReplayStatic={ReactableSyncer.networkReactionReplayStatic}"
+                    );
+                }
+            }
+
+            static void Finalizer(Reactable __instance, Exception __exception, AnimSyncer __state)
             {
                 if (__state != null)
                 {
-                    __state.EnterSyncedPlaybackScope();
-                    __state.EnterOverrideScope();
+                    __state.ExitOverrideScope();
+                    __state.ExitSyncedPlaybackScope();
                 }
             }
         }
@@ -77,105 +128,47 @@ namespace ONI_Together.Patches.Entities
             static void Prefix(Reactable __instance, out AnimSyncer __state)
             {
                 __state = null;
-                if (!CanSyncReactable(true, __instance, __instance.reactor, out var _, out var animSyncer) || animSyncer == null)
+
+                var reactor = __instance.reactor;
+                if (reactor == null)
                     return;
+                
+                string EntityName = __instance.gameObject.GetProperName();
+                string ReactableName = __instance.GetType().Name;
+                int ReactableId = __instance.id.hash;
+                var ReactorName = reactor.GetProperName();
+
+                if (!reactor.TryGetComponent<AnimSyncer>(out var animSyncer) || animSyncer == null)
+                {
+
+                    // If we got this case, we may need to check the entity's initialization process.
+                    DebugConsole.LogWarning($"[ReactablePatch][ENTER_BEGIN_PREFIX] AnimSyncer not found or invalid for reactor: {ReactorName}");
+                
+                    return;
+                }
 
                 __state = animSyncer;
+                animSyncer.EnterSyncedPlaybackScope();
+                animSyncer.EnterOverrideScope();
+
+                if (ENABLE_LOG)
+                {
+                    DebugConsole.Log(
+                        $"[ReactablePatch][END_BEGIN_PREFIX]" +
+                        $"[{EntityName}:<unknown NetId> " +
+                        $"{ReactableName}:{ReactableId} " +
+                        $"ReactableId:{ReactableId}, " +
+                        $"{ReactorName}:{animSyncer?.NetId ?? 0}, " +
+                        $"networkReactionReplayStatic={ReactableSyncer.networkReactionReplayStatic}"
+                    );
+                }
             }
-        }
-        internal static bool CanSyncReactable(bool isEnd, Reactable reactable, GameObject reactor, out ReactableSyncer reactableSyncer, out AnimSyncer animSyncer)
-        {
-            reactableSyncer = null;
-            animSyncer = null;
 
-            if (!MultiplayerSession.InActiveSession || (MultiplayerSession.IsHost && !MultiplayerSession.SessionHasPlayers))
-                return false;
-
-            if (reactable == null || reactable.IsNullOrDestroyed())
-                return false;
-            
-            string reactableName = reactable.GetType().Name;
-            int reactableNameHash = reactable.GetType().FullName.GetHashCode();
-
-            string EntityName = reactable.gameObject.GetProperName();
-
-            if (!reactable.gameObject.TryGetComponent<ReactableSyncer>(out var _reactableSyncer) || _reactableSyncer == null)
+            static void Finalizer(Reactable __instance, Exception __exception, AnimSyncer __state)
             {
-                // The initializer is on the top of this file.
-                // We should attached one ReactableSyncer before any component tries to use it.
-                DebugConsole.LogWarning(
-                    $"[ReactableSyncer][PATCH_CAN_SYNC]{EntityName}:<unknown NetId> " +
-                    $"{reactableName}:{reactableNameHash} ReactableSyncer not found or invalid."
-                );
-                return false;
+                __state?.ExitOverrideScope();
+                __state?.ExitSyncedPlaybackScope();
             }
-            
-            if (reactor == null)
-                reactor = reactable.reactor;
-            if ((reactor == null || reactor.IsNullOrDestroyed()) && !isEnd)
-            {
-                DebugConsole.LogWarning(_reactableSyncer.GetLogStr(
-                    "PATCH_CAN_SYNC",
-                    reactableName, reactableNameHash,
-                    "<unknown reactor>", 0,
-                    Time.unscaledTime, "Reactor not found or invalid."
-                ));
-
-                return false;
-            }
-
-            if (isEnd)
-            {
-                DebugConsole.LogWarning(_reactableSyncer.GetLogStr(
-                    "PATCH_CAN_SYNC",
-                    reactableName, reactableNameHash,
-                    "<unknown reactor>", 0,
-                    Time.unscaledTime, "Successfully validated."
-                ));
-
-                return true;
-            }
-
-            var reactorName = reactor.GetProperName();
-
-            if (!reactor.TryGetComponent<NetworkIdentity>(out var identity) || identity == null || identity.NetId == 0)
-            {
-                // If we got this case, we may need to check the entity's initialization process.
-                DebugConsole.LogWarning(_reactableSyncer.GetLogStr(
-                    "PATCH_CAN_SYNC",
-                    reactableName, reactableNameHash,
-                    reactorName, 0,
-                    Time.unscaledTime, "NetworkIdentity not found or invalid."
-                ));
-                return false;
-            }
-
-            if (!reactor.TryGetComponent<AnimSyncer>(out var _syncer) || _syncer == null)
-            {
-                // If we got this case, we may need to check the entity's initialization process.
-                DebugConsole.LogWarning(_reactableSyncer.GetLogStr(
-                    "PATCH_CAN_SYNC",
-                    reactableName, reactableNameHash,
-                    reactorName, identity.NetId,
-                    Time.unscaledTime, "AnimSyncer not found or invalid."
-                ));
-                return false;
-            }
-
-            if (ENABLE_LOG)
-                DebugConsole.LogNonImportant(_reactableSyncer.GetLogStr(
-                    "PATCH_CAN_SYNC",
-                    reactableName, reactableNameHash,
-                    reactorName, identity.NetId,
-                    Time.unscaledTime, "Successfully validated."
-                ));
-
-            animSyncer = _syncer;
-            
-            if (MultiplayerSession.IsHost)
-                reactableSyncer = _reactableSyncer;
-
-            return true;
         }
     }
 }
