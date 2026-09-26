@@ -12,17 +12,15 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
     [FixedInterestGroup]
 	public class NavigatorSyncer : NetworkBehaviour
 	{
-        private const bool ENABLE_LOG = true;
+        private static readonly bool ENABLE_LOG = false;
 
         // Accelerate the movement speed on client side to compensate for network latency.
         // Ideally, this should be dynamically adjusted based on network conditions. but out of scope now.
-        private const float BASE_SPEED_MULTIPLIER = 1.02f;
+        private const float BASE_SPEED_MULTIPLIER = 1.01f;
 
         private const float CATCHUP_PER_PENDING = 0.12f;
         private const float MAX_CATCHUP_MULTIPLIER = 1.45f;
         private const float MISSING_SEQUENCE_GRACE_SECONDS = 0.2f;
-        private const float ACTIVE_TRANSITION_STUCK_SECONDS = 0.4f;
-        private const float STUCK_POSITION_EPSILON = 0.01f;
 
         [Serializable]
         public sealed class Transition
@@ -50,8 +48,6 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
         uint ServerNextSequence = 1;
         uint ClientNextSequence = 1;
         float LastClientSequenceAdvanceTime;
-        float LastClientMovementTime;
-        Vector3 LastClientPosition;
         readonly SortedDictionary<uint, Transition> PendingTransitions = new();
 
 		public override void OnPrefabInit()
@@ -74,9 +70,6 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
             }
 
             LastClientSequenceAdvanceTime = Time.unscaledTime;
-            if (navigator != null)
-                LastClientPosition = navigator.transform.position;
-            LastClientMovementTime = Time.unscaledTime;
 		}
 
 		public override void OnCleanUp()
