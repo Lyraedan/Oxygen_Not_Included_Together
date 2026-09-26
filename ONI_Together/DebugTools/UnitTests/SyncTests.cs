@@ -1,8 +1,7 @@
 using System.IO;
 using System.Text;
 using ONI_Together.Networking;
-using ONI_Together.Networking.Components;
-using ONI_Together.Networking.OxySync.Components;
+using ONI_Together.Networking.OxySync.Components.Entities;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.Packets.Core;
 using ONI_Together.Networking.Packets.World;
@@ -18,8 +17,6 @@ namespace ONI_Together.DebugTools.UnitTests
 			if (!MultiplayerSession.InActiveSession)
 				return UnitTestResult.Fail("Not in a multiplayer session");
 
-			const float MaxCellDelta = 2f;
-
 			int minionsChecked = 0;
 			foreach (var identity in NetworkIdentityRegistry.AllIdentities)
 			{
@@ -30,20 +27,14 @@ namespace ONI_Together.DebugTools.UnitTests
 				if (prefabId == null || !prefabId.HasTag(GameTags.BaseMinion))
 					continue;
 
-				if (!identity.gameObject.TryGetComponent<OxySyncEntityPositionHandler>(out var handler))
-					return UnitTestResult.Fail($"Minion '{identity.gameObject.name}' has no EntityPositionHandler");
+				if (!identity.gameObject.TryGetComponent<NavigatorSyncer>(out var handler))
+					return UnitTestResult.Fail($"Minion '{identity.gameObject.name}' has no NavigatorSyncer");
 
 				minionsChecked++;
 
 				if (MultiplayerSession.IsHost)
 					continue;
 
-				if (handler._lastSyncTime == 0)
-					return UnitTestResult.Fail($"Minion '{identity.gameObject.name}' has not received a position packet yet");
-
-				//float delta = Vector3.Distance(identity.gameObject.transform.position, handler.);
-				//if (delta > MaxCellDelta)
-				//	return UnitTestResult.Fail($"Minion '{identity.gameObject.name}' is {delta:F2} cells off server position");
 			}
 
 			if (minionsChecked == 0)

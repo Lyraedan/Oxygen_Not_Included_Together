@@ -29,8 +29,6 @@ public static class DuplicantPatch
 			DebugConsole.Log("[NetworkIdentity] Injected into Duplicant");
 		}
 
-		__result.AddOrGet<OxySyncEntityPositionHandler>();
-		//__result.AddOrGet<VitalStatsSyncer>();
 		__result.AddOrGet<VitalStatsSyncer>();
 
 		if (__result.HasTag(GameTags.Minions.Models.Bionic))

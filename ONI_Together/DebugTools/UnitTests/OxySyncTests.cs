@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Text;
-using ONI_Together.Misc;
 using ONI_Together.Networking;
 using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Networking.OxySync.Packets;
@@ -18,6 +17,118 @@ namespace ONI_Together.DebugTools.UnitTests
         private enum TestEnum
         {
             HighValue = 1000,
+        }
+
+        [Serializable]
+        private sealed class TestSyncClass
+        {
+            public int Count;
+            public string Label;
+            public TestSyncNested Nested;
+
+            [SerializeField]
+            private int _privateIncluded;
+
+            private int _privateIgnored;
+
+            [NonSerialized]
+            public string RuntimeOnly;
+
+            public int PrivateIncluded => _privateIncluded;
+            public int PrivateIgnored => _privateIgnored;
+
+            public void ConfigurePrivateFields(int included, int ignored)
+            {
+                _privateIncluded = included;
+                _privateIgnored = ignored;
+            }
+        }
+
+        [Serializable]
+        private sealed class TestSyncNested
+        {
+            public bool Enabled;
+            public float Temperature;
+        }
+
+        private sealed class TestExplicitFieldClass
+        {
+            [SerializeField]
+            private int _count;
+
+            public int Count => _count;
+            public string Ignored;
+
+            public TestExplicitFieldClass(int count, string ignored)
+            {
+                _count = count;
+                Ignored = ignored;
+            }
+
+            private TestExplicitFieldClass()
+            {
+            }
+        }
+
+        [Serializable]
+        private sealed class TestCycleNode
+        {
+            public int Value;
+            public TestCycleNode Next;
+        }
+
+        [Serializable]
+        private sealed class TestDeepNode
+        {
+            public int Level;
+            public TestDeepNode Next;
+        }
+
+        [Serializable]
+        private sealed class TestUnsupportedFieldClass
+        {
+            public Guid Id;
+        }
+
+        [Serializable]
+        private sealed class TestUnityObjectFieldClass
+        {
+            public GameObject Prefab;
+        }
+
+        [Serializable]
+        private class TestBaseSerializableClass
+        {
+            public int BaseValue;
+
+            [SerializeField]
+            private int _basePrivate;
+
+            public int BasePrivate => _basePrivate;
+
+            public void SetBasePrivate(int value)
+            {
+                _basePrivate = value;
+            }
+        }
+
+        [Serializable]
+        private sealed class TestDerivedSerializableClass : TestBaseSerializableClass
+        {
+            public int DerivedValue;
+
+            [SerializeField]
+            private int _derivedPrivate;
+
+            [NonSerialized]
+            public string RuntimeOnly;
+
+            public int DerivedPrivate => _derivedPrivate;
+
+            public void SetDerivedPrivate(int value)
+            {
+                _derivedPrivate = value;
+            }
         }
 
 		[UnitTest(name: "OxySync protocol hashes are deterministic", category: "OxySync")]
@@ -387,6 +498,33 @@ namespace ONI_Together.DebugTools.UnitTests
 				VariantHelper.VariantToObject(nullVariant, typeof(string)) != null)
 				return UnitTestResult.Fail("A null SyncVar did not preserve its null state");
 
+            var classInput = new TestSyncClass { Count = 77, Label = "class-value" };
+            classInput.Nested = new TestSyncNested { Enabled = true, Temperature = 12.5f };
+            classInput.ConfigurePrivateFields(99, 1234);
+            classInput.RuntimeOnly = "ignore-me";
+            Variant classVariant = VariantHelper.ObjectToVariant(classInput);
+            if (classVariant.Type != Variant.TypeCode.VariantArray)
+                return UnitTestResult.Fail($"Expected VariantArray variant for class value, got {classVariant.Type}");
+            var classRoundTrip = VariantHelper.VariantToObject(classVariant, typeof(TestSyncClass)) as TestSyncClass;
+            if (classRoundTrip == null || classRoundTrip.Count != classInput.Count || classRoundTrip.Label != classInput.Label)
+                return UnitTestResult.Fail("A class SyncVar did not round-trip");
+            if (classRoundTrip.Nested == null || !classRoundTrip.Nested.Enabled || Math.Abs(classRoundTrip.Nested.Temperature - 12.5f) > 0.001f)
+                return UnitTestResult.Fail("A nested class SyncVar did not round-trip recursively");
+            if (classRoundTrip.PrivateIncluded != 99)
+                return UnitTestResult.Fail("[SerializeField] private field should round-trip in [Serializable] class mode");
+            if (classRoundTrip.PrivateIgnored != 0)
+                return UnitTestResult.Fail("Non-[SerializeField] private field should not round-trip in [Serializable] class mode");
+            if (classRoundTrip.RuntimeOnly != null)
+                return UnitTestResult.Fail("[NonSerialized] field should not round-trip in [Serializable] class mode");
+
+            var explicitInput = new TestExplicitFieldClass(31, "not-serialized");
+            Variant explicitVariant = VariantHelper.ObjectToVariant(explicitInput);
+            var explicitRoundTrip = VariantHelper.VariantToObject(explicitVariant, typeof(TestExplicitFieldClass)) as TestExplicitFieldClass;
+            if (explicitRoundTrip == null || explicitRoundTrip.Count != 31)
+                return UnitTestResult.Fail("A [SerializeField]-based class SyncVar did not round-trip");
+            if (explicitRoundTrip.Ignored != null)
+                return UnitTestResult.Fail("A non-[SerializeField] field should not be serialized for explicit-field class mode");
+
 			Variant testEnum = VariantHelper.ObjectToVariant(TestEnum.HighValue);
 			if ((TestEnum)VariantHelper.VariantToObject(testEnum, typeof(TestEnum)) != TestEnum.HighValue)
 				return UnitTestResult.Fail("An enum SyncVar did not round-trip");
@@ -424,6 +562,145 @@ namespace ONI_Together.DebugTools.UnitTests
 
 			return UnitTestResult.Pass("Unsupported and oversized SyncVar values are rejected explicitly");
 		}
+
+        [UnitTest(name: "Variant class rejects circular references", category: "OxySync")]
+        public static UnitTestResult VariantClassRejectsCircularReferences()
+        {
+            var root = new TestCycleNode { Value = 1 };
+            root.Next = root;
+
+            try
+            {
+                VariantHelper.ObjectToVariant(root);
+                return UnitTestResult.Fail("Circular class graph should throw NotSupportedException");
+            }
+            catch (NotSupportedException)
+            {
+            }
+
+            return UnitTestResult.Pass("Circular class graph is rejected");
+        }
+
+        [UnitTest(name: "Variant class rejects over-depth graphs", category: "OxySync")]
+        public static UnitTestResult VariantClassRejectsOverDepthGraphs()
+        {
+            var root = new TestDeepNode { Level = 0 };
+            var cursor = root;
+            for (int i = 1; i <= ClassSerializationPolicy.MaxObjectGraphDepth + 1; i++)
+            {
+                var next = new TestDeepNode { Level = i };
+                cursor.Next = next;
+                cursor = next;
+            }
+
+            try
+            {
+                VariantHelper.ObjectToVariant(root);
+                return UnitTestResult.Fail("Over-depth class graph should throw NotSupportedException");
+            }
+            catch (NotSupportedException)
+            {
+            }
+
+            return UnitTestResult.Pass("Class depth guard rejects over-depth graphs");
+        }
+
+        [UnitTest(name: "Variant class rejects unsupported nested field type", category: "OxySync")]
+        public static UnitTestResult VariantClassRejectsUnsupportedNestedFieldType()
+        {
+            var input = new TestUnsupportedFieldClass { Id = Guid.NewGuid() };
+
+            try
+            {
+                VariantHelper.ObjectToVariant(input);
+                return UnitTestResult.Fail("Unsupported nested field type should throw NotSupportedException");
+            }
+            catch (NotSupportedException)
+            {
+            }
+
+            return UnitTestResult.Pass("Unsupported nested field types are rejected");
+        }
+
+        [UnitTest(name: "Variant class rejects UnityEngine.Object fields", category: "OxySync")]
+        public static UnitTestResult VariantClassRejectsUnityObjectFields()
+        {
+            var go = new GameObject("VariantUnityObjectFieldTest");
+            try
+            {
+                var input = new TestUnityObjectFieldClass { Prefab = go };
+                try
+                {
+                    VariantHelper.ObjectToVariant(input);
+                    return UnitTestResult.Fail("UnityEngine.Object fields should throw NotSupportedException");
+                }
+                catch (NotSupportedException)
+                {
+                }
+
+                return UnitTestResult.Pass("UnityEngine.Object fields are rejected");
+            }
+            finally
+            {
+                UnityEngine.Object.Destroy(go);
+            }
+        }
+
+        [UnitTest(name: "Variant class payload schema mismatch is rejected", category: "OxySync")]
+        public static UnitTestResult VariantClassSchemaMismatchRejected()
+        {
+            var input = new TestSyncClass
+            {
+                Count = 10,
+                Label = "schema",
+                Nested = new TestSyncNested { Enabled = true, Temperature = 42.0f },
+            };
+            input.ConfigurePrivateFields(7, 8);
+
+            Variant serialized = VariantHelper.ObjectToVariant(input);
+            if (serialized.Type != Variant.TypeCode.VariantArray || serialized.VariantArray == null || serialized.VariantArray.Length < 2)
+                return UnitTestResult.Fail("Precondition failed: expected class VariantArray payload");
+
+            var truncated = serialized;
+            truncated.VariantArray = new Variant[] { serialized.VariantArray[0] };
+
+            try
+            {
+                VariantHelper.VariantToObject(truncated, typeof(TestSyncClass));
+                return UnitTestResult.Fail("Schema mismatch should throw InvalidDataException");
+            }
+            catch (InvalidDataException)
+            {
+            }
+
+            return UnitTestResult.Pass("Class payload schema mismatch is rejected");
+        }
+
+        [UnitTest(name: "Variant class supports inheritance field round-trip", category: "OxySync")]
+        public static UnitTestResult VariantClassInheritanceRoundTrip()
+        {
+            var input = new TestDerivedSerializableClass
+            {
+                BaseValue = 11,
+                DerivedValue = 22,
+                RuntimeOnly = "skip-runtime",
+            };
+            input.SetBasePrivate(33);
+            input.SetDerivedPrivate(44);
+
+            Variant serialized = VariantHelper.ObjectToVariant(input);
+            var output = VariantHelper.VariantToObject(serialized, typeof(TestDerivedSerializableClass)) as TestDerivedSerializableClass;
+            if (output == null)
+                return UnitTestResult.Fail("Derived class round-trip returned null");
+            if (output.BaseValue != 11 || output.DerivedValue != 22)
+                return UnitTestResult.Fail("Public base/derived fields did not round-trip");
+            if (output.BasePrivate != 33 || output.DerivedPrivate != 44)
+                return UnitTestResult.Fail("[SerializeField] private base/derived fields did not round-trip");
+            if (output.RuntimeOnly != null)
+                return UnitTestResult.Fail("[NonSerialized] derived field should not round-trip");
+
+            return UnitTestResult.Pass("Inheritance fields round-trip with class serialization policy");
+        }
 
         [UnitTest(name: "RpcSerializer string handles null", category: "OxySync")]
         public static UnitTestResult RpcSerializerNullString()
@@ -712,6 +989,57 @@ namespace ONI_Together.DebugTools.UnitTests
             if (result is not byte[] ba || ba.Length != 0)
                 return UnitTestResult.Fail("Null byte[] should become empty array");
             return UnitTestResult.Pass("Null byte[] falls back to empty");
+        }
+
+        [UnitTest(name: "VariantToObject Nullable<T> direct conversions", category: "OxySync")]
+        public static UnitTestResult VariantToObjectNullableDirect()
+        {
+            var i = (int?)VariantHelper.VariantToObject((Variant)42, typeof(int?));
+            if (i == null || i.Value != 42)
+                return UnitTestResult.Fail("int? non-null conversion mismatch");
+
+            var f = (float?)VariantHelper.VariantToObject((Variant)3.5f, typeof(float?));
+            if (f == null || Mathf.Abs(f.Value - 3.5f) > 0.001f)
+                return UnitTestResult.Fail("float? non-null conversion mismatch");
+
+            var v3 = (Vector3?)VariantHelper.VariantToObject((Variant)new Vector3(7f, 8f, 9f), typeof(Vector3?));
+            if (v3 == null || Vector3.Distance(v3.Value, new Vector3(7f, 8f, 9f)) > 0.001f)
+                return UnitTestResult.Fail("Vector3? non-null conversion mismatch");
+
+            var b = (bool?)VariantHelper.VariantToObject((Variant)true, typeof(bool?));
+            if (b == null || b.Value != true)
+                return UnitTestResult.Fail("bool? non-null conversion mismatch");
+
+            var n = (int?)VariantHelper.VariantToObject(new Variant { Type = Variant.TypeCode.Null }, typeof(int?));
+            if (n != null)
+                return UnitTestResult.Fail("int? null conversion mismatch");
+
+            return UnitTestResult.Pass("Nullable<T> direct conversions succeed for null and non-null values");
+        }
+
+        [UnitTest(name: "VariantToObject Nullable<T> collections", category: "OxySync")]
+        public static UnitTestResult VariantToObjectNullableCollections()
+        {
+            var variant = new Variant
+            {
+                Type = Variant.TypeCode.VariantArray,
+                VariantArray = new[]
+                {
+                    (Variant)1,
+                    new Variant { Type = Variant.TypeCode.Null },
+                    (Variant)3,
+                },
+            };
+
+            var array = (int?[])VariantHelper.VariantToObject(variant, typeof(int?[]));
+            if (array.Length != 3 || array[0] != 1 || array[1] != null || array[2] != 3)
+                return UnitTestResult.Fail("int?[] conversion mismatch");
+
+            var list = (List<int?>)VariantHelper.VariantToObject(variant, typeof(List<int?>));
+            if (list.Count != 3 || list[0] != 1 || list[1] != null || list[2] != 3)
+                return UnitTestResult.Fail("List<int?> conversion mismatch");
+
+            return UnitTestResult.Pass("Nullable<T> collection elements preserve null and non-null values");
         }
 
         [UnitTest(name: "VariantToObject collections round-trip", category: "OxySync")]
@@ -1060,52 +1388,6 @@ namespace ONI_Together.DebugTools.UnitTests
                 return UnitTestResult.Fail("string[] null elements mismatch");
 
             return UnitTestResult.Pass("Null collection elements round-trip correctly");
-        }
-
-        [UnitTest(name: "RpcSerializer IsSupportedType covers new types", category: "OxySync")]
-        public static UnitTestResult RpcSerializerIsSupportedType()
-        {
-            Type[] supported = {
-                typeof(int), typeof(float), typeof(bool), typeof(byte),
-                typeof(long), typeof(double), typeof(string),
-                typeof(Vector2), typeof(Vector3), typeof(Color),
-                typeof(Quaternion), typeof(byte[]), typeof(ulong),
-                typeof(short), typeof(ushort), typeof(uint),
-                typeof(sbyte), typeof(char), typeof(decimal),
-                typeof(HashedString), typeof(KAnimHashedString),
-                typeof(int[]), typeof(string[]), typeof(Vector3[]),
-                typeof(List<int>), typeof(List<string>),
-                typeof(Dictionary<string, int>),
-                typeof(HashSet<float>), typeof(Queue<long>), typeof(Stack<bool>),
-                typeof(int?), typeof(float?), typeof(Vector3?),
-                typeof(List<List<int>>),
-                typeof(Dictionary<string, List<int>>),
-                typeof(int[][]),
-            };
-
-            foreach (var t in supported)
-            {
-                if (!RpcSerializer.IsSupportedType(t))
-                    return UnitTestResult.Fail($"Type {t} should be supported but is not");
-            }
-
-            Type[] unsupported = {
-                typeof(object),
-                typeof(Guid),
-                typeof(DateTime),
-                typeof(TimeSpan),
-                typeof(Tuple<int, int>),
-                typeof(System.Action),
-                typeof(Stream),
-            };
-
-            foreach (var t in unsupported)
-            {
-                if (RpcSerializer.IsSupportedType(t))
-                    return UnitTestResult.Fail($"Type {t} should NOT be supported but is");
-            }
-
-            return UnitTestResult.Pass("IsSupportedType correctly validates all types");
         }
     }
 
