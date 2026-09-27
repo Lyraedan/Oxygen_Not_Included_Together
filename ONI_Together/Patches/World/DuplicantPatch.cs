@@ -4,9 +4,7 @@ using ONI_Together.Misc;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.OxySync.Components;
-using ONI_Together.Networking.Synchronization;
 using ONI_Together.Scripts.Duplicants;
-using System.Collections;
 using Shared.Profiling;
 using UnityEngine;
 using VitalStatsSyncer = ONI_Together.Networking.OxySync.Components.VitalStatsSyncer;
@@ -29,8 +27,8 @@ public static class DuplicantPatch
 			DebugConsole.Log("[NetworkIdentity] Injected into Duplicant");
 		}
 
+		__result.AddOrGet<AnimSyncer>();
 		__result.AddOrGet<OxySyncEntityPositionHandler>();
-		//__result.AddOrGet<VitalStatsSyncer>();
 		__result.AddOrGet<VitalStatsSyncer>();
 
 		if (__result.HasTag(GameTags.Minions.Models.Bionic))

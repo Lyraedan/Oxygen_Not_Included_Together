@@ -14,12 +14,12 @@ namespace ONI_Together.Networking.OxySync.Components
         [MyCmpGet]
         private Navigator navigator;
 
-        [SyncVar]
+        [SyncVar(SendMode = (int)PacketSendMode.UnreliableImmediate)]
         private bool _netFlipX;
-        [SyncVar]
+        [SyncVar(SendMode = (int)PacketSendMode.UnreliableImmediate)]
         private bool _netFlipY;
 
-        [SyncVar(Hook = nameof(OnNavTypeChanged))]
+        [SyncVar(Hook = nameof(OnNavTypeChanged), SendMode = (int)PacketSendMode.UnreliableImmediate)]
         private NavType _netNavType;
 
         private const int VIEWPORT_MARGIN = 2;

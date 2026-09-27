@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ONI_Together.Networking;
 using Shared.OxySync.Attributes;
 using UnityEngine;
 
@@ -7,13 +8,13 @@ namespace Shared.OxySync
 {
     public class NetworkTransform : NetworkBehaviour
     {
-        [SyncVar(Epsilon = 0.01f)]
+        [SyncVar(Epsilon = 0.01f, SendMode = (int)PacketSendMode.UnreliableImmediate)]
         protected Vector3 _netPosition;
 
-        [SyncVar(Epsilon = 0.01f)]
+        [SyncVar(Epsilon = 0.01f, SendMode = (int)PacketSendMode.UnreliableImmediate)]
         protected Quaternion _netRotation;
 
-        [SyncVar(Epsilon = 0.01f)]
+        [SyncVar(Epsilon = 0.01f, SendMode = (int)PacketSendMode.UnreliableImmediate)]
         protected Vector3 _netScale;
 
         public bool syncPosition = true;
@@ -86,10 +87,15 @@ namespace Shared.OxySync
 
         private void AddSnapshot(long timestamp)
         {
-            if (_snapshots.Count > 0 && _snapshots[_snapshots.Count - 1].timestamp == timestamp)
+            int insertIndex = _snapshots.Count;
+            while (insertIndex > 0 && _snapshots[insertIndex - 1].timestamp > timestamp)
+                insertIndex--;
+
+            if ((insertIndex > 0 && _snapshots[insertIndex - 1].timestamp == timestamp) ||
+                (insertIndex < _snapshots.Count && _snapshots[insertIndex].timestamp == timestamp))
                 return;
 
-            _snapshots.Add(new SnapshotEntry
+            _snapshots.Insert(insertIndex, new SnapshotEntry
             {
                 timestamp = timestamp,
                 position = _netPosition,

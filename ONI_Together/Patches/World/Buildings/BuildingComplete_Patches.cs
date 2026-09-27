@@ -1,12 +1,8 @@
 ﻿using HarmonyLib;
 using ONI_Together.DebugTools;
 using ONI_Together.Networking.Components;
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Shared.Profiling;
+using ONI_Together.Networking.OxySync.Components;
 
 namespace ONI_Together.Patches.World.Buildings
 {
@@ -24,7 +20,7 @@ namespace ONI_Together.Patches.World.Buildings
                     __instance.gameObject.AddOrGet<NetworkIdentity>();
 
                     if (AnimSyncEligibility.IsAnimatedBuilding(__instance.gameObject))
-                        __instance.gameObject.AddOrGet<AnimStateSyncer>();
+                        __instance.gameObject.AddOrGet<AnimSyncer>();
                 }
                 catch (System.Exception ex)
                 {

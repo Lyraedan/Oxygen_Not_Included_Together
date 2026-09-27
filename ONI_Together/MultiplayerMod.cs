@@ -9,18 +9,14 @@ using ONI_Together.Networking.Overlay;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.Transport.Steamworks;
 using PeterHan.PLib.AVC;
-using Shared.Helpers;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
 using Shared.Profiling;
 using UnityEngine;
-using static DistributionPlatform;
-using Epic.OnlineServices;
 using PeterHan.PLib.Core;
 using PeterHan.PLib.Options;
 using ONI_Together.Networking.OxySync.Components;
-using System.Linq;
 using System.Threading;
 
 namespace ONI_Together
@@ -84,8 +80,6 @@ namespace ONI_Together
 				go.AddComponent<WorldStateSyncer>();
 				go.AddComponent<PlantLifecycleSyncer>();
 				go.AddComponent<ConduitFlowSyncer>();
-				go.AddComponent<AnimSyncCoordinator>();
-				go.AddComponent<AnimResyncRequester>();
 				go.AddComponent<BulkPacketMonitor>();
 				go.AddComponent<LogicStateSyncer>();
 				go.AddComponent<OxySyncManager>();

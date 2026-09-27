@@ -150,7 +150,7 @@ namespace ONI_Together.Patches.ToolPatches.Sandbox
                         if (minionIdentity != null)
                         {
                             spawned.AddOrGet<OxySyncEntityPositionHandler>();
-                            spawned.AddOrGet<AnimStateSyncer>();
+                            spawned.AddOrGet<AnimSyncer>();
                             spawned.AddOrGet<Scripts.Duplicants.MinionMultiplayerInitializer>();
 
                             // Build full ImmigrantOptionEntry from live duplicant to preserve textures/traits
@@ -191,7 +191,7 @@ namespace ONI_Together.Patches.ToolPatches.Sandbox
                             string prefabData = $"Minion|{personalityFallback.Id}|{dupeName}|{minionIdentity.voiceIdx}";
                             int hash = spawned.PrefabID().GetHashCode();
 
-                            var packet = new ONI_Together.Networking.Packets.World.SpawnPrefabPacket(
+                            var packet = new SpawnPrefabPacket(
                                 identity.NetId,
                                 hash,
                                 spawned.transform.position,
@@ -208,7 +208,7 @@ namespace ONI_Together.Patches.ToolPatches.Sandbox
                         if (spawned.GetComponent<CreatureBrain>() != null || spawned.HasTag(GameTags.Creature))
                         {
                             spawned.AddOrGet<OxySyncEntityPositionHandler>();
-                            spawned.AddOrGet<AnimStateSyncer>();
+                            spawned.AddOrGet<AnimSyncer>();
                             spawned.AddOrGet<CreatureMultiplayerInitializer>();
                         }
 
@@ -217,7 +217,7 @@ namespace ONI_Together.Patches.ToolPatches.Sandbox
                             string prefabName = spawned.PrefabID().Name;
                             int hash = spawned.PrefabID().GetHashCode();
 
-                            var packet = new ONI_Together.Networking.Packets.World.SpawnPrefabPacket(
+                            var packet = new SpawnPrefabPacket(
                                 identity.NetId,
                                 hash,
                                 spawned.transform.position,

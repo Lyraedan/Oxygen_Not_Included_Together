@@ -2,8 +2,8 @@ using System;
 using System.Collections.Generic;
 using HarmonyLib;
 using ONI_Together.DebugTools;
-using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
+using ONI_Together.Networking.OxySync.Components;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -59,7 +59,7 @@ namespace ONI_Together.Patches.World
 			go.AddOrGet<NetworkIdentity>().RegisterIdentity();
 
 			if (AnimSyncEligibility.IsAnimatedBuilding(go))
-				go.AddOrGet<AnimStateSyncer>().EnsureRegistered();
+				go.AddOrGet<AnimSyncer>();
         }
 
         private static bool RequiresNetworkIdentity(GameObject go)
