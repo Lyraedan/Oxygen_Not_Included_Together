@@ -2,6 +2,7 @@ using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.Packets.World.Handlers;
 using ONI_Together.DebugTools;
+using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 using HarmonyLib;
@@ -121,12 +122,12 @@ namespace ONI_Together.Networking.Packets.World
                     } );
 				}
 
-                // HOST RELAY: If host received this from a client, re-broadcast to all other clients
+                // HOST RELAY: re-broadcast to the other clients, not back to the sender. Serialize()
+                // restamps Sender with the host's id, so the sender would apply its own change again.
                 if (MultiplayerSession.IsHost)
-				{
-					PacketSender.SendToAllClients(this);
-					//DebugConsole.Log($"[BuildingConfigPacket] Host relayed config to all clients: NetId={NetId}, ConfigHash={ConfigHash}");
-				}
+                {
+                    PacketSender.SendToAllExcluding(this, new HashSet<ulong> { MultiplayerSession.HostUserID, Sender });
+                }
 			}
 			else
 			{

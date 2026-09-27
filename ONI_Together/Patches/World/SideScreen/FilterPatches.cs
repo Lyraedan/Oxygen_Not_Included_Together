@@ -48,57 +48,63 @@ namespace ONI_Together.Patches.World.SideScreen
 	}
 
 	/// <summary>
-	/// Sync storage filter add tag
+	/// Sync storage filter add / remove tag. Only calls that change the filter are sent: the side
+	/// screen re-adds every accepted tag when it rebuilds, and every applied packet rebuilds it.
 	/// </summary>
 	[HarmonyPatch(typeof(TreeFilterable), nameof(TreeFilterable.AddTagToFilter))]
 	public static class TreeFilterable_AddTagToFilter_Patch
 	{
-		public static void Postfix(TreeFilterable __instance, Tag t)
+		public static void Prefix(TreeFilterable __instance, Tag t, out bool __state)
+		{
+			__state = __instance.ContainsTag(t);
+		}
+
+		public static void Postfix(TreeFilterable __instance, Tag t, bool __state)
 		{
 			using var _ = Profiler.Scope();
 
+			if (__state) return; // already accepted: the game changed nothing
 			if (BuildingConfigPacket.IsApplyingPacket) return;
 			if (!MultiplayerSession.InActiveSession) return;
 
-			var identity = __instance.gameObject.AddOrGet<NetworkIdentity>();
-			identity.RegisterIdentity();
-
-			var packet = new BuildingConfigPacket
-			{
-				NetId = identity.NetId,
-				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "StorageFilterAdd".GetHashCode(),
-				Value = 0,
-				ConfigType = BuildingConfigType.String,
-				StringValue = t.Name
-			};
-
-			if (MultiplayerSession.IsHost) PacketSender.SendToAllClients(packet);
-			else PacketSender.SendToHost(packet);
+			TreeFilterableSync.SendFilterChange(__instance, "StorageFilterAdd", t);
 		}
 	}
 
-	/// <summary>
-	/// Sync storage filter remove tag
-	/// </summary>
 	[HarmonyPatch(typeof(TreeFilterable), nameof(TreeFilterable.RemoveTagFromFilter))]
 	public static class TreeFilterable_RemoveTagFromFilter_Patch
 	{
-		public static void Postfix(TreeFilterable __instance, Tag t)
+		public static void Prefix(TreeFilterable __instance, Tag t, out bool __state)
+		{
+			__state = __instance.ContainsTag(t);
+		}
+
+		public static void Postfix(TreeFilterable __instance, Tag t, bool __state)
 		{
 			using var _ = Profiler.Scope();
 
+			if (!__state) return; // was not accepted: the game changed nothing
 			if (BuildingConfigPacket.IsApplyingPacket) return;
 			if (!MultiplayerSession.InActiveSession) return;
 
-			var identity = __instance.gameObject.AddOrGet<NetworkIdentity>();
+			TreeFilterableSync.SendFilterChange(__instance, "StorageFilterRemove", t);
+		}
+	}
+
+	internal static class TreeFilterableSync
+	{
+		internal static void SendFilterChange(TreeFilterable filterable, string configKey, Tag t)
+		{
+			using var _ = Profiler.Scope();
+
+			var identity = filterable.gameObject.AddOrGet<NetworkIdentity>();
 			identity.RegisterIdentity();
 
 			var packet = new BuildingConfigPacket
 			{
 				NetId = identity.NetId,
-				Cell = Grid.PosToCell(__instance.gameObject),
-				ConfigHash = "StorageFilterRemove".GetHashCode(),
+				Cell = Grid.PosToCell(filterable.gameObject),
+				ConfigHash = configKey.GetHashCode(),
 				Value = 0,
 				ConfigType = BuildingConfigType.String,
 				StringValue = t.Name
