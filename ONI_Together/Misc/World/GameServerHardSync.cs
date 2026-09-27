@@ -1,6 +1,7 @@
 ﻿using ONI_Together.DebugTools;
 using ONI_Together.Menus;
 using ONI_Together.Networking.Packets.Core;
+using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Networking.Packets.World;
 using System.Collections;
 using Shared.Profiling;
@@ -38,6 +39,9 @@ namespace ONI_Together.Networking
 			}
 
 			SpeedControlScreen.Instance?.Pause(false); // Pause the game
+			// GameSpeedSyncer follows SetSpeed and TogglePause but not Pause(), so without this the
+			// clients keep simulating while the host waits for them on the ready screen.
+			GameSpeedSyncer.Instance?.RequestSetSpeed((int)GameSpeedSyncer.SpeedState.Paused);
 			MultiplayerOverlay.Show(STRINGS.UI.MP_OVERLAY.SYNC.HARDSYNC_INPROGRESS);
 
             numberOfClientsAtTimeOfSync = MultiplayerSession.ConnectedPlayers.Count;
