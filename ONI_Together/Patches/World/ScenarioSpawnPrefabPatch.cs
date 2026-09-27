@@ -27,9 +27,12 @@ namespace ONI_Together.Patches.World
 			var tag = __result.PrefabID();
 			Vector3 pos = __result.transform.position;
 
+			// SpawnPrefab returns the object before it is activated: the callers (butcher and death
+			// drops, molts, rot piles, meteor resources, lockers, templates) call SetActive(true) right
+			// after. Sending activeSelf here left clients with an inactive copy that never initializes.
 			var packet = new SpawnPrefabPacket(identity.NetId, tag.GetHashCode(), pos)
 			{
-				IsActive = __result.activeSelf
+				IsActive = true
 			};
 
 			PacketSender.SendToAllClients(packet);
