@@ -2,7 +2,9 @@
 using ONI_Together.Menus;
 using ONI_Together.Networking.Packets.Core;
 using ONI_Together.Networking.Packets.World;
+using ONI_Together.Networking.States;
 using System.Collections;
+using System.Collections.Generic;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -51,7 +53,59 @@ namespace ONI_Together.Networking
 			}
 
 			DebugConsole.Log($"[HardSync] Starting hard sync for {numberOfClientsAtTimeOfSync} client(s)...");
+			int generation = ++_generation;
+			_unreadySince.Clear();
 			CoroutineRunner.RunOne(HardSyncCoroutine(consumeDailyUse));
+			CoroutineRunner.RunOne(ReadyWatchdog(generation));
+		}
+
+		/// <summary>How long a client may stay unready after a hard sync before the host stops waiting for it.</summary>
+		public const float ReadyTimeoutSeconds = 120f;
+
+		// Bumped by every hard sync; the watchdog of an older sync stops when it sees a newer one.
+		private static int _generation;
+
+		// Keyed by the player object, not the id: ids are reused after a reconnect.
+		private static readonly Dictionary<MultiplayerPlayer, float> _unreadySince = new();
+
+		/// <summary>
+		/// Marks a client ready once it has been unready for ReadyTimeoutSeconds, so one stuck client
+		/// no longer keeps the host on the ready screen. Runs until the next hard sync.
+		/// </summary>
+		private static IEnumerator ReadyWatchdog(int generation)
+		{
+			while (true)
+			{
+				yield return new WaitForSecondsRealtime(2f);
+				if (_generation != generation || !MultiplayerSession.IsHost || !MultiplayerSession.InActiveSession)
+					yield break;
+
+				float now = Time.unscaledTime;
+				bool released = false;
+				foreach (var player in MultiplayerSession.ConnectedPlayers.Values)
+				{
+					if (player.PlayerId == MultiplayerSession.HostUserID) continue;
+					if (player.readyState == ClientReadyState.Ready)
+					{
+						_unreadySince.Remove(player);
+						continue;
+					}
+					if (!_unreadySince.TryGetValue(player, out float since))
+					{
+						_unreadySince[player] = now;
+						continue;
+					}
+					if (now - since < ReadyTimeoutSeconds) continue;
+
+					DebugConsole.LogWarning($"[HardSync] {player.PlayerName} ({player.PlayerId}) did not report ready within {ReadyTimeoutSeconds:F0} s; continuing without them");
+					ReadyManager.SetPlayerReadyState(player, ClientReadyState.Ready);
+					_unreadySince.Remove(player);
+					released = true;
+				}
+
+				if (released)
+					ReadyManager.RefreshReadyState();
+			}
 		}
 
 		private static IEnumerator HardSyncCoroutine(bool consumeDailyUse = false)
