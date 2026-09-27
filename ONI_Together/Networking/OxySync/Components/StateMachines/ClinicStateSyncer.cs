@@ -48,11 +48,18 @@ namespace ONI_Together.Networking.OxySync.StateMachines
             var sm = _smi.sm;
             switch (stateId)
             {
-                // The healing states belong to the host. Their callbacks read master.worker and the
-                // effect StartEffect adds to it, and a client has neither, so they throw here.
                 case 4:
+                    if (!_smi.IsInsideState(sm.operational.healing.newlyDoctored))
+                        _smi.TryGoTo(sm.operational.healing.newlyDoctored);
+                    break;
                 case 3:
+                    if (!_smi.IsInsideState(sm.operational.healing.doctored))
+                        _smi.TryGoTo(sm.operational.healing.doctored);
+                    break;
                 case 2:
+                    if (!_smi.IsInsideState(sm.operational.healing.undoctored))
+                        _smi.TryGoTo(sm.operational.healing.undoctored);
+                    break;
                 case 1:
                     if (!_smi.IsInsideState(sm.operational.idle))
                         _smi.TryGoTo(sm.operational.idle);
