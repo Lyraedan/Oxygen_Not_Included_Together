@@ -47,6 +47,44 @@ namespace ONI_Together.DebugTools
         {
             foreach (var test in _tests)
                 test.Run();
+
+            LogSummary("all");
+        }
+
+        /// <summary>
+        /// Run one category. The UI's category picker only filtered the table - "Run All" always
+        /// ran everything - so there was no way to exercise just the handful of tests that need
+        /// a live hosted session without also running the other fifty.
+        /// </summary>
+        public static void RunCategory(string category)
+        {
+            foreach (var test in _tests)
+            {
+                if (test.Category == category)
+                    test.Run();
+            }
+
+            LogSummary(category);
+        }
+
+        private static void LogSummary(string scope)
+        {
+            int passed = 0, failed = 0, skipped = 0, other = 0;
+
+            foreach (var test in _tests)
+            {
+                if (!test.HasRun)
+                    continue;
+                if (scope != "all" && test.Category != scope)
+                    continue;
+
+                if (test.IsPassed) passed++;
+                else if (test.IsFailed) failed++;
+                else if (test.IsSkipped) skipped++;
+                else other++;
+            }
+
+            DebugConsole.Log($"[UnitTest] === {scope}: {passed} passed, {failed} failed, {skipped} skipped ===");
         }
 
         public static void RunFailed()

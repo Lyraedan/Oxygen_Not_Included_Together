@@ -19,6 +19,7 @@ namespace ONI_Together.DebugTools
 
         public bool IsPassed => State == TestState.Passed;
         public bool IsFailed => State == TestState.Failed;
+        public bool IsSkipped => State == TestState.Skipped;
         public bool IsInProgress => State == TestState.InProgress;
 
         public UnitTest(string name, string category, MethodInfo method)
@@ -65,6 +66,23 @@ namespace ONI_Together.DebugTools
 
             sw.Stop();
             DurationMs = sw.Elapsed.TotalMilliseconds;
+
+            // Results only ever existed in the ImGui table, so a test run left nothing behind
+            // and had to be reported by screenshot. Several of these tests exist specifically
+            // to cover behaviour that cannot be triggered by hand (a load window lasts
+            // seconds), which is exactly the case where a durable, greppable record matters.
+            string verdict = State == TestState.Passed ? "PASS"
+                : State == TestState.Failed ? "FAIL"
+                : State == TestState.Skipped ? "SKIP"
+                : State.ToString().ToUpperInvariant();
+            string line = $"[UnitTest] {verdict} [{Category}] {Name} ({DurationMs:F1} ms)";
+            if (!string.IsNullOrEmpty(Message))
+                line += $" - {Message.Replace("\n", " | ")}";
+
+            if (State == TestState.Failed)
+                DebugConsole.LogWarning(line);
+            else
+                DebugConsole.Log(line);
         }
     }
 }
