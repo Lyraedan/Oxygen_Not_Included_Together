@@ -1,4 +1,4 @@
-using LiteNetLib;
+﻿using LiteNetLib;
 using LiteNetLib.Utils;
 using ONI_Together.DebugTools;
 using ONI_Together.Menus;
@@ -24,6 +24,19 @@ namespace ONI_Together.Networking.Transport.Lan
         private static NetManager _client;
         private static EventBasedNetListener _listener;
         private static NetPeer _serverPeer;
+
+        /// <summary>
+        /// Set once OnConnectedToServer has run for the current connection attempt.
+        ///
+        /// The mod only learns it is connected from LiteNetLib's PeerConnectedEvent, which
+        /// is delivered by PollEvents. Twice in one evening the host accepted a client's
+        /// reconnect after a world load within half a second - "Remote client connected" in
+        /// the host log - and the client's event arrived 3.5 seconds later in one case and
+        /// never in the other, although Unity was updating and PollEvents was being called.
+        /// The peer's own ConnectionState said Connected the whole time. This flag lets
+        /// WaitForConnectionSuccess tell that apart from a connection that is still pending.
+        /// </summary>
+        private static bool _connectedEventDelivered;
 
         // LAN Discovery
         private static NetManager _discoveryClient;
@@ -174,6 +187,7 @@ namespace ONI_Together.Networking.Transport.Lan
 
             var writer = new NetDataWriter();
             writer.Put("ONI_TOGETHER");
+            _connectedEventDelivered = false;
             _serverPeer = _client.Connect(ip, port, writer);
 
             int timeout = Configuration.Instance.Client.TimeoutSeconds;
@@ -183,10 +197,27 @@ namespace ONI_Together.Networking.Transport.Lan
         private IEnumerator WaitForConnectionSuccess(int timeoutSeconds)
         {
             float elapsed = 0f;
+            float connectedWithoutEventSince = -1f;
+
             while (elapsed < timeoutSeconds)
             {
-                if (_serverPeer != null && _serverPeer.ConnectionState == ConnectionState.Connected)
+                if (_connectedEventDelivered)
                     yield break;
+
+                if (_serverPeer != null && _serverPeer.ConnectionState == ConnectionState.Connected)
+                {
+                    // The transport is connected; only the event has not reached the mod. Give
+                    // PollEvents one more tick in case it is merely queued, then stop waiting for
+                    // it - the handler is the same one the event would have run.
+                    if (connectedWithoutEventSince < 0f)
+                        connectedWithoutEventSince = elapsed;
+                    else if (elapsed - connectedWithoutEventSince >= 1f)
+                    {
+                        DebugConsole.LogWarning($"[LiteNetLibClient] Peer has been Connected for {elapsed - connectedWithoutEventSince:0.0}s ({elapsed:0.0}s since connect) but PeerConnectedEvent never arrived - completing the connection from the poll loop.");
+                        OnConnectedToServer(_serverPeer);
+                        yield break;
+                    }
+                }
 
                 yield return new WaitForSecondsRealtime(0.5f);
                 elapsed += 0.5f;
@@ -206,6 +237,12 @@ namespace ONI_Together.Networking.Transport.Lan
         private void OnConnectedToServer(NetPeer peer)
         {
             using var _ = Profiler.Scope();
+
+            // Reached either from PeerConnectedEvent or from WaitForConnectionSuccess when
+            // the event failed to arrive; whichever comes second must not run this twice.
+            if (_connectedEventDelivered)
+                return;
+            _connectedEventDelivered = true;
 
             _serverPeer = peer;
             CLIENT_ID = (ulong)peer.RemoteId + 2;
@@ -296,6 +333,7 @@ namespace ONI_Together.Networking.Transport.Lan
             _serverPeer?.Disconnect();
             _client?.Stop();
             _serverPeer = null;
+            _connectedEventDelivered = false;
             _client = null;
 
             while (_incomingPackets.TryDequeue(out var _)) { }

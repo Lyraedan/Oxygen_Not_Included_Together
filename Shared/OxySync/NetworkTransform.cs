@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ONI_Together.Networking;
 using Shared.OxySync.Attributes;
 using UnityEngine;
 
@@ -7,13 +8,13 @@ namespace Shared.OxySync
 {
     public class NetworkTransform : NetworkBehaviour
     {
-        [SyncVar(Epsilon = 0.01f)]
+        [SyncVar(Epsilon = 0.01f, SendMode = (int) PacketSendMode.Unreliable)]
         protected Vector3 _netPosition;
 
-        [SyncVar(Epsilon = 0.01f)]
+        [SyncVar(Epsilon = 0.01f, SendMode = (int) PacketSendMode.Unreliable)]
         protected Quaternion _netRotation;
 
-        [SyncVar(Epsilon = 0.01f)]
+        [SyncVar(Epsilon = 0.01f, SendMode = (int) PacketSendMode.Unreliable)]
         protected Vector3 _netScale;
 
         public bool syncPosition = true;

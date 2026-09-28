@@ -35,6 +35,28 @@ namespace Shared.Helpers
 
 			return methodInfo != null;
 		}
+		public static bool TryGetGenericMethodDefinition(string typeName, string methodName, Func<System.Reflection.MethodInfo, bool> predicate, out System.Reflection.MethodInfo methodInfo)
+		{
+			using var _ = Profiler.Scope();
+
+			methodInfo = null;
+			if (!TryGetType(typeName, out Type type))
+				return false;
+
+			foreach (var method in type.GetMethods(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static))
+			{
+				if (method.Name != methodName || !method.IsGenericMethodDefinition)
+					continue;
+				if (predicate != null && !predicate(method))
+					continue;
+
+				methodInfo = method;
+				return true;
+			}
+
+			Debug.LogWarning($"[ReflectionHelper] generic method definition '{methodName}' not found on type {type}");
+			return false;
+		}
 		public static bool TryGetFieldInfo(string typeName, string fieldName, out System.Reflection.FieldInfo fieldInfo)
 		{
 			using var _ = Profiler.Scope();

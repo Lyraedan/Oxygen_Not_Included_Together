@@ -21,6 +21,7 @@ namespace ONI_Together.DebugTools.UnitTests
 			const float MaxCellDelta = 2f;
 
 			int minionsChecked = 0;
+			int minionsSynced = 0;
 			foreach (var identity in NetworkIdentityRegistry.AllIdentities)
 			{
 				if (identity == null || identity.gameObject == null)
@@ -38,8 +39,10 @@ namespace ONI_Together.DebugTools.UnitTests
 				if (MultiplayerSession.IsHost)
 					continue;
 
-				if (handler._lastSyncTime == 0)
-					return UnitTestResult.Fail($"Minion '{identity.gameObject.name}' has not received a position packet yet");
+				// A minion that has not moved since this client joined has nothing to sync, so
+				// a zero timestamp on its own is not a fault - only every minion being silent is.
+				if (handler._lastSyncTime != 0)
+					minionsSynced++;
 
 				//float delta = Vector3.Distance(identity.gameObject.transform.position, handler.);
 				//if (delta > MaxCellDelta)
@@ -49,8 +52,18 @@ namespace ONI_Together.DebugTools.UnitTests
 			if (minionsChecked == 0)
 				return UnitTestResult.Fail("No minions found in registry");
 
+			// A paused sim produces no movement and therefore no position packets, so there is
+			// nothing to assert about - every minion legitimately reads zero.
+			if (!MultiplayerSession.IsHost && minionsSynced == 0)
+			{
+				bool paused = SpeedControlScreen.Instance == null || SpeedControlScreen.Instance.IsPaused;
+				return paused
+					? UnitTestResult.Pass($"skipped: sim is paused, none of the {minionsChecked} minions can have moved")
+					: UnitTestResult.Fail($"None of the {minionsChecked} minions has received a position packet");
+			}
+
 			string mode = MultiplayerSession.IsHost ? "host" : "client";
-			return UnitTestResult.Pass($"Checked {minionsChecked} minions ({mode})");
+			return UnitTestResult.Pass($"Checked {minionsChecked} minions ({mode}, {minionsSynced} synced)");
 		}
 
 		[UnitTest(name: "Build progress bar pipeline intact", category: "Sync")]

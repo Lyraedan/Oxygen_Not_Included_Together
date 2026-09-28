@@ -9,7 +9,7 @@ using UnityEngine;
 
 namespace ONI_Together.Networking.Packets.Handshake
 {
-	public class GameStateRequestPacket : IPacket
+	public class GameStateRequestPacket : IPacket, IAllowedWithoutWorldPacket
 	{
 		public GameStateRequestPacket() { }
 		public GameStateRequestPacket(ulong steamID)
