@@ -23,6 +23,7 @@ public static class SpawnUtils
     /// <param name="tag">The prefab tag to spawn.</param>
     /// <param name="position">World position for the new GameObject.</param>
     /// <returns>The spawned GameObject on the host, or <c>null</c> if not host or prefab not found.</returns>
+    [API_Method]
     public static GameObject KNetInstantiate(GameObject prefab, Vector3 position, bool isActive = true)
     {
         if (!MultiplayerSession.IsHost) return null;
@@ -50,6 +51,7 @@ public static class SpawnUtils
     /// <param name="diseaseIdx">Disease index (0 = no disease).</param>
     /// <param name="diseaseCount">Disease germ count.</param>
     /// <returns>The spawned GameObject on the host, or <c>null</c> if not host or element not found.</returns>
+    [API_Method]
     public static GameObject KNetInstantiate(int elementHash, Vector3 position, float mass, float temperature, byte diseaseIdx, int diseaseCount)
     {
         if (!MultiplayerSession.IsHost) return null;

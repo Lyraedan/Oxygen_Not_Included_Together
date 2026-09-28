@@ -8,7 +8,7 @@ namespace ONI_Together.Networking.Packets.Core
 	/// <summary>
 	/// used by clients to broadcast a packet to all other clients via the host
 	/// </summary>
-	internal class HostBroadcastPacket : IPacket
+	internal class HostBroadcastPacket : IPacket, IAllowedWithoutWorldPacket
 	{
 		public HostBroadcastPacket() { }
 		public HostBroadcastPacket(IPacket innerPacket, ulong sender)

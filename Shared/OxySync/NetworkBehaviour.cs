@@ -108,6 +108,18 @@ namespace Shared.OxySync
             base.OnCleanUp();
         }
 
+        /// <summary>
+        /// KMonoBehaviour.OnDestroy calls OnForcedCleanUp on every path but skips OnCleanUp
+        /// while a scene is loading, which is what a client does on every hard sync. Without
+        /// this the old world's behaviours stay registered (native and API alike). Both fire
+        /// on a normal destroy; unregistering twice is a no-op.
+        /// </summary>
+        public override void OnForcedCleanUp()
+        {
+            OnBehaviourCleanUp?.Invoke(this);
+            base.OnForcedCleanUp();
+        }
+
         private static IEnumerable<FieldInfo> GetFieldsIncludingBaseTypes(Type type)
         {
             var type_ = type;
