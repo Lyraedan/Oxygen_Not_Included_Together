@@ -50,6 +50,11 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
         float LastClientSequenceAdvanceTime;
         readonly SortedDictionary<uint, Transition> PendingTransitions = new();
 
+        private int arrivalStopDepth;
+        public bool IsInsideArrivalStop => arrivalStopDepth > 0;
+        public void BeginArrivalStop() => arrivalStopDepth++;
+        public void EndArrivalStop() => Mathf.Max(arrivalStopDepth--, 0);
+
 		public override void OnPrefabInit()
 		{
 			base.OnPrefabInit();

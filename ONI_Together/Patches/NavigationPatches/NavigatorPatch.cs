@@ -1,13 +1,9 @@
 using HarmonyLib;
 using ONI_Together.DebugTools;
 using ONI_Together.Networking;
-using ONI_Together.Networking.Components;
 using ONI_Together.Networking.OxySync.Components.Entities;
-using ONI_Together.Networking.Packets.Core;
-using ONI_Together.Networking.Packets.DuplicantActions;
 using Shared.Profiling;
-using System.Collections.Generic;
-using UnityEngine;
+using System;
 
 namespace ONI_Together.Patches.Navigation
 {
@@ -43,9 +39,7 @@ namespace ONI_Together.Patches.Navigation
 		}
 	}
 
-	[HarmonyPatch(typeof(Navigator), nameof(Navigator.GoTo), new[] {
-		typeof(KMonoBehaviour), typeof(CellOffset[]), typeof(NavTactic)
-})]
+	[HarmonyPatch(typeof(Navigator), nameof(Navigator.GoTo), [typeof(KMonoBehaviour), typeof(CellOffset[]), typeof(NavTactic)])]
 	public static class Navigator_GoTo_Target_Patch
 	{
 		static bool Prefix(Navigator __instance)
@@ -67,67 +61,177 @@ namespace ONI_Together.Patches.Navigation
 				return;
 
 			var activeTransition = __instance.transitionDriver?.GetTransition;
+
 			if (activeTransition == null)
 				return;
 
-			syncer.RequestSyncTransition(false, new NavigatorSyncer.Transition
-			{
-				Id = transition.id,
-				StartPosition = __instance.transform.position,
-				Speed = activeTransition.speed,
-				AnimSpeed = activeTransition.animSpeed,
-				StartNavType = (byte)transition.start
-			});
-
-			// var packet = new NavigatorTransitionPacket
-			// {
-			// 	NetId = identity.NetId,
-			// 	Sequence = NavigatorPatchUtil.NextSequence(identity.NetId),
-			// 	IsStop = false,
-			// 	PosX = __instance.transform.position.x,
-			// 	PosY = __instance.transform.position.y,
-			// 	TransitionId = transition.id,
-			// 	Speed = activeTransition.speed,
-			// 	AnimSpeed = activeTransition.animSpeed,
-			// 	StartNavType = (byte)transition.start,
-			// 	EndNavType = (byte)transition.end
-			// };
-
-			// PacketSender.SendToAllClients(packet, sendType: PacketSendMode.Unreliable);
+			syncer.RequestSyncTransition(
+				false,
+				new NavigatorSyncer.Transition
+				{
+					Id = transition.id,
+					StartPosition = __instance.transform.position,
+					Speed = activeTransition.speed,
+					AnimSpeed = activeTransition.animSpeed,
+					StartNavType = (byte)transition.start
+				});
 		}
 	}
 
 	[HarmonyPatch(typeof(Navigator), nameof(Navigator.Stop))]
 	public static class Navigator_Stop_Patch
 	{
-		static void Postfix(Navigator __instance, bool arrived_at_destination, bool play_idle)
-		{
-			using var _ = Profiler.Scope();
+		/*
+		 * Vanilla successful-arrival flow:
+		 *
+		 * Stop(true, true)
+		 *   -> cleanup
+		 *   -> idle
+		 *   -> normal.arrived
+		 *       -> DestinationReached
+		 *       -> nested Stop(false, true)
+		 *       -> StartWork
+		 *   -> return
+		 *
+		 * Publishing every Stop from Postfix produced:
+		 *
+		 * nested Stop RPC
+		 * -> StartWork RPC
+		 * -> outer Stop RPC
+		 *
+		 * The outer Stop RPC was therefore late and could replace the
+		 * client's newly started work animation with Navigator idle.
+		 *
+		 * Instead, publish a successful arrival from its Prefix. This
+		 * guarantees that its navigation Stop is sent before synchronous
+		 * DestinationReached processing can reach StartWork.
+		 *
+		 * While the outer arrival Stop remains on the call stack, its
+		 * NavigatorSyncer marks itself as being inside an arrival Stop.
+		 * The nested Stop(false, true) is therefore not published.
+		 */
 
-			// Not sure why this is needed, keep it for now.
-			if (!play_idle)
+		static void Prefix(
+			Navigator __instance,
+			bool arrived_at_destination,
+			bool play_idle,
+			out NavigatorSyncer __state)
+		{
+			__state = null;
+
+			/*
+			 * Only successful arrival needs special ordering.
+			 *
+			 * Non-arrival Stops retain the existing Postfix publication.
+			 */
+			if (!arrived_at_destination)
 				return;
 
 			if (!NavigatorPatchUtil.AllowDefault(__instance, out var syncer) || syncer == null)
 				return;
 
-			syncer.RequestSyncTransition(true, new NavigatorSyncer.Transition
+			__state = syncer;
+
+			/*
+			 * Mark the complete outer Stop call as the arrival scope.
+			 *
+			 * DestinationReached and the nested Stop occur synchronously
+			 * before this outer Stop returns.
+			 */
+			syncer.BeginArrivalStop();
+
+			/*
+			 * Preserve the old play_idle publication condition.
+			 *
+			 * If play_idle is false, we still retain the arrival scope so
+			 * any synchronous nested cleanup can be identified, but there
+			 * is no Stop RPC to publish.
+			 */
+			if (!play_idle)
+				return;
+
+			PublishStop(__instance, syncer);
+		}
+
+		static void Postfix(
+			Navigator __instance,
+			bool arrived_at_destination,
+			bool play_idle,
+			NavigatorSyncer __state)
+		{
+			using var _ = Profiler.Scope();
+
+			try
 			{
-				StartPosition = __instance.transform.position,
-				StartNavType = (byte)__instance.CurrentNavType
-			});
+				/*
+				 * Successful arrival was already handled by Prefix.
+				 *
+				 * Do not publish it again after DestinationReached /
+				 * StartWork processing.
+				 */
+				if (arrived_at_destination)
+					return;
 
-			// var packet = new NavigatorTransitionPacket
-			// {
-			// 	NetId = identity.NetId,
-			// 	Sequence = NavigatorPatchUtil.NextSequence(identity.NetId),
-			// 	IsStop = true,
-			// 	PosX = __instance.transform.position.x,
-			// 	PosY = __instance.transform.position.y,
-			// 	EndNavType = (byte)__instance.CurrentNavType
-			// };
+				if (!play_idle)
+					return;
 
-			// PacketSender.SendToAllClients(packet, sendType: PacketSendMode.Reliable);
+				if (!NavigatorPatchUtil.AllowDefault(__instance, out var syncer) || syncer == null)
+					return;
+
+				/*
+				 * A Stop(false, true) for this entity while its outer
+				 * successful-arrival Stop is still active is the synchronous
+				 * nested cleanup Stop.
+				 *
+				 * The outer arrival has already been published, so publishing
+				 * this would create the duplicate Stop that caused the
+				 * original ordering problem.
+				 */
+				if (syncer.IsInsideArrivalStop)
+					return;
+
+				/*
+				 * Independent Stop(false, true) calls still publish exactly
+				 * as before.
+				 */
+				PublishStop(__instance, syncer);
+			}
+			finally
+			{
+				/*
+				 * Only the outer arrival Prefix sets __state.
+				 *
+				 * Nested Stop(false, true) calls have __state == null and
+				 * therefore cannot close the outer scope.
+				 */
+				__state?.EndArrivalStop();
+			}
+		}
+
+		/*
+		 * Harmony Finalizer is needed because Postfix is not guaranteed to
+		 * complete the scope if vanilla Stop throws.
+		 *
+		 * EndArrivalStop is safe to call again after the normal Postfix path
+		 * because NavigatorSyncer clamps the depth at zero.
+		 */
+		static Exception Finalizer(Exception __exception, NavigatorSyncer __state)
+		{
+			if (__exception != null && __state != null)
+				__state.EndArrivalStop();
+
+			return __exception;
+		}
+
+		private static void PublishStop(Navigator navigator, NavigatorSyncer syncer)
+		{
+			syncer.RequestSyncTransition(
+				true,
+				new NavigatorSyncer.Transition
+				{
+					StartPosition = navigator.transform.position,
+					StartNavType = (byte)navigator.CurrentNavType
+				});
 		}
 	}
 
@@ -138,7 +242,6 @@ namespace ONI_Together.Patches.Navigation
 		{
 			using var _ = Profiler.Scope();
 
-			// if (!MultiplayerSession.InActiveSession || MultiplayerSession.IsHost)
 			if (!MultiplayerSession.IsClient)
 				return;
 
@@ -166,19 +269,27 @@ namespace ONI_Together.Patches.Navigation
 			if (!navigator.TryGetComponent<KPrefabID>(out var prefabId) || prefabId == null)
 				return true;
 
-			if (!prefabId.HasTag(GameTags.BaseMinion) && !prefabId.HasTag(GameTags.Creature) && navigator.GetComponent<CreatureBrain>() == null)
-				return true;
-
-			if (!navigator.TryGetComponent<NavigatorSyncer>(out var sync))
+			if (!prefabId.HasTag(GameTags.BaseMinion)
+				&& !prefabId.HasTag(GameTags.Creature)
+				&& navigator.GetComponent<CreatureBrain>() == null)
 			{
-				DebugConsole.LogAssert($"[NavigatorPatchUtil] NavigatorSyncer is missing on {navigator.gameObject?.GetProperName()}");
 				return true;
 			}
 
-			// The client machine should ignore their own navigation and use the host's authorization.
+			if (!navigator.TryGetComponent<NavigatorSyncer>(out var sync))
+			{
+				DebugConsole.LogAssert(
+					$"[NavigatorPatchUtil] NavigatorSyncer is missing " +
+					$"on {navigator.gameObject?.GetProperName()}");
+
+				return true;
+			}
+
+			// The client machine should ignore its own navigation and use
+			// the host's authorization.
 			if (MultiplayerSession.IsClient)
 				return false;
-			
+
 			if (MultiplayerSession.IsHost && MultiplayerSession.SessionHasPlayers)
 				syncer = sync;
 
