@@ -68,12 +68,28 @@ namespace ONI_Together.Networking.Components
 			}
 		}
 
+		private bool warnedNoPlayerController;
+
 		private void Update()
 		{
 			using var _ = Profiler.Scope();
 
 			if (!Utils.IsInGame())
 				return;
+
+			// Both paths below dereference PlayerController.Instance, which stays null on a
+			// client whose world load failed. Report it once instead of throwing every frame.
+			if (PlayerController.Instance == null)
+			{
+				if (!warnedNoPlayerController)
+				{
+					warnedNoPlayerController = true;
+					DebugConsole.LogWarning("[CursorManager] No PlayerController - the world did not finish loading. Cursor sync is off.");
+				}
+				return;
+			}
+
+			warnedNoPlayerController = false;
 
 			if (!MultiplayerSession.InActiveSession || !MultiplayerSession.LocalUserID.IsValid())
 			{

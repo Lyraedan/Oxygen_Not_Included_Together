@@ -12,7 +12,7 @@ using UnityEngine;
 
 namespace ONI_Together.Networking.Packets.Social
 {
-	public class ChatMessagePacket : IPacket
+	public class ChatMessagePacket : IPacket, IAllowedWithoutWorldPacket
 	{
 		public ulong SenderId;
 		public string Message;

@@ -251,6 +251,9 @@ namespace ONI_Together
 			//ModUpdater.Updater.CheckForUpdate();
 			PacketRegistry.RegisterDefaults();
 			InitializeAllIntegrations(); // All mods should be loaded, now find and initialize any integrations
+
+			// Bridge the OxySync surface of the ONI_Together_API assembly, if a mod using it is present.
+			ONI_Together.Networking.OxySync.OxySync_API_Helper.Initialize();
 #if DEBUG
             UnitTestRegistry.DiscoverTests();
 #endif
