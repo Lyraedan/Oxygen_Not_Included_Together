@@ -33,7 +33,8 @@ namespace ONI_Together.Patches.DuplicantActions
 				typeof(Sleepable),
 				typeof(Bottler),
 				typeof(ClusterTelescopeIdentifyMeteorWorkable),
-				typeof(Edible)
+				typeof(Edible),
+				typeof(Pickupable)
             };
 
 			public static void Postfix(StandardWorker __instance, StartWorkInfo start_work_info)
