@@ -29,6 +29,15 @@ namespace Shared.OxySync
 
         private static readonly Dictionary<Type, int> BehaviourIdCache = new();
 
+        enum InterestGroups: int
+        {
+            // Not designated to any specific group
+            Unassigned = -2,
+
+            // Default group, send to all
+            Default = -1
+        }
+
         private List<SyncVarField>? _syncVarFields;
         private Dictionary<int, CachedMethod>? _commandMethods;
         private Dictionary<int, CachedMethod>? _clientRpcMethods;
@@ -100,6 +109,14 @@ namespace Shared.OxySync
             OnSpawned?.Invoke(this);
         }
 
+        private static int ResolveBehaviourId(Type type)
+        {
+            if (BehaviourIdCache.TryGetValue(type, out int id)) return id;
+            id = (type.FullName ?? type.Name).GetHashCode();
+            BehaviourIdCache[type] = id;
+            return id;
+        }
+
         public override void OnCleanUp()
         {
             OnBehaviourCleanUp?.Invoke(this);
@@ -120,15 +137,12 @@ namespace Shared.OxySync
         public override void OnForcedCleanUp()
         {
             OnBehaviourCleanUp?.Invoke(this);
-            base.OnForcedCleanUp();
-        }
+            _syncVarFields?.Clear();
+            _commandMethods?.Clear();
+            _clientRpcMethods?.Clear();
+            _targetRpcMethods?.Clear();
 
-        private static int ResolveBehaviourId(Type type)
-        {
-            if (BehaviourIdCache.TryGetValue(type, out int id)) return id;
-            id = (type.FullName ?? type.Name).GetHashCode();
-            BehaviourIdCache[type] = id;
-            return id;
+            base.OnForcedCleanUp();
         }
 
         private static IEnumerable<FieldInfo> GetFieldsIncludingBaseTypes(Type type)
@@ -143,7 +157,7 @@ namespace Shared.OxySync
             }
         }
 
-        private static void InvokeWithExceptionLogging(System.Action action)
+        public static void InvokeWithExceptionLogging(System.Action action)
         {
             try
             {
@@ -156,7 +170,7 @@ namespace Shared.OxySync
             }
         }
 
-        private static T InvokeWithExceptionLogging<T>(Func<T> func)
+        public static T InvokeWithExceptionLogging<T>(Func<T> func)
         {
             try
             {
@@ -300,11 +314,6 @@ namespace Shared.OxySync
             };
         }
 
-        protected void CallCommand(string methodName, params object[] args)
-        {
-            InvokeWithExceptionLogging(() => InternalCallCommand(methodName, args));
-        }
-
         protected void InternalCallCommand(string methodName, params object[] args)
         {
             if (!inSession) return;
@@ -328,6 +337,11 @@ namespace Shared.OxySync
 
             var sendMode = GetCommandSendMode(hash);
             SendCommandToHost?.Invoke(NetId, BehaviourId, hash, serialized, sendMode);
+        }
+
+        protected void CallCommand(string methodName, params object[] args)
+        {
+            InvokeWithExceptionLogging(() => InternalCallCommand(methodName, args));
         }
 
         protected void CallCommand(Expression<Action> expr)
@@ -359,34 +373,7 @@ namespace Shared.OxySync
 
         protected void CallClientRpc(string methodName, params object[] args)
         {
-            InvokeWithExceptionLogging(() => InternalCallClientRpc(methodName, args));
-        }
-
-        protected void InternalCallClientRpc(string methodName, params object[] args)
-        {
-            if (!inSession || !isServer) return;
-
-            var hash = methodName.GetHashCode();
-
-            if (_clientRpcMethods == null || !_clientRpcMethods.ContainsKey(hash))
-            {
-                LogWarning?.Invoke($"[OxySync] '{methodName}' is not a registered ClientRpc on {GetType().Name}.");
-                return;
-            }
-
-            var argTypes = GetClientRpcArgTypes(hash);
-            var serialized = RpcSerializer.Serialize(args, argTypes);
-
-            int group = GetClientRpcGroup(hash);
-            if (group == -1) group = InterestGroup;
-            var sendMode = GetClientRpcSendMode(hash);
-            if (group == -1)
-                SendClientRpcToAll?.Invoke(NetId, BehaviourId, hash, serialized, sendMode);
-            else
-                SendClientRpcToGroup?.Invoke(group, NetId, BehaviourId, hash, serialized, sendMode);
-
-            if (GetClientRpcIncludeHost(hash))
-                InvokeClientRpc(hash, serialized);
+            CallClientRpc((int)InterestGroups.Unassigned, methodName, args);
         }
 
         protected void CallClientRpc(Expression<Action> expr)
@@ -400,8 +387,7 @@ namespace Shared.OxySync
             CallClientRpc(method.Method.Name, args);
         }
 
-        // TODO: discuss whether this overload is necessary
-        protected void CallClientRpc(int interestGroup, string methodName, params object[] args)
+        protected void InternalCallClientRpc(int interestGroup, string methodName, params object[] args)
         {
             if (!inSession || !isServer) return;
 
@@ -417,13 +403,29 @@ namespace Shared.OxySync
             var serialized = RpcSerializer.Serialize(args, argTypes);
 
             var sendMode = GetClientRpcSendMode(hash);
-            if (interestGroup == -1)
+
+            int targetGroup = interestGroup;
+            if (targetGroup == (int)InterestGroups.Unassigned)
+                targetGroup = GetClientRpcGroup(hash);
+            
+            if (targetGroup == (int)InterestGroups.Unassigned)
+                targetGroup = InterestGroup;
+            
+            if (targetGroup == (int)InterestGroups.Unassigned)
+                targetGroup = (int)InterestGroups.Default;
+
+            if (targetGroup == (int)InterestGroups.Default)
                 SendClientRpcToAll?.Invoke(NetId, BehaviourId, hash, serialized, sendMode);
             else
-                SendClientRpcToGroup?.Invoke(interestGroup, NetId, BehaviourId, hash, serialized, sendMode);
+                SendClientRpcToGroup?.Invoke(targetGroup, NetId, BehaviourId, hash, serialized, sendMode);
 
             if (GetClientRpcIncludeHost(hash))
                 InvokeClientRpc(hash, serialized);
+        }
+
+        protected void CallClientRpc(int interestGroup, string methodName, params object[] args)
+        {
+            InvokeWithExceptionLogging(() => InternalCallClientRpc(interestGroup, methodName, args));
         }
 
         protected void CallClientRpc(int interestGroup, Expression<Action> expr)
@@ -436,12 +438,7 @@ namespace Shared.OxySync
         {
             CallClientRpc(interestGroup, method.Method.Name, args);
         }
-
-        protected void CallTargetRpc(ulong targetPlayer, string methodName, params object[] args)
-        {
-            InvokeWithExceptionLogging(() => InternalCallTargetRpc(targetPlayer, methodName, args));
-        }
-        protected void InternalCallTargetRpc(ulong targetPlayer, string methodName, params object[] args)
+        private void InternalCallTargetRpc(ulong targetPlayer, string methodName, params object[] args)
         {
             if (!inSession || !isServer) return;
 
@@ -458,6 +455,11 @@ namespace Shared.OxySync
 
             var sendMode = GetTargetRpcSendMode(hash);
             SendTargetRpcToPlayer?.Invoke(targetPlayer, NetId, BehaviourId, hash, serialized, sendMode);
+        }
+
+        protected void CallTargetRpc(ulong targetPlayer, string methodName, params object[] args)
+        {
+            InvokeWithExceptionLogging(() => InternalCallTargetRpc(targetPlayer, methodName, args));
         }
 
         protected void CallTargetRpc(ulong targetPlayer, Expression<Action> expr)
@@ -577,7 +579,7 @@ namespace Shared.OxySync
         {
             if (_clientRpcMethods != null && _clientRpcMethods.TryGetValue(hash, out var m))
                 return m.InterestGroup;
-            return -1;
+            return (int)InterestGroups.Unassigned;
         }
 
         private bool GetClientRpcIncludeHost(int hash)
