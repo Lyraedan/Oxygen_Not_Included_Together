@@ -28,37 +28,33 @@ namespace ONI_Together.Patches.World
         [HarmonyPatch(typeof(EnergyConsumerSelfSustaining), nameof(EnergyConsumerSelfSustaining.IsPowered), MethodType.Getter)]
         public static class EnergyConsumerSelfSustaining_IsPowered_Getter_Patch
         {
-            public static bool Prefix(EnergyConsumerSelfSustaining __instance, ref bool __result)
+            public static void Prefix(EnergyConsumerSelfSustaining __instance, ref bool __result)
             {
                 if (!SkipOnClient())
-                    return true;
+                    return;
 
-                if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
-                {
-                    __result = wrap.IsPowered;
-                    return false;
-                }
-                return true;
+                if (!__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
+                    return;
+
+                __result = wrap.IsPowered;
             }
         }
 
         [HarmonyPatch(typeof(Operational), nameof(Operational.GetFlag))]
         public static class Operational_GetFlag_Patch
         {
-            public static bool Prefix(Operational __instance, Operational.Flag flag, ref bool __result)
+            public static void Prefix(Operational __instance, Operational.Flag flag, ref bool __result)
             {
                 if (!SkipOnClient())
-                    return true;
+                    return;
 
                 if (flag != EnergyConsumer.PoweredFlag)
-                    return true;
+                    return;
 
-                if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
-                {
-                    __result = wrap.IsPowered;
-                    return false;
-                }
-                return true;
+                if (!__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
+                    return;
+
+                __result = wrap.IsOperational;
             }
         }
     }
