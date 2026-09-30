@@ -132,6 +132,8 @@ namespace ONI_Together.Networking.Packets.World
             if (go == null || storage == null) return;
 
             PrimaryElement primaryElement = storage.primaryElement;
+            // Match Storage.TransferDiseaseWithObject: some storages have no primary element.
+            if (primaryElement == null) return;
             PrimaryElement component = go.GetComponent<PrimaryElement>();
             if(!(component == null))
             {
