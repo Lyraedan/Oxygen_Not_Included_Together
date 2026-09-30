@@ -72,7 +72,7 @@ namespace ONI_Together.Patches.World.Buildings
 				if (flag != EnergyConsumer.PoweredFlag)
 					return;
 
-				if (__instance.IsNullOrDestroyed())
+				if (__instance == null || __instance.IsNullOrDestroyed())
 					return;
 
 				PacketSender.SendToAllClients(new OperationalStatePacket(__instance));
