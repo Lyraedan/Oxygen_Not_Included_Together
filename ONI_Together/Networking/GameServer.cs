@@ -8,6 +8,7 @@ using Steamworks;
 using System;
 using System.Runtime.InteropServices;
 using ONI_Together.Networking.Components;
+using ONI_Together.Misc;
 using UnityEngine;
 
 namespace ONI_Together.Networking
@@ -55,6 +56,16 @@ namespace ONI_Together.Networking
 		public static void Start()
 		{
 			using var _ = Profiler.Scope();
+
+			// A server started - or restarted - inside a loaded world: NetworkConfig.Stop
+			// wiped the identity registry, and the objects of that world never register
+			// twice, so every NetId a client sent came back "not found" until the host
+			// reloaded the save. Rebuild the registry from the scene first.
+			if (Utils.IsInGame())
+			{
+				int count = NetworkIdentityRegistry.RebuildFromScene();
+				DebugConsole.Log($"[GameServer] Identity registry rebuilt from the loaded world: {count} objects");
+			}
 
 			SetState(ServerState.Preparing);
 

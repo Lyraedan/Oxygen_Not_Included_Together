@@ -9,7 +9,7 @@ using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.Social
 {
-	public class ChatHistorySyncPacket : IPacket
+	public class ChatHistorySyncPacket : IPacket, IAllowedWithoutWorldPacket
 	{
 		public List<OxySyncChat.PendingMessage> Messages = new List<OxySyncChat.PendingMessage>();
 

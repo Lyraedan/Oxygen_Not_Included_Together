@@ -3,6 +3,7 @@ using System.IO;
 using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Overlay;
+using ONI_Together.Misc;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -12,6 +13,19 @@ namespace ONI_Together.Networking.Packets.Architecture
 	public static class PacketHandler
 	{
 		private static bool _readyToProcess = true;
+
+		/// <summary>
+		/// A client in the frontend receives the host's live broadcasts before it has a world, and
+		/// they throw there (Grid is 0x0). It only runs IAllowedWithoutWorldPacket packets and mod
+		/// API packets until the world loads; the rest is dropped, the save carries that state.
+		/// </summary>
+		public static bool ShouldDispatchWithoutWorld(IPacket packet)
+		{
+			if (MultiplayerSession.IsHost) return true;
+			if (!Utils.IsInMenu()) return true;
+			return packet is IAllowedWithoutWorldPacket || packet is IModApiPacket;
+		}
+
 		private static float _notReadySince = float.MaxValue;
 		private const float NOT_READY_TIMEOUT = 60f;
 
@@ -58,6 +72,10 @@ namespace ONI_Together.Networking.Packets.Architecture
 
                     var packet = PacketRegistry.Create(type);
 					packet.Deserialize(reader);
+
+					if (!ShouldDispatchWithoutWorld(packet))
+						return;
+
 					Dispatch(packet);
 
                     scope.End(packet.GetType().Name, data.Length);

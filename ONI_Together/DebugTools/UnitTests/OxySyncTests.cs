@@ -5,6 +5,7 @@ using System.Reflection;
 using System.Text;
 using ONI_Together.Misc;
 using ONI_Together.Networking;
+using ONI_Together.Networking.OxySync;
 using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Networking.OxySync.Packets;
 using Shared.OxySync;
@@ -1550,6 +1551,175 @@ namespace ONI_Together.DebugTools.UnitTests
             {
                 UnityEngine.Object.Destroy(go);
             }
+        }
+    }
+
+    public class AdapterTestBehaviour : NetworkBehaviour
+    {
+        [SyncVar] private int _value;
+        [SyncVar] private float _ratio = 1.5f;
+
+        public int Value => _value;
+
+        [Command]
+        public void CmdSetValue(int value) => _value = value;
+    }
+
+    public static class OxySyncAdapterTests
+    {
+        private static readonly BindingFlags NonPublicInstance = BindingFlags.NonPublic | BindingFlags.Instance;
+
+        private static AdapterTestBehaviour CreateBehaviour()
+        {
+            var go = new GameObject("OxySyncAdapterTest");
+            var behaviour = go.AddComponent<AdapterTestBehaviour>();
+            typeof(NetworkBehaviour).GetMethod("DiscoverSyncVars", NonPublicInstance)
+                .Invoke(behaviour, null);
+            return behaviour;
+        }
+
+        [UnitTest(name: "Native adapter exposes SyncVars and dirty bits", category: "OxySync")]
+        public static UnitTestResult NativeAdapterBridgesSyncVars()
+        {
+            var behaviour = CreateBehaviour();
+            try
+            {
+                ISyncBehaviour adapter = new NativeSyncBehaviour(behaviour);
+                adapter.RefreshSyncVars();
+
+                if (adapter.SyncVarCount != 2)
+                    return UnitTestResult.Fail($"Expected 2 SyncVars, got {adapter.SyncVarCount}");
+
+                var valueField = adapter.GetSyncVar(0);
+                if (valueField.Name != "_value" || valueField.FieldType != typeof(int))
+                    return UnitTestResult.Fail($"Unexpected first field descriptor: {valueField.Name}/{valueField.FieldType}");
+
+                adapter.ApplySyncVar(valueField.Hash, 42, 0);
+                if ((int)(valueField.GetValue() ?? -1) != 42)
+                    return UnitTestResult.Fail("ApplySyncVar did not write through the native adapter");
+
+                if (adapter.UnderlyingType != typeof(AdapterTestBehaviour))
+                    return UnitTestResult.Fail("UnderlyingType mismatch for native adapter");
+
+                return UnitTestResult.Pass("Native adapter exposes and writes SyncVars");
+            }
+            finally { UnityEngine.Object.Destroy(behaviour.gameObject); }
+        }
+
+        [UnitTest(name: "Foreign adapter reads/writes a wrapped behaviour", category: "OxySync")]
+        public static UnitTestResult ForeignAdapterBridgesSyncVars()
+        {
+            var behaviour = CreateBehaviour();
+            try
+            {
+                // Treat the ONI Together behaviour as if it came from another assembly.
+                var adapter = new ForeignSyncBehaviour(behaviour);
+                adapter.RefreshSyncVars();
+
+                if (adapter.SyncVarCount != 2)
+                    return UnitTestResult.Fail($"Foreign adapter expected 2 SyncVars, got {adapter.SyncVarCount}");
+
+                var valueField = adapter.GetSyncVar(0);
+                if (valueField.Name != "_value" || valueField.FieldType != typeof(int))
+                    return UnitTestResult.Fail($"Unexpected foreign field descriptor: {valueField.Name}/{valueField.FieldType}");
+
+                adapter.ApplySyncVar(valueField.Hash, 77, 0);
+                adapter.RefreshSyncVars();
+                if ((int)(adapter.GetSyncVar(0).GetValue() ?? -1) != 77)
+                    return UnitTestResult.Fail("ApplySyncVar did not write through the foreign adapter");
+
+                if (adapter.UnderlyingType != typeof(AdapterTestBehaviour))
+                    return UnitTestResult.Fail("UnderlyingType mismatch for foreign adapter");
+
+                if (adapter.GameObject != behaviour.gameObject)
+                    return UnitTestResult.Fail("GameObject mismatch for foreign adapter");
+
+                return UnitTestResult.Pass("Foreign adapter reads/writes the wrapped behaviour by reflection");
+            }
+            finally { UnityEngine.Object.Destroy(behaviour.gameObject); }
+        }
+
+        [UnitTest(name: "Foreign adapter resolves SyncVar descriptors by hash", category: "OxySync")]
+        public static UnitTestResult ForeignAdapterResolvesByHash()
+        {
+            var behaviour = CreateBehaviour();
+            try
+            {
+                var adapter = new ForeignSyncBehaviour(behaviour);
+                adapter.RefreshSyncVars();
+
+                int targetHash = adapter.GetSyncVar(1).Hash;
+                bool found = false;
+                for (int i = 0; i < adapter.SyncVarCount; i++)
+                {
+                    if (adapter.GetSyncVar(i).Hash == targetHash)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found)
+                    return UnitTestResult.Fail("Could not resolve the second SyncVar by hash");
+
+                return UnitTestResult.Pass("Foreign adapter resolves descriptors by hash");
+            }
+            finally { UnityEngine.Object.Destroy(behaviour.gameObject); }
+        }
+
+        [UnitTest(name: "SyncBehaviourResolver falls back to native registry", category: "OxySync")]
+        public static UnitTestResult ResolverFallsBackToNative()
+        {
+            var behaviour = CreateBehaviour();
+            try
+            {
+                // Force a NetId and register the identity so the resolver can find it.
+                var identity = behaviour.gameObject.AddOrGet<ONI_Together.Networking.Components.NetworkIdentity>();
+                identity.RegisterIdentity();
+                behaviour.NetId = identity.NetId;
+                behaviour.BehaviourId = behaviour.GetType().FullName.GetHashCode();
+
+                if (!SyncBehaviourResolver.TryResolve(identity.NetId, behaviour.BehaviourId, out var resolved) || resolved == null)
+                    return UnitTestResult.Fail("Resolver could not resolve a registered native behaviour");
+
+                if (resolved.NetId != identity.NetId)
+                    return UnitTestResult.Fail("Resolver returned a behaviour with the wrong NetId");
+
+                return UnitTestResult.Pass("Resolver falls back to the native registry");
+            }
+            finally { UnityEngine.Object.Destroy(behaviour.gameObject); }
+        }
+
+        [UnitTest(name: "OxySync API RPC delegate types are closed generics", category: "OxySync")]
+        public static UnitTestResult ApiRpcDelegateTypesAreClosed()
+        {
+            // Regression guard: the API bridge builds expression delegates whose parameter types
+            // must be concrete. Passing an open generic (e.g. typeof(Func<,,,,,>)) makes
+            // Expression.Parameter throw "Type T1 contains generic parameters" and aborts bridging.
+            var delegateTypes = new[]
+            {
+                typeof(Func<int, int, int, byte[], int, bool>),
+                typeof(Func<int, int, int, int, byte[], int, bool>),
+                typeof(Func<ulong, int, int, int, byte[], int, bool>),
+            };
+
+            foreach (var delegateType in delegateTypes)
+            {
+                if (delegateType.ContainsGenericParameters)
+                    return UnitTestResult.Fail($"{delegateType} is an open generic");
+
+                var invoke = delegateType.GetMethod("Invoke");
+                if (invoke == null)
+                    return UnitTestResult.Fail($"{delegateType} has no Invoke");
+
+                foreach (var p in invoke.GetParameters())
+                {
+                    if (p.ParameterType.ContainsGenericParameters)
+                        return UnitTestResult.Fail($"{delegateType} parameter {p.Name} is generic");
+                }
+            }
+
+            return UnitTestResult.Pass("API RPC delegate types are closed with concrete parameters");
         }
     }
 }
