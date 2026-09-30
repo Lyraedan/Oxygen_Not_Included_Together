@@ -25,7 +25,7 @@ namespace ONI_Together.Patches.World.Buildings
 
 				if (!MultiplayerSession.InActiveSession || !MultiplayerSession.IsHost)
 					return;
-				if (__instance.IsNullOrDestroyed())
+				if (__instance == null || __instance.IsNullOrDestroyed())
 					return;
 				PacketSender.SendToAllClients(new OperationalStatePacket(__instance));
 			}
@@ -39,7 +39,7 @@ namespace ONI_Together.Patches.World.Buildings
 
 				if (!MultiplayerSession.InActiveSession || !MultiplayerSession.IsHost)
 					return;
-				if (__instance.IsNullOrDestroyed())
+				if (__instance == null || __instance.IsNullOrDestroyed())
 					return;
 				PacketSender.SendToAllClients(new OperationalStatePacket(__instance));
 			}
@@ -53,7 +53,7 @@ namespace ONI_Together.Patches.World.Buildings
 
 				if (!MultiplayerSession.InActiveSession || !MultiplayerSession.IsHost)
 					return;
-				if (__instance.IsNullOrDestroyed())
+				if (__instance == null || __instance.IsNullOrDestroyed())
 					return;
 				PacketSender.SendToAllClients(new OperationalStatePacket(__instance));
 			}
@@ -85,75 +85,60 @@ namespace ONI_Together.Patches.World.Buildings
 		[HarmonyPatch(typeof(Operational), nameof(Operational.IsOperational), MethodType.Getter)]
 		public class Operational_IsOperational_Patch
 		{
-			public static bool Prefix(Operational __instance, ref bool __result)
+			public static void Prefix(Operational __instance, ref bool __result)
 			{
 				using var _ = Profiler.Scope();
 
-				if (__instance.IsNullOrDestroyed())
-                {
-                    __result = false;
-                    return false;
-                }
+				if (__instance == null ||__instance.IsNullOrDestroyed())
+					return;
 
 				if (!MultiplayerSession.IsClient)
-					return true;
+					return;
 
-				if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
-				{
-					__result = wrap.IsOperational;
-					return false;
-				}
-				return true;
+				if (!__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
+					return;
+
+				__result = wrap.IsOperational;
 			}
 		}
 
 		[HarmonyPatch(typeof(Operational), nameof(Operational.IsActive), MethodType.Getter)]
 		public class Operational_IsActive_Patch
 		{
-			public static bool Prefix(Operational __instance, ref bool __result)
+			public static void Prefix(Operational __instance, ref bool __result)
 			{
 				using var _ = Profiler.Scope();
 
-                if (__instance.IsNullOrDestroyed())
-                {
-                    __result = false;
-                    return false;
-                }
+                if (__instance == null || __instance.IsNullOrDestroyed())
+                    return;
 
 				if (!MultiplayerSession.IsClient)
-					return true;
+					return;
 
-				if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
-				{
-					__result = wrap.IsActive;
-					return false;
-				}
-				return true;
+				if (!__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
+					return;
+
+				__result = wrap.IsActive;
 			}
 		}
 
 		[HarmonyPatch(typeof(Operational), nameof(Operational.IsFunctional), MethodType.Getter)]
 		public class Operational_IsFunctional_Patch
 		{
-			public static bool Prefix(Operational __instance, ref bool __result)
+			public static void Prefix(Operational __instance, ref bool __result)
 			{
 				using var _ = Profiler.Scope();
 
-                if (__instance.IsNullOrDestroyed())
-                {
-                    __result = false;
-                    return false;
-                }
+                if (__instance == null || __instance.IsNullOrDestroyed())
+                    return;
 
 				if (!MultiplayerSession.IsClient)
-					return true;
+					return;
 
-				if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
-				{
-					__result = wrap.IsFunctional;
-					return false;
-				}
-				return true;
+				if (!__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
+					return;
+
+				__result = wrap.IsFunctional;
 			}
 		}
 	}
