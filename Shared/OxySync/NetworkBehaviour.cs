@@ -79,6 +79,7 @@ namespace Shared.OxySync
             public int Hash;
             public object? LastSentValue;
             public MethodInfo? Hook;
+            public long timestamp;
             public float Epsilon;
             public int InterestGroup;
             public int SendMode;
@@ -208,6 +209,7 @@ namespace Shared.OxySync
                     Hash = field.Name.GetHashCode(),
                     LastSentValue = field.GetValue(this),
                     Hook = hook,
+                    timestamp = -1,
                     Epsilon = attr.Epsilon,
                     InterestGroup = group,
                     SendMode = attr.SendMode,
@@ -473,37 +475,35 @@ namespace Shared.OxySync
             CallTargetRpc(targetPlayer, method.Method.Name, args);
         }
 
-        // TODO: Discuss whether we could apply the same design pattern as vanilla ONI game do
-        // Use InternalApplySyncerVar here, so we can have ApplySyncVar non virtual
-        // Reference: Reactable.cs in the decompiled code
-        // TODO: Should try to catch errors and re-throw in case no one catches it.
-        // Currently there exists crash we don't know where it from.
-        // I do identified a few places calling these without a catch block.
-        // game crashes, and no log. ex: game speed control
-        public virtual void ApplySyncVar(int fieldHash, object value, long timestamp = 0)
+        public void ApplySyncVar(int fieldHash, object value, long timestamp = 0)
         {
-            if (_syncVarFields == null) return;
+            InvokeWithExceptionLogging(() => InternalApplySyncVar(fieldHash, value, timestamp));
+        }
 
-            // TODO: discuss why we are not using dictionary here.
-            for (int i = 0; i < _syncVarFields.Count; i++)
+        public virtual void InternalApplySyncVar(int fieldHash, object value, long timestamp = 0)
+        {
+            if (_syncVarFields == null || _syncVarHashToIndex == null) return;
+
+            if (!_syncVarHashToIndex.TryGetValue(fieldHash, out var fieldIdx))
             {
-                var field = _syncVarFields[i];
-                if (field.Hash != fieldHash) continue;
-
-                // TODO: Discuss if we can check timestamp here
-                // I do experienced tons of incorrect update from network messages arriving out of order.
-                var oldValue = field.Info.GetValue(this);
-                field.Info.SetValue(this, value);
-
-                var updated = field;
-                updated.LastSentValue = value;
-                _syncVarFields[i] = updated;
-
-                if (field.Hook != null && !Equals(oldValue, value))
-                {
-                    field.Hook.Invoke(this, new[] { oldValue, value });
-                }
+                LogWarning?.Invoke($"[OxySync][ApplySyncVar] '{fieldHash}' is not registered on {GetType().Name}.");
                 return;
+            }
+
+            var field = _syncVarFields[fieldIdx];
+            if (field.timestamp > timestamp) return;
+
+            var oldValue = field.Info.GetValue(this);
+            field.Info.SetValue(this, value);
+
+            var updated = field;
+            updated.LastSentValue = value;
+            updated.timestamp = timestamp;
+            _syncVarFields[fieldIdx] = updated;
+
+            if (field.Hook != null && !Equals(oldValue, value))
+            {
+                field.Hook.Invoke(this, new[] { oldValue, value });
             }
         }
 
@@ -619,30 +619,32 @@ namespace Shared.OxySync
 
         public object? GetSyncVarValue(int fieldHash)
         {
-            if (_syncVarFields == null) return null;
-            foreach (var field in _syncVarFields)
-            {
-                if (field.Hash == fieldHash)
-                    return field.Info.GetValue(this);
-            }
+            if (_syncVarFields == null || _syncVarHashToIndex == null) return null;
+
+            if (_syncVarHashToIndex.TryGetValue(fieldHash, out int idx))
+                return _syncVarFields[idx].Info.GetValue(this);
+            
+            LogWarning?.Invoke($"[OxySync][GetSyncVarValue] SyncVar {fieldHash} not found on {GetType().Name}.");
             return null;
         }
 
         public void SetSyncVarValue(int fieldHash, object value)
         {
-            if (_syncVarFields == null) return;
-            for (int i = 0; i < _syncVarFields.Count; i++)
-            {
-                var field = _syncVarFields[i];
-                if (field.Hash != fieldHash) continue;
+            if (_syncVarFields == null || _syncVarHashToIndex == null) return;
 
-                field.Info.SetValue(this, value);
-                var updated = field;
-                updated.LastSentValue = value;
-                _syncVarFields[i] = updated;
-                MarkSyncVarAsDirty(fieldHash);
+            if (!_syncVarHashToIndex.TryGetValue(fieldHash, out int idx))
+            {
+                LogWarning?.Invoke($"[OxySync][SetSyncVarValue] SyncVar {fieldHash} not found on {GetType().Name}.");
                 return;
             }
+
+            var field = _syncVarFields[idx];
+            field.Info.SetValue(this, value);
+            var updated = field;
+            updated.LastSentValue = value;
+            updated.timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            _syncVarFields[idx] = updated;
+            MarkSyncVarAsDirty(fieldHash);
         }
 
         public void SyncLastSentValues()

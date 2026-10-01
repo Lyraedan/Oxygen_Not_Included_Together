@@ -67,9 +67,9 @@ namespace ONI_Together.Networking.OxySync.Components
             }
         }
 
-        public override void ApplySyncVar(int fieldHash, object value, long timestamp)
+        public override void InternalApplySyncVar(int fieldHash, object value, long timestamp)
         {
-            base.ApplySyncVar(fieldHash, value, timestamp);
+            base.InternalApplySyncVar(fieldHash, value, timestamp);
             _lastSyncReceivedTime = Time.unscaledTime;
         }
 

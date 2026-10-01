@@ -73,9 +73,9 @@ namespace Shared.OxySync
             NetScaleHash = nameof(_netScale).GetHashCode();
         }
 
-        public override void ApplySyncVar(int fieldHash, object value, long timestamp)
+        public override void InternalApplySyncVar(int fieldHash, object value, long timestamp)
         {
-            base.ApplySyncVar(fieldHash, value, timestamp);
+            base.InternalApplySyncVar(fieldHash, value, timestamp);
 
             if (!useSnapshotInterpolation || timestamp == 0) return;
 
