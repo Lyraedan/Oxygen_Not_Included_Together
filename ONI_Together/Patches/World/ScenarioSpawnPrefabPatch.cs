@@ -1,7 +1,6 @@
 using HarmonyLib;
 using ONI_Together.Networking;
-using ONI_Together.Networking.Components;
-using ONI_Together.Networking.Packets.World;
+using ONI_Together.Misc;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -17,22 +16,10 @@ namespace ONI_Together.Patches.World
 			if (!MultiplayerSession.IsHostInSession || __result == null)
 				return;
 
-			var identity = __result.AddOrGet<NetworkIdentity>();
-			if (identity.NetId == 0)
-				identity.RegisterIdentity();
-
-			if (identity.NetId == 0)
-				return;
-
-			var tag = __result.PrefabID();
-			Vector3 pos = __result.transform.position;
-
-			var packet = new SpawnPrefabPacket(identity.NetId, tag.GetHashCode(), pos)
-			{
-				IsActive = __result.activeSelf
-			};
-
-			PacketSender.SendToAllClients(packet);
+			// SpawnPrefab returns the object before it is activated: the callers (butcher and death
+			// drops, molts, rot piles, meteor resources, lockers, templates) call SetActive(true) right
+			// after. Sending activeSelf here left clients with an inactive copy that never initializes.
+			SpawnUtils.BroadcastSpawn(__result, isActive: true);
 		}
 	}
 }
