@@ -22,6 +22,22 @@ namespace ONI_Together.Networking.Components
 			RegisterIdentity();
 		}
 
+		/// <summary>
+		/// Put this identity back into the registry if it is not there. For the registry's
+		/// scene rebuild (see NetworkIdentityRegistry.RebuildFromScene): after a session
+		/// teardown cleared the registry, IsRegistered still says true on every component, so
+		/// a plain RegisterIdentity call would no-op on exactly the entities that need
+		/// re-adding.
+		/// </summary>
+		public void EnsureRegistered()
+		{
+			if (NetId != 0 && NetworkIdentityRegistry.Exists(NetId))
+				return;
+
+			IsRegistered = false;
+			RegisterIdentity();
+		}
+
 		public void RegisterIdentity()
 		{
 			using var _ = Profiler.Scope();

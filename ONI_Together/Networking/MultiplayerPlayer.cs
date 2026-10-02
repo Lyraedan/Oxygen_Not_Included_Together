@@ -15,7 +15,22 @@ public class MultiplayerPlayer
 	public bool IsConnected => Connection != null;
 	public bool ProtocolVerified { get; set; }
 
-	public ClientReadyState readyState = ClientReadyState.Ready;
+	// Default to Unready: a freshly created/recreated player (e.g. on connect or
+	// reconnect-for-load) must never read as ready until it explicitly says so.
+	public ClientReadyState readyState = ClientReadyState.Unready;
+
+	/// <summary>
+	/// Unscaled time of the last not-ready transition; -1 while Ready. Feeds the host's
+	/// ready timeout (TransportServer.ExpireNeverReadyClients).
+	/// </summary>
+	public float UnreadySince = UnityEngine.Time.unscaledTime;
+
+	/// <summary>
+	/// Whether chat has already said this player joined. Lives on the roster entry so it dies
+	/// with it: a player who leaves and comes back is a new join and gets announced again, while
+	/// a client that merely disconnected to load the level does not.
+	/// </summary>
+	public bool JoinAnnounced { get; set; }
 
     public MultiplayerPlayer(ulong playerId)
 	{

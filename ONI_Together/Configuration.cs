@@ -62,6 +62,15 @@ namespace ONI_Together
             set => Host.Server.PauseSimOnPlayerDisconnect = value;
         }
 
+        [Option("STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.READY_TIMEOUT_SECONDS", "STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.SERVER_SETTINGS.READY_TIMEOUT_SECONDS", "STRINGS.UI.CONFIGURATION.HEADERS.A_HOST_SETTINGS")]
+        [JsonIgnore]
+        public int ReadyTimeoutSeconds
+        {
+            get => Host.Server.ReadyTimeoutSeconds;
+            // 0 disables; any enabled value below the connection timeout floor makes no sense.
+            set => Host.Server.ReadyTimeoutSeconds = value <= 0 ? 0 : Mathf.Max(value, 30);
+        }
+
         [Option("STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.SERVER_TICK_RATE", "STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.SERVER_SETTINGS.SERVER_TICK_RATE", "STRINGS.UI.CONFIGURATION.HEADERS.A_HOST_SETTINGS")]
         [JsonIgnore]
         public ServerTickRate ServerTickRate
@@ -278,6 +287,7 @@ namespace ONI_Together
         [JsonProperty] public bool HardSyncAtCycleStart { get; set; } = false;
         [JsonProperty] public bool PauseSimOnPlayerDisconnect { get; set; } = false;
         [JsonProperty] public ServerTickRate TickRate { get; set; } = ServerTickRate.TPS_60;
+        [JsonProperty] public int ReadyTimeoutSeconds { get; set; } = 180;
     }
 
     public enum ServerTickRate

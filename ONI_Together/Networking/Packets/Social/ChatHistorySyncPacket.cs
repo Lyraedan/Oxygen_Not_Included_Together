@@ -58,7 +58,8 @@ namespace ONI_Together.Networking.Packets.Social
 
 			if (UnityChatBoxUI.Instance != null)
 			{
-				var ts = DateTimeOffset.FromUnixTimeMilliseconds(0).DateTime.ToString("HH:mm", CultureInfo.InvariantCulture);
+				// Stamp "chat initialized" with the local clock, not epoch zero ("00:00").
+				var ts = System.DateTime.Now.ToString("HH:mm", CultureInfo.InvariantCulture);
 				UnityChatBoxUI.Instance.SendNewChatMessage("System", ts, STRINGS.UI.MP_CHATWINDOW.CHAT_INITIALIZED);
 			}
 

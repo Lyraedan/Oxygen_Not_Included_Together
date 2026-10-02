@@ -32,6 +32,7 @@ namespace ONI_Together
 						{
 							public static LocString HARD_SYNC_AT_CYCLE_START = "Hard Sync On Cycle Start";
 							public static LocString TIMEOUT_SECONDS = "Connection Timeout (seconds)";
+							public static LocString READY_TIMEOUT_SECONDS = "Ready Timeout (seconds)";
 							public static LocString PAUSE_SIM_ON_PLAYER_DISCONNECT = "Pause Simulation On Player Disconnect";
 							public static LocString SERVER_TICK_RATE = "Server Tick Rate";
 						}
@@ -81,6 +82,7 @@ namespace ONI_Together
                         {
                             public static LocString HARD_SYNC_AT_CYCLE_START = "Perform a hard sync at the start of every new cycle\n\nDoes not use up your one hard sync per cycle";
                             public static LocString TIMEOUT_SECONDS = "How long the server waits (in seconds) for a response from a connecting or loading client before timing out.\nIncrease this if your friends take a long time to load into the game.\n\nMinimum: 30. (default: 30)";
+                            public static LocString READY_TIMEOUT_SECONDS = "How long a connected player may stay not-ready before the server drops them and lets everyone else resume.\nThe clock restarts when their save transfer begins and when they reconnect after loading.\nIncrease this if your friends download or load very slowly.\n\n0 disables the timeout. Minimum otherwise: 30. (default: 180)";
                             public static LocString PAUSE_SIM_ON_PLAYER_DISCONNECT = "Automatically pauses the simulation when a player disconnects from the server.";
                             public static LocString SERVER_TICK_RATE = "How many times per second the server processes incoming network messages.\nHigher values reduce latency but increase CPU and bandwidth usage.\n\nRange: 20–128 TPS (default: 60)";
                         }
@@ -342,6 +344,7 @@ namespace ONI_Together
 				public static LocString CHAT_CLIENT_JOINED = "<b>{0}</b> joined the game.";
 				public static LocString CHAT_CLIENT_LEFT = "<b>{0}</b> left the game.";
 				public static LocString CHAT_CLIENT_FAILED = "<color=red>{0} failed to connect to the server.</color>";
+				public static LocString CHAT_CLIENT_READY_TIMEOUT = "<color=red>{0} was dropped: not ready after {1}s.</color>";
 
                 public static LocString CHAT_SERVER_STARTED = "Started server over <b>{0}</b>";
 				public static LocString CHAT_SERVER_STOPPED = "Stopped <b>{0}</b> server";
@@ -357,7 +360,6 @@ namespace ONI_Together
 				public class HOST
 				{
 					public static LocString STARTINGHOSTING = "Hosting game...";
-					public static LocString SEND_SAVE_FILE = "Sending save file to a client!\nPlease wait...";
                 }
 
 				public class CLIENT
@@ -433,6 +435,7 @@ namespace ONI_Together
 					public static LocString MISSING_SAVE_FILE = "Downloaded save file not found.";
 					public static LocString CONNECTING_TO_HOST = "Connecting to {0}!";
 					public static LocString WAITING_FOR_PLAYER = "Waiting for {0}...";
+					public static LocString RECONNECTING_AFTER_LOAD = "World loaded.\nReconnecting to the host...\nTools stay disabled until everyone is ready.";
 
 					public static LocString DOWNLOADING_SAVE_FILE = "Downloading Save File\n\n{0} {1}%\n({2}/{3} chunks)";
 					public static LocString TCP_DOWNLOADING_SAVE_FILE = "Downloading LAN Save File\n\n{0} {1}%\n({2} remaining)";
@@ -460,6 +463,7 @@ namespace ONI_Together
 					public static LocString HARDSYNC_INPROGRESS = "Hard sync in progress!";
 					public static LocString FINALIZING_SYNC = "All players are ready!\nPlease wait...";
 					public static LocString WAITING_FOR_PLAYERS_SYNC = "Waiting for players ({0}/{1} ready)...\n";
+					public static LocString INPUT_LOCKED_WHILE_WAITING = "\nTools are disabled until everyone is ready.";
 
 					// New world sync menu
 					public static LocString CLIENT_SYNC_PROGRESS = "Client Sync Progress";

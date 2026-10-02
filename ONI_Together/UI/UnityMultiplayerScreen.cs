@@ -264,7 +264,15 @@ namespace ONI_Together.UI
 
 			SetJoinVia(JoinMode.Steam);
 			SetHostVia(HostMode.Steam);
-			NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.STEAMWORKS); // default to steam
+
+			// UI default only - never a live session's transport. This screen can
+			// initialize lazily mid-join (observed while a downloaded save started
+			// loading), and stomping the transport there rebinds the client to
+			// Steamworks: the Loading notice goes out under a SteamID, the reconnect
+			// targets a Steam host that does not exist, and the client dies to the
+			// menu after its retries.
+			if (!MultiplayerSession.InActiveSession)
+				NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.STEAMWORKS); // default to steam
 
 			init = true;
 		}

@@ -60,9 +60,7 @@ namespace ONI_Together.Networking.Packets.World.Buildings
 			if (!entity.TryGetComponent<ClientReceiver_Operational>(out var client))
 				return;
 
-			client.IsFunctional = IsFunctional;
-			client.IsOperational = IsOperational;
-			client.IsActive = IsActive;
+			client.ApplyHostState(IsOperational, IsFunctional, IsActive);
 		}
 	}
 }

@@ -220,6 +220,10 @@ namespace ONI_Together.Networking.Transport.Steam
 
             DebugConsole.Log("[GameClient] Connection to host established!");
 
+            // A reconnect landed - stop counting post-load failures so a later, unrelated
+            // load starts from a full retry budget.
+            GameClient.NotifyReconnectSucceeded();
+
             // Skip mod verification if we are the host
 			if (MultiplayerSession.IsHost)
 			{
@@ -255,7 +259,14 @@ namespace ONI_Together.Networking.Transport.Steam
                     }
                     break;
                 case ESteamNetworkingConnectionState.k_ESteamNetworkingConnectionState_ProblemDetectedLocally:
-                    // Something went wrong locally
+                    // Something went wrong locally. In game this is usually the post-load
+                    // reconnect losing a race against Steam's route setup rather than a real
+                    // refusal, so retry before throwing the player out - see
+                    // GameClient.TryRetryPostLoadReconnect for the measurements. A failure
+                    // outside a session still surfaces immediately.
+                    if (Utils.IsInGame() && GameClient.TryRetryPostLoadReconnect())
+                        break;
+
                     NetworkConfig.TransportClient.OnReturnToMenu.Invoke(STRINGS.UI.MP_OVERLAY.CLIENT.STEAMWORKS.LOCAL_PROBLEM, STRINGS.UI.MP_OVERLAY.CLIENT.STEAMWORKS.LOCAL_PROBLEM_DESC);
                     break;
             }

@@ -36,9 +36,6 @@ namespace ONI_Together.Networking.Transport.Lan
         public int ConnectedClientCount => _server != null ? _server.ConnectedPeersCount : 0;
         public TcpFileTransferServer TcpTransfer => _tcpTransfer;
 
-        public void MarkClientLoading(ulong clientId) { }
-        public bool ConsumeReconnectFromLoad(ulong clientId) { return false; }
-
         public List<ulong> ClientList { get; internal set; } = new List<ulong>();
 
         // Bandwidth and PPS tracking
@@ -212,10 +209,22 @@ namespace ONI_Together.Networking.Transport.Lan
             }
             player.Connection = peer;
 
+            // Authority: a (re)connecting client is loading and must be forced Unready the
+            // moment it begins connecting — not just at object creation. This keeps the
+            // host's all-ready check from transiently passing while the client loads.
+            // SetPlayerReadyState safely no-ops for the host's own entry.
+            ReadyManager.SetPlayerReadyState(player, ClientReadyState.Unready);
+
             if (!ClientList.Contains(clientId))
                 ClientList.Add(clientId);
 
+            // The id here comes from the peer handle, so a returning loader does not arrive
+            // under the id it left with - see ClaimLoadingReconnect for what that costs.
+            ClaimLoadingReconnect(clientId);
+
             DebugConsole.Log("[LiteNetLibServer] Remote client connected: " + clientId + " (" + peer.Address + ":" + peer.Port + ")");
+
+            ReadyManager.HandleClientConnected();
         }
 
         private void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
@@ -271,6 +280,7 @@ namespace ONI_Together.Networking.Transport.Lan
             _peersByClientId.Clear();
             _clientIdByPeerId.Clear();
             ClientList.Clear();
+            ClearLoadTracking();
 
             while (_incomingPackets.TryDequeue(out var _)) { }
 
@@ -305,6 +315,8 @@ namespace ONI_Together.Networking.Transport.Lan
             _server.PollEvents();
             OnMessageRecieved();
             UpdateMetrics();
+            ExpireStaleLoadingClients();
+            ExpireNeverReadyClients();
         }
 
         public override void OnMessageRecieved()
@@ -335,6 +347,12 @@ namespace ONI_Together.Networking.Transport.Lan
                 _clientIdByPeerId.Remove(peer.Id);
                 ClientList.Remove(clientId);
                 MultiplayerSession.ConnectedPlayers.Remove(clientId);
+
+                // The kick already removed the peer mapping OnPeerDisconnected keys on, so
+                // that handler - and the refresh it carries - will not run for this client.
+                ForgetClientLoading(clientId);
+                ReadyManager.RefreshReadyState();
+
                 DebugConsole.Log("[LiteNetLibServer] Kicked client: " + clientId);
             }
         }
