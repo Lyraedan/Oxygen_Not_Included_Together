@@ -30,12 +30,32 @@ public static class SpawnUtils
         
         var go = Util.KInstantiate(prefab, position);
         go.SetActive(isActive);
-        var identity = AssignIdentity(go);
+        BroadcastSpawn(go, isActive);
+        return go;
+    }
 
-        SpawnPrefabPacket packet = new SpawnPrefabPacket(identity.NetId, go.PrefabID().GetHashCode(), position);
+    /// <summary>
+    /// Gives an object the host has already spawned a <see cref="NetworkIdentity"/> and broadcasts a
+    /// <see cref="SpawnPrefabPacket"/> so the clients spawn it too. For objects the game creates
+    /// itself, e.g. <c>Scenario.SpawnPrefab</c> (see ScenarioSpawnPrefabPatch).
+    /// </summary>
+    /// <param name="go">The GameObject the host has spawned.</param>
+    /// <param name="isActive">Whether the clients should spawn it active.</param>
+    /// <returns>The object's NetId, or 0 if it could not be registered.</returns>
+    [API_Method]
+    public static int BroadcastSpawn(GameObject go, bool isActive = true)
+    {
+        if (go == null)
+            return 0;
+
+        var identity = AssignIdentity(go);
+        if (identity.NetId == 0)
+            return 0;
+
+        SpawnPrefabPacket packet = new SpawnPrefabPacket(identity.NetId, go.PrefabID().GetHashCode(), go.transform.position);
         packet.IsActive = isActive;
         PacketSender.SendToAllClients(packet);
-        return go;
+        return identity.NetId;
     }
 
     /// <summary>
@@ -60,10 +80,36 @@ public static class SpawnUtils
         if (element == null) return null;
         
         var go = element.substance.SpawnResource(position, mass, temperature, diseaseIdx, diseaseCount);
-        var identity = AssignIdentity(go);
-
-        SpawnPrefabPacket packet = new SpawnPrefabPacket(identity.NetId, elementHash, position, mass, temperature, diseaseIdx, diseaseCount);
-        PacketSender.SendToAllClients(packet);
+        BroadcastResourceSpawn(go);
         return go;
+    }
+
+    /// <summary>
+    /// The resource version of <see cref="BroadcastSpawn"/>: gives an element resource the host has already
+    /// spawned (e.g. with <c>Substance.SpawnResource</c>) a <see cref="NetworkIdentity"/> and broadcasts a
+    /// <see cref="SpawnPrefabPacket"/> with the element, mass, temperature and disease of its
+    /// <see cref="PrimaryElement"/>, so the clients spawn the same resource. Anything that is not an element
+    /// resource is sent as a prefab spawn (<see cref="BroadcastSpawn"/>).
+    /// </summary>
+    /// <param name="go">The resource GameObject the host has spawned.</param>
+    /// <returns>The object's NetId, or 0 if it could not be registered.</returns>
+    [API_Method]
+    public static int BroadcastResourceSpawn(GameObject go)
+    {
+        if (go == null)
+            return 0;
+
+        var primaryElement = go.GetComponent<PrimaryElement>();
+        if (primaryElement == null || primaryElement.Element == null || go.PrefabID() != primaryElement.Element.tag)
+            return BroadcastSpawn(go, go.activeSelf);
+
+        var identity = AssignIdentity(go);
+        if (identity.NetId == 0)
+            return 0;
+
+        SpawnPrefabPacket packet = new SpawnPrefabPacket(identity.NetId, (int)primaryElement.ElementID, go.transform.position,
+            primaryElement.Mass, primaryElement.Temperature, primaryElement.DiseaseIdx, primaryElement.DiseaseCount);
+        PacketSender.SendToAllClients(packet);
+        return identity.NetId;
     }
 }
