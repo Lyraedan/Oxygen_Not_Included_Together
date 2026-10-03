@@ -45,6 +45,8 @@ public static class SpawnUtils
     [API_Method]
     public static int BroadcastSpawn(GameObject go, bool isActive = true)
     {
+        if (!MultiplayerSession.IsHost) return 0;
+        
         if (go == null)
             return 0;
 
@@ -96,12 +98,14 @@ public static class SpawnUtils
     [API_Method]
     public static int BroadcastResourceSpawn(GameObject go)
     {
+        if (!MultiplayerSession.IsHost) return 0;
+        
         if (go == null)
             return 0;
 
         var primaryElement = go.GetComponent<PrimaryElement>();
         if (primaryElement == null || primaryElement.Element == null || go.PrefabID() != primaryElement.Element.tag)
-            return BroadcastSpawn(go, go.activeSelf);
+            return BroadcastSpawn(go, go.activeSelf); // Still not 100% sure about this fallback, but I'll leave it here
 
         var identity = AssignIdentity(go);
         if (identity.NetId == 0)
