@@ -9,7 +9,7 @@ using UnityEngine;
 public static class WorkProgressPatch
 {
 	private static Dictionary<int, float> nextSendTime = new Dictionary<int, float>();
-	private const float SEND_INTERVAL = 0.5f;
+	private const float SEND_INTERVAL = 0.15f;
 
 	public static void Postfix(Workable __instance)
 	{
@@ -62,7 +62,8 @@ public static class WorkProgressPatch
 	{
 		return workable is DefragmentationZone
 			|| workable.GetType().Name == "RancherWorkable"
-			|| workable is LiquidPumpingStation;
+			|| workable is LiquidPumpingStation
+			|| workable is Pickupable;
 	}
 
 	private static int GetTrackingKey(int workableNetId, string workableType)

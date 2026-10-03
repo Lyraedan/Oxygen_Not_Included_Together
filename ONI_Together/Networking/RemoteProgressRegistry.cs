@@ -13,8 +13,12 @@ namespace ONI_Together.Networking
 	internal struct RemoteProgressState
 	{
 		public float PercentComplete;
+		public float PrevPercentComplete;
+		public float UpdateTime;
+		public float PrevUpdateTime;
 		public bool ShowProgressBar;
 		public float WorkTimeRemaining;
+		public float PrevWorkTimeRemaining;
 		public float WorkTimeTotal;
 		public float ExpireAt;
 	}
@@ -45,14 +49,38 @@ namespace ONI_Together.Networking
 				Kind = kind
 			};
 
-			_states[key] = new RemoteProgressState
+			float now = Time.time;
+			float clamped = Mathf.Clamp01(percentComplete);
+			if (_states.TryGetValue(key, out var existing))
 			{
-				PercentComplete = Mathf.Clamp01(percentComplete),
-				ShowProgressBar = showProgressBar,
-				WorkTimeRemaining = workTimeRemaining,
-				WorkTimeTotal = workTimeTotal,
-				ExpireAt = Time.unscaledTime + ENTRY_TTL
-			};
+				_states[key] = new RemoteProgressState
+				{
+					PercentComplete = clamped,
+					PrevPercentComplete = existing.PercentComplete,
+					UpdateTime = now,
+					PrevUpdateTime = existing.UpdateTime,
+					ShowProgressBar = showProgressBar,
+					WorkTimeRemaining = workTimeRemaining,
+					PrevWorkTimeRemaining = existing.WorkTimeRemaining,
+					WorkTimeTotal = workTimeTotal,
+					ExpireAt = now + ENTRY_TTL
+				};
+			}
+			else
+			{
+				_states[key] = new RemoteProgressState
+				{
+					PercentComplete = clamped,
+					PrevPercentComplete = clamped,
+					UpdateTime = now,
+					PrevUpdateTime = now,
+					ShowProgressBar = showProgressBar,
+					WorkTimeRemaining = workTimeRemaining,
+					PrevWorkTimeRemaining = workTimeRemaining,
+					WorkTimeTotal = workTimeTotal,
+					ExpireAt = now + ENTRY_TTL
+				};
+			}
 		}
 
 		public static bool TryGetState(int netId, RemoteProgressKind kind, out RemoteProgressState state)
@@ -70,7 +98,7 @@ namespace ONI_Together.Networking
 				return false;
 			}
 
-			if (Time.unscaledTime <= state.ExpireAt)
+			if (Time.time <= state.ExpireAt)
 			{
 				return true;
 			}
@@ -87,6 +115,61 @@ namespace ONI_Together.Networking
 
 			if (TryGetState(netId, kind, out var state))
 			{
+				// Pause guard: when game is paused, freeze bar (host WorkTick gets dt==0, so no progress).
+				// Time.time is scaled and also freezes, but SpeedControlScreen.IsPaused is the authoritative ONI pause flag.
+				if (Time.timeScale <= 0.0001f || (SpeedControlScreen.Instance != null && SpeedControlScreen.Instance.IsPaused))
+				{
+					percentComplete = state.PercentComplete;
+					return true;
+				}
+
+				float now = Time.time;
+				float elapsedSinceUpdate = now - state.UpdateTime;
+				if (elapsedSinceUpdate < 0f)
+					elapsedSinceUpdate = 0f;
+
+				// Clamp extrapolation window to avoid overshoot during packet loss (1.5x SEND_INTERVAL)
+				const float MAX_EXTRAPOLATION = 0.75f;
+				float clampedElapsed = Mathf.Min(elapsedSinceUpdate, MAX_EXTRAPOLATION);
+
+				// Try speed-based extrapolation using the last two host samples
+				float deltaTime = state.UpdateTime - state.PrevUpdateTime;
+				if (deltaTime > 0.01f)
+				{
+					float deltaPercent = state.PercentComplete - state.PrevPercentComplete;
+					// Detect reset / new work (percent dropped significantly) -> don't extrapolate
+					if (deltaPercent < -0.05f)
+					{
+						percentComplete = state.PercentComplete;
+						return true;
+					}
+					if (deltaPercent < 0f)
+						deltaPercent = 0f;
+
+					float speed = deltaPercent / deltaTime; // percent per second
+					if (speed > 0.001f)
+					{
+						// Clamp speed to avoid huge jumps on lag spikes
+						speed = Mathf.Min(speed, 5f);
+						float interpolated = state.PercentComplete + speed * clampedElapsed;
+						percentComplete = Mathf.Clamp01(interpolated);
+						return true;
+					}
+				}
+
+				// Fallback: decay WorkTimeRemaining at 1x real-time speed (handles first packet / zero delta)
+				if (state.WorkTimeTotal > 0.01f && state.WorkTimeRemaining >= 0f)
+				{
+					float interpolatedRemaining = Mathf.Max(0f, state.WorkTimeRemaining - clampedElapsed);
+					float pct = 1f - interpolatedRemaining / state.WorkTimeTotal;
+					pct = Mathf.Clamp01(pct);
+					// Never go backwards below the last authoritative percent
+					if (pct < state.PercentComplete)
+						pct = state.PercentComplete;
+					percentComplete = pct;
+					return true;
+				}
+
 				percentComplete = state.PercentComplete;
 				return true;
 			}
