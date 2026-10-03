@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Text;
+using HarmonyLib;
 using ONI_Together.DebugTools;
 using UnityEngine;
 using static LogicGateVisualizer;
@@ -30,7 +31,7 @@ namespace ONI_Together.Misc
             return false;
         }
 
-        public static void EncodeStorageContents(Storage storage, Dictionary<string, Variant> optionalValues, string keyPrefix = "")
+        public static byte[] EncodeStorageToBytes(Storage storage)
         {
             using var ms = new MemoryStream();
             using var writer = new BinaryWriter(ms);
@@ -60,7 +61,17 @@ namespace ONI_Together.Misc
                 writer.Write(pe.DiseaseCount);
             }
 
-            optionalValues[keyPrefix + "stor"] = ms.ToArray();
+            return ms.ToArray();
+        }
+
+        public static void EncodeStorageContents(Storage storage, Dictionary<string, Variant> optionalValues, string keyPrefix = "")
+        {
+            optionalValues[keyPrefix + "stor"] = EncodeStorageToBytes(storage);
+        }
+
+        public static void RebuildStorageFromBytes(Storage storage, byte[] data, string diseaseReason = "Multiplayer Sync")
+        {
+            RebuildFromBlob(storage, data, diseaseReason);
         }
 
         public static void RebuildStorageFromData(Storage storage, Dictionary<string, Variant> data, string keyPrefix = "", string diseaseReason = "Multiplayer Sync")
@@ -69,15 +80,21 @@ namespace ONI_Together.Misc
 
             if (data.TryGetValue(keyPrefix + "stor", out var blobVar) && blobVar.ByteArray != null)
             {
-                RebuildFromBlob(storage, blobVar.ByteArray, diseaseReason);
+                RebuildStorageFromBytes(storage, blobVar.ByteArray, diseaseReason);
                 return;
             }
             
             DebugConsole.LogError($"[Storage/RebuildStorageFromData] Failed to rebuild storage from data! Key: {keyPrefix + "stor"} not found!");
         }
 
+        // capacityKg + count
+        private const int BLOB_HEADER_SIZE = sizeof(float) + sizeof(int);
+
         private static void RebuildFromBlob(Storage storage, byte[] blob, string diseaseReason)
         {
+            if (blob == null || blob.Length < BLOB_HEADER_SIZE)
+                return;
+
             using var ms = new MemoryStream(blob);
             using var reader = new BinaryReader(ms);
 
@@ -364,39 +381,45 @@ namespace ONI_Together.Misc
             return cells.ToArray();
         }
 
-        /// <summary>
-        /// Iterates every ILogicUIElement in uiVisElements and removes any whose
-        /// cell has no Building component on any object layer. Called periodically
-        /// to sweep up orphaned port entries that survive the normal cleanup path.
-        /// </summary>
-        public static void CleanupOrphanedLogicVisElements()
-        {
-            var mgr = Game.Instance.logicCircuitManager;
-            var elems = mgr.GetVisElements();
-            for (int i = elems.Count - 1; i >= 0; i--)
-            {
-                var elem = elems[i];
-                int cell = elem.GetLogicUICell();
-                if (!Grid.IsValidCell(cell))
-                    continue;
+        [HarmonyPatch(typeof(LogicPorts), nameof(LogicPorts.OnSpawn))]
+		public class LogicPorts_OnSpawn_Patch
+		{
+			public static void Postfix(LogicPorts __instance) => LogicPortsCmps.Add(__instance);
+		}
+		[HarmonyPatch(typeof(LogicPorts), nameof(LogicPorts.OnCleanUp))]
+		public class LogicPorts_OnCleanUp_Patch
+		{
+			public static void Prefix(LogicPorts __instance) => LogicPortsCmps.Remove(__instance);
+		}
 
-                bool hasBuilding = false;
-                foreach (var layer in Grid.ObjectLayers)
-                {
-                    if (layer.TryGetValue(cell, out var obj) && obj != null)
-                    {
-                        if (obj.GetComponent<Building>() != null)
-                        {
-                            hasBuilding = true;
-                            break;
-                        }
-                    }
-                }
+		static readonly global::Components.Cmps<LogicPorts> LogicPortsCmps = new();
+		static readonly HashSet<ILogicUIElement> AllLogicPortCells = [];
+		/// <summary>
+		/// Iterates every ILogicUIElement in uiVisElements and removes any whose
+		/// cell has no Building component on any object layer. Called periodically
+		/// to sweep up orphaned port entries that survive the normal cleanup path.
+		/// </summary>
+		public static void CleanupOrphanedLogicVisElements()
+		{
+			var mgr = Game.Instance.logicCircuitManager;
+			foreach (var portVis in mgr.GetVisElements())
+			{
+				AllLogicPortCells.Add(portVis);
+			}
+			foreach (LogicPorts portsComponent in LogicPortsCmps)
+			{
+				if (portsComponent.IsNullOrDestroyed())
+					continue;
 
-                if (!hasBuilding)
-                    mgr.RemoveVisElem(elem);
-            }
-        }
+				foreach (var inPort in portsComponent.inputPorts)
+					AllLogicPortCells.Remove(inPort);
+
+				foreach (var inPort in portsComponent.outputPorts)
+					AllLogicPortCells.Remove(inPort);
+			}
+			foreach (var orphan in AllLogicPortCells)
+				mgr.RemoveVisElem(orphan);
+		}
 
     }
 }

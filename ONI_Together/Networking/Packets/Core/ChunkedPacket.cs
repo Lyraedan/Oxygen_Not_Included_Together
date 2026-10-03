@@ -4,7 +4,7 @@ using System.IO;
 
 namespace ONI_Together.Networking.Packets.Core
 {
-	internal class ChunkedPacket : IPacket
+	internal class ChunkedPacket : IPacket, IAllowedWithoutWorldPacket
 	{
 		public int SequenceId;
 		public int ChunkIndex;

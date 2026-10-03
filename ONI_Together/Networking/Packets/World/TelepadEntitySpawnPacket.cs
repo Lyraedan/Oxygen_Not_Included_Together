@@ -1,19 +1,20 @@
 using HarmonyLib;
 using ONI_Together.DebugTools;
 using ONI_Together.Networking.Components;
+using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.Packets.Social;
+using ONI_Together.Scripts.Duplicants;
 using System.Collections.Generic;
 using System.IO;
 using Shared.Profiling;
 using UnityEngine;
-using static STRINGS.UI.CLUSTERMAP;
 
 namespace ONI_Together.Networking.Packets.World
 {
 	/// <summary>
 	/// Packet to spawn entities (duplicants or items) on clients with matching NetIds.
-	/// Sent from host when an entity is spawned (e.g., from Telepad).
+	/// Sent from host when an entity is spawned (e.g., from Telepad or Sandbox).
 	/// </summary>
 	public class TelepadEntitySpawnPacket : IPacket
 	{
@@ -45,29 +46,45 @@ namespace ONI_Together.Networking.Packets.World
 		{
 			using var _ = Profiler.Scope();
 
-			DebugConsole.Log($"[EntitySpawnPacket] OnDispatched called - NetId {NetId}, IsDuplicant={EntityData.IsDuplicant}, IsHost={MultiplayerSession.IsHost}");
-
 			// Only clients should process this
 			if (MultiplayerSession.IsHost) return;
 
-			DebugConsole.Log($"[EntitySpawnPacket] Client: Received spawn for NetId {NetId}, IsDuplicant={EntityData.IsDuplicant}, ItemID: {EntityData.GetId()}");
+			DebugConsole.Log($"[EntitySpawnPacket] Client: Received spawn for NetId {NetId}, IsDuplicant={EntityData.IsDuplicant}, ItemID: {EntityData.GetId()} at {Pos}");
 
 			try
 			{
 				var deliverable = EntityData.ToGameDeliverable();
+				if (deliverable == null)
+				{
+					DebugConsole.LogWarning($"[EntitySpawnPacket] Deliverable could not be constructed for NetId {NetId}");
+					return;
+				}
+
 				if (deliverable is not MinionStartingStats)
 				{
-					///move care packages a bit to the left to be centered
+					// move care packages a bit to the left to be centered
 					Pos.x -= 0.5f;
 				}
+
 				GameObject entity = deliverable.Deliver(Pos);
+				if (entity != null)
+				{
+					// duplicants from the printer are assigned an extra skill point, this is skipped over with a direct delivery
+					if (entity.TryGetComponent<MinionResume>(out var res))
+						res.ForceAddSkillPoint();
 
-				///duplicants from the printer are assigned an extra skill point, this is skipped over with a direct delivery
-				if (entity.TryGetComponent<MinionResume>(out var res))
-					res.ForceAddSkillPoint();
+					NetworkIdentity identity = entity.AddOrGet<NetworkIdentity>();
+					identity.OverrideNetId(NetId);
 
-				NetworkIdentity identity = entity.AddOrGet<NetworkIdentity>();
-				identity.OverrideNetId(NetId);
+					if (entity.GetComponent<MinionIdentity>() != null || entity.HasTag(GameTags.BaseMinion))
+					{
+						entity.AddOrGet<OxySyncEntityPositionHandler>();
+						entity.AddOrGet<AnimStateSyncer>();
+						entity.AddOrGet<MinionMultiplayerInitializer>();
+					}
+
+					DebugConsole.Log($"[EntitySpawnPacket] Successfully spawned duplicant '{entity.name}' (NetId: {NetId}) on client");
+				}
 			}
 			catch (System.Exception ex)
 			{

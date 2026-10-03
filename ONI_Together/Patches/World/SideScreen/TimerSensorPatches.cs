@@ -79,7 +79,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			using var _ = Profiler.Scope();
 
 			if (BuildingConfigPacket.IsApplyingPacket) return;
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 
 			var identity = __instance.gameObject.AddOrGet<NetworkIdentity>();
 			identity.RegisterIdentity();
@@ -126,7 +126,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			using var _ = Profiler.Scope();
 
 			if (BuildingConfigPacket.IsApplyingPacket) return;
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 			if (__instance.targetTimedSwitch == null) return;
 
 			var identity = __instance.targetTimedSwitch.gameObject.AddOrGet<NetworkIdentity>();
@@ -174,7 +174,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			using var _ = Profiler.Scope();
 
 			if (BuildingConfigPacket.IsApplyingPacket) return;
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 
 			var identity = __instance.gameObject.AddOrGet<NetworkIdentity>();
 			identity.RegisterIdentity();
@@ -220,7 +220,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			using var _ = Profiler.Scope();
 
 			if (BuildingConfigPacket.IsApplyingPacket) return;
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 			if (__instance.targetTimedSwitch == null) return;
 
 			var identity = __instance.targetTimedSwitch.gameObject.AddOrGet<NetworkIdentity>();

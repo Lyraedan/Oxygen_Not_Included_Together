@@ -1,7 +1,7 @@
 using HarmonyLib;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
-using ONI_Together.Networking.Packets.World;
+using ONI_Together.Networking.OxySync.Components;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -19,14 +19,14 @@ namespace ONI_Together.Patches.World.Plants
 
 				if (!MultiplayerSession.IsHostInSession)
 					return;
-				if (!PlantGrowthSyncer.CanBroadcastLifecycleEvents)
+				if (!PlantLifecycleSyncer.CanBroadcast)
 					return;
-				if (__result == null || PlantGrowthSyncer.IsApplyingState)
+				if (__result == null || PlantLifecycleSyncer.IsApplyingState)
 					return;
 				if (!__result.TryGetComponent<Growing>(out var growing) || growing == null)
 					return;
 
-				PlantGrowthSyncer.BroadcastPlantLifecycle(PlantLifecycleOperation.Spawn, growing, __instance);
+				PlantLifecycleSyncer.Instance?.BroadcastSpawn(growing, __instance);
 			}
 		}
 
@@ -39,14 +39,14 @@ namespace ONI_Together.Patches.World.Plants
 
 				if (!MultiplayerSession.IsHostInSession)
 					return;
-				if (!PlantGrowthSyncer.CanBroadcastLifecycleEvents)
+				if (!PlantLifecycleSyncer.CanBroadcast)
 					return;
-				if (PlantGrowthSyncer.IsApplyingState || __instance == null)
+				if (PlantLifecycleSyncer.IsApplyingState || __instance == null)
 					return;
 				if (!__instance.IsWildPlanted())
 					return;
 
-				PlantGrowthSyncer.BroadcastPlantLifecycle(PlantLifecycleOperation.Spawn, __instance);
+				PlantLifecycleSyncer.Instance?.BroadcastSpawn(__instance);
 			}
 		}
 
@@ -59,16 +59,16 @@ namespace ONI_Together.Patches.World.Plants
 
 				if (!MultiplayerSession.IsHostInSession)
 					return;
-				if (!PlantGrowthSyncer.CanBroadcastLifecycleEvents)
+				if (!PlantLifecycleSyncer.CanBroadcast)
 					return;
-				if (PlantGrowthSyncer.IsApplyingState || __instance == null)
+				if (PlantLifecycleSyncer.IsApplyingState || __instance == null)
 					return;
 
 				var growing = __instance.GetComponent<Growing>();
 				if (growing == null)
 					return;
 
-				PlantGrowthSyncer.BroadcastPlantLifecycle(PlantLifecycleOperation.Remove, growing);
+				PlantLifecycleSyncer.Instance?.BroadcastRemove(growing);
 			}
 		}
 	}

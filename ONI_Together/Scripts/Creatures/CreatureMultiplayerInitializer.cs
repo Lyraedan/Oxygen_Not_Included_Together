@@ -1,6 +1,8 @@
 using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
+using ONI_Together.Networking.OxySync.Components;
+using ONI_Together.Networking.Packets.World;
 using System.Collections;
 using Shared.Profiling;
 using UnityEngine;
@@ -18,25 +20,19 @@ namespace ONI_Together.Scripts.Creatures
 		{
 			using var _ = Profiler.Scope();
 			base.OnSpawn();
-			StartCoroutine(WaitForSessionAndInit());
+			if (MultiplayerSession.InActiveSession)
+			{
+				FinalizeInit();
+			}
+			else
+			{
+				StartCoroutine(WaitForSessionAndInit());
+			}
 		}
 
 		IEnumerator WaitForSessionAndInit()
 		{
-			yield return new WaitUntil((() => MultiplayerSession.InSession));
-			InitializeMP();
-		}
-
-		void InitializeMP(object _ = null)
-		{
-			using var scope = Profiler.Scope();
-			StartCoroutine(DelayedInit());
-		}
-
-		IEnumerator DelayedInit()
-		{
-			using var _ = Profiler.Scope();
-			yield return new WaitForSecondsRealtime(0.5f);
+			yield return new WaitUntil((() => MultiplayerSession.InActiveSession));
 			FinalizeInit();
 		}
 
@@ -46,7 +42,10 @@ namespace ONI_Together.Scripts.Creatures
 			if (HasInit) return;
 
 			var go = gameObject;
-			if (!kpref?.HasTag(GameTags.Creature) ?? false) return;
+			bool isCreature = kpref?.HasTag(GameTags.Creature) ?? false;
+			bool isRover = go.GetComponent<RoverModifiers>() != null;
+			bool hasBrain = go.GetComponent<CreatureBrain>() != null;
+			if (!isCreature && !isRover && !hasBrain) return;
 			if (kpref?.HasTag(GameTags.BaseMinion) ?? false) return;
 
 			if (MultiplayerSession.IsClient)
@@ -63,18 +62,38 @@ namespace ONI_Together.Scripts.Creatures
 
 		void InitializeHost(GameObject go)
 		{
-			go.AddOrGet<StatusBroadcaster>();
+			go.AddOrGet<StatusItemsSyncer>();
+
+			if (MultiplayerSession.IsHostInSession && Game.Instance != null && Game.Instance.isSpawned && !GameServerHardSync.IsHardSyncInProgress && !SpawnPrefabPacket.ProcessingIncoming)
+			{
+				var identity = go.AddOrGet<NetworkIdentity>();
+				if (identity.NetId == 0)
+					identity.RegisterIdentity();
+
+				if (identity.NetId != 0)
+				{
+					var packet = new ONI_Together.Networking.Packets.World.SpawnPrefabPacket(
+						identity.NetId,
+						go.PrefabID().GetHashCode(),
+						go.transform.position,
+						go.PrefabID().Name
+					)
+					{
+						IsActive = go.activeSelf
+					};
+					PacketSender.SendToAllClients(packet);
+				}
+			}
 		}
 
 		void InitializeClient(GameObject go)
 		{
 			if (go.TryGetComponent<CreatureBrain>(out var brain)) brain.enabled = false;
 			if (go.TryGetComponent<Sensors>(out var sensors)) sensors.enabled = false;
+			if (go.TryGetComponent<ChoreConsumer>(out var consumer)) consumer.enabled = false;
+			if (go.TryGetComponent<ChoreDriver>(out var driver)) driver.enabled = false;
+			if (go.TryGetComponent<Navigator>(out var nav)) nav.enabled = false;
 
-			var stateMachineControllers = go.GetComponents<StateMachineController>();
-			foreach (var smc in stateMachineControllers)
-				if (smc != null) smc.enabled = false;
-			
 			var statusReceiver = go.AddOrGet<ClientReceiver_StatusItems>();
 			statusReceiver.recieverType = ClientReceiver_StatusItems.StatusRecieverType.CREATURE;
 		}

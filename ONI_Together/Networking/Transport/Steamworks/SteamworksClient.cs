@@ -82,7 +82,7 @@ namespace ONI_Together.Networking.Transport.Steam
                 DebugConsole.Log($"[GameClient] CloseConnection result: {result}");
                 Connection = null;
 
-                MultiplayerSession.InSession = false;
+                MultiplayerSession.InActiveSession = false;
                 //SaveHelper.CaptureWorldSnapshot();
             }
             else
@@ -95,11 +95,12 @@ namespace ONI_Together.Networking.Transport.Steam
         {
             using var _ = Profiler.Scope();
 
-            if (Connection.HasValue || GameClient.State == ClientState.Connected || GameClient.State == ClientState.Connecting) // TODO FIX, f*ck me why didn't I put what was wrong with it
+            // If already connected/connecting, disconnect first to avoid duplicate P2P handles
+            if (Connection.HasValue || GameClient.State == ClientState.Connected || GameClient.State == ClientState.Connecting)
             {
                 DebugConsole.Log("[GameClient] Reconnecting: First disconnecting existing connection.");
                 Disconnect();
-                System.Threading.Thread.Sleep(100);
+                // Note: previous Thread.Sleep(100) removed - blocks main thread; SteamNetworkingSockets needs 1 frame via RunCallbacks instead
             }
 
             if (MultiplayerSession.HostUserID != Utils.NilUlong())
@@ -203,7 +204,7 @@ namespace ONI_Together.Networking.Transport.Steam
             //MultiplayerOverlay.Close();
 
             // We've reconnected in game
-            MultiplayerSession.InSession = true;
+            MultiplayerSession.InActiveSession = true;
             Game.Instance?.Trigger(MP_HASHES.OnConnected);
             NetworkConfig.TransportClient.OnClientConnected.Invoke();
 
@@ -348,6 +349,35 @@ namespace ONI_Together.Networking.Transport.Steam
 
             return (long)connectionHealth.Value.m_usecQueueTime;
         }
+
+        public static float GetSendRate()
+        {
+            if (!connectionHealth.HasValue) return 0f;
+            return connectionHealth.Value.m_flOutBytesPerSec;
+        }
+
+        public static float GetRecvRate()
+        {
+            if (!connectionHealth.HasValue) return 0f;
+            return connectionHealth.Value.m_flInBytesPerSec;
+        }
+
+        public static float GetInPacketsPerSec()
+        {
+            if (!connectionHealth.HasValue) return 0f;
+            return connectionHealth.Value.m_flInPacketsPerSec;
+        }
+
+        public static float GetOutPacketsPerSec()
+        {
+            if (!connectionHealth.HasValue) return 0f;
+            return connectionHealth.Value.m_flOutPacketsPerSec;
+        }
+
+        public override float IncomingBandwidth => GetRecvRate();
+        public override float OutgoingBandwidth => GetSendRate();
+        public override int IncomingPps => (int)GetInPacketsPerSec();
+        public override int OutgoingPps => (int)GetOutPacketsPerSec();
 
         public override NetworkState GetJitterState()
         {

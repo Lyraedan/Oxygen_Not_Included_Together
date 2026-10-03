@@ -26,7 +26,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			using var _ = Profiler.Scope();
 
 			if (BuildingConfigPacket.IsApplyingPacket) return;
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 
 			var go = __instance.gameObject;
 			if (go == null) return;
@@ -61,7 +61,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			using var _ = Profiler.Scope();
 
 			if (BuildingConfigPacket.IsApplyingPacket) return;
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 
 			var go = __instance.gameObject;
 			if (go == null) return;
@@ -110,7 +110,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			using var _ = Profiler.Scope();
 
 			if (BuildingConfigPacket.IsApplyingPacket) return;
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 
 			var go = __instance.gameObject;
 			if (go == null) return;

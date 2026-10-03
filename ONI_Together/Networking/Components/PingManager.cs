@@ -51,7 +51,7 @@ namespace ONI_Together.Networking.Components
 			if (!Utils.IsInGame())
 				return;
 
-			if (!MultiplayerSession.InSession || !MultiplayerSession.LocalUserID.IsValid())
+			if (!MultiplayerSession.InActiveSession || !MultiplayerSession.LocalUserID.IsValid())
 				return;
 
 			bool ctrlHeld = Input.GetKey(KeyCode.LeftControl);

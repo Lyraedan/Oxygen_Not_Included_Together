@@ -10,6 +10,9 @@ namespace ONI_Together.Networking.Packets.Events
 	// Host -> Client: Syncs notifications like "Research Complete", "Starvation", etc.
 	public class NotificationPacket : IPacket
 	{
+		private const int MaxPendingNotifications = 100;
+		private static readonly Queue<NotificationPacket> PendingNotifications = new Queue<NotificationPacket>();
+
 		public string Title;
 		public string Text;
 		// We can't easily sync the "Type" enum because it might rely on game assembly enums not visible or complex.
@@ -41,7 +44,25 @@ namespace ONI_Together.Networking.Packets.Events
 			using var _ = Profiler.Scope();
 
 			if (MultiplayerSession.IsHost) return;
+
+			if (NotificationScreen.Instance == null)
+			{
+				if (PendingNotifications.Count >= MaxPendingNotifications)
+					PendingNotifications.Dequeue();
+				PendingNotifications.Enqueue(this);
+				return;
+			}
+
 			Apply();
+		}
+
+		public static void FlushPending()
+		{
+			if (NotificationScreen.Instance == null)
+				return;
+
+			while (PendingNotifications.Count > 0)
+				PendingNotifications.Dequeue().Apply();
 		}
 
 		private void Apply()
@@ -66,10 +87,7 @@ namespace ONI_Together.Networking.Packets.Events
 
 			// Add to screen
 			// ManagementScreen.Instance might have it? Or NotificationScreen.Instance.
-			if (NotificationScreen.Instance != null)
-			{
-				NotificationScreen.Instance.AddNotification(notification);
-			}
+			NotificationScreen.Instance?.AddNotification(notification);
 		}
 	}
 }

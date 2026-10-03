@@ -8,7 +8,7 @@ using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.World
 {
-	public class WorldDataPacket : IPacket
+	public class WorldDataPacket : IPacket, IAllowedWithoutWorldPacket
 	{
 		private const int MaxCompressedBytes = 32 * 1024 * 1024;
 		private const int MaxChunkCount = 16384;

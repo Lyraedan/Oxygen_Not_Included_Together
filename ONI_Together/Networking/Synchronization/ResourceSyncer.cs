@@ -88,7 +88,7 @@ namespace ONI_Together.Networking.Synchronization
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession || MultiplayerSession.IsHost) return true;
+			if (!MultiplayerSession.InActiveSession || MultiplayerSession.IsHost) return true;
 
 			if (ResourceSyncer.ClientResources.TryGetValue(tag.Name, out float val))
 			{

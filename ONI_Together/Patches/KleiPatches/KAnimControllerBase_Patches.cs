@@ -32,7 +32,7 @@ namespace ONI_Together.Patches.KleiPatches
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession || MultiplayerSession.IsClient)
+			if (!MultiplayerSession.InActiveSession || MultiplayerSession.IsClient)
 				return;
 			if (__instance.gameObject.IsNullOrDestroyed() || !__instance.gameObject.TryGetComponent<KPrefabID>(out var id))
 				return;
@@ -63,7 +63,7 @@ namespace ONI_Together.Patches.KleiPatches
 
 				try
 				{
-					if (!MultiplayerSession.InSession)
+					if (!MultiplayerSession.InActiveSession)
 						return true;
 					if (__instance.IsNullOrDestroyed() || !__instance.enabled) return CanPlayAnims;
 
@@ -90,7 +90,7 @@ namespace ONI_Together.Patches.KleiPatches
 
 				try
 				{
-					if (!MultiplayerSession.InSession)
+					if (!MultiplayerSession.InActiveSession)
 						return true;
 					if (__instance.IsNullOrDestroyed() || !__instance.enabled) return CanPlayAnims;
 					if (MultiplayerSession.IsHost)
@@ -116,7 +116,7 @@ namespace ONI_Together.Patches.KleiPatches
 
 				try
 				{
-					if (!MultiplayerSession.InSession)
+					if (!MultiplayerSession.InActiveSession)
 						return true;
 					if (__instance.IsNullOrDestroyed() || !__instance.enabled) return CanPlayAnims;
 					if (MultiplayerSession.IsHost)
@@ -177,7 +177,7 @@ namespace ONI_Together.Patches.KleiPatches
 
 				try
 				{
-					if (!MultiplayerSession.InSession) return kanim_file != null;
+					if (!MultiplayerSession.InActiveSession) return kanim_file != null;
 
 					//leave to minions for now, potentially remove later
 					if (!__instance.HasTag(GameTags.BaseMinion))
@@ -207,7 +207,7 @@ namespace ONI_Together.Patches.KleiPatches
 
 				try
 				{
-					if (!MultiplayerSession.InSession) return kanim_file != null;
+					if (!MultiplayerSession.InActiveSession) return kanim_file != null;
 
 					//leave to minions for now, potentially remove later
 					if (!__instance.HasTag(GameTags.BaseMinion))

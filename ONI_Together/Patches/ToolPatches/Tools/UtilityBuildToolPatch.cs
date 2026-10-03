@@ -21,7 +21,7 @@ namespace ONI_Together.Patches.ToolPatches.Build
 			using var _ = Profiler.Scope();
 
 			//DebugConsole.Log($"[UtilityBuildToolPatch] Prefix called! Tool type: {__instance.GetType().Name}");
-			if (!MultiplayerSession.InSession)
+			if (!MultiplayerSession.InActiveSession)
 			{
 				return;
 			}
