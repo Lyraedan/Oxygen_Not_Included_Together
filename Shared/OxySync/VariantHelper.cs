@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 
-namespace ONI_Together.Misc
+namespace Shared.OxySync
 {
     public static class VariantHelper
     {
