@@ -41,7 +41,7 @@ public static class SpawnUtils
     /// </summary>
     /// <param name="go">The GameObject the host has spawned.</param>
     /// <param name="isActive">Whether the clients should spawn it active.</param>
-    /// <returns>The object's NetId, or 0 if it could not be registered.</returns>
+    /// <returns>The object's NetId, or 0 if it could not be registered or not the host.</returns>
     [API_Method]
     public static int BroadcastSpawn(GameObject go, bool isActive = true)
     {
@@ -94,7 +94,7 @@ public static class SpawnUtils
     /// resource is sent as a prefab spawn (<see cref="BroadcastSpawn"/>).
     /// </summary>
     /// <param name="go">The resource GameObject the host has spawned.</param>
-    /// <returns>The object's NetId, or 0 if it could not be registered.</returns>
+    /// <returns>The object's NetId, or 0 if it could not be registered or not the host.</returns>
     [API_Method]
     public static int BroadcastResourceSpawn(GameObject go)
     {
