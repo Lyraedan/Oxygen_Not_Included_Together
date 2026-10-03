@@ -1,5 +1,4 @@
 ﻿using HarmonyLib;
-using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.OxySync.Components;
@@ -35,11 +34,7 @@ namespace ONI_Together.Patches.World
 				if (WorkableSyncer.IsAuthorized(workable, method, out var authorizedWokerNetId))
 				{
 					if (worker.GetNetId() == authorizedWokerNetId)
-					{
-						if (ENABLE_LOG)
-							DebugConsole.Log($"[WorkablePatch] Client worker {worker.GetProperName()} is authorized to '{method}' on {workable.GetProperName()}");
 						return true;
-					}
 				}
 
 				// If we're a client and not authorized to work, we should skip the work
