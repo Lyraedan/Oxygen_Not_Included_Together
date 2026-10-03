@@ -13,7 +13,7 @@ namespace ONI_Together.Networking.Packets.World
     /// Client sends sync progress for host to visualize
     /// Host can monitor in real time how the save file download is progressing
     /// </summary>
-    public class SyncProgressPacket : IPacket, IAllowedWithoutWorldPacket
+    public class SyncProgressPacket : IPacket, IPriorityPacket, IAllowedWithoutWorldPacket
     {
         // Tracks progress of all clients for host UI
         private static readonly Dictionary<ulong, ClientSyncInfo> ClientProgress = new Dictionary<ulong, ClientSyncInfo>();

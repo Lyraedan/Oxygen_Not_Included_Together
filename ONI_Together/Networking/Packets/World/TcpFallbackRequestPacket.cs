@@ -5,7 +5,7 @@ using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.World
 {
-	public class TcpFallbackRequestPacket : IPacket, IAllowedWithoutWorldPacket
+	public class TcpFallbackRequestPacket : IPacket, IPriorityPacket, IAllowedWithoutWorldPacket
 	{
 		public ulong Requester;
 
