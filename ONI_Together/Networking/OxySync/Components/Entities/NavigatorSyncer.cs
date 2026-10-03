@@ -40,9 +40,6 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
         [MyCmpGet]
         private Navigator navigator;
 
-        [MyCmpGet]
-        private KBatchedAnimController animController;
-
         private string EntityName => gameObject?.GetProperName() ?? "Unknown Entity";
 
         uint ServerNextSequence = 1;
@@ -111,7 +108,7 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
             }
         }
 
-        [ClientRpc(SendMode = (int)PacketSendMode.UnreliableImmediate)]
+        [ClientRpc(SendMode = (int)PacketSendMode.ReliableImmediate)]
 		private void RpcNextTransition(float timestamp, uint sequence, Transition transition)
 		{
 			using var _ = Profiler.Scope();
@@ -292,6 +289,25 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
 			{
 				DebugConsole.LogError($"[NavigatorSyncer]{EntityName}:{NetId} Failed to set position. {e}");
 			}
+		}
+
+		public bool IsNavigatorAnim(HashedString animName)
+		{
+			using var _ = Profiler.Scope();
+
+			if (navigator == null || animName == default)
+				return false;
+
+			// Check if the current animation is the idle animation for the navigator.
+			if (navigator.NavGrid != null && navigator.NavGrid.GetIdleAnim(navigator.CurrentNavType) == animName)
+				return true;
+
+			var activeTransition = navigator.transitionDriver?.GetTransition;
+			if (activeTransition == null)
+				return false;
+
+			// Check if the current animation is part of an active transition.
+			return animName == activeTransition.anim || animName == activeTransition.preAnim;
 		}
 
 		private void Update()

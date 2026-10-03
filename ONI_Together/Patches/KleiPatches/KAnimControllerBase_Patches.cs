@@ -11,6 +11,7 @@ using System;
 using System.Linq;
 using Shared.Profiling;
 using static STRINGS.UI.CLUSTERMAP.ROCKETS;
+using ONI_Together.Networking.OxySync.Components.Entities;
 
 namespace ONI_Together.Patches.KleiPatches
 {
@@ -39,6 +40,12 @@ namespace ONI_Together.Patches.KleiPatches
 
 			if (!id.HasTag(GameTags.BaseMinion) && !id.HasTag(GameTags.Creature)) // Allow BaseMinion and Creature
 				return;
+
+			if (__instance.TryGetComponent<NavigatorSyncer>(out var navigatorSyncer))
+			{
+				if (navigatorSyncer.IsNavigatorAnim(anims[0]))
+					return;
+			}
 
 			int netId = __instance.GetNetId();
 			if(netId == 0)
