@@ -2,15 +2,27 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Reflection;
 using UnityEngine;
 
-namespace ONI_Together.Misc
+namespace Shared.OxySync
 {
     public static class VariantHelper
     {
-        public static Variant ObjectToVariant(object? value)
+        private const int MAX_OBJECT_GRAPH_DEPTH = ClassSerializationPolicy.MaxObjectGraphDepth;
+
+        public static Variant ObjectToVariant(object value)
+            => ObjectToVariantInternal(value, new HashSet<object>(ClassSerializationPolicy.ObjectReferenceComparer), 0);
+
+        private static Variant ObjectToVariantInternal(object value, HashSet<object> visitedRefs, int depth)
         {
+            if (depth > MAX_OBJECT_GRAPH_DEPTH)
+                throw new NotSupportedException($"OxySync Variant object graph exceeded max depth {MAX_OBJECT_GRAPH_DEPTH}.");
+
             if (value == null) return new Variant { Type = Variant.TypeCode.Null };
+            if (value is UnityEngine.Object)
+                throw new NotSupportedException(
+                    $"Type '{value.GetType().FullName}' is a UnityEngine.Object and is not supported by OxySync Variant serialization.");
             if (value is int i) return i;
             if (value is float f) return f;
             if (value is byte b) return b;
@@ -48,7 +60,7 @@ namespace ONI_Together.Misc
             {
                 var variants = new Variant[arr.Length];
                 for (int i2 = 0; i2 < arr.Length; i2++)
-                    variants[i2] = ObjectToVariant(arr.GetValue(i2));
+                    variants[i2] = ObjectToVariantInternal(arr.GetValue(i2), visitedRefs, depth + 1);
                 return new Variant { Type = Variant.TypeCode.VariantArray, VariantArray = variants };
             }
 
@@ -58,16 +70,17 @@ namespace ONI_Together.Misc
                 int idx = 0;
                 foreach (DictionaryEntry entry in dict)
                 {
-                    variants[idx++] = ObjectToVariant(entry.Key);
-                    variants[idx++] = ObjectToVariant(entry.Value);
+                    variants[idx++] = ObjectToVariantInternal(entry.Key, visitedRefs, depth + 1);
+                    variants[idx++] = ObjectToVariantInternal(entry.Value, visitedRefs, depth + 1);
                 }
                 return new Variant { Type = Variant.TypeCode.VariantArray, VariantArray = variants };
             }
 
+            var valueType = value.GetType();
+
             if (value is IEnumerable enumerable)
             {
-                var type = value.GetType();
-                bool isStack = type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Stack<>);
+                bool isStack = valueType.IsGenericType && valueType.GetGenericTypeDefinition() == typeof(Stack<>);
 
                 var items = new List<object>();
                 foreach (var item in enumerable)
@@ -78,8 +91,50 @@ namespace ONI_Together.Misc
 
                 var variants = new Variant[items.Count];
                 for (int i2 = 0; i2 < items.Count; i2++)
-                    variants[i2] = ObjectToVariant(items[i2]);
+                    variants[i2] = ObjectToVariantInternal(items[i2], visitedRefs, depth + 1);
                 return new Variant { Type = Variant.TypeCode.VariantArray, VariantArray = variants };
+            }
+
+            if (valueType.IsClass)
+            {
+                if (typeof(Delegate).IsAssignableFrom(valueType))
+                    throw new NotSupportedException(
+                        $"Type '{valueType.FullName}' is a delegate and is not supported by OxySync Variant serialization.");
+
+                var rules = ClassSerializationPolicy.GetClassSerializationRules(valueType);
+                if (!rules.IsEligible)
+                    throw new NotSupportedException(
+                        $"Type '{valueType.FullName}' is not eligible for OxySync class serialization." +
+                        " Mark the class with [Serializable] or mark at least one field with [SerializeField].");
+
+                if (!visitedRefs.Add(value))
+                    throw new NotSupportedException(
+                        $"Type '{valueType.FullName}' contains a circular reference and is not supported by OxySync Variant serialization.");
+
+                try
+                {
+                    var fields = ClassSerializationPolicy.GetSerializableFields(valueType);
+                    if (fields.Length == 0)
+                        throw new NotSupportedException(
+                            $"Type '{valueType.FullName}' has no serializable fields and is not supported by OxySync Variant serialization.");
+
+                    var members = new Variant[fields.Length];
+                    for (int fieldIndex = 0; fieldIndex < fields.Length; fieldIndex++)
+                    {
+                        FieldInfo field = fields[fieldIndex];
+                        members[fieldIndex] = ObjectToVariantInternal(field.GetValue(value), visitedRefs, depth + 1);
+                    }
+
+                    return new Variant
+                    {
+                        Type = Variant.TypeCode.VariantArray,
+                        VariantArray = members,
+                    };
+                }
+                finally
+                {
+                    visitedRefs.Remove(value);
+                }
             }
 
             throw new NotSupportedException(
@@ -87,7 +142,13 @@ namespace ONI_Together.Misc
         }
 
         public static object VariantToObject(Variant v, Type targetType)
+            => VariantToObjectInternal(v, targetType, 0);
+
+        private static object VariantToObjectInternal(Variant v, Type targetType, int depth)
         {
+            if (depth > MAX_OBJECT_GRAPH_DEPTH)
+                throw new InvalidDataException($"OxySync Variant object graph exceeded max depth {MAX_OBJECT_GRAPH_DEPTH}.");
+
             if (v.Type == Variant.TypeCode.Null)
             {
                 if (targetType.IsValueType && Nullable.GetUnderlyingType(targetType) == null)
@@ -119,12 +180,14 @@ namespace ONI_Together.Misc
             if (targetType == typeof(Color)) return v.Color;
             if (v.Type == Variant.TypeCode.VariantArray)
             {
+                var variantArray = v.VariantArray ?? Array.Empty<Variant>();
+
                 if (targetType.IsArray && targetType != typeof(byte[]))
                 {
                     var elementType = targetType.GetElementType();
-                    var arr = Array.CreateInstance(elementType, v.VariantArray.Length);
-                    for (int i = 0; i < v.VariantArray.Length; i++)
-                        arr.SetValue(VariantToObject(v.VariantArray[i], elementType), i);
+                    var arr = Array.CreateInstance(elementType, variantArray.Length);
+                    for (int i = 0; i < variantArray.Length; i++)
+                        arr.SetValue(VariantToObjectInternal(variantArray[i], elementType, depth + 1), i);
                     return arr;
                 }
 
@@ -136,8 +199,8 @@ namespace ONI_Together.Misc
                     {
                         var elementType = targetType.GetGenericArguments()[0];
                         var list = (IList)Activator.CreateInstance(typeof(List<>).MakeGenericType(elementType));
-                        for (int i = 0; i < v.VariantArray.Length; i++)
-                            list.Add(VariantToObject(v.VariantArray[i], elementType));
+                        for (int i = 0; i < variantArray.Length; i++)
+                            list.Add(VariantToObjectInternal(variantArray[i], elementType, depth + 1));
                         return list;
                     }
 
@@ -147,8 +210,8 @@ namespace ONI_Together.Misc
                         var hashSetType = typeof(HashSet<>).MakeGenericType(elementType);
                         var hashSet = Activator.CreateInstance(hashSetType);
                         var addMethod = hashSetType.GetMethod("Add");
-                        for (int i = 0; i < v.VariantArray.Length; i++)
-                            addMethod.Invoke(hashSet, new[] { VariantToObject(v.VariantArray[i], elementType) });
+                        for (int i = 0; i < variantArray.Length; i++)
+                            addMethod.Invoke(hashSet, new[] { VariantToObjectInternal(variantArray[i], elementType, depth + 1) });
                         return hashSet;
                     }
 
@@ -158,8 +221,8 @@ namespace ONI_Together.Misc
                         var queueType = typeof(Queue<>).MakeGenericType(elementType);
                         var queue = Activator.CreateInstance(queueType);
                         var enqueueMethod = queueType.GetMethod("Enqueue");
-                        for (int i = 0; i < v.VariantArray.Length; i++)
-                            enqueueMethod.Invoke(queue, new[] { VariantToObject(v.VariantArray[i], elementType) });
+                        for (int i = 0; i < variantArray.Length; i++)
+                            enqueueMethod.Invoke(queue, new[] { VariantToObjectInternal(variantArray[i], elementType, depth + 1) });
                         return queue;
                     }
 
@@ -169,27 +232,63 @@ namespace ONI_Together.Misc
                         var stackType = typeof(Stack<>).MakeGenericType(elementType);
                         var stack = Activator.CreateInstance(stackType);
                         var pushMethod = stackType.GetMethod("Push");
-                        for (int i = 0; i < v.VariantArray.Length; i++)
-                            pushMethod.Invoke(stack, new[] { VariantToObject(v.VariantArray[i], elementType) });
+                        for (int i = 0; i < variantArray.Length; i++)
+                            pushMethod.Invoke(stack, new[] { VariantToObjectInternal(variantArray[i], elementType, depth + 1) });
                         return stack;
                     }
 
                     if (def == typeof(Dictionary<,>))
                     {
-                        if ((v.VariantArray.Length & 1) != 0)
+                        if ((variantArray.Length & 1) != 0)
                             throw new InvalidDataException("OxySync dictionary Variant contains an unmatched key/value entry.");
                         var keyType = targetType.GetGenericArguments()[0];
                         var valType = targetType.GetGenericArguments()[1];
                         var dictType = typeof(Dictionary<,>).MakeGenericType(keyType, valType);
                         var dict = (IDictionary)Activator.CreateInstance(dictType);
-                        for (int i = 0; i < v.VariantArray.Length; i += 2)
+                        for (int i = 0; i < variantArray.Length; i += 2)
                         {
-                            var key = VariantToObject(v.VariantArray[i], keyType);
-                            var val = VariantToObject(v.VariantArray[i + 1], valType);
+                            var key = VariantToObjectInternal(variantArray[i], keyType, depth + 1);
+                            var val = VariantToObjectInternal(variantArray[i + 1], valType, depth + 1);
                             dict.Add(key, val);
                         }
                         return dict;
                     }
+                }
+
+                if (targetType.IsClass && targetType != typeof(string) && !typeof(IEnumerable).IsAssignableFrom(targetType))
+                {
+                    var rules = ClassSerializationPolicy.GetClassSerializationRules(targetType);
+                    if (!rules.IsEligible)
+                        throw new InvalidDataException(
+                            $"Type '{targetType.FullName}' is not eligible for OxySync class deserialization." +
+                            " Mark the class with [Serializable] or mark at least one field with [SerializeField].");
+
+                    object instance;
+                    try
+                    {
+                        instance = Activator.CreateInstance(targetType, true);
+                    }
+                    catch (Exception e)
+                    {
+                        throw new InvalidDataException($"Unable to construct class '{targetType.FullName}' for OxySync Variant deserialization.", e);
+                    }
+
+                    var fields = ClassSerializationPolicy.GetSerializableFields(targetType);
+                    if (variantArray.Length != fields.Length)
+                    {
+                        throw new InvalidDataException(
+                            $"OxySync class payload field-count mismatch for '{targetType.FullName}'.");
+                    }
+
+                    for (int i = 0; i < fields.Length; i++)
+                    {
+                        FieldInfo field = fields[i];
+                        Variant memberValue = variantArray[i];
+                        object converted = VariantToObjectInternal(memberValue, field.FieldType, depth + 1);
+                        field.SetValue(instance, converted);
+                    }
+
+                    return instance;
                 }
             }
 
