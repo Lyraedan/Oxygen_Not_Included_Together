@@ -63,6 +63,7 @@ namespace ONI_Together.Networking.Packets.World.Buildings
 			client.IsFunctional = IsFunctional;
 			client.IsOperational = IsOperational;
 			client.IsActive = IsActive;
+			client.HasHostState = true;
 		}
 	}
 }

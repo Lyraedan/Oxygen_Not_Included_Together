@@ -29,5 +29,11 @@ namespace ONI_Together.Scripts.Buildings
 		public bool IsOperational { get; set; } = true;
 
 		public bool IsActive { get; set; }
+
+		/// <summary>
+		/// False until the host's state arrives. Until then the Operational getters return the
+		/// vanilla values, so a building initialising on a client doesn't see a fake state change.
+		/// </summary>
+		public bool HasHostState { get; set; }
 	}
 }
