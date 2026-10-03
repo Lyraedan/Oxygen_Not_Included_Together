@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using HarmonyLib;
 using ONI_Together.Networking;
 using ONI_Together.Patches.World.SideScreen;
 using UnityEngine;
@@ -22,8 +21,8 @@ namespace ONI_Together.DebugTools.UnitTests
 			if (details == null)
 				return UnitTestResult.Fail("DetailsScreen instance is null");
 
-			// Same reflection UIUtils.GetElements uses to reach the side-screen list.
-			var sideScreens = Traverse.Create(details).Field("sideScreens").GetValue<List<SideScreenRef>>();
+			// Publicized: read the private field directly instead of Traverse.
+			var sideScreens = details.sideScreens;
 			if (sideScreens == null)
 				return UnitTestResult.Fail("Could not read DetailsScreen.sideScreens");
 
