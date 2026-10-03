@@ -56,6 +56,7 @@ public static class SpawnUtils
 
         SpawnPrefabPacket packet = new SpawnPrefabPacket(identity.NetId, go.PrefabID().GetHashCode(), go.transform.position);
         packet.IsActive = isActive;
+        packet.SetPrimaryData(go.GetComponent<PrimaryElement>());
         PacketSender.SendToAllClients(packet);
         return identity.NetId;
     }

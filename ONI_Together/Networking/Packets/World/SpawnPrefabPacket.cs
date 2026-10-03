@@ -61,8 +61,6 @@ public class SpawnPrefabPacket : IPacket
         writer.Write(Position);
         writer.Write(IsActive);
         writer.Write(HasElementData);
-        if (!HasElementData) return;
-        
         writer.Write(Mass);
         writer.Write(Temperature);
         writer.Write(DiseaseIndex);
@@ -79,12 +77,39 @@ public class SpawnPrefabPacket : IPacket
         Position = reader.ReadVector3();
         IsActive = reader.ReadBoolean();
         HasElementData = reader.ReadBoolean();
-        if (!HasElementData) return;
-        
         Mass = reader.ReadSingle();
         Temperature = reader.ReadSingle();
         DiseaseIndex = reader.ReadByte();
         DiseaseCount = reader.ReadInt32();
+    }
+
+    /// <summary>
+    /// A prefab item (a harvested crop, meat, a molt) has a mass and temperature of its own too.
+    /// Sent without them the clients spawn the prefab at its defaults.
+    /// </summary>
+    public void SetPrimaryData(PrimaryElement primaryElement)
+    {
+        if (primaryElement == null) return;
+
+        Mass = primaryElement.Mass;
+        Temperature = primaryElement.Temperature;
+        DiseaseIndex = primaryElement.DiseaseIdx;
+        DiseaseCount = primaryElement.DiseaseCount;
+    }
+
+    private void ApplyPrimaryData(GameObject go, bool addDisease)
+    {
+        // Element resources get theirs from SpawnResource
+        if (HasElementData || Mass <= 0f || go == null) return;
+
+        var primaryElement = go.GetComponent<PrimaryElement>();
+        if (primaryElement == null) return;
+
+        primaryElement.Mass = Mass;
+        if (Temperature > 0f)
+            primaryElement.Temperature = Temperature;
+        if (addDisease && DiseaseIndex != byte.MaxValue && DiseaseCount > 0)
+            primaryElement.AddDisease(DiseaseIndex, DiseaseCount, "Multiplayer Sync");
     }
 
     public void OnDispatched()
@@ -99,6 +124,10 @@ public class SpawnPrefabPacket : IPacket
             // If already registered with this NetId on client, do not spawn a duplicate
             if (NetId != 0 && NetworkIdentityRegistry.TryGet(NetId, out var existing) && existing != null)
             {
+                // A drop is announced when the host spawns it and again from Pickupable.OnSpawn,
+                // the game sets its mass and temperature in between
+                if (existing.TryGetComponent<KPrefabID>(out var prefabId) && prefabId.PrefabTag.GetHashCode() == Hash)
+                    ApplyPrimaryData(existing.gameObject, addDisease: false);
                 return;
             }
 
@@ -209,6 +238,7 @@ public class SpawnPrefabPacket : IPacket
                         netIdComp.NetId = NetId;
                         go.SetActive(IsActive);
                         netIdComp.OverrideNetId(NetId);
+                        ApplyPrimaryData(go, addDisease: true);
                     }
                 }
             }
