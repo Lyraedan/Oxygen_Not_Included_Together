@@ -59,13 +59,6 @@ namespace ONI_Together.Patches.KleiPatches
 				return true;
 			}
 
-			// If the animate is from the navigator, allow it to play on the client.
-			// Meanwhile, return here so the host would not send this request to the client.
-			// these animations are controlled by 
-			// 'navigator.BeginTransition' and 'navigator.EndTransition' on the client.
-			if (_animSyncer.IsNavigatorAnim(primaryAnim))
-				return true;
-
 			if (MultiplayerSession.IsClient)
 			{
 				// If the animate is from the host, we should allow it to play on the client. Otherwise, block it.

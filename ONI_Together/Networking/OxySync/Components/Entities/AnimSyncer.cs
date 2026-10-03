@@ -11,7 +11,7 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
 	[FixedInterestGroup]
 	public class AnimSyncer : NetworkBehaviour
 	{
-		private static readonly bool ENABLE_LOG = true;
+		private static readonly bool ENABLE_LOG = false;
 
 		[Serializable]
 		private sealed class AnimRequest
@@ -32,8 +32,6 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
 
 		[MyCmpGet]
 		private KBatchedAnimController animController;
-		[MyCmpGet]
-		private Navigator navigator;
 
 		public string EntityName => gameObject?.GetProperName() ?? "Unknown Entity";
 
@@ -237,27 +235,5 @@ namespace ONI_Together.Networking.OxySync.Components.Entities
 	
 		private bool applyingSymbolVisibility;
 		public bool IsApplyingSymbolVisibility() => applyingSymbolVisibility;
-		
-	
-		public bool IsNavigatorAnim(HashedString animName)
-		{
-			using var _ = Profiler.Scope();
-
-			navigator ??= GetComponent<Navigator>();
-
-			if (navigator == null || animName == default)
-				return false;
-
-			// Check if the current animation is the idle animation for the navigator.
-			if (navigator.NavGrid != null && navigator.NavGrid.GetIdleAnim(navigator.CurrentNavType) == animName)
-				return true;
-
-			var activeTransition = navigator.transitionDriver?.GetTransition;
-			if (activeTransition == null)
-				return false;
-
-			// Check if the current animation is part of an active transition.
-			return animName == activeTransition.anim || animName == activeTransition.preAnim;
-		}
 	}
 }
