@@ -87,6 +87,7 @@ namespace ONI_Together.Patches.World
                         {
                             IsActive = __instance.gameObject.activeSelf
                         };
+                        packet.SetPrimaryData(pe);
                         PacketSender.SendToAllClients(packet);
                     }
                 }
