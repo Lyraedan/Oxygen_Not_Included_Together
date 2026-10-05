@@ -293,6 +293,7 @@ namespace ONI_Together
     [Serializable]
     public class NetworkSettings
     {
+        [JsonProperty] public ulong PersistentUserId { get; set; } = 0;
         [JsonProperty] public bool EnablePacketQueue { get; set; } = false;
         [JsonProperty] public int MaxPacketsPerSecond { get; set; } = 500;
         [JsonProperty] public bool BypassProtocolCompatibilityChecks { get; set; } = false;

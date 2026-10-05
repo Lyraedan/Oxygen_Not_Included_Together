@@ -2,13 +2,9 @@ using LiteNetLib;
 using LiteNetLib.Utils;
 using ONI_Together.DebugTools;
 using ONI_Together.Misc;
-using ONI_Together.Misc.World;
 using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Networking.Packets.Architecture;
-using ONI_Together.Networking.States;
 using ONI_Together.Networking.Transfer;
-using ONI_Together.UI;
-using Shared;
 using Shared.Profiling;
 using System;
 using System.Collections.Concurrent;
@@ -24,13 +20,15 @@ namespace ONI_Together.Networking.Transport.Lan
         private static NetManager _server;
         private static EventBasedNetListener _listener;
 
+        private const string ClientIdentityHandshake = "ONI_TOGETHER";
+        private const string HostIdentityHandshake = "ONI_TOGETHER_HOST";
+
         private TcpFileTransferServer _tcpTransfer;
         private readonly Dictionary<ulong, NetPeer> _peersByClientId = new Dictionary<ulong, NetPeer>();
         private readonly Dictionary<int, ulong> _clientIdByPeerId = new Dictionary<int, ulong>();
         private readonly ConcurrentQueue<(ulong clientId, byte[] data)> _incomingPackets = new ConcurrentQueue<(ulong, byte[])>();
 
         public static NetManager ServerInstance => _server;
-        public static ulong CLIENT_ID { get; private set; } = 1;
 
         public bool IsRunning => _server != null && _server.IsRunning;
         public int ConnectedClientCount => _server != null ? _server.ConnectedPeersCount : 0;
@@ -70,6 +68,12 @@ namespace ONI_Together.Networking.Transport.Lan
             string ip = Configuration.Instance.Host.LanSettings.Ip;
             int port = Configuration.Instance.Host.LanSettings.Port;
             int maxClients = Configuration.Instance.Host.MaxLobbySize;
+            if (NetworkConfig.GetLocalID() == 0)
+            {
+                DebugConsole.LogError("[LiteNetLibServer] Cannot start with an empty persistent host ID.");
+                OnError?.Invoke();
+                return;
+            }
 
             _listener = new EventBasedNetListener();
             _listener.ConnectionRequestEvent += OnConnectionRequest;
@@ -111,62 +115,48 @@ namespace ONI_Together.Networking.Transport.Lan
                 _tcpTransfer = null;
             }
 
-            // Register Local Host
-            CLIENT_ID = 1;
-            MultiplayerSession.SetHost(1);
-            MultiplayerSession.InActiveSession = true;
+            MultiplayerSession.RegisterAsHost();
 
             ClientList.Clear();
-            ClientList.Add(1);
+            ClientList.Add(NetworkConfig.GetLocalID());
 
-            if (!MultiplayerSession.ConnectedPlayers.TryGetValue(1, out var hostPlayer))
-            {
-                hostPlayer = new MultiplayerPlayer(1)
-                {
-                    PlayerName = Utils.GetLocalPlayerName(),
-                    Connection = null
-                };
-                MultiplayerSession.ConnectedPlayers[1] = hostPlayer;
-            }
-            else
-            {
-                hostPlayer.PlayerName = Utils.GetLocalPlayerName();
-                hostPlayer.Connection = null;
-            }
-            MultiplayerSession.KnownPlayerNames[1] = hostPlayer.PlayerName;
-
-            OxySyncChat.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, hostPlayer.PlayerName));
+            OxySyncChat.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, Utils.GetLocalPlayerName()));
         }
 
         private void OnConnectionRequest(ConnectionRequest request)
         {
-            if (_server.ConnectedPeersCount < Configuration.Instance.Host.MaxLobbySize)
+            if (_server.ConnectedPeersCount >= Configuration.Instance.Host.MaxLobbySize)
             {
-                try
-                {
-                    string key = request.Data.GetString();
-                    if (key == "ONI_TOGETHER")
-                    {
-                        var peer = request.Accept();
-                        if (peer != null)
-                        {
-                            ulong assignedId = (ulong)peer.Id + 2;
-                            _peersByClientId[assignedId] = peer;
-                            _clientIdByPeerId[peer.Id] = assignedId;
-                        }
-                        return;
-                    }
-                }
-                catch (Exception ex)
-                {
-                    DebugConsole.LogWarning("[LiteNetLibServer] Error reading connection request: " + ex.Message);
-                }
-
                 request.Reject();
+                return;
             }
-            else
+
+            if (!request.Data.TryGetString(out string magic)
+                || magic != ClientIdentityHandshake
+                || !request.Data.TryGetULong(out ulong clientId)
+                || clientId == 0
+                || request.Data.AvailableBytes != 0)
             {
+                DebugConsole.LogWarning($"[LiteNetLibServer] Rejected malformed connection request from {request.RemoteEndPoint}.");
                 request.Reject();
+                return;
+            }
+
+            ulong hostId = NetworkConfig.GetLocalID();
+            if (clientId == hostId || _peersByClientId.ContainsKey(clientId))
+            {
+                DebugConsole.LogWarning($"[LiteNetLibServer] Rejected duplicate persistent client ID {clientId} from {request.RemoteEndPoint}.");
+                request.Reject();
+                return;
+            }
+
+            DebugConsole.Log($"[LiteNetLibServer] Received connection request from {request.RemoteEndPoint}; persistent client ID = {clientId}");
+
+            var peer = request.Accept();
+            if (peer != null)
+            {
+                _peersByClientId[clientId] = peer;
+                _clientIdByPeerId[peer.Id] = clientId;
             }
         }
 
@@ -200,22 +190,22 @@ namespace ONI_Together.Networking.Transport.Lan
 
             if (!_clientIdByPeerId.TryGetValue(peer.Id, out ulong clientId))
             {
-                clientId = (ulong)peer.Id + 2;
-                _peersByClientId[clientId] = peer;
-                _clientIdByPeerId[peer.Id] = clientId;
+                DebugConsole.LogError($"[LiteNetLibServer] Accepted peer {peer.Id} has no client ID mapping; disconnecting.");
+                peer.Disconnect();
+                return;
             }
 
-            if (!MultiplayerSession.ConnectedPlayers.TryGetValue(clientId, out var player))
-            {
-                player = new MultiplayerPlayer(clientId);
-                MultiplayerSession.ConnectedPlayers[clientId] = player;
-            }
-            player.Connection = peer;
+            var identityWriter = new NetDataWriter();
+            identityWriter.Put(HostIdentityHandshake);
+            identityWriter.Put(NetworkConfig.GetLocalID());
+            peer.Send(identityWriter, DeliveryMethod.ReliableOrdered);
+
+            MultiplayerSession.RegisterClient(clientId, peer);
 
             if (!ClientList.Contains(clientId))
                 ClientList.Add(clientId);
 
-            DebugConsole.Log("[LiteNetLibServer] Remote client connected: " + clientId + " (" + peer.Address + ":" + peer.Port + ")");
+            DebugConsole.Log($"[LiteNetLibServer] Remote client connected: {clientId} ({peer.Address}:{peer.Port}); sent persistent host ID = {NetworkConfig.GetLocalID()}");
         }
 
         private void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
@@ -228,15 +218,7 @@ namespace ONI_Together.Networking.Transport.Lan
                 _clientIdByPeerId.Remove(peer.Id);
                 ClientList.Remove(clientId);
 
-                if (MultiplayerSession.ConnectedPlayers.TryGetValue(clientId, out var player))
-                {
-                    player.Connection = null;
-                    MultiplayerSession.ConnectedPlayers.Remove(clientId);
-                    DebugConsole.Log("[LiteNetLibServer] Player " + clientId + " disconnected. Reason: " + disconnectInfo.Reason);
-                }
-
-                ReadyManager.RefreshReadyState();
-                MultiplayerSession.RefreshAllPlayerCursors();
+                MultiplayerSession.UnregisterClient(clientId, null);
             }
         }
 
@@ -274,10 +256,6 @@ namespace ONI_Together.Networking.Transport.Lan
 
             while (_incomingPackets.TryDequeue(out var _)) { }
 
-            CLIENT_ID = Utils.NilUlong();
-            MultiplayerSession.HostUserID = Utils.NilUlong();
-            MultiplayerSession.InActiveSession = false;
-
             DebugConsole.Log("[LiteNetLibServer] Server stopped.");
         }
 
@@ -292,7 +270,9 @@ namespace ONI_Together.Networking.Transport.Lan
             _peersByClientId.Clear();
             _clientIdByPeerId.Clear();
             ClientList.Clear();
-            ClientList.Add(1);
+            ClientList.Add(NetworkConfig.GetLocalID());
+
+            MultiplayerSession.UnRegisterAsHost(null);
         }
 
         public override void Update()
@@ -334,7 +314,7 @@ namespace ONI_Together.Networking.Transport.Lan
                 _peersByClientId.Remove(clientId);
                 _clientIdByPeerId.Remove(peer.Id);
                 ClientList.Remove(clientId);
-                MultiplayerSession.ConnectedPlayers.Remove(clientId);
+                MultiplayerSession.UnregisterClient(clientId, null);
                 DebugConsole.Log("[LiteNetLibServer] Kicked client: " + clientId);
             }
         }

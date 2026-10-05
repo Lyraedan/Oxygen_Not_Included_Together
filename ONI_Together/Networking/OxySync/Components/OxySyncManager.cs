@@ -146,6 +146,8 @@ namespace ONI_Together.Networking.OxySync.Components
         {
             Instance = this;
 
+            InterestGroupManager.Initialize();
+
             NetworkBehaviour.OnSpawned += Register;
             NetworkBehaviour.OnBehaviourCleanUp += Unregister;
 

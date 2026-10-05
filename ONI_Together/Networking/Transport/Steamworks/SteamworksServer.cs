@@ -77,7 +77,7 @@ namespace ONI_Together.Networking.Transport.Steam
 
             _connectionStatusChangedCallback = Callback<SteamNetConnectionStatusChangedCallback_t>.Create(OnConnectionStatusChanged);
 
-            MultiplayerSession.InActiveSession = true;
+            MultiplayerSession.RegisterAsHost();
         }
 
         public override void Stop()
@@ -91,27 +91,11 @@ namespace ONI_Together.Networking.Transport.Steam
 
             if (ListenSocket.m_HSteamListenSocket != 0)
                 SteamNetworkingSockets.CloseListenSocket(ListenSocket);
-
-            MultiplayerSession.InActiveSession = false;
         }
 
         public override void CloseConnections()
         {
-            using var _ = Profiler.Scope();
-
-            // Close all client connections and clean up
-            foreach (var player in MultiplayerSession.ConnectedPlayers.Values)
-            {
-                if (player.Connection != null)
-                {
-                    if (player.Connection is HSteamNetConnection)
-                    {
-                        var conn = (HSteamNetConnection) player.Connection;
-                        SteamNetworkingSockets.CloseConnection(conn, 0, "Shutdown", false);
-                    }
-                    player.Connection = null;
-                }
-            }
+            MultiplayerSession.UnRegisterAsHost(CreateCloseFunc("Shutdown"));
         }
 
         public override void Update()
@@ -269,18 +253,9 @@ namespace ONI_Together.Networking.Transport.Steam
         {
             using var _ = Profiler.Scope();
 
-            MultiplayerPlayer player;
-            if (!MultiplayerSession.ConnectedPlayers.TryGetValue(clientId.m_SteamID, out player))
-            {
-                player = new MultiplayerPlayer(clientId.m_SteamID);
-                MultiplayerSession.ConnectedPlayers.Add(clientId.m_SteamID, player);
-                //MultiplayerSession.ConnectedPlayers[clientId] = player;
-            }
-            player.Connection = conn;
+            MultiplayerSession.RegisterClient(clientId.m_SteamID, conn);
 
             DebugConsole.Log($"[GameServer] Connection to {clientId} fully established!");
-            //SaveFileRequestPacket.SendSaveFile(clientId); // Old method
-            //GoogleDriveUtils.UploadAndSendToClient(clientId); // Upload to googledrive and send to the client
         }
 
         private static void OnClientClosed(HSteamNetConnection conn, CSteamID clientId)
@@ -289,47 +264,25 @@ namespace ONI_Together.Networking.Transport.Steam
 
             SteamNetworkingSockets.CloseConnection(conn, 0, null, false);
 
-            if (MultiplayerSession.ConnectedPlayers.TryGetValue(clientId.m_SteamID, out var playerToRemove))
-            {
-                playerToRemove.Connection = null;
-            }
+            MultiplayerSession.UnregisterClient(clientId.m_SteamID, null, conn);
 
             DebugConsole.Log($"[GameServer] Connection closed for {clientId}");
-
-            ReadyManager.RefreshReadyState();
-            // Do I wanna auto shutdown here? I don't think so
-            // if (MultiplayerSession.ConnectedPlayers.Count == 0)
-            // {
-            //     SetState(ServerState.Stopped);
-            //     Shutdown
-            // }
         }
 
         public override void KickClient(ulong clientId)
         {
-            if (!MultiplayerSession.ConnectedPlayers.TryGetValue(clientId, out var player))
-            {
-                DebugConsole.LogWarning($"[GameServer] KickClient: Client {clientId} not found.");
-                return;
-            }
+            DebugConsole.Log($"[GameServer] Kicking client {clientId}");
 
-            if (player.Connection == null)
-            {
-                DebugConsole.LogWarning($"[GameServer] KickClient: Client {clientId} has no active connection.");
-                return;
-            }
+            MultiplayerSession.UnregisterClient(clientId, CreateCloseFunc("Kicked by host"));
+        }
 
-            if (player.Connection is HSteamNetConnection conn)
+        private Action<object> CreateCloseFunc(string resaon)
+        {
+            return (conn) =>
             {
-                DebugConsole.Log($"[GameServer] Kicking client {clientId}");
-
-                SteamNetworkingSockets.CloseConnection(conn, 0, "Kicked by host", false);
-                // The connection closed callback will handle cleanup
-            }
-            else
-            {
-                DebugConsole.LogError($"[GameServer] KickClient: Invalid connection type for {clientId}");
-            }
+                if (conn == null) return;
+                SteamNetworkingSockets.CloseConnection((HSteamNetConnection)conn, 0, resaon, false);
+            };
         }
     }
 }

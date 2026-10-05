@@ -4,9 +4,7 @@ using ONI_Together.Networking.Packets.Handshake;
 using Shared.Profiling;
 using ONI_Together.Networking.States;
 using Shared;
-using Steamworks;
 using System;
-using System.Runtime.InteropServices;
 using ONI_Together.Networking.Components;
 using ONI_Together.Misc;
 using UnityEngine;
@@ -24,7 +22,7 @@ namespace ONI_Together.Networking
 		private static float _tickInterval = 1f / 60f;
 		public static float TickInterval => _tickInterval;
 
-		private static void SetState(ServerState newState)
+ 		private static void SetState(ServerState newState)
 		{
 			using var _ = Profiler.Scope();
 
@@ -78,14 +76,11 @@ namespace ONI_Together.Networking
 
 			SetState(ServerState.Starting);
 
-			MultiplayerSession.IsHost = true;
 			NetworkConfig.TransportServer.Start();
 
 			DebugConsole.Log("[GameServer] Game Server started!");
-			//MultiplayerSession.InSession = true;
 			Game.Instance?.Trigger(MP_HASHES.OnConnected);
 			Game.Instance?.Trigger(MP_HASHES.GameServer_OnServerStarted);
-			//MultiplayerOverlay.Close();
 
 			SetState(ServerState.Started);
 		}
@@ -98,9 +93,6 @@ namespace ONI_Together.Networking
 
 			NetworkConfig.TransportServer.CloseConnections();
 			NetworkConfig.TransportServer.Stop();
-			MultiplayerSession.IsHost = false;
-
-			//MultiplayerSession.InSession = false;
 			
 			DebugConsole.Log("[GameServer] Shutdown complete.");
 		}

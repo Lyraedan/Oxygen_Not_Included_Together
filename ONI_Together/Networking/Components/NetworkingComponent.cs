@@ -40,10 +40,9 @@ namespace ONI_Together.Networking.Components
 					return;
 			}
 
-			//if (!MultiplayerSession.InSession)
-			//	return;
-
-            if (MultiplayerSession.IsHost)
+            if (MultiplayerSession.IsHost ||
+                (NetworkConfig.transport == NetworkConfig.NetworkTransport.RIPTIDE &&
+                 GameServer.State == ServerState.Started))
 			{
 				GameServer.Update();
 			}

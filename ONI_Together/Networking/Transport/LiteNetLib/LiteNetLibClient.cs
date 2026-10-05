@@ -26,7 +26,7 @@ namespace ONI_Together.Networking.Transport.Lan
         private static NetPeer _serverPeer;
 
         /// <summary>
-        /// Set once OnConnectedToServer has run for the current connection attempt.
+        /// Set once the transport connection and host identity exchange have both completed.
         ///
         /// The mod only learns it is connected from LiteNetLib's PeerConnectedEvent, which
         /// is delivered by PollEvents. Twice in one evening the host accepted a client's
@@ -37,6 +37,9 @@ namespace ONI_Together.Networking.Transport.Lan
         /// WaitForConnectionSuccess tell that apart from a connection that is still pending.
         /// </summary>
         private static bool _connectedEventDelivered;
+        private static bool _transportConnected;
+
+        private const string HostIdentityHandshake = "ONI_TOGETHER_HOST";
 
         // LAN Discovery
         private static NetManager _discoveryClient;
@@ -185,9 +188,12 @@ namespace ONI_Together.Networking.Transport.Lan
             _client.Start();
             DebugConsole.Log("[LiteNetLibClient] Connecting to " + ip + ":" + port + "...");
 
+            ulong myId = NetworkConfig.GetLocalID();
             var writer = new NetDataWriter();
             writer.Put("ONI_TOGETHER");
+            writer.Put(myId);
             _connectedEventDelivered = false;
+            _transportConnected = false;
             _serverPeer = _client.Connect(ip, port, writer);
 
             int timeout = Configuration.Instance.Client.TimeoutSeconds;
@@ -209,13 +215,12 @@ namespace ONI_Together.Networking.Transport.Lan
                     // The transport is connected; only the event has not reached the mod. Give
                     // PollEvents one more tick in case it is merely queued, then stop waiting for
                     // it - the handler is the same one the event would have run.
-                    if (connectedWithoutEventSince < 0f)
+                    if (!_transportConnected && connectedWithoutEventSince < 0f)
                         connectedWithoutEventSince = elapsed;
-                    else if (elapsed - connectedWithoutEventSince >= 1f)
+                    else if (!_transportConnected && elapsed - connectedWithoutEventSince >= 1f)
                     {
                         DebugConsole.LogWarning($"[LiteNetLibClient] Peer has been Connected for {elapsed - connectedWithoutEventSince:0.0}s ({elapsed:0.0}s since connect) but PeerConnectedEvent never arrived - completing the connection from the poll loop.");
                         OnConnectedToServer(_serverPeer);
-                        yield break;
                     }
                 }
 
@@ -223,9 +228,9 @@ namespace ONI_Together.Networking.Transport.Lan
                 elapsed += 0.5f;
             }
 
-            if (_serverPeer == null || _serverPeer.ConnectionState != ConnectionState.Connected)
+            if (!_connectedEventDelivered)
             {
-                DebugConsole.LogError("[LiteNetLibClient] Connection timed out.");
+                DebugConsole.LogError("[LiteNetLibClient] Connection timed out before host identity exchange completed.");
                 Disconnect();
                 OnReturnToMenu?.Invoke(
                     STRINGS.UI.MP_OVERLAY.CLIENT.LITENETLIB.CONNECTION_FAILED,
@@ -239,25 +244,24 @@ namespace ONI_Together.Networking.Transport.Lan
             using var _ = Profiler.Scope();
 
             // Reached either from PeerConnectedEvent or from WaitForConnectionSuccess when
-            // the event failed to arrive; whichever comes second must not run this twice.
-            if (_connectedEventDelivered)
+            // the event failed to arrive. Do not join until the host identity reply is received.
+            if (_transportConnected)
                 return;
+
+            _transportConnected = true;
+            _serverPeer = peer;
+            CompleteConnectionAfterIdentityExchange();
+        }
+
+        private void CompleteConnectionAfterIdentityExchange()
+        {
+            if (!_transportConnected || MultiplayerSession.HostUserID == 0 || _connectedEventDelivered)
+                return;
+
             _connectedEventDelivered = true;
 
-            _serverPeer = peer;
-            CLIENT_ID = (ulong)peer.RemoteId + 2;
-
+            MultiplayerSession.OnConnectedToHost(MultiplayerSession.HostUserID, _serverPeer);
             OnClientConnected?.Invoke();
-            MultiplayerSession.SetHost(1);
-            MultiplayerSession.InActiveSession = true;
-            PacketHandler.readyToProcess = true;
-
-            var host = new MultiplayerPlayer(1) { Connection = peer };
-            MultiplayerSession.ConnectedPlayers[1] = host;
-            MultiplayerSession.KnownPlayerNames[CLIENT_ID] = Utils.GetLocalPlayerName();
-
-            DebugConsole.Log("[LiteNetLibClient] Connected to host! Assigned Client ID: " + CLIENT_ID);
-            Game.Instance?.Trigger(MP_HASHES.OnConnected);
             OnRequestStateOrReturn?.Invoke();
         }
 
@@ -266,9 +270,11 @@ namespace ONI_Together.Networking.Transport.Lan
             using var _ = Profiler.Scope();
 
             _serverPeer = null;
+            _transportConnected = false;
+            _connectedEventDelivered = false;
 
             OnClientDisconnected?.Invoke();
-            MultiplayerSession.ConnectedPlayers.Clear();
+            MultiplayerSession.OnDisconnectedFromHost(null);
 
             var (reason, message) = GetDisconnectInfo(disconnectInfo);
             DebugConsole.Log($"[LiteNetLibClient] Disconnected from server. Reason: {disconnectInfo.Reason} ({reason})");
@@ -318,7 +324,43 @@ namespace ONI_Together.Networking.Transport.Lan
         private void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channelNumber, DeliveryMethod deliveryMethod)
         {
             byte[] rawData = reader.GetRemainingBytes();
+            if (TryHandleHostIdentity(peer, rawData))
+                return;
+
             _incomingPackets.Enqueue(rawData);
+        }
+
+        private bool TryHandleHostIdentity(NetPeer peer, byte[] data)
+        {
+            var identityReader = new NetDataReader(data);
+            if (!identityReader.TryGetString(out string magic) || magic != HostIdentityHandshake)
+                return false;
+
+            if (!identityReader.TryGetULong(out ulong hostId)
+                || hostId == 0
+                || identityReader.AvailableBytes != 0)
+            {
+                DebugConsole.LogError("[LiteNetLibClient] Received malformed host identity response.");
+                peer.Disconnect();
+                return true;
+            }
+
+            ulong currentHostId = MultiplayerSession.HostUserID;
+            if (currentHostId != 0)
+            {
+                // Duplicated handshake packet, consume it and do nothing
+                if (currentHostId == hostId)
+                    return true;
+                
+                
+                DebugConsole.LogError("[LiteNetLibClient] Received conflicting host identity response.");
+                peer.Disconnect();
+                return true;
+            }
+
+            MultiplayerSession.SetHost(hostId);
+            CompleteConnectionAfterIdentityExchange();
+            return true;
         }
 
         private void OnNetworkError(IPEndPoint endPoint, SocketError socketError)
@@ -334,6 +376,7 @@ namespace ONI_Together.Networking.Transport.Lan
             _client?.Stop();
             _serverPeer = null;
             _connectedEventDelivered = false;
+            _transportConnected = false;
             _client = null;
 
             while (_incomingPackets.TryDequeue(out var _)) { }
