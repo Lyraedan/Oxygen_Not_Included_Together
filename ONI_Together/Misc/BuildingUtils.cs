@@ -45,6 +45,7 @@ namespace ONI_Together.Misc
                 var pe = go.GetComponent<PrimaryElement>();
                 if (pe == null || pe.Mass <= 0f) continue;
                 if (!go.TryGetComponent<KPrefabID>(out _)) continue;
+                if (IsProtectedStorageItem(go)) continue;
                 validItems.Add(go);
             }
 
@@ -78,54 +79,71 @@ namespace ONI_Together.Misc
 
         private static void RebuildFromBlob(Storage storage, byte[] blob, string diseaseReason)
         {
-            using var ms = new MemoryStream(blob);
-            using var reader = new BinaryReader(ms);
-
-            float capacityKg = reader.ReadSingle();
-            int count = reader.ReadInt32();
-            ClearStorage(storage);
-            if (count == 0) return;
-
-            for (int i = 0; i < count; i++)
+            // Parse and resolve every prefab before touching the container.
+            var entries = StorageSnapshot.Parse(blob);
+            var prefabs = new GameObject[entries.Count];
+            var elements = new Element[entries.Count];
+            for (int i = 0; i < entries.Count; i++)
             {
-                int hash = reader.ReadInt32();
-                float mass = reader.ReadSingle();
-                float temperature = reader.ReadSingle();
-                byte diseaseIdx = reader.ReadByte();
-                int diseaseCount = reader.ReadInt32();
-                if (mass <= 0f) continue;
-
-                Tag tag = new Tag(hash);
-                Element elementByHash = ElementLoader.GetElement(tag);
-                if (elementByHash != null)
+                var tag = new Tag(entries[i].PrefabHash);
+                elements[i] = ElementLoader.GetElement(tag);
+                if (elements[i] != null)
                 {
-                    storage.AddElement(elementByHash.id, mass, temperature, diseaseIdx, diseaseCount);
+                    if (elements[i].substance == null || elements[i].id == SimHashes.Vacuum)
+                        throw new InvalidDataException("Invalid stored element");
+                    continue;
                 }
+                prefabs[i] = Assets.GetPrefab(tag);
+                if (prefabs[i] == null || !prefabs[i].TryGetComponent<PrimaryElement>(out _) || IsProtectedStorageItem(prefabs[i]))
+                    throw new InvalidDataException("Unknown or protected stored prefab");
+            }
+
+            var existing = storage.items.ToArray();
+            var hashes = new int?[existing.Length];
+            for (int i = 0; i < existing.Length; i++)
+                if (existing[i] != null && !IsProtectedStorageItem(existing[i])
+                    && existing[i].TryGetComponent<KPrefabID>(out var id) && existing[i].TryGetComponent<PrimaryElement>(out _))
+                    hashes[i] = id.PrefabTag.GetHashCode();
+            var matches = StorageSnapshot.Match(hashes, entries);
+            var retained = new HashSet<int>();
+            for (int i = 0; i < entries.Count; i++)
+            {
+                int match = matches[i];
+                var entry = entries[i];
+                var item = match >= 0 ? existing[match]
+                    : elements[i] != null ? elements[i].substance.SpawnResource(storage.transform.position, entry.Mass,
+                        entry.Temperature, entry.DiseaseIdx, entry.DiseaseCount)
+                    : GameUtil.KInstantiate(prefabs[i], storage.transform.position, Grid.SceneLayer.Ore);
+                var pe = item.GetComponent<PrimaryElement>();
+                pe.Mass = entry.Mass;
+                pe.Temperature = entry.Temperature;
+                pe.ModifyDiseaseCount(-pe.DiseaseCount, diseaseReason);
+                if (entry.DiseaseIdx != byte.MaxValue && entry.DiseaseCount > 0)
+                    pe.AddDisease(entry.DiseaseIdx, entry.DiseaseCount, diseaseReason);
+                if (match >= 0) retained.Add(match);
                 else
                 {
-                    var item = Assets.GetPrefab(tag);
-                    if (item == null) continue;
-
-                    var scrapObject = GameUtil.KInstantiate(item, storage.transform.position, Grid.SceneLayer.Ore);
-                    if (scrapObject.TryGetComponent<PrimaryElement>(out var pe))
-                    {
-                        pe.Mass = mass;
-                        pe.Temperature = temperature;
-                        if (diseaseIdx != byte.MaxValue)
-                            pe.AddDisease(diseaseIdx, diseaseCount, diseaseReason);
-                    }
-                    scrapObject.SetActive(true);
-                    storage.Store(scrapObject, true, true);
+                    item.SetActive(true);
+                    // Normal Store absorbs compatible stacks, changing quantities and extra item state.
+                    // The deserialization path keeps the host's individual stacks and matched identities.
+                    storage.Store(item, hide_popups: true, block_events: true, do_disease_transfer: false, is_deserializing: true);
+                    storage.ApplyStoredItemModifiers(item, true, false);
                 }
             }
+            for (int i = 0; i < existing.Length; i++)
+                if (hashes[i].HasValue && !retained.Contains(i))
+                {
+                    storage.Remove(existing[i], false);
+                    existing[i].DeleteObject();
+                }
+            storage.items.RemoveAll(item => item == null || item.IsNullOrDestroyed());
         }
-        
-        private static void ClearStorage(Storage storage)
-        {
-            for (int i = storage.items.Count - 1; i >= 0; i--)
-                storage.items[i].DeleteObject();
-            storage.items.Clear();
-        }
+
+        // Preservation rules adapted from Kyle Yi (younatics)'s PR #175:
+        // https://github.com/Lyraedan/Oxygen_Not_Included_Together/pull/175
+        // The bulk blob cannot describe ownership, suit durability/oxygen, or an animal's life state.
+        private static bool IsProtectedStorageItem(GameObject go) => go != null
+            && (go.GetComponent<Assignable>() != null || go.HasTag(GameTags.Creature));
         
         // UP = Utility Path
         private const int UP_FIRST_CELL_BITS = 22;

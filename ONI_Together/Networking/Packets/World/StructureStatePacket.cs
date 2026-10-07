@@ -17,6 +17,8 @@ namespace ONI_Together.Networking.Packets.World
 
         public int NetId;
         public int Cell;
+        public string SyncerType = string.Empty;
+        public long Revision;
 		public Variant Value; // Joules for Battery, Progress for others
 
 		public Dictionary<string, Variant> OptionalValues = []; // Extra things (such as EnergyGenerator mass, storage amount etc)
@@ -28,6 +30,8 @@ namespace ONI_Together.Networking.Packets.World
 			using var _ = Profiler.Scope();
 
             writer.Write(NetId);
+            writer.Write(SyncerType);
+            writer.Write(Revision);
 			writer.Write(Cell);
             Value.Write(writer);
 			writer.Write(IsActive);
@@ -49,20 +53,13 @@ namespace ONI_Together.Networking.Packets.World
 			using var _ = Profiler.Scope();
 
             NetId = reader.ReadInt32();
+            SyncerType = reader.ReadString();
+            Revision = reader.ReadInt64();
 			Cell = reader.ReadInt32();
 			Value = Variant.Read(reader);
 			IsActive = reader.ReadBoolean();
 
-            int optLen = reader.ReadInt32();
-            byte[] optBlob = reader.ReadBytes(optLen);
-            using var optBr = new BinaryReader(new MemoryStream(optBlob));
-            int length = optBr.ReadInt32();
-            OptionalValues = new Dictionary<string, Variant>(length);
-            for (int i = 0; i < length; i++)
-            {
-                string key = optBr.ReadString();
-                OptionalValues[key] = Variant.Read(optBr);
-            }
+            OptionalValues = StatePacketValues.Read(reader);
         }
 
 		public void OnDispatched()
@@ -77,7 +74,8 @@ namespace ONI_Together.Networking.Packets.World
                 var syncers = identity.GetComponents<StructureSyncerBase>();
                 foreach (var syncer in syncers)
                 {
-                    syncer.HandlePacket(this);
+                    if (syncer.GetType().FullName == SyncerType)
+                        syncer.HandlePacket(this);
                 }
                 /*
                 if(identity.TryGetComponent<StructureSyncerBase>(out var syncer))
