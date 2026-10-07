@@ -5,7 +5,7 @@ namespace ONI_Together.Networking
 {
 	internal static class ProtocolCompatibility
 	{
-		public const int CurrentProtocolVersion = 1;
+		public const int CurrentProtocolVersion = 2;
 
 		private static int? _packetFingerprint;
 		private static string _modVersion;

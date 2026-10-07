@@ -53,7 +53,13 @@ namespace ONI_Together.Misc
                 case TypeCode.Boolean: v.Boolean = reader.ReadBoolean(); break;
                 case TypeCode.Vector3: v.Vector3 = reader.ReadVector3(); break;
                 case TypeCode.Vector2: v.Vector2 = reader.ReadVector2(); break;
-                case TypeCode.ByteArray: v.ByteArray = reader.ReadBytes(reader.ReadInt32()); break;
+                case TypeCode.ByteArray:
+                    int size = reader.ReadInt32();
+                    if (size < 0 || size > reader.BaseStream.Length - reader.BaseStream.Position)
+                        throw new InvalidDataException("Truncated variant byte array");
+                    v.ByteArray = reader.ReadBytes(size);
+                    break;
+                default: throw new InvalidDataException("Unknown variant type");
             }
             return v;
         }

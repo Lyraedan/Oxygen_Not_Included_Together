@@ -137,9 +137,18 @@ namespace ONI_Together.Networking.Transport.Steam
                 byte[] bytes = new byte[msg.m_cbSize];
                 Marshal.Copy(msg.m_pData, bytes, 0, msg.m_cbSize);
 
-                PacketHandler.HandleIncoming(bytes);
-
-                SteamNetworkingMessage_t.Release(messages[i]);
+                try
+                {
+                    PacketHandler.HandleIncoming(bytes, msg.m_identityPeer.GetSteamID64());
+                }
+                catch (Exception ex)
+                {
+                    DebugConsole.LogWarning($"[SteamServer] Failed to handle packet from {msg.m_identityPeer.GetSteamID64()}: {ex}");
+                }
+                finally
+                {
+                    SteamNetworkingMessage_t.Release(messages[i]);
+                }
             }
             scope.End(msgCount, totalBytes);
         }

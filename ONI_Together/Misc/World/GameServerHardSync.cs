@@ -37,6 +37,7 @@ namespace ONI_Together.Networking
 				return;
 			}
 
+            Refresh.ColonyRefreshCoordinator.Instance?.CancelAll();
 			SpeedControlScreen.Instance?.Pause(false); // Pause the game
 			MultiplayerOverlay.Show(STRINGS.UI.MP_OVERLAY.SYNC.HARDSYNC_INPROGRESS);
 
