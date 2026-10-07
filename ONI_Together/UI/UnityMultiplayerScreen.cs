@@ -629,6 +629,20 @@ namespace ONI_Together.UI
 				STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.SERVER_SETTINGS.HARD_SYNC_AT_CYCLE_START)
 				.SetOnFromCode(Configuration.Instance.Host.Server.HardSyncAtCycleStart);
 
+			int interval = Configuration.Instance.HardSyncIntervalCycles;
+			var intervalOptions = new[] { 1, 2, 3, 5, 10, interval }.Distinct().OrderBy(value => value)
+				.Select(value => new FCycle.Option(value.ToString(), value == 1
+					? STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.HARD_SYNC_EVERY_CYCLE.ToString()
+					: string.Format(STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.HARD_SYNC_EVERY_N_CYCLES, value), ""))
+				.ToList();
+			var intervalCycle = AddOrGetLobbySettingsEntry_Cycle("HardSyncInterval", intervalOptions, SetHardSyncInterval,
+				STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.HARD_SYNC_INTERVAL_CYCLES,
+				STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.SERVER_SETTINGS.HARD_SYNC_INTERVAL_CYCLES);
+			intervalCycle.Options = intervalOptions;
+			intervalCycle.SetValueById(interval.ToString());
+			intervalCycle.UpdateLabel();
+			intervalCycle.SetInteractable(Configuration.Instance.HardSyncOnCycleStart);
+
 			AddOrGetLobbySettingsEntry_Toggle("PauseSimOnPlayerLeft", TogglePauseSimOnPlayerLeftSetting,
 				STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.PAUSE_SIM_ON_PLAYER_DISCONNECT,
 				STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.SERVER_SETTINGS.PAUSE_SIM_ON_PLAYER_DISCONNECT)
@@ -640,6 +654,20 @@ namespace ONI_Together.UI
 			var config = Configuration.Instance;
 			config.Host.Server.HardSyncAtCycleStart = hardSyncEnabled;
 			config.Save();
+			Patches.GamePatches.GameClockPatch.UpdateAutomaticHardSyncSettings();
+			if (SettingsCycles.TryGetValue("HardSyncInterval", out var intervalCycle))
+				intervalCycle.SetInteractable(hardSyncEnabled);
+		}
+
+		void SetHardSyncInterval(FCycle.Option option)
+		{
+			if (!int.TryParse(option.id, out int interval))
+				return;
+
+			var config = Configuration.Instance;
+			config.HardSyncIntervalCycles = interval;
+			config.Save();
+			Patches.GamePatches.GameClockPatch.UpdateAutomaticHardSyncSettings();
 		}
 
 		void TogglePauseSimOnPlayerLeftSetting(bool enabled)
