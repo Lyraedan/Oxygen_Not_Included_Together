@@ -6,6 +6,7 @@ using ONI_Together.DebugTools;
 using ONI_Together.Menus;
 using ONI_Together.Misc;
 using ONI_Together.Networking;
+using ONI_Together.Networking.States;
 using ONI_Together.Networking.Transport.Lan;
 using ONI_Together.Networking.Transport.Steamworks;
 using ONI_Together.Patches.ToolPatches;
@@ -150,7 +151,7 @@ namespace ONI_Together.UI
 			HostGame = transform.Find("MainMenu/HostGameButton").gameObject.AddOrGet<FButton>();
 			HostGame.OnClick += () => ShowHostSegment(true);
 			MainCancel = transform.Find("MainMenu/Cancel").gameObject.AddOrGet<FButton>();
-			MainCancel.OnClick += () => Show(false);
+			MainCancel.OnClick += CancelConnectionOrClose;
 			///init tabs
 			SteamTabToggle = transform.Find("MainMenu/JoinViaButtons/Steam").gameObject.AddOrGet<FToggleButton>();
 			SteamTabToggle.OnClick += () => SetJoinVia(JoinMode.Steam);
@@ -401,6 +402,19 @@ namespace ONI_Together.UI
 				StopCoroutine(LobbyRefresh);
 		}
 
+		private void CancelConnectionOrClose()
+		{
+			try
+			{
+				if (GameClient.State == ClientState.Connecting)
+					GameClient.CancelConnectionAttempt();
+			}
+			finally
+			{
+				Show(false);
+			}
+		}
+
 		private void ApplyLocalization()
 		{
 			try
@@ -421,6 +435,7 @@ namespace ONI_Together.UI
 		{
 			if (e.TryConsume(Action.Escape) || e.TryConsume(Action.MouseRight))
 			{
+				CancelConnectionOrClose();
 				this.Show(false);
 			}
 			base.OnKeyDown(e);
@@ -1028,5 +1043,3 @@ namespace ONI_Together.UI
 		}
 	}
 }
-
-

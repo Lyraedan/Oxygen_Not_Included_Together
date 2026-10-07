@@ -1,18 +1,17 @@
-﻿using System;
 using System.IO;
 using ONI_Together.DebugTools;
-using ONI_Together.Networking;
-using ONI_Together.Networking.Overlay;
 using ONI_Together.Misc;
+using ONI_Together.Networking.Overlay;
+using ONI_Together.Networking.States;
 using Shared.Profiling;
 using UnityEngine;
 
 namespace ONI_Together.Networking.Packets.Architecture
 {
-
 	public static class PacketHandler
 	{
 		private static bool _readyToProcess = true;
+		private static long _blockedGameplayReceiveCount;
 
 		/// <summary>
 		/// A client in the frontend receives the host's live broadcasts before it has a world, and
@@ -22,6 +21,7 @@ namespace ONI_Together.Networking.Packets.Architecture
 		public static bool ShouldDispatchWithoutWorld(IPacket packet)
 		{
 			if (MultiplayerSession.IsHost) return true;
+			if (GameClient.State == ClientState.LoadingWorld) return true;
 			if (!Utils.IsInMenu()) return true;
 			return packet is IAllowedWithoutWorldPacket || packet is IModApiPacket;
 		}
@@ -44,7 +44,7 @@ namespace ONI_Together.Networking.Packets.Architecture
 		{
 			using var _ = Profiler.Scope();
 
-			if (!_readyToProcess)
+			if (!_readyToProcess && GameClient.State != ClientState.LoadingWorld)
 			{
 				if (Time.unscaledTime - _notReadySince > NOT_READY_TIMEOUT)
 				{
@@ -58,43 +58,55 @@ namespace ONI_Together.Networking.Packets.Architecture
 			}
 
 			using (var ms = new MemoryStream(data))
+			using (var reader = new BinaryReader(ms))
 			{
-				using (var reader = new BinaryReader(ms))
+				int type = reader.ReadInt32();
+				if (!PacketRegistry.HasRegisteredPacket(type))
 				{
-					int type = (int)reader.ReadInt32();
-                    if (!PacketRegistry.HasRegisteredPacket(type))
-                    {
-                        DebugConsole.LogError($"Invalid PacketType received: {type}", false);
-                        return;
-                    }
+					DebugConsole.LogError($"Invalid PacketType received: {type}", false);
+					return;
+				}
 
-                    using var scope = Profiler.Scope();
+				using var scope = Profiler.Scope();
+				var packet = PacketRegistry.Create(type);
+				packet.Deserialize(reader);
 
-                    var packet = PacketRegistry.Create(type);
-					packet.Deserialize(reader);
+				if (!ShouldDispatchPacket(packet))
+					return;
 
-					if (!ShouldDispatchWithoutWorld(packet))
-						return;
+				Dispatch(packet);
 
-					Dispatch(packet);
+				scope.End(packet.GetType().Name, data.Length);
+				PacketTracker.TrackIncoming(new PacketTracker.PacketTrackData
+				{
+					packet = packet,
+					size = data.Length
+				});
 
-                    scope.End(packet.GetType().Name, data.Length);
-
-                    PacketTracker.TrackIncoming(new PacketTracker.PacketTrackData
-                    {
-						packet = packet,
-						size = data.Length
-                    });
-
-					var tracker = NetIdActivityTracker.Instance;
-					if (tracker != null)
-					{
-						int netId = NetIdActivityTracker.GetNetIdFromPacket(packet);
-						if (netId > 0)
-							tracker.RecordActivity(netId, data.Length);
-					}
-                }
+				var tracker = NetIdActivityTracker.Instance;
+				if (tracker != null)
+				{
+					int netId = NetIdActivityTracker.GetNetIdFromPacket(packet);
+					if (netId > 0)
+						tracker.RecordActivity(netId, data.Length);
+				}
 			}
+		}
+
+		public static bool ShouldDispatchPacket(IPacket packet)
+		{
+			if (!ShouldDispatchWithoutWorld(packet))
+				return false;
+
+			bool synchronizationActive = GameClient.State == ClientState.LoadingWorld
+				|| (MultiplayerSession.IsHost && ReadyManager.IsSynchronizing);
+			if (!synchronizationActive || PacketLoadGate.Allows(packet))
+				return true;
+
+			long blocked = ++_blockedGameplayReceiveCount;
+			if (blocked <= 5 || blocked % 100 == 0)
+				DebugConsole.LogWarning($"[PacketHandler] discarded synchronization-time packet #{blocked} packet={packet.GetType().Name}");
+			return false;
 		}
 
 		private static void Dispatch(IPacket packet)
@@ -104,5 +116,4 @@ namespace ONI_Together.Networking.Packets.Architecture
 			packet.OnDispatched();
 		}
 	}
-
 }

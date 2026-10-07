@@ -85,15 +85,15 @@ public static class SaveHelper
 			return;
 		}
 
-		// Notify host before disconnecting so it can suppress leave/join messages
-		ReadyManager.SendReadyStatusPacket(ClientReadyState.Loading);
+		if (MultiplayerSession.IsClient
+			&& GameClient.State != ClientState.LoadingWorld)
+		{
+			DebugConsole.LogError("[SaveHelper] Aborting save load because the host has not begun synchronization.");
+			return;
+		}
 
-		GameClient.SetState(ClientState.LoadingWorld);
-		GameClient.CacheCurrentServer();
-		GameClient.Disconnect();
-		PacketHandler.readyToProcess = false;
 		NetworkIdentityRegistry.Clear();
-		MultiplayerSession.PlayerCursors.Clear();
+		PacketHandler.readyToProcess = false;
 		MultiplayerOverlay.Show(global::STRINGS.UI.FRONTEND.LOADING);
 
 		CloseWorldUiBeforeReload();
@@ -461,12 +461,13 @@ public static class SaveHelper
 			return;
 		}
 
-		// Notify host before disconnecting so it can suppress leave/join messages
-		ReadyManager.SendReadyStatusPacket(ClientReadyState.Loading);
+		if (GameClient.State != ClientState.LoadingWorld)
+		{
+			DebugConsole.LogError("[SaveHelper] Aborting downloaded save load because the host has not begun synchronization.");
+			return;
+		}
 
-		GameClient.SetState(ClientState.LoadingWorld);
-		GameClient.CacheCurrentServer();
-		GameClient.Disconnect();
+		NetworkIdentityRegistry.Clear();
 		PacketHandler.readyToProcess = false;
 		MultiplayerOverlay.Show(global::STRINGS.UI.FRONTEND.LOADING);
 

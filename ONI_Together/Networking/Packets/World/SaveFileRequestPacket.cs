@@ -1,6 +1,8 @@
 using ONI_Together.DebugTools;
 using ONI_Together.Misc;
+using ONI_Together.Misc.World;
 using ONI_Together.Networking.Packets.Architecture;
+using ONI_Together.Networking.Packets.Core;
 using ONI_Together.Networking.Transport.Lan;
 using ONI_Together.Networking.Transport.Steamworks;
 using Steamworks;
@@ -40,7 +42,24 @@ namespace ONI_Together.Networking.Packets.World
 				return;
 
 			DebugConsole.Log($"[Packets/SaveFileRequest] Received request from {Requester}");
-			MultiplayerOverlay.Show(STRINGS.UI.MP_OVERLAY.HOST.SEND_SAVE_FILE);
+			if (!MultiplayerSession.ConnectedPlayers.TryGetValue(Requester, out MultiplayerPlayer player)
+				|| player.Connection == null
+				|| !player.ProtocolVerified)
+			{
+				DebugConsole.LogWarning($"[Packets/SaveFileRequest] ignored request from unverified or disconnected player {Requester}");
+				return;
+			}
+
+			if (!ReadyManager.IsSynchronizing)
+			{
+				GameServerHardSync.PerformHardSync();
+				return;
+			}
+
+			if (!ReadyManager.AddCurrentParticipant(player))
+				return;
+
+			PacketSender.SendToPlayer(Requester, new HardSyncPacket());
 			SendSaveFile(Requester);
 		}
 
@@ -112,9 +131,9 @@ namespace ONI_Together.Networking.Packets.World
             if (!MultiplayerSession.IsHost)
                 return;
 
-            foreach(var player in MultiplayerSession.ConnectedPlayers)
+            foreach (var player in MultiplayerSession.ConnectedPlayers)
 			{
-				if (player.Key != MultiplayerSession.HostUserID) {
+				if (player.Key != MultiplayerSession.HostUserID && player.Value.Connection != null) {
                     SendSaveFile(player.Key);
                 }
             }

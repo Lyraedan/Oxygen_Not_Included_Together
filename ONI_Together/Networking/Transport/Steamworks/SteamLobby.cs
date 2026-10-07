@@ -275,6 +275,7 @@ namespace ONI_Together.Networking.Transport.Steamworks
 				if (MultiplayerSession.ConnectedPlayers.TryGetValue(userId, out var p))
 					p.Connection = null;
 
+				ReadyManager.CancelPendingJoin(userId);
 				MultiplayerSession.ConnectedPlayers.Remove(userId);
 
 				RefreshLobbyMembers();

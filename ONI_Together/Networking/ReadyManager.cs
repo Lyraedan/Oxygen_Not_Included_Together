@@ -6,11 +6,103 @@ using ONI_Together.Networking.States;
 using ONI_Together.Networking.Transport.Steamworks;
 using Steamworks;
 using Shared.Profiling;
+using System.Collections.Generic;
 
 namespace ONI_Together.Networking
 {
 	public class ReadyManager
 	{
+		private sealed class PendingJoin
+		{
+			public string PlayerName;
+			public ClientReadyState Status;
+		}
+
+		private static readonly Dictionary<ulong, PendingJoin> PendingJoins = new();
+		public static bool IsSynchronizing { get; private set; }
+		public static bool IsSimulationLocked => MultiplayerSession.IsHost
+			? IsSynchronizing
+			: GameClient.State == ClientState.LoadingWorld;
+
+		internal static void ClearPendingJoins()
+		{
+			PendingJoins.Clear();
+			IsSynchronizing = false;
+		}
+
+		public static bool BeginSynchronization()
+		{
+			using var _ = Profiler.Scope();
+
+			if (!MultiplayerSession.IsHost || IsSynchronizing)
+				return false;
+
+			IsSynchronizing = true;
+			SpeedControlScreen.Instance?.Pause(false);
+
+			foreach (MultiplayerPlayer player in MultiplayerSession.ConnectedPlayers.Values)
+			{
+				if (player.PlayerId == MultiplayerSession.HostUserID)
+				{
+					player.readyState = ClientReadyState.Ready;
+					continue;
+				}
+				if (player.Connection == null)
+					continue;
+
+				player.readyState = ClientReadyState.Loading;
+				PacketSender.DiscardPendingGameplayForPlayer(player.PlayerId);
+			}
+
+			RefreshScreen();
+			SendStatusUpdatePacketToClients();
+			return true;
+		}
+
+		internal static bool AddCurrentParticipant(MultiplayerPlayer player)
+		{
+			if (!MultiplayerSession.IsHost || !IsSynchronizing || player == null
+				|| player.PlayerId == 0 || player.PlayerId == MultiplayerSession.HostUserID
+				|| player.Connection == null || !player.ProtocolVerified
+				|| player.readyState != ClientReadyState.Unready)
+			{
+				return false;
+			}
+
+			player.readyState = ClientReadyState.Loading;
+			CompletePendingJoin(player.PlayerId);
+			PacketSender.DiscardPendingGameplayForPlayer(player.PlayerId);
+			RefreshScreen();
+			SendStatusUpdatePacketToClients();
+			return true;
+		}
+
+		internal static void TrackPendingJoin(ulong playerId, string playerName, ClientReadyState status)
+		{
+			if (playerId == 0)
+				return;
+
+			if (!PendingJoins.TryGetValue(playerId, out PendingJoin pendingJoin))
+			{
+				pendingJoin = new PendingJoin();
+				PendingJoins.Add(playerId, pendingJoin);
+			}
+
+			pendingJoin.PlayerName = playerName;
+			pendingJoin.Status = status;
+		}
+
+		internal static void CompletePendingJoin(ulong playerId)
+		{
+			if (playerId != 0)
+				PendingJoins.Remove(playerId);
+		}
+
+		internal static void CancelPendingJoin(ulong playerId)
+		{
+			if (playerId != 0)
+				PendingJoins.Remove(playerId);
+		}
 
 		public static void SetupListeners()
 		{
@@ -25,9 +117,12 @@ namespace ONI_Together.Networking
 
 			if (!MultiplayerSession.IsHost)
 				return;
+			if (!IsSynchronizing || !IsEveryoneReady())
+				return;
 
-			//CoroutineRunner.RunOne(DelayAllReadyBroadcast());
-			PacketSender.SendToAllClients(new AllClientsReadyPacket());
+			PacketSender.SendToAllClients(new AllClientsReadyPacket(), PacketSendMode.Reliable);
+			IsSynchronizing = false;
+			GameServerHardSync.OnSynchronizationCompleted();
 			AllClientsReadyPacket.ProcessAllReady();
 		}
 
@@ -63,26 +158,6 @@ namespace ONI_Together.Networking
 			PacketSender.SendToHost(packet);
 		}
 
-		public static void MarkAllAsUnready()
-		{
-			using var _ = Profiler.Scope();
-
-			if (!MultiplayerSession.IsHost)
-				return;
-
-			if (MultiplayerSession.ConnectedPlayers.TryGetValue(MultiplayerSession.HostUserID, out var host))
-				host.readyState = ClientReadyState.Ready; // Host is always ready
-
-			foreach (MultiplayerPlayer player in MultiplayerSession.ConnectedPlayers.Values)
-			{
-				if (player.PlayerId == MultiplayerSession.HostUserID)
-					continue;
-
-				player.readyState = ClientReadyState.Unready;
-			}
-			RefreshScreen();
-		}
-
 		public static void SetPlayerReadyState(MultiplayerPlayer player, ClientReadyState state)
 		{
 			using var _ = Profiler.Scope();
@@ -109,11 +184,22 @@ namespace ONI_Together.Networking
 			using var _ = Profiler.Scope();
 
 			int readyCount = GetReadyCount();
-			int maxPlayers = MultiplayerSession.ConnectedPlayers.Values.Count;
+			int disconnectedPendingCount = 0;
+			foreach (ulong playerId in PendingJoins.Keys)
+			{
+				if (!MultiplayerSession.ConnectedPlayers.ContainsKey(playerId))
+					disconnectedPendingCount++;
+			}
+			int maxPlayers = MultiplayerSession.ConnectedPlayers.Values.Count + disconnectedPendingCount;
 			string message = string.Format(STRINGS.UI.MP_OVERLAY.SYNC.WAITING_FOR_PLAYERS_SYNC, readyCount, maxPlayers);
 			foreach (MultiplayerPlayer player in MultiplayerSession.ConnectedPlayers.Values)
 			{
 				message += $"{player.PlayerName}: {GetReadyText(player.readyState)}\n";
+			}
+			foreach (KeyValuePair<ulong, PendingJoin> entry in PendingJoins)
+			{
+				if (!MultiplayerSession.ConnectedPlayers.ContainsKey(entry.Key))
+					message += $"{entry.Value.PlayerName}: {GetReadyText(entry.Value.Status)}\n";
 			}
 			return message;
 		}
@@ -143,6 +229,8 @@ namespace ONI_Together.Networking
 					return STRINGS.UI.MP_OVERLAY.SYNC.READYSTATE.READY;
 				case ClientReadyState.Unready:
 					return STRINGS.UI.MP_OVERLAY.SYNC.READYSTATE.UNREADY;
+				case ClientReadyState.Loading:
+					return global::STRINGS.UI.FRONTEND.LOADING;
 			}
 			return STRINGS.UI.MP_OVERLAY.SYNC.READYSTATE.UNKNOWN;
 		}
@@ -166,17 +254,15 @@ namespace ONI_Together.Networking
 		{
 			using var _ = Profiler.Scope();
 
-			bool result = true;
+			if (PendingJoins.Count > 0)
+				return false;
+
 			foreach (MultiplayerPlayer player in MultiplayerSession.ConnectedPlayers.Values)
 			{
-				if (player.readyState == ClientReadyState.Unready)
-				{
-					result = false;
-
-					break;
-				}
+				if (player.readyState != ClientReadyState.Ready)
+					return false;
 			}
-			return result;
+			return true;
 		}
 
 		internal static void RefreshReadyState()
@@ -190,21 +276,11 @@ namespace ONI_Together.Networking
 				return;
 
 			DebugConsole.Log("Refreshing ready state...");
-			if (MultiplayerSession.ConnectedPlayers.Count <= 1)
-			{
-				AllClientsReadyPacket.ProcessAllReady();//bypass sending packet if its just the host left
-				return;
-			}
-
 			bool allReady = ReadyManager.IsEveryoneReady();
-			if (allReady)
+			SendStatusUpdatePacketToClients();
+			if (allReady && IsSynchronizing)
 			{
 				ReadyManager.SendAllReadyPacket();
-			}
-			else
-			{
-				// Broadcast updated overlay message to all clients
-				ReadyManager.SendStatusUpdatePacketToClients();
 			}
 		}
 	}

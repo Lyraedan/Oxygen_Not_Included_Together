@@ -23,6 +23,7 @@ namespace ONI_Together.Networking.Transport.Lan
     public class RiptideClient : TransportClient
     {
         private static Client _client;
+        private static int _connectionGeneration;
         public bool IsLoadingReconnect { get; set; } = false;
 
         public static Client Client
@@ -68,18 +69,21 @@ namespace ONI_Together.Networking.Transport.Lan
 
             MultiplayerSession.ServerIp = ip;
             MultiplayerSession.ServerPort = port;
-            _client = new Client("RiptideClient");
+            int generation = ++_connectionGeneration;
+            Client attemptClient = new Client("RiptideClient");
+            _client = attemptClient;
 
             int timeout = Configuration.Instance.Client.TimeoutSeconds;
-            _client.Connected += OnConnectedToServer;
-            _client.Disconnected += OnDisconnectedFromServer;
-            _client.MessageReceived += OnMessageRecievedFromServer;
-            _client.ClientConnected += OnOtherClientConnected;
-            _client.ClientDisconnected += OnOtherClientDisconnected;
+            float startedAt = Time.realtimeSinceStartup;
+            attemptClient.Connected += OnConnectedToServer;
+            attemptClient.Disconnected += OnDisconnectedFromServer;
+            attemptClient.MessageReceived += OnMessageRecievedFromServer;
+            attemptClient.ClientConnected += OnOtherClientConnected;
+            attemptClient.ClientDisconnected += OnOtherClientDisconnected;
             DebugConsole.Log($"Connecting to {ip}:{port}");
-            CoroutineRunner.RunOne(WaitForConnectionSuccess(timeout));
-            _client.Connect($"{ip}:{port}", useMessageHandlers: false);
-            _client.TimeoutTime = Configuration.Instance.Client.TimeoutSeconds * 1000;
+            CoroutineRunner.RunOne(WaitForConnectionSuccess(attemptClient, generation, timeout, startedAt));
+            attemptClient.Connect($"{ip}:{port}", useMessageHandlers: false);
+            attemptClient.TimeoutTime = Configuration.Instance.Client.TimeoutSeconds * 1000;
         }
 
         private void OnOtherClientDisconnected(object sender, ClientDisconnectedEventArgs e)
@@ -109,6 +113,9 @@ namespace ONI_Together.Networking.Transport.Lan
         private void OnConnectedToServer(object sender, EventArgs e)
         {
             using var _ = Profiler.Scope();
+
+            if (!ReferenceEquals(sender, _client))
+                return;
 
             CLIENT_ID = GetClientID();
             AddClientToList(CLIENT_ID);
@@ -143,6 +150,10 @@ namespace ONI_Together.Networking.Transport.Lan
         {
             using var _ = Profiler.Scope();
 
+            if (!ReferenceEquals(sender, _client))
+                return;
+
+            Client disconnectedClient = (Client)sender;
             RemoveClientFromList(CLIENT_ID);
             CLIENT_ID = Utils.NilUlong();
 
@@ -160,20 +171,23 @@ namespace ONI_Together.Networking.Transport.Lan
                     break;
             }
 
-            CleanupRiptide();
+            CleanupRiptide(disconnectedClient, _connectionGeneration);
         }
 
         public override void Disconnect()
         {
             using var _ = Profiler.Scope();
 
-            if (_client == null)
+            Client client = _client;
+            if (client == null)
                 return;
 
-            if (_client.IsNotConnected)
+            ++_connectionGeneration;
+
+            if (client.IsNotConnected)
                 return;
 
-            _client.Disconnect();
+            client.Disconnect();
         }
 
         public override void OnMessageRecieved()
@@ -454,81 +468,90 @@ namespace ONI_Together.Networking.Transport.Lan
             return NetworkIndicatorsScreen.NetworkState.GOOD;
         }
 
-        IEnumerator WaitForConnectionSuccess(int timeout)
+        IEnumerator WaitForConnectionSuccess(Client attemptClient, int generation, int timeout, float startedAt)
         {
             using var _ = Profiler.Scope();
 
-            float timer = 0f;
-
-            bool wasSuccessful = false;
-            while (timer < timeout)
+            while (Time.realtimeSinceStartup - startedAt < timeout)
             {
-                _client?.Update(); // Update needs to happen during this process so that the client can acknowledge the connection and trigger the Connected event
-                if (_client != null && _client.IsConnected)
+                if (!IsCurrentAttempt(attemptClient, generation))
+                    yield break;
+
+                attemptClient.Update();
+                if (!IsCurrentAttempt(attemptClient, generation))
+                    yield break;
+
+                if (attemptClient.IsConnected)
                 {
                     DebugConsole.Log("[LanClient] Connection successful");
                     MultiplayerOverlay.Close();
-                    wasSuccessful = true;
                     yield break;
                 }
 
-                timer += Time.deltaTime;
+                if (GameClient.State != ClientState.Connecting)
+                    yield break;
+
                 yield return null;
             }
 
-            if (!wasSuccessful)
-            {
-                CleanupRiptide();
+            if (!IsCurrentAttempt(attemptClient, generation) || attemptClient.IsConnected)
+                yield break;
 
-                MultiplayerOverlay.Show(STRINGS.UI.MP_OVERLAY.CLIENT.CONNECTION_FAILED);
-                yield return new WaitForSeconds(3f);
+            if (GameClient.State != ClientState.Connecting)
+                yield break;
+
+            DebugConsole.LogWarning("[LanClient] Connection timed out");
+            OnConnectionFailed?.Invoke();
+
+            int? cleanupGeneration = CleanupRiptide(attemptClient, generation);
+            if (!cleanupGeneration.HasValue)
+                yield break;
+
+            MultiplayerOverlay.Show(STRINGS.UI.MP_OVERLAY.CLIENT.CONNECTION_FAILED);
+            yield return new WaitForSecondsRealtime(3f);
+            if (_connectionGeneration == cleanupGeneration.Value)
                 MultiplayerOverlay.Close();
-            } else
-            {
-                yield return null;
-            }
         }
 
-        void CleanupRiptide()
+        private bool IsCurrentAttempt(Client attemptClient, int generation)
+        {
+            return generation == _connectionGeneration && ReferenceEquals(attemptClient, _client);
+        }
+
+        private int? CleanupRiptide(Client expectedClient, int generation)
         {
             using var _ = Profiler.Scope();
 
-            // Timeout reached — double check we didn't connect at the last frame
-            if (_client != null && !_client.IsConnected)
+            if (!IsCurrentAttempt(expectedClient, generation) || expectedClient.IsConnected)
+                return null;
+
+            int cleanupGeneration = ++_connectionGeneration;
+
+            try
             {
-                DebugConsole.LogWarning("[LanClient] Connection timed out");
+                expectedClient.Connected -= OnConnectedToServer;
+                expectedClient.Disconnected -= OnDisconnectedFromServer;
+                expectedClient.MessageReceived -= OnMessageRecievedFromServer;
+                expectedClient.ClientConnected -= OnOtherClientConnected;
+                expectedClient.ClientDisconnected -= OnOtherClientDisconnected;
+                expectedClient.Disconnect();
 
-                /*
-                if (MultiplayerSession.IsClient)
-                {
-                    // Display lost connection to host and return to the main menu
-                    NetworkConfig.TransportClient.OnReturnToMenu.Invoke("Connection lost.", "Timed out");
-                }
-                */
-
-                try
-                {
-                    _client.Disconnect();
-
-                    _client.Connected -= OnConnectedToServer;
-                    _client.Disconnected -= OnDisconnectedFromServer;
-                    _client.MessageReceived -= OnMessageRecievedFromServer;
-                    _client.ClientConnected -= OnOtherClientConnected;
-                    _client.ClientDisconnected -= OnOtherClientDisconnected;
-
-                    MultiplayerSession.ServerIp = "127.0.0.1";
-                    MultiplayerSession.ServerPort = 7777;
-                }
-                catch (Exception ex)
-                {
-                    Debug.LogWarning($"[LanClient] Error during timeout cleanup: {ex}");
-                }
-
-                _client = null;
+                MultiplayerSession.ServerIp = "127.0.0.1";
+                MultiplayerSession.ServerPort = 7777;
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"[LanClient] Error during timeout cleanup: {ex}");
+            }
+            finally
+            {
+                if (ReferenceEquals(_client, expectedClient))
+                    _client = null;
             }
 
             MultiplayerSession.HostUserID = Utils.NilUlong();
             MultiplayerSession.InActiveSession = false;
+            return cleanupGeneration;
         }
 
         /*IEnumerator Handshake()

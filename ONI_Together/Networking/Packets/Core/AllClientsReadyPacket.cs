@@ -1,7 +1,6 @@
 ﻿using ONI_Together.DebugTools;
 using ONI_Together.Menus;
 using ONI_Together.Networking.Packets.Architecture;
-using System.Collections;
 using System.IO;
 using Shared.Profiling;
 using UnityEngine;
@@ -10,22 +9,20 @@ namespace ONI_Together.Networking.Packets.Core
 {
 	public class AllClientsReadyPacket : IPacket, IAllowedWithoutWorldPacket
 	{
+		public AllClientsReadyPacket() { }
 
-		public void Serialize(BinaryWriter writer)
-		{
-			// No payload needed for now
-		}
+		public void Serialize(BinaryWriter writer) { }
 
-		public void Deserialize(BinaryReader reader)
-		{
-			// No payload to read
-		}
+		public void Deserialize(BinaryReader reader) { }
 
 		public void OnDispatched()
 		{
 			using var _ = Profiler.Scope();
 
-			DebugConsole.Log("[AllClientsReadyPacket] All players are ready! Closing overlay");
+			if (MultiplayerSession.IsHost || !GameClient.CompleteSynchronization())
+				return;
+
+			DebugConsole.Log("[AllClientsReadyPacket] Synchronization completed; closing overlay");
 			ProcessAllReady();
 		}
 
@@ -39,14 +36,5 @@ namespace ONI_Together.Networking.Packets.Core
             //SpeedControlScreen.Instance?.Unpause(false);
 		}
 
-		private static IEnumerator CloseOverlayAfterDelay()
-		{
-			using var _ = Profiler.Scope();
-
-			MultiplayerOverlay.Show(STRINGS.UI.MP_OVERLAY.SYNC.FINALIZING_SYNC);
-			yield return new WaitForSecondsRealtime(1f);
-            MultiplayerOverlay.Close();
-            //SpeedControlScreen.Instance?.Unpause(false);
-		}
 	}
 }

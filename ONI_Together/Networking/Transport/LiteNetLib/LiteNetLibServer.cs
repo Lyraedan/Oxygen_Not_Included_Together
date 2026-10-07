@@ -228,6 +228,8 @@ namespace ONI_Together.Networking.Transport.Lan
                 _clientIdByPeerId.Remove(peer.Id);
                 ClientList.Remove(clientId);
 
+                ReadyManager.CancelPendingJoin(clientId);
+
                 if (MultiplayerSession.ConnectedPlayers.TryGetValue(clientId, out var player))
                 {
                     player.Connection = null;
@@ -334,7 +336,12 @@ namespace ONI_Together.Networking.Transport.Lan
                 _peersByClientId.Remove(clientId);
                 _clientIdByPeerId.Remove(peer.Id);
                 ClientList.Remove(clientId);
+                ReadyManager.CancelPendingJoin(clientId);
+                if (MultiplayerSession.ConnectedPlayers.TryGetValue(clientId, out var player))
+                    player.Connection = null;
                 MultiplayerSession.ConnectedPlayers.Remove(clientId);
+                ReadyManager.RefreshReadyState();
+                MultiplayerSession.RefreshAllPlayerCursors();
                 DebugConsole.Log("[LiteNetLibServer] Kicked client: " + clientId);
             }
         }

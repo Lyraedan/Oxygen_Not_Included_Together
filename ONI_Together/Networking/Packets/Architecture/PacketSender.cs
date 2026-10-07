@@ -76,6 +76,26 @@ namespace ONI_Together.Networking
 		// Packet ids that belong to DragToolPacket subclasses — tagged lazily on first append
 		// so the bulk flush site can record SyncStats.DragTool without needing the typed instance.
 		static HashSet<int> DragToolBulkPacketIds = new HashSet<int>();
+		private static long _blockedLoadingSendCount;
+
+		public static void DiscardPendingGameplayForPlayer(ulong playerId)
+		{
+			if (!MultiplayerSession.ConnectedPlayers.TryGetValue(playerId, out MultiplayerPlayer player)
+				|| player.Connection == null)
+			{
+				return;
+			}
+
+			object connection = player.Connection;
+			if (WaitingBulkPacketsPerReceiver.TryGetValue(connection, out var pendingByType))
+				WaitingBulkPacketsPerReceiver.Remove(connection);
+			if (WaitingBulkPacketBytes.TryGetValue(connection, out var bytesByType))
+				WaitingBulkPacketBytes.Remove(connection);
+
+			int queued = NetworkConfig.TransportPacketSender.DiscardGameplayForConnection(connection);
+			DebugConsole.Log($"[PacketSender] discarded pending gameplay queue PlayerId={playerId} transportPackets={queued}");
+		}
+
 		public static void DispatchPendingBulkPackets()
 		{
 			using var _ = Profiler.Scope();
@@ -133,7 +153,7 @@ namespace ONI_Together.Networking
 			if (DragToolBulkPacketIds.Contains(packetId))
 				SyncStats.RecordSync(SyncStats.DragTool, flushCount, flushBytes, (float)swFlush.Elapsed.TotalMilliseconds);
 		}
-		public static void AppendPendingBulkPacket(object conn, IPacket packet, IBulkablePacket bp)
+		private static void AppendPendingBulkPacket(object conn, IPacket packet, IBulkablePacket bp)
 		{
 			using var _ = Profiler.Scope();
 
@@ -214,6 +234,9 @@ namespace ONI_Together.Networking
 		{
 			using var _ = Profiler.Scope();
 
+			if (!CanSendDuringSynchronization(conn, packet))
+				return false;
+
 			if (packet is IBulkablePacket bp)
 			{
 				AppendPendingBulkPacket(conn, packet, bp);
@@ -232,6 +255,33 @@ namespace ONI_Together.Networking
 			}
 
 			return NetworkConfig.TransportPacketSender.SendToConnection(conn, packet, sendType);
+		}
+
+		private static bool CanSendDuringSynchronization(object connection, IPacket packet)
+		{
+			bool gated = GameClient.State == States.ClientState.LoadingWorld;
+			if (MultiplayerSession.IsHost)
+			{
+				gated = ReadyManager.IsSynchronizing;
+				foreach (MultiplayerPlayer player in MultiplayerSession.ConnectedPlayers.Values)
+				{
+					if (!ReferenceEquals(player.Connection, connection))
+						continue;
+
+					gated |= player.readyState != States.ClientReadyState.Ready;
+					break;
+				}
+			}
+
+			if (!gated)
+				return true;
+			if (PacketLoadGate.Allows(packet))
+				return true;
+
+			long rejected = ++_blockedLoadingSendCount;
+			if (rejected <= 5 || rejected % 100 == 0)
+				DebugConsole.LogWarning($"[PacketSender] blocked synchronization-time send #{rejected} packet={packet.GetType().Name}");
+			return false;
 		}
 
 		/// <summary>
@@ -274,16 +324,16 @@ namespace ONI_Together.Networking
 			return player.ProtocolVerified;
 		}
 
-		public static void SendToHost(IPacket packet, PacketSendMode sendType = PacketSendMode.ReliableImmediate)
+		public static bool SendToHost(IPacket packet, PacketSendMode sendType = PacketSendMode.ReliableImmediate)
 		{
 			using var _ = Profiler.Scope();
 
 			if (!MultiplayerSession.HostUserID.IsValid())
 			{
 				DebugConsole.LogWarning($"[PacketSender] Failed to send to host. Host is invalid.");
-				return;
+				return false;
 			}
-			SendToPlayer(MultiplayerSession.HostUserID, packet, sendType);
+			return SendToPlayer(MultiplayerSession.HostUserID, packet, sendType);
 		}
 
 		// Throttle counter for per-connection send failures so a transport storm

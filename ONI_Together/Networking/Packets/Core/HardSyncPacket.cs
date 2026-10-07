@@ -8,15 +8,11 @@ namespace ONI_Together.Networking.Packets.Core
 {
 	public class HardSyncPacket : IPacket, IAllowedWithoutWorldPacket
 	{
-		public void Serialize(BinaryWriter writer)
-		{
-			// No payload needed
-		}
+		public HardSyncPacket() { }
 
-		public void Deserialize(BinaryReader reader)
-		{
-			// No payload needed
-		}
+		public void Serialize(BinaryWriter writer) { }
+
+		public void Deserialize(BinaryReader reader) { }
 
 		public void OnDispatched()
 		{
@@ -25,23 +21,16 @@ namespace ONI_Together.Networking.Packets.Core
 			if (MultiplayerSession.IsHost)
 				return;
 
-			// Hide all the player cursors on the client as they'll reappear as packets are recieved
+			if (!GameClient.BeginSynchronization())
+				return;
+
+			// Hide cursors until their current positions arrive after synchronization.
 			foreach (PlayerCursor cursor in MultiplayerSession.PlayerCursors.Values)
 			{
 				cursor.SetVisibility(false);
 			}
-
-			Sync();
 			//PauseScreen.TriggerQuitGame();
 		}
 
-		public static void Sync()
-		{
-			using var _ = Profiler.Scope();
-
-			GameClient.IsHardSyncInProgress = true;
-			MultiplayerOverlay.Show(STRINGS.UI.MP_OVERLAY.SYNC.HARDSYNC_INPROGRESS);
-			DebugConsole.Log("[HardSync] Client entering in-place sync, staying connected for save transfer");
-		}
 	}
 }
