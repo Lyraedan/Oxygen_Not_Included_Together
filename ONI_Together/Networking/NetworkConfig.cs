@@ -98,6 +98,7 @@ namespace ONI_Together.Networking
         /// </summary>
         public static void Stop()
         {
+            Patches.GamePatches.GameClockPatch.ResetAutomaticHardSyncSchedule();
             GameClient.IsHardSyncInProgress = false;
 
             switch(transport)

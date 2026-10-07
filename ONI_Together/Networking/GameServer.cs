@@ -33,6 +33,7 @@ namespace ONI_Together.Networking
 			using var _ = Profiler.Scope();
 
 			SetState(ServerState.Preparing);
+			Patches.GamePatches.GameClockPatch.ResetAutomaticHardSyncSchedule();
 
 			NetworkConfig.TransportServer.OnError = () => SetState(ServerState.Error);
 			NetworkConfig.TransportServer.Prepare();
@@ -57,6 +58,7 @@ namespace ONI_Together.Networking
 			using var _ = Profiler.Scope();
 
 			SetState(ServerState.Stopped);
+			Patches.GamePatches.GameClockPatch.ResetAutomaticHardSyncSchedule();
 
 			NetworkConfig.TransportServer.CloseConnections();
 			NetworkConfig.TransportServer.Stop();

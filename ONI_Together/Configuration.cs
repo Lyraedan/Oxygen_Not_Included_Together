@@ -54,6 +54,14 @@ namespace ONI_Together
             set => Host.Server.HardSyncAtCycleStart = value;
         }
 
+        [Option("STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.HARD_SYNC_INTERVAL_CYCLES", "STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.SERVER_SETTINGS.HARD_SYNC_INTERVAL_CYCLES", "STRINGS.UI.CONFIGURATION.HEADERS.A_HOST_SETTINGS")]
+        [JsonIgnore]
+        public int HardSyncIntervalCycles
+        {
+            get => Host.Server.HardSyncIntervalCycles;
+            set => Host.Server.HardSyncIntervalCycles = value;
+        }
+
         [Option("STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.PAUSE_SIM_ON_PLAYER_DISCONNECT", "STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.SERVER_SETTINGS.PAUSE_SIM_ON_PLAYER_DISCONNECT", "STRINGS.UI.CONFIGURATION.HEADERS.A_HOST_SETTINGS")]
         [JsonIgnore]
         public bool PauseSimOnPlayerDisconnect
@@ -195,6 +203,7 @@ namespace ONI_Together
         public void OnOptionsChanged()
         {
             Instance = this;
+            Patches.GamePatches.GameClockPatch.UpdateAutomaticHardSyncSettings();
         }
     }
 
@@ -235,6 +244,15 @@ namespace ONI_Together
     public class ServerSettings
     {
         [JsonProperty] public bool HardSyncAtCycleStart { get; set; } = false;
+        private int hardSyncIntervalCycles = 1;
+
+        [JsonProperty]
+        public int HardSyncIntervalCycles
+        {
+            get => hardSyncIntervalCycles;
+            set => hardSyncIntervalCycles = Math.Max(1, value);
+        }
+
         [JsonProperty] public bool PauseSimOnPlayerDisconnect { get; set; } = false;
     }
 

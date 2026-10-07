@@ -31,6 +31,9 @@ namespace ONI_Together
 						public class SERVER_SETTINGS
 						{
 							public static LocString HARD_SYNC_AT_CYCLE_START = "Hard Sync On Cycle Start";
+							public static LocString HARD_SYNC_INTERVAL_CYCLES = "Hard Sync Interval (cycles)";
+							public static LocString HARD_SYNC_EVERY_CYCLE = "Every cycle";
+							public static LocString HARD_SYNC_EVERY_N_CYCLES = "Every {0} cycles";
 							public static LocString TIMEOUT_SECONDS = "Connection Timeout (seconds)";
 							public static LocString PAUSE_SIM_ON_PLAYER_DISCONNECT = "Pause Simulation On Player Disconnect";
 						}
@@ -71,7 +74,8 @@ namespace ONI_Together
 
                         public class SERVER_SETTINGS
                         {
-                            public static LocString HARD_SYNC_AT_CYCLE_START = "Perform a hard sync at the start of every new cycle\n\nDoes not use up your one hard sync per cycle";
+                            public static LocString HARD_SYNC_AT_CYCLE_START = "Automatically perform a hard sync at cycle start using the configured interval.\n\nDoes not use up your one manual hard sync per cycle.";
+                            public static LocString HARD_SYNC_INTERVAL_CYCLES = "Number of cycle transitions between automatic hard syncs.\nCounting restarts when hosting, loading a save, or changing this setting.\n\nMinimum: 1 (default: 1, every cycle). Manual hard syncs do not change the interval.";
                             public static LocString TIMEOUT_SECONDS = "How long the server waits (in seconds) for a response from a connecting or loading client before timing out.\nIncrease this if your friends take a long time to load into the game.\n\nMinimum: 30. (default: 30)";
                             public static LocString PAUSE_SIM_ON_PLAYER_DISCONNECT = "Automatically pauses the simulation when a player disconnects from the server.";
                         }
