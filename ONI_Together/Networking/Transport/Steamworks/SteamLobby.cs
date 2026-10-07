@@ -36,7 +36,7 @@ namespace ONI_Together.Networking.Transport.Steamworks
 		private static Action<List<LobbyListEntry>> _onLobbyListReceived;
 
 		private static event System.Action _onLobbyCreatedSuccess = null;
-		private static event Action<CSteamID> _onLobbyJoined = null;
+		private static readonly PendingLobbyJoinCallback _pendingLobbyJoin = new();
 		private static string _pendingPassword = null;
 
 		private static event Action<CSteamID> _OnLobbyMembersRefreshed;
@@ -87,6 +87,7 @@ namespace ONI_Together.Networking.Transport.Steamworks
 				DebugConsole.LogWarning("[SteamLobby] Cannot create a new lobby while already in one.");
 				return;
 			}
+			_pendingLobbyJoin.Clear();
 			DebugConsole.Log("[SteamLobby] Creating new lobby...");
 			MaxLobbySize = Configuration.GetHostProperty<int>("MaxLobbySize");
 			_onLobbyCreatedSuccess = onSuccess;
@@ -100,6 +101,7 @@ namespace ONI_Together.Networking.Transport.Steamworks
 			if(!NetworkConfig.IsSteamConfig())
 				return;
 
+			_pendingLobbyJoin.Clear();
 			if (InLobby)
 			{
 				DebugConsole.Log("[SteamLobby] Leaving lobby...");
@@ -215,6 +217,15 @@ namespace ONI_Together.Networking.Transport.Steamworks
 		{
 			using var _ = Profiler.Scope();
 
+			var response = (EChatRoomEnterResponse)callback.m_EChatRoomEnterResponse;
+			if (response != EChatRoomEnterResponse.k_EChatRoomEnterResponseSuccess)
+			{
+				_pendingLobbyJoin.Clear();
+				DebugConsole.LogWarning($"[SteamLobby] Failed to enter lobby {callback.m_ulSteamIDLobby}: {response}");
+				return;
+			}
+
+			var onJoinedLobby = _pendingLobbyJoin.Consume();
 			CurrentLobby = new CSteamID(callback.m_ulSteamIDLobby);
 			DebugConsole.Log($"[SteamLobby] Entered lobby: {CurrentLobby}");
 
@@ -227,7 +238,14 @@ namespace ONI_Together.Networking.Transport.Steamworks
 			}
 
 			SteamRichPresence.SetLobbyInfo(CurrentLobby, "Multiplayer – In Lobby");
-			_onLobbyJoined?.Invoke(CurrentLobby);
+			try
+			{
+				onJoinedLobby?.Invoke(CurrentLobby);
+			}
+			catch (Exception ex)
+			{
+				DebugConsole.LogError($"[SteamLobby] Lobby join callback failed for {CurrentLobby}: {ex}");
+			}
 			RefreshLobbyMembers();
 
 			if (!MultiplayerSession.IsHost && MultiplayerSession.HostUserID.IsValid())
@@ -296,7 +314,7 @@ namespace ONI_Together.Networking.Transport.Steamworks
 				LeaveLobby();
 			}
 
-			_onLobbyJoined = onJoinedLobby;
+			_pendingLobbyJoin.Register(onJoinedLobby);
 			_pendingPassword = password;
 			DebugConsole.Log($"[SteamLobby] Attempting to join lobby: {lobbyId}");
 			SteamMatchmaking.JoinLobby(lobbyId);
