@@ -129,7 +129,6 @@ namespace ONI_Together.Networking.Transport.Lan
             OnClientConnected.Invoke();
             MultiplayerSession.SetHost(1); // Host's client is always 1
             MultiplayerSession.InActiveSession = true;
-            PacketHandler.readyToProcess = true;
 
             // The clients MultiplayerSession.ConnectedPlayers should only ever contain the host
             MultiplayerPlayer host = new MultiplayerPlayer(1);

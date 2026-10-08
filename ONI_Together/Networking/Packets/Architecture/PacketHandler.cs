@@ -4,13 +4,11 @@ using ONI_Together.Misc;
 using ONI_Together.Networking.Overlay;
 using ONI_Together.Networking.States;
 using Shared.Profiling;
-using UnityEngine;
 
 namespace ONI_Together.Networking.Packets.Architecture
 {
 	public static class PacketHandler
 	{
-		private static bool _readyToProcess = true;
 		private static long _blockedGameplayReceiveCount;
 
 		/// <summary>
@@ -26,36 +24,9 @@ namespace ONI_Together.Networking.Packets.Architecture
 			return packet is IAllowedWithoutWorldPacket || packet is IModApiPacket;
 		}
 
-		private static float _notReadySince = float.MaxValue;
-		private const float NOT_READY_TIMEOUT = 60f;
-
-		public static bool readyToProcess
-		{
-			get => _readyToProcess;
-			set
-			{
-				if (!value)
-					_notReadySince = Time.unscaledTime;
-				_readyToProcess = value;
-			}
-		}
-
 		public static void HandleIncoming(byte[] data)
 		{
 			using var _ = Profiler.Scope();
-
-			if (!_readyToProcess && GameClient.State != ClientState.LoadingWorld)
-			{
-				if (Time.unscaledTime - _notReadySince > NOT_READY_TIMEOUT)
-				{
-					DebugConsole.LogWarning($"[PacketHandler] readyToProcess was false for >{NOT_READY_TIMEOUT}s — force-recovering");
-					_readyToProcess = true;
-				}
-				else
-				{
-					return;
-				}
-			}
 
 			using (var ms = new MemoryStream(data))
 			using (var reader = new BinaryReader(ms))
@@ -98,14 +69,17 @@ namespace ONI_Together.Networking.Packets.Architecture
 			if (!ShouldDispatchWithoutWorld(packet))
 				return false;
 
-			bool synchronizationActive = GameClient.State == ClientState.LoadingWorld
-				|| (MultiplayerSession.IsHost && ReadyManager.IsSynchronizing);
-			if (!synchronizationActive || PacketLoadGate.Allows(packet))
+			bool clientGameplayBlocked = !MultiplayerSession.IsHost
+				&& GameClient.State != ClientState.InGame;
+			bool hostSynchronizationActive = MultiplayerSession.IsHost
+				&& ReadyManager.IsSynchronizing;
+			if ((!clientGameplayBlocked && !hostSynchronizationActive)
+				|| PacketLoadGate.Allows(packet))
 				return true;
 
 			long blocked = ++_blockedGameplayReceiveCount;
 			if (blocked <= 5 || blocked % 100 == 0)
-				DebugConsole.LogWarning($"[PacketHandler] discarded synchronization-time packet #{blocked} packet={packet.GetType().Name}");
+				DebugConsole.LogWarning($"[PacketHandler] discarded gameplay-gated packet #{blocked} packet={packet.GetType().Name}");
 			return false;
 		}
 

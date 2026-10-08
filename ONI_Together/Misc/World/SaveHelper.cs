@@ -7,7 +7,6 @@ using ONI_Together.Misc;
 using ONI_Together.Misc.World;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
-using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.States;
 using ONI_Together.Networking.Transport.Steamworks;
 using Steamworks;
@@ -93,7 +92,6 @@ public static class SaveHelper
 		}
 
 		NetworkIdentityRegistry.Clear();
-		PacketHandler.readyToProcess = false;
 		MultiplayerOverlay.Show(global::STRINGS.UI.FRONTEND.LOADING);
 
 		CloseWorldUiBeforeReload();
@@ -451,7 +449,6 @@ public static class SaveHelper
 		}
 
 		NetworkIdentityRegistry.Clear();
-		PacketHandler.readyToProcess = false;
 		MultiplayerOverlay.Show(global::STRINGS.UI.FRONTEND.LOADING);
 
 		CloseWorldUiBeforeReload();

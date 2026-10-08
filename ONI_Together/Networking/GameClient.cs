@@ -364,8 +364,6 @@ namespace ONI_Together.Networking
 			if (Utils.IsInMenu())
 			{
 				DebugConsole.Log("[GameClient] Client is in menu - requesting save file or sending ready status");
-				PacketHandler.readyToProcess = true;
-				DebugConsole.Log("[GameClient] PacketHandler.readyToProcess = true (menu)");
 				MultiplayerOverlay.Show(string.Format(STRINGS.UI.MP_OVERLAY.CLIENT.WAITING_FOR_PLAYER, SteamFriends.GetFriendPersonaName(MultiplayerSession.HostUserID.AsCSteamID())));
 				DebugConsole.Log("[GameClient] Requesting synchronized save file from host");
 				PacketSender.SendToHost(new SaveFileRequestPacket { Requester = MultiplayerSession.LocalUserID });
@@ -392,7 +390,6 @@ namespace ONI_Together.Networking
 					return false;
 			}
 
-			PacketHandler.readyToProcess = false;
 			if (MultiplayerSession.HostUserID.IsValid())
 				PacketSender.DiscardPendingGameplayForPlayer(MultiplayerSession.HostUserID);
 			SpeedControlScreen.Instance?.Pause(false);
@@ -416,7 +413,6 @@ namespace ONI_Together.Networking
 			if (_state != ClientState.LoadingWorld)
 				return false;
 
-			PacketHandler.readyToProcess = true;
 			TransitionResult transition = Handle(ClientEvent.SynchronizationCompleted);
 			if (!transition.Success)
 			{

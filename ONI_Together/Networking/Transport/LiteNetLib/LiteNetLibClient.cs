@@ -259,7 +259,6 @@ namespace ONI_Together.Networking.Transport.Lan
             OnClientConnected?.Invoke();
             MultiplayerSession.SetHost(1);
             MultiplayerSession.InActiveSession = true;
-            PacketHandler.readyToProcess = true;
 
             var host = new MultiplayerPlayer(1) { Connection = peer };
             host.readyState = ClientReadyState.Ready;

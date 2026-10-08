@@ -163,7 +163,6 @@ namespace ONI_Together.Networking.Transport.Steam
 
                 try
                 {
-                    //DebugConsole.Log($"[GameClient] Processing packet {i+1}/{msgCount}, size: {msg.m_cbSize} bytes, readyToProcess: {PacketHandler.readyToProcess}");
                     PacketHandler.HandleIncoming(data);
                 }
                 catch (Exception ex)
@@ -234,7 +233,6 @@ namespace ONI_Together.Networking.Transport.Steam
 				return;
 			}
 
-			PacketHandler.readyToProcess = true;
 			NetworkConfig.TransportClient.OnRequestStateOrReturn.Invoke();
 		}
 
