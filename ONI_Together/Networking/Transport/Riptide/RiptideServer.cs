@@ -165,7 +165,6 @@ namespace ONI_Together.Networking.Transport.Lan
             ulong clientId = e.Client.Id;
 
             RemoveClientFromList(clientId);
-            ReadyManager.CancelPendingJoin(clientId);
 
             if (MultiplayerSession.ConnectedPlayers.TryGetValue(clientId, out MultiplayerPlayer player))
             {

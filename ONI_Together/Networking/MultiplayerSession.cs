@@ -94,7 +94,7 @@ namespace ONI_Together.Networking
 			using var _ = Profiler.Scope();
 
 			ConnectedPlayers.Clear();
-			ReadyManager.ClearPendingJoins();
+			ReadyManager.ResetSynchronizationState();
 			KnownPlayerNames.Clear();
 			HostUserID = Utils.NilUlong();
 			WorkProgressPatch.ClearTracking();

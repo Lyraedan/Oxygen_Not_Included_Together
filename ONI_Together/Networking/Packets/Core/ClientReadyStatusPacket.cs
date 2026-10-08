@@ -102,10 +102,6 @@ namespace ONI_Together.Networking.Packets.Core
 				player.PlayerName = PlayerName;
 
 			ReadyManager.SetPlayerReadyState(player, Status);
-			if (Status == ClientReadyState.Unready)
-				ReadyManager.TrackPendingJoin(player.PlayerId, player.PlayerName, Status);
-			else if (Status == ClientReadyState.Ready)
-				ReadyManager.CompletePendingJoin(player.PlayerId);
 
 			DebugConsole.Log($"[ClientReadyStatusPacket] {SenderId} marked as {Status}");
 

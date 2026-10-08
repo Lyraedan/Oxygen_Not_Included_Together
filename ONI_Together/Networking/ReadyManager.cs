@@ -6,27 +6,18 @@ using ONI_Together.Networking.States;
 using ONI_Together.Networking.Transport.Steamworks;
 using Steamworks;
 using Shared.Profiling;
-using System.Collections.Generic;
 
 namespace ONI_Together.Networking
 {
 	public class ReadyManager
 	{
-		private sealed class PendingJoin
-		{
-			public string PlayerName;
-			public ClientReadyState Status;
-		}
-
-		private static readonly Dictionary<ulong, PendingJoin> PendingJoins = new();
 		public static bool IsSynchronizing { get; private set; }
 		public static bool IsSimulationLocked => MultiplayerSession.IsHost
 			? IsSynchronizing
 			: GameClient.State == ClientState.LoadingWorld;
 
-		internal static void ClearPendingJoins()
+		internal static void ResetSynchronizationState()
 		{
-			PendingJoins.Clear();
 			IsSynchronizing = false;
 		}
 
@@ -70,38 +61,10 @@ namespace ONI_Together.Networking
 			}
 
 			player.readyState = ClientReadyState.Loading;
-			CompletePendingJoin(player.PlayerId);
 			PacketSender.DiscardPendingGameplayForPlayer(player.PlayerId);
 			RefreshScreen();
 			SendStatusUpdatePacketToClients();
 			return true;
-		}
-
-		internal static void TrackPendingJoin(ulong playerId, string playerName, ClientReadyState status)
-		{
-			if (playerId == 0)
-				return;
-
-			if (!PendingJoins.TryGetValue(playerId, out PendingJoin pendingJoin))
-			{
-				pendingJoin = new PendingJoin();
-				PendingJoins.Add(playerId, pendingJoin);
-			}
-
-			pendingJoin.PlayerName = playerName;
-			pendingJoin.Status = status;
-		}
-
-		internal static void CompletePendingJoin(ulong playerId)
-		{
-			if (playerId != 0)
-				PendingJoins.Remove(playerId);
-		}
-
-		internal static void CancelPendingJoin(ulong playerId)
-		{
-			if (playerId != 0)
-				PendingJoins.Remove(playerId);
 		}
 
 		public static void SetupListeners()
@@ -184,22 +147,11 @@ namespace ONI_Together.Networking
 			using var _ = Profiler.Scope();
 
 			int readyCount = GetReadyCount();
-			int disconnectedPendingCount = 0;
-			foreach (ulong playerId in PendingJoins.Keys)
-			{
-				if (!MultiplayerSession.ConnectedPlayers.ContainsKey(playerId))
-					disconnectedPendingCount++;
-			}
-			int maxPlayers = MultiplayerSession.ConnectedPlayers.Values.Count + disconnectedPendingCount;
+			int maxPlayers = MultiplayerSession.ConnectedPlayers.Count;
 			string message = string.Format(STRINGS.UI.MP_OVERLAY.SYNC.WAITING_FOR_PLAYERS_SYNC, readyCount, maxPlayers);
 			foreach (MultiplayerPlayer player in MultiplayerSession.ConnectedPlayers.Values)
 			{
 				message += $"{player.PlayerName}: {GetReadyText(player.readyState)}\n";
-			}
-			foreach (KeyValuePair<ulong, PendingJoin> entry in PendingJoins)
-			{
-				if (!MultiplayerSession.ConnectedPlayers.ContainsKey(entry.Key))
-					message += $"{entry.Value.PlayerName}: {GetReadyText(entry.Value.Status)}\n";
 			}
 			return message;
 		}
@@ -253,9 +205,6 @@ namespace ONI_Together.Networking
 		public static bool IsEveryoneReady()
 		{
 			using var _ = Profiler.Scope();
-
-			if (PendingJoins.Count > 0)
-				return false;
 
 			foreach (MultiplayerPlayer player in MultiplayerSession.ConnectedPlayers.Values)
 			{
