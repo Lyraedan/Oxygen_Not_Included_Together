@@ -30,9 +30,9 @@ namespace ONI_Together.Networking.Transport.Lan
         ///
         /// The mod only learns it is connected from LiteNetLib's PeerConnectedEvent, which
         /// is delivered by PollEvents. Twice in one evening the host accepted a client's
-        /// reconnect after a world load within half a second - "Remote client connected" in
-        /// the host log - and the client's event arrived 3.5 seconds later in one case and
-        /// never in the other, although Unity was updating and PollEvents was being called.
+        /// connection within half a second - "Remote client connected" in the host log - and
+        /// the client's event arrived 3.5 seconds later in one case and never in the other,
+        /// although Unity was updating and PollEvents was being called.
         /// The peer's own ConnectionState said Connected the whole time. This flag lets
         /// WaitForConnectionSuccess tell that apart from a connection that is still pending.
         /// </summary>
@@ -51,8 +51,6 @@ namespace ONI_Together.Networking.Transport.Lan
 
         public bool IsConnected => _serverPeer != null && _serverPeer.ConnectionState == ConnectionState.Connected;
         public static int MaxServerCapacity { get; internal set; } = 16;
-        public bool IsLoadingReconnect { get; set; }
-
         private static readonly ConcurrentQueue<byte[]> _incomingPackets = new ConcurrentQueue<byte[]>();
 
         // Network health
@@ -264,6 +262,7 @@ namespace ONI_Together.Networking.Transport.Lan
             PacketHandler.readyToProcess = true;
 
             var host = new MultiplayerPlayer(1) { Connection = peer };
+            host.readyState = ClientReadyState.Ready;
             MultiplayerSession.ConnectedPlayers[1] = host;
             MultiplayerSession.KnownPlayerNames[CLIENT_ID] = Utils.GetLocalPlayerName();
 

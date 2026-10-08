@@ -62,8 +62,7 @@ namespace ONI_Together.Networking
         }
 
 		/// <summary>
-		/// Returns true if we have cached connection info from a previous session
-		/// (used to determine if we need to reconnect after world load)
+		/// Returns true if connection info has been cached.
 		/// </summary>
 		public static bool HasCachedConnection()
 		{
@@ -73,7 +72,7 @@ namespace ONI_Together.Networking
 		}
 
 		/// <summary>
-		/// Clears the cached connection info after successful reconnection or on error
+		/// Clears cached connection info after the connection flow completes or fails.
 		/// </summary>
 		public static void ClearCachedConnection()
 		{

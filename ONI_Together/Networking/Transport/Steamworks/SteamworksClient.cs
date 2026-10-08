@@ -227,6 +227,7 @@ namespace ONI_Together.Networking.Transport.Steam
             }
 
             // Store the connection handle for host
+            MultiplayerSession.ConnectedPlayers[hostId].readyState = ClientReadyState.Ready;
             MultiplayerSession.ConnectedPlayers[hostId].Connection = Connection;
 
             DebugConsole.Log("[GameClient] Connection to host established!");

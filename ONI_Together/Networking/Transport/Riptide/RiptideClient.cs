@@ -24,8 +24,6 @@ namespace ONI_Together.Networking.Transport.Lan
     {
         private static Client _client;
         private static int _connectionGeneration;
-        public bool IsLoadingReconnect { get; set; } = false;
-
         public static Client Client
         {
             get { return _client; }
@@ -135,6 +133,7 @@ namespace ONI_Together.Networking.Transport.Lan
 
             // The clients MultiplayerSession.ConnectedPlayers should only ever contain the host
             MultiplayerPlayer host = new MultiplayerPlayer(1);
+            host.readyState = ClientReadyState.Ready;
             host.Connection = conn;
             MultiplayerSession.ConnectedPlayers.Add(1, host);
 
@@ -327,16 +326,9 @@ namespace ONI_Together.Networking.Transport.Lan
 
             ClientList.Remove(id);
 
-            if (id == CLIENT_ID && GameClient.State == ClientState.LoadingWorld)
-            {
-                IsLoadingReconnect = true;
-            }
-            else
-            {
-                string name = MultiplayerSession.KnownPlayerNames.TryGetValue(id, out var cached) ? cached : $"Player {id}";
-                OxySyncChat.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_LEFT, name));
-                Utils.PauseSimOnPlayerLeft();
-			}
+            string name = MultiplayerSession.KnownPlayerNames.TryGetValue(id, out var cached) ? cached : $"Player {id}";
+            OxySyncChat.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_LEFT, name));
+            Utils.PauseSimOnPlayerLeft();
 			var boxedId = Boxed<ulong>.Get(id);
 			Game.Instance?.Trigger(MP_HASHES.OnPlayerLeft, boxedId);
             boxedId.Release();

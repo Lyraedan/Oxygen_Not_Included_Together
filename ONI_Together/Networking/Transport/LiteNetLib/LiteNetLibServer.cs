@@ -36,9 +36,6 @@ namespace ONI_Together.Networking.Transport.Lan
         public int ConnectedClientCount => _server != null ? _server.ConnectedPeersCount : 0;
         public TcpFileTransferServer TcpTransfer => _tcpTransfer;
 
-        public void MarkClientLoading(ulong clientId) { }
-        public bool ConsumeReconnectFromLoad(ulong clientId) { return false; }
-
         public List<ulong> ClientList { get; internal set; } = new List<ulong>();
 
         // Bandwidth and PPS tracking
@@ -133,6 +130,7 @@ namespace ONI_Together.Networking.Transport.Lan
                 hostPlayer.PlayerName = Utils.GetLocalPlayerName();
                 hostPlayer.Connection = null;
             }
+            hostPlayer.readyState = ClientReadyState.Ready;
             MultiplayerSession.KnownPlayerNames[1] = hostPlayer.PlayerName;
 
             OxySyncChat.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, hostPlayer.PlayerName));

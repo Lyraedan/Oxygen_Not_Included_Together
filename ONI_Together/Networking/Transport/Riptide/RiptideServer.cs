@@ -3,6 +3,7 @@ using Riptide;
 using Riptide.Utils;
 using ONI_Together.DebugTools;
 using ONI_Together.Misc;
+using ONI_Together.Networking.States;
 using ONI_Together.Networking.Packets.Architecture;
 using Shared.Profiling;
 using ONI_Together.Networking.Transfer;
@@ -21,10 +22,6 @@ namespace ONI_Together.Networking.Transport.Lan
         private static Server _server;
         private static Client _client; // Server client (Other users will use GameClient)
         private TcpFileTransferServer _tcpTransfer;
-        private Dictionary<ulong, float> _loadingClients = new Dictionary<ulong, float>();
-        private List<ulong> _expiredLoadingClients = new List<ulong>();
-        private HashSet<ulong> _reconnectedFromLoad = new HashSet<ulong>();
-
         public TcpFileTransferServer TcpTransfer => _tcpTransfer;
 
         public static Server ServerInstance
@@ -115,6 +112,8 @@ namespace ONI_Together.Networking.Transport.Lan
             DebugConsole.Log("[RiptideServer] Host client connected to server!");
             MultiplayerSession.SetHost(GetClientID());
             MultiplayerSession.InActiveSession = true;
+            if (MultiplayerSession.ConnectedPlayers.TryGetValue(CLIENT_ID, out var hostPlayer))
+                hostPlayer.readyState = ClientReadyState.Ready;
 
             string hostName = Utils.GetLocalPlayerName();
             OxySyncChat.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, hostName));
@@ -149,9 +148,10 @@ namespace ONI_Together.Networking.Transport.Lan
             e.Client.MaxAvgSendAttempts = 12;
             e.Client.AvgSendAttemptsResilience = 128;
 
-            if (clientId == CLIENT_ID)
+            if (clientId == CLIENT_ID || clientId == MultiplayerSession.HostUserID)
             {
                 player.PlayerName = Utils.GetLocalPlayerName();
+                player.readyState = ClientReadyState.Ready;
             }
 
             AddClientToList(e.Client.Id);
@@ -320,33 +320,6 @@ namespace ONI_Together.Networking.Transport.Lan
             _server?.Update();
             _client?.Update();
             UpdateServerBandwidth();
-
-            if (_loadingClients.Count > 0)
-            {
-                float now = UnityEngine.Time.unscaledTime;
-                _expiredLoadingClients.Clear();
-                foreach (var kvp in _loadingClients)
-                {
-                    if (now - kvp.Value > Configuration.Instance.Host.TimeoutSeconds)
-                    {
-                        _expiredLoadingClients.Add(kvp.Key);
-                    }
-                }
-                foreach (var id in _expiredLoadingClients)
-                {
-                    _loadingClients.Remove(id);
-                }
-            }
-        }
-
-        public bool ConsumeReconnectFromLoad(ulong id)
-        {
-            return _reconnectedFromLoad.Remove(id);
-        }
-
-        public void MarkClientLoading(ulong id)
-        {
-            _loadingClients[id] = UnityEngine.Time.unscaledTime;
         }
 
         public void AddClientToList(ulong id)
@@ -357,15 +330,6 @@ namespace ONI_Together.Networking.Transport.Lan
                 return;
 
             ClientList.Add(id);
-
-            // A loading client reconnects with a new Riptide ID, so we consume one loading entry
-            if (_loadingClients.Count > 0)
-            {
-                var enumerator = _loadingClients.GetEnumerator();
-                enumerator.MoveNext();
-                _loadingClients.Remove(enumerator.Current.Key);
-                _reconnectedFromLoad.Add(id);
-			}
 			var boxedId = Boxed<ulong>.Get(id);
 			Game.Instance?.Trigger(MP_HASHES.OnPlayerJoined,boxedId);
             boxedId.Release();
@@ -379,13 +343,9 @@ namespace ONI_Together.Networking.Transport.Lan
                 return;
 
             ClientList.Remove(id);
-
-            if (!_loadingClients.ContainsKey(id))
-            {
-                string name = MultiplayerSession.GetPlayer(id)?.PlayerName ?? $"Player {id}";
-                OxySyncChat.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_LEFT, name));
-                Utils.PauseSimOnPlayerLeft();
-			}
+            string name = MultiplayerSession.GetPlayer(id)?.PlayerName ?? $"Player {id}";
+            OxySyncChat.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_LEFT, name));
+            Utils.PauseSimOnPlayerLeft();
 			var boxedId = Boxed<ulong>.Get(id);
 			Game.Instance?.Trigger(MP_HASHES.OnPlayerLeft, boxedId);
             boxedId.Release();
