@@ -11,30 +11,6 @@ namespace ONI_Together.Networking.Transport
         private readonly Dictionary<object, Queue<(IPacket packet, PacketSendMode sendMode)>> _pendingQueues = new Dictionary<object, Queue<(IPacket packet, PacketSendMode sendMode)>>();
         private readonly List<object> _emptyConnections = new List<object>();
 
-        public int DiscardGameplayForConnection(object connection)
-        {
-            if (!_pendingQueues.TryGetValue(connection, out Queue<(IPacket packet, PacketSendMode sendMode)> queue))
-                return 0;
-
-            int discarded = 0;
-            var retained = new Queue<(IPacket packet, PacketSendMode sendMode)>();
-            while (queue.Count > 0)
-            {
-                var pending = queue.Dequeue();
-                if (pending.packet is IAllowedWithoutWorldPacket)
-                    retained.Enqueue(pending);
-                else
-                    discarded++;
-            }
-
-            if (retained.Count == 0)
-                _pendingQueues.Remove(connection);
-            else
-                _pendingQueues[connection] = retained;
-
-            return discarded;
-        }
-
         public bool SendToConnection(object conn, IPacket packet, PacketSendMode sendType = PacketSendMode.ReliableImmediate)
         {
 			// Never put latency-sensitive snapshots behind reliable state traffic.

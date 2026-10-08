@@ -19,8 +19,6 @@ namespace ONI_Together.Networking.Packets.World
 	{
 		public ulong Requester;
 
-		public const float SAVE_DATA_SEND_DELAY = 0.05f;
-
 		public void Serialize(BinaryWriter writer)
 		{
 			using var _ = Profiler.Scope();

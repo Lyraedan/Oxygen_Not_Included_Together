@@ -37,7 +37,7 @@ namespace ONI_Together.Networking
 			switch (evt)
 			{
 				case ClientEvent.BeginConnect:
-					if (_state == ClientState.Disconnected || _state == ClientState.LoadingWorld)
+					if (_state == ClientState.Disconnected)
 						nextState = ClientState.Connecting;
 					else
 						return RejectTransition(evt, $"Cannot begin connecting while in {_state} state.");
