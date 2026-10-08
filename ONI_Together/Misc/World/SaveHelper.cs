@@ -423,23 +423,6 @@ public static class SaveHelper
 		return File.ReadAllBytes(path);
 	}
 
-	/// <summary>
-	/// Saves the current world snapshot
-	/// </summary>
-	public static void CaptureWorldSnapshot()
-	{
-		using var _ = Profiler.Scope();
-
-		if (Utils.IsInMenu())
-		{
-			// We are not in game, ignore
-			return;
-		}
-
-		var path = SaveLoader.GetActiveSaveFilePath();
-		SaveLoader.Instance.Save(path); // Saves current state to that file
-	}
-
 	public static void LoadDownloadedSave(string fileName)
 	{
 		using var _ = Profiler.Scope();

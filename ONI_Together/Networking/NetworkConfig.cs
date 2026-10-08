@@ -106,8 +106,7 @@ namespace ONI_Together.Networking
                 && (MultiplayerSession.IsClient
                     || GameClient.State == ClientState.Connecting
                     || GameClient.State == ClientState.Connected
-                    || GameClient.State == ClientState.InGame
-                    || GameClient.State == ClientState.Error);
+                    || GameClient.State == ClientState.InGame);
             switch(transport)
             {
                 case NetworkTransport.STEAMWORKS:

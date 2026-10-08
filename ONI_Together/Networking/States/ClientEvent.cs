@@ -2,13 +2,12 @@ namespace ONI_Together.Networking.States
 {
 	public enum ClientEvent
 	{
-		None = 0,
-		BeginConnect,
-		CancelConnect,
-		ConnectionFailed,
-		TransportConnected,
-		WorldLoadStarted,
-		ConnectionFlowCompleted,
-		TransportDisconnected
+		BeginConnect = 1,
+		CancelConnect = 2,
+		ConnectionFailed = 3,
+		TransportConnected = 4,
+		WorldLoadStarted = 5,
+		SynchronizationCompleted = 6,
+		TransportDisconnected = 7
 	}
 }

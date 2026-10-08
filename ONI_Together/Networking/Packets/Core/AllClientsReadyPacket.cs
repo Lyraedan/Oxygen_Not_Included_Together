@@ -30,7 +30,6 @@ namespace ONI_Together.Networking.Packets.Core
 		{
 			using var _ = Profiler.Scope();
 
-			//CoroutineRunner.RunOne(CloseOverlayAfterDelay());
 			MultiplayerOverlay.Show(STRINGS.UI.MP_OVERLAY.SYNC.FINALIZING_SYNC);
             MultiplayerOverlay.Close();
             //SpeedControlScreen.Instance?.Unpause(false);

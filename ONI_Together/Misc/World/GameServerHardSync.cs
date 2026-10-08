@@ -16,9 +16,21 @@ namespace ONI_Together.Networking
 		{
 			using var _ = Profiler.Scope();
 
-			if (!ReadyManager.BeginSynchronization())
+			if (!MultiplayerSession.IsHost)
+			{
+				DebugConsole.LogWarning("[HardSync] Only the host can start synchronization.");
+				return;
+			}
+
+			if (ReadyManager.IsSynchronizing)
 			{
 				DebugConsole.Log("[HardSync] Synchronization is already in progress.");
+				return;
+			}
+
+			if (!ReadyManager.BeginSynchronization())
+			{
+				DebugConsole.LogWarning("[HardSync] Could not start synchronization.");
 				return;
 			}
 

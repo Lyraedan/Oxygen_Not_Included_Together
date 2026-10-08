@@ -89,7 +89,6 @@ namespace ONI_Together.Networking.Transport.Steam
                 Connection = null;
 
                 MultiplayerSession.InActiveSession = false;
-                //SaveHelper.CaptureWorldSnapshot();
             }
             else
             {
@@ -212,9 +211,6 @@ namespace ONI_Together.Networking.Transport.Steam
         {
             using var _ = Profiler.Scope();
 
-            //MultiplayerOverlay.Close();
-
-            // We've reconnected in game
             MultiplayerSession.InActiveSession = true;
             Game.Instance?.Trigger(MP_HASHES.OnConnected);
             NetworkConfig.TransportClient.OnClientConnected.Invoke();
