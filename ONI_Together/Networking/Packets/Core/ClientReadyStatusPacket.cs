@@ -86,7 +86,8 @@ namespace ONI_Together.Networking.Packets.Core
 				if (player.readyState == ClientReadyState.Ready)
 					return;
 
-				if (!ReadyManager.IsSynchronizing || player.readyState != ClientReadyState.Loading)
+				if (!ReadyManager.IsSynchronizing
+					|| player.readyState != ClientReadyState.Loading)
 				{
 					DebugConsole.LogWarning($"[ClientReadyStatusPacket] rejected Ready for PlayerId={SenderId} while synchronization={ReadyManager.IsSynchronizing} state={player.readyState}");
 					return;

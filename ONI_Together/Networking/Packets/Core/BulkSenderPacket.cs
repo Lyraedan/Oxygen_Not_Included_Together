@@ -13,7 +13,7 @@ using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.Core
 {
-	internal class BulkSenderPacket : IPacket, IAllowedWithoutWorldPacket
+	internal class BulkSenderPacket : IPacket
 	{
 		public BulkSenderPacket() { }
 		public BulkSenderPacket(int packetId, List<byte[]> innerData)
@@ -74,9 +74,7 @@ namespace ONI_Together.Networking.Packets.Core
 				var ms = new MemoryStream(packetData);
 				var reader = new BinaryReader(ms);
 				innerPacket.Deserialize(reader);
-				// Inner packets bypass HandleIncoming, so the no-world gate is applied here too.
-				if (PacketHandler.ShouldDispatchWithoutWorld(innerPacket))
-					innerPacket.OnDispatched();
+				innerPacket.OnDispatched();
 				reader.Dispose();
 				ms.Dispose();
 			}

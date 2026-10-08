@@ -9,11 +9,16 @@ namespace ONI_Together.Networking.Packets.Core
 {
 	public class AllClientsReadyPacket : IPacket, IAllowedWithoutWorldPacket
 	{
-		public AllClientsReadyPacket() { }
 
-		public void Serialize(BinaryWriter writer) { }
+		public void Serialize(BinaryWriter writer)
+		{
+			// No payload needed for now
+		}
 
-		public void Deserialize(BinaryReader reader) { }
+		public void Deserialize(BinaryReader reader)
+		{
+			// No payload to read
+		}
 
 		public void OnDispatched()
 		{
@@ -32,7 +37,6 @@ namespace ONI_Together.Networking.Packets.Core
 
 			MultiplayerOverlay.Show(STRINGS.UI.MP_OVERLAY.SYNC.FINALIZING_SYNC);
             MultiplayerOverlay.Close();
-            //SpeedControlScreen.Instance?.Unpause(false);
 		}
 
 	}

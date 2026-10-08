@@ -84,8 +84,7 @@ public static class SaveHelper
 			return;
 		}
 
-		if (MultiplayerSession.IsClient
-			&& GameClient.State != ClientState.LoadingWorld)
+		if (MultiplayerSession.IsClient && GameClient.State != ClientState.LoadingWorld)
 		{
 			DebugConsole.LogError("[SaveHelper] Aborting save load because the host has not begun synchronization.");
 			return;

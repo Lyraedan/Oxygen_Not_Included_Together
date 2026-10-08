@@ -259,7 +259,7 @@ namespace ONI_Together.Networking
 
 		private static bool CanSendDuringSynchronization(object connection, IPacket packet)
 		{
-			bool gated = GameClient.State == States.ClientState.LoadingWorld;
+			bool gated;
 			if (MultiplayerSession.IsHost)
 			{
 				gated = ReadyManager.IsSynchronizing;
@@ -272,10 +272,14 @@ namespace ONI_Together.Networking
 					break;
 				}
 			}
+			else
+			{
+				gated = GameClient.State != States.ClientState.InGame;
+			}
 
 			if (!gated)
 				return true;
-			if (PacketLoadGate.Allows(packet))
+			if (packet is IAllowedWithoutWorldPacket)
 				return true;
 
 			long rejected = ++_blockedLoadingSendCount;

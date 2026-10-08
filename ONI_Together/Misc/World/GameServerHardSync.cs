@@ -1,16 +1,24 @@
 using ONI_Together.DebugTools;
 using ONI_Together.Menus;
 using ONI_Together.Networking.Packets.Core;
+using ONI_Together.Networking.States;
 using ONI_Together.Networking.Packets.World;
+using System;
+using System.Collections;
 using Shared.Profiling;
+using UnityEngine;
 
 namespace ONI_Together.Networking
 {
 	public static class GameServerHardSync
 	{
+		private const float ClientTrafficDrainSeconds = 0.15f;
+		private static byte[] _synchronizationSnapshot;
+
 		public static bool hardSyncDoneThisCycle = false;
 		private static bool _consumeDailyUse;
 		public static bool IsHardSyncInProgress => ReadyManager.IsSynchronizing;
+		internal static byte[] SynchronizationSnapshot => _synchronizationSnapshot;
 
 		public static void PerformHardSync(bool consumeDailyUse = false)
 		{
@@ -42,7 +50,8 @@ namespace ONI_Together.Networking
 				if (player.PlayerId == MultiplayerSession.HostUserID)
 					continue;
 
-				if (player.Connection == null)
+				if (player.Connection == null || !player.ProtocolVerified
+					|| player.readyState != ClientReadyState.Loading)
 					continue;
 
 				clientCount++;
@@ -52,9 +61,36 @@ namespace ONI_Together.Networking
 			foreach (PlayerCursor cursor in MultiplayerSession.PlayerCursors.Values)
 				cursor.SetVisibility(false);
 
+			ReadyManager.StartGameplayDrain(ClientTrafficDrainSeconds);
 			DebugConsole.Log($"[HardSync] Synchronization started for {clientCount} client(s).");
-			SaveFileRequestPacket.SendSaveFileToAll();
+			CoroutineRunner.RunOne(DrainClientTrafficThenTransfer());
 			ReadyManager.RefreshReadyState();
+		}
+
+		private static IEnumerator DrainClientTrafficThenTransfer()
+		{
+			while (ReadyManager.IsSynchronizing
+				&& UnityEngine.Time.realtimeSinceStartup < ReadyManager.GameplayDrainUntil)
+				yield return null;
+			if (!ReadyManager.IsSynchronizing)
+				yield break;
+
+			// Close gameplay admission before yielding so admitted dispatches finish before capture.
+			yield return null;
+			if (!ReadyManager.IsSynchronizing)
+				yield break;
+
+			try
+			{
+				_synchronizationSnapshot = SaveHelper.GetWorldSave();
+				SaveFileRequestPacket.SendSaveFileToAll(_synchronizationSnapshot);
+				ReadyManager.RefreshReadyState();
+			}
+			catch (Exception ex)
+			{
+				DebugConsole.LogError($"[HardSync] Failed to capture or start the synchronization snapshot transfer: {ex}");
+				ReadyManager.ResetSynchronizationState();
+			}
 		}
 
 		internal static void OnSynchronizationCompleted()
@@ -63,6 +99,14 @@ namespace ONI_Together.Networking
 				hardSyncDoneThisCycle = true;
 
 			_consumeDailyUse = false;
+			_synchronizationSnapshot = null;
+		}
+
+		internal static void ResetSynchronizationState()
+		{
+			_consumeDailyUse = false;
+			SaveFileRequestPacket.ClearPendingSynchronizationTransfers();
+			_synchronizationSnapshot = null;
 		}
 	}
 }

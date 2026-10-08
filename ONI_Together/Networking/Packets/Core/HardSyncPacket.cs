@@ -8,11 +8,15 @@ namespace ONI_Together.Networking.Packets.Core
 {
 	public class HardSyncPacket : IPacket, IAllowedWithoutWorldPacket
 	{
-		public HardSyncPacket() { }
+		public void Serialize(BinaryWriter writer)
+		{
+			// No payload needed
+		}
 
-		public void Serialize(BinaryWriter writer) { }
-
-		public void Deserialize(BinaryReader reader) { }
+		public void Deserialize(BinaryReader reader)
+		{
+			// No payload needed
+		}
 
 		public void OnDispatched()
 		{

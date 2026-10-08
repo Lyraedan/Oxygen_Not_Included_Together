@@ -56,6 +56,11 @@ namespace ONI_Together.Networking
             return $"{clientID}_{transferId}";
         }
 
+        public static void ClearTransfers()
+        {
+            ActiveTransfers.Clear();
+        }
+
         /// <summary>
         /// Register new transfer and track chunks
         /// </summary>

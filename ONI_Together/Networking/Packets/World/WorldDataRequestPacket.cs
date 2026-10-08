@@ -7,7 +7,7 @@ using Utils = ONI_Together.Misc.Utils;
 
 namespace ONI_Together.Networking.Packets.World
 {
-	public class WorldDataRequestPacket : IPacket, IAllowedWithoutWorldPacket
+	public class WorldDataRequestPacket : IPacket
 	{
 		public ulong SenderId;
 

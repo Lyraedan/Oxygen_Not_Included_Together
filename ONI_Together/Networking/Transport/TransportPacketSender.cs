@@ -21,7 +21,7 @@ namespace ONI_Together.Networking.Transport
             while (queue.Count > 0)
             {
                 var pending = queue.Dequeue();
-                if (PacketLoadGate.Allows(pending.packet))
+                if (pending.packet is IAllowedWithoutWorldPacket)
                     retained.Enqueue(pending);
                 else
                     discarded++;

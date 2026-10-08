@@ -1,6 +1,7 @@
 using System.IO;
 using ONI_Together.DebugTools;
 using ONI_Together.Misc;
+using ONI_Together.Networking.Packets.Core;
 using ONI_Together.Networking.Overlay;
 using ONI_Together.Networking.States;
 using Shared.Profiling;
@@ -12,14 +13,14 @@ namespace ONI_Together.Networking.Packets.Architecture
 		private static long _blockedGameplayReceiveCount;
 
 		/// <summary>
-		/// A client in the frontend receives the host's live broadcasts before it has a world, and
-		/// they throw there (Grid is 0x0). It only runs IAllowedWithoutWorldPacket packets and mod
-		/// API packets until the world loads; the rest is dropped, the save carries that state.
+		/// A client in the frontend receives live broadcasts before it has a world. Only packets
+		/// marked safe without a world, plus frontend-only mod API packets, may be dispatched.
 		/// </summary>
 		public static bool ShouldDispatchWithoutWorld(IPacket packet)
 		{
 			if (MultiplayerSession.IsHost) return true;
-			if (GameClient.State == ClientState.LoadingWorld) return true;
+			if (GameClient.State == ClientState.LoadingWorld)
+				return packet is IAllowedWithoutWorldPacket;
 			if (!Utils.IsInMenu()) return true;
 			return packet is IAllowedWithoutWorldPacket || packet is IModApiPacket;
 		}
@@ -66,17 +67,38 @@ namespace ONI_Together.Networking.Packets.Architecture
 
 		public static bool ShouldDispatchPacket(IPacket packet)
 		{
-			if (!ShouldDispatchWithoutWorld(packet))
-				return false;
-
-			bool clientGameplayBlocked = !MultiplayerSession.IsHost
-				&& GameClient.State != ClientState.InGame;
-			bool hostSynchronizationActive = MultiplayerSession.IsHost
-				&& ReadyManager.IsSynchronizing;
-			if ((!clientGameplayBlocked && !hostSynchronizationActive)
-				|| PacketLoadGate.Allows(packet))
+			bool synchronizationActive = MultiplayerSession.IsHost
+				? ReadyManager.IsSynchronizing
+				: GameClient.State == ClientState.LoadingWorld;
+			if (MultiplayerSession.IsHost && ReadyManager.IsSynchronizing
+				&& UnityEngine.Time.realtimeSinceStartup < ReadyManager.GameplayDrainUntil)
 				return true;
 
+			if (synchronizationActive)
+			{
+				if (packet is IAllowedWithoutWorldPacket)
+					return true;
+
+				return RejectGameplayPacket(packet);
+			}
+
+			if (!ShouldDispatchWithoutWorld(packet))
+				return RejectGameplayPacket(packet);
+
+			if (packet is IAllowedWithoutWorldPacket || MultiplayerSession.IsHost
+				|| GameClient.State == ClientState.InGame)
+			{
+				return true;
+			}
+
+			if (Utils.IsInMenu() && packet is IModApiPacket)
+				return true;
+
+			return RejectGameplayPacket(packet);
+		}
+
+		private static bool RejectGameplayPacket(IPacket packet)
+		{
 			long blocked = ++_blockedGameplayReceiveCount;
 			if (blocked <= 5 || blocked % 100 == 0)
 				DebugConsole.LogWarning($"[PacketHandler] discarded gameplay-gated packet #{blocked} packet={packet.GetType().Name}");

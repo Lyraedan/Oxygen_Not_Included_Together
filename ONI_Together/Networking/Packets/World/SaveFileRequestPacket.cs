@@ -3,6 +3,7 @@ using ONI_Together.Misc;
 using ONI_Together.Misc.World;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.Packets.Core;
+using ONI_Together.Networking.States;
 using ONI_Together.Networking.Transport.Lan;
 using ONI_Together.Networking.Transport.Steamworks;
 using Steamworks;
@@ -56,36 +57,49 @@ namespace ONI_Together.Networking.Packets.World
 				return;
 			}
 
-			if (!ReadyManager.AddCurrentParticipant(player))
+			if (player.readyState == ClientReadyState.Loading)
 				return;
 
-			PacketSender.SendToPlayer(Requester, new HardSyncPacket());
-			SendSaveFile(Requester);
+			const string reason = "Synchronization is in progress; this connection cannot join until it is complete.";
+			DebugConsole.LogWarning($"[Packets/SaveFileRequest] rejecting late join from {Requester}: {reason}");
+			NetworkConfig.TransportServer?.KickClient(Requester);
 		}
 
-		public static void SendSaveFile(ulong requester)
+		public static void SendSaveFileToAll(byte[] snapshot)
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.IsHost)
+			if (!MultiplayerSession.IsHost || snapshot == null
+				|| !ReadyManager.IsSynchronizing)
 				return;
 
+			string fileName = SaveHelper.WorldName + ".sav";
+			foreach (var player in MultiplayerSession.ConnectedPlayers.Values)
+			{
+				if (player.PlayerId == MultiplayerSession.HostUserID
+					|| player.Connection == null
+					|| !player.ProtocolVerified
+					|| player.readyState != ClientReadyState.Loading)
+					continue;
+
+				SendSaveFile(player.PlayerId, fileName, snapshot);
+			}
+		}
+
+		private static void SendSaveFile(ulong requester, string fileName, byte[] snapshot)
+		{
 			try
 			{
-				string name = SaveHelper.WorldName;
-				byte[] data = SaveHelper.GetWorldSave();
-				string fileName = name + ".sav";
-
 				if (NetworkConfig.IsLanConfig() && NetworkConfig.TransportServer is LiteNetLibServer lnlServer && lnlServer.TcpTransfer != null)
 				{
 					int tcpPort = Configuration.Instance.Host.LanSettings.Port + 1;
-					lnlServer.TcpTransfer.QueueTransfer(requester, fileName, data);
+					lnlServer.TcpTransfer.QueueTransfer(requester, fileName, snapshot);
 
 					var startPacket = new TcpTransferStartPacket
 					{
 						TcpPort = tcpPort,
 						FileName = fileName,
-						FileSize = data.Length,
+						FileSize = snapshot.Length,
 						ClientId = requester
 					};
 					PacketSender.SendToPlayer(requester, startPacket);
@@ -93,12 +107,12 @@ namespace ONI_Together.Networking.Packets.World
 				}
 				else
 				{
-					CoroutineRunner.RunOne(StreamChunks(data, fileName, requester));
+					CoroutineRunner.RunOne(StreamChunks(snapshot, fileName, requester));
 				}
 			}
 			catch (Exception ex)
 			{
-				DebugConsole.LogError($"[SaveFileRequest] Failed to send save file: {ex}");
+				DebugConsole.LogError($"[SaveFileRequest] Failed to send save file to {requester}: {ex}");
 			}
 		}
 
@@ -109,35 +123,25 @@ namespace ONI_Together.Networking.Packets.World
 			if (!MultiplayerSession.IsHost)
 				return;
 
-			try
+			byte[] snapshot = GameServerHardSync.SynchronizationSnapshot;
+			if (snapshot == null || !ReadyManager.IsSynchronizing
+				|| !MultiplayerSession.ConnectedPlayers.TryGetValue(requester, out MultiplayerPlayer player)
+				|| player.Connection == null
+				|| player.readyState != ClientReadyState.Loading)
 			{
-				string name = SaveHelper.WorldName;
-				byte[] data = SaveHelper.GetWorldSave();
-				string fileName = name + ".sav";
+				DebugConsole.LogWarning($"[SaveFileRequest] Ignored UDP fallback request from {requester}; no active synchronization snapshot is available.");
+				return;
+			}
 
-				DebugConsole.Log($"[SaveFileRequest] Starting UDP fallback transfer for '{fileName}' to {requester}");
-				CoroutineRunner.RunOne(StreamChunks(data, fileName, requester));
-			}
-			catch (Exception ex)
-			{
-				DebugConsole.LogError($"[SaveFileRequest] Failed to send save file via UDP fallback: {ex}");
-			}
+			SendSaveFile(requester, SaveHelper.WorldName + ".sav", snapshot);
 		}
 
-        public static void SendSaveFileToAll()
-        {
-	        using var _ = Profiler.Scope();
-
-            if (!MultiplayerSession.IsHost)
-                return;
-
-            foreach (var player in MultiplayerSession.ConnectedPlayers)
-			{
-				if (player.Key != MultiplayerSession.HostUserID && player.Value.Connection != null) {
-                    SendSaveFile(player.Key);
-                }
-            }
-        }
+		internal static void ClearPendingSynchronizationTransfers()
+		{
+			SaveFileTransferManager.ClearTransfers();
+			if (NetworkConfig.TransportServer is LiteNetLibServer server)
+				server.TcpTransfer?.ClearPendingTransfers();
+		}
 
 
         private static IEnumerator StreamChunks(byte[] data, string fileName, ulong steamID)
@@ -160,6 +164,9 @@ namespace ONI_Together.Networking.Packets.World
 
 			for (int offset = 0; offset < data.Length; /* increments manually */)
 			{
+				if (!ReadyManager.IsSynchronizing)
+					yield break;
+
 				int size = Math.Min(chunkSize, data.Length - offset);
 				byte[] chunk = new byte[size];
 				Buffer.BlockCopy(data, offset, chunk, 0, size);
