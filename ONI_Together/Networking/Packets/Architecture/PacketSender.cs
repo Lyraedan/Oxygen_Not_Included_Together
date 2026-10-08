@@ -4,6 +4,8 @@ using ONI_Together.Misc;
 using ONI_Together.Networking.Packets;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.Packets.Core;
+using ONI_Together.Networking.Packets.World;
+using ONI_Together.Networking.Packets.World.Buildings;
 using ONI_Together.Networking.Transport;
 using ONI_Together.Networking.Transport.Steam;
 using Shared.Interfaces.Networking;
@@ -76,26 +78,6 @@ namespace ONI_Together.Networking
 		// Packet ids that belong to DragToolPacket subclasses — tagged lazily on first append
 		// so the bulk flush site can record SyncStats.DragTool without needing the typed instance.
 		static HashSet<int> DragToolBulkPacketIds = new HashSet<int>();
-		private static long _blockedLoadingSendCount;
-
-		public static void DiscardPendingGameplayForPlayer(ulong playerId)
-		{
-			if (!MultiplayerSession.ConnectedPlayers.TryGetValue(playerId, out MultiplayerPlayer player)
-				|| player.Connection == null)
-			{
-				return;
-			}
-
-			object connection = player.Connection;
-			if (WaitingBulkPacketsPerReceiver.TryGetValue(connection, out var pendingByType))
-				WaitingBulkPacketsPerReceiver.Remove(connection);
-			if (WaitingBulkPacketBytes.TryGetValue(connection, out var bytesByType))
-				WaitingBulkPacketBytes.Remove(connection);
-
-			int queued = NetworkConfig.TransportPacketSender.DiscardGameplayForConnection(connection);
-			DebugConsole.Log($"[PacketSender] discarded pending gameplay queue PlayerId={playerId} transportPackets={queued}");
-		}
-
 		public static void DispatchPendingBulkPackets()
 		{
 			using var _ = Profiler.Scope();
@@ -234,7 +216,7 @@ namespace ONI_Together.Networking
 		{
 			using var _ = Profiler.Scope();
 
-			if (!CanSendDuringSynchronization(conn, packet))
+			if (!CanSendPacket(packet))
 				return false;
 
 			if (packet is IBulkablePacket bp)
@@ -257,35 +239,26 @@ namespace ONI_Together.Networking
 			return NetworkConfig.TransportPacketSender.SendToConnection(conn, packet, sendType);
 		}
 
-		private static bool CanSendDuringSynchronization(object connection, IPacket packet)
+		private static bool CanSendPacket(IPacket packet)
 		{
-			bool gated;
-			if (MultiplayerSession.IsHost)
-			{
-				gated = ReadyManager.IsSynchronizing;
-				foreach (MultiplayerPlayer player in MultiplayerSession.ConnectedPlayers.Values)
-				{
-					if (!ReferenceEquals(player.Connection, connection))
-						continue;
-
-					gated |= player.readyState != States.ClientReadyState.Ready;
-					break;
-				}
-			}
-			else
-			{
-				gated = GameClient.State != States.ClientState.InGame;
-			}
-
-			if (!gated)
-				return true;
 			if (packet is IAllowedWithoutWorldPacket)
 				return true;
 
-			long rejected = ++_blockedLoadingSendCount;
-			if (rejected <= 5 || rejected % 100 == 0)
-				DebugConsole.LogWarning($"[PacketSender] blocked synchronization-time send #{rejected} packet={packet.GetType().Name}");
-			return false;
+			if (MultiplayerSession.IsClient)
+			{
+				if (GameClient.State == States.ClientState.InGame)
+					return true;
+
+				if (GameClient.State == States.ClientState.LoadingWorld)
+					return PacketHandler.IsLoadingWorldRequest(packet);
+
+				return packet is IModApiPacket;
+			}
+
+			if (MultiplayerSession.IsHost && ReadyManager.IsSynchronizing)
+				return PacketHandler.IsLoadingWorldResponse(packet);
+
+			return true;
 		}
 
 		/// <summary>
@@ -328,16 +301,16 @@ namespace ONI_Together.Networking
 			return player.ProtocolVerified;
 		}
 
-		public static bool SendToHost(IPacket packet, PacketSendMode sendType = PacketSendMode.ReliableImmediate)
+		public static void SendToHost(IPacket packet, PacketSendMode sendType = PacketSendMode.ReliableImmediate)
 		{
 			using var _ = Profiler.Scope();
 
 			if (!MultiplayerSession.HostUserID.IsValid())
 			{
 				DebugConsole.LogWarning($"[PacketSender] Failed to send to host. Host is invalid.");
-				return false;
+				return;
 			}
-			return SendToPlayer(MultiplayerSession.HostUserID, packet, sendType);
+			SendToPlayer(MultiplayerSession.HostUserID, packet, sendType);
 		}
 
 		// Throttle counter for per-connection send failures so a transport storm

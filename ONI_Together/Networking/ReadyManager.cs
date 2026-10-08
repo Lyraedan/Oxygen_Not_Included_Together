@@ -57,7 +57,6 @@ namespace ONI_Together.Networking
 					continue;
 
 				player.readyState = ClientReadyState.Loading;
-				PacketSender.DiscardPendingGameplayForPlayer(player.PlayerId);
 			}
 
 			RefreshScreen();
@@ -86,7 +85,6 @@ namespace ONI_Together.Networking
 			if (!IsSynchronizing || !IsEveryoneReady())
 				return;
 
-			DiscardPendingGameplayForParticipants();
 			PacketSender.SendToAllClients(new AllClientsReadyPacket(), PacketSendMode.Reliable);
 			IsSynchronizing = false;
 			GameplayDrainUntil = 0f;
@@ -220,15 +218,6 @@ namespace ONI_Together.Networking
 					return false;
 			}
 			return true;
-		}
-
-		private static void DiscardPendingGameplayForParticipants()
-		{
-			foreach (MultiplayerPlayer player in MultiplayerSession.ConnectedPlayers.Values)
-			{
-				if (player.PlayerId != MultiplayerSession.HostUserID && player.Connection != null)
-					PacketSender.DiscardPendingGameplayForPlayer(player.PlayerId);
-			}
 		}
 
 		internal static void RefreshReadyState()

@@ -2,6 +2,8 @@ using System.IO;
 using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Packets.Core;
+using ONI_Together.Networking.Packets.World;
+using ONI_Together.Networking.Packets.World.Buildings;
 using ONI_Together.Networking.Overlay;
 using ONI_Together.Networking.States;
 using Shared.Profiling;
@@ -10,99 +12,80 @@ namespace ONI_Together.Networking.Packets.Architecture
 {
 	public static class PacketHandler
 	{
-		private static long _blockedGameplayReceiveCount;
-
-		/// <summary>
-		/// A client in the frontend receives live broadcasts before it has a world. Only packets
-		/// marked safe without a world, plus frontend-only mod API packets, may be dispatched.
-		/// </summary>
-		public static bool ShouldDispatchWithoutWorld(IPacket packet)
-		{
-			if (MultiplayerSession.IsHost) return true;
-			if (GameClient.State == ClientState.LoadingWorld)
-				return packet is IAllowedWithoutWorldPacket;
-			if (!Utils.IsInMenu()) return true;
-			return packet is IAllowedWithoutWorldPacket || packet is IModApiPacket;
-		}
-
 		public static void HandleIncoming(byte[] data)
 		{
 			using var _ = Profiler.Scope();
 
-			using (var ms = new MemoryStream(data))
-			using (var reader = new BinaryReader(ms))
-			{
-				int type = reader.ReadInt32();
-				if (!PacketRegistry.HasRegisteredPacket(type))
-				{
-					DebugConsole.LogError($"Invalid PacketType received: {type}", false);
-					return;
-				}
+            using var ms = new MemoryStream(data);
+            using var reader = new BinaryReader(ms);
+            int type = reader.ReadInt32();
+            if (!PacketRegistry.HasRegisteredPacket(type))
+            {
+                DebugConsole.LogError($"Invalid PacketType received: {type}", false);
+                return;
+            }
 
-				using var scope = Profiler.Scope();
-				var packet = PacketRegistry.Create(type);
-				packet.Deserialize(reader);
+            using var scope = Profiler.Scope();
+            var packet = PacketRegistry.Create(type);
+            packet.Deserialize(reader);
 
-				if (!ShouldDispatchPacket(packet))
-					return;
+            if (!ShouldDispatchPacket(packet))
+                return;
 
-				Dispatch(packet);
+            Dispatch(packet);
 
-				scope.End(packet.GetType().Name, data.Length);
-				PacketTracker.TrackIncoming(new PacketTracker.PacketTrackData
-				{
-					packet = packet,
-					size = data.Length
-				});
+            scope.End(packet.GetType().Name, data.Length);
+            PacketTracker.TrackIncoming(new PacketTracker.PacketTrackData
+            {
+                packet = packet,
+                size = data.Length
+            });
 
-				var tracker = NetIdActivityTracker.Instance;
-				if (tracker != null)
-				{
-					int netId = NetIdActivityTracker.GetNetIdFromPacket(packet);
-					if (netId > 0)
-						tracker.RecordActivity(netId, data.Length);
-				}
-			}
-		}
+            var tracker = NetIdActivityTracker.Instance;
+            if (tracker != null)
+            {
+                int netId = NetIdActivityTracker.GetNetIdFromPacket(packet);
+                if (netId > 0)
+                    tracker.RecordActivity(netId, data.Length);
+            }
+        }
 
 		public static bool ShouldDispatchPacket(IPacket packet)
 		{
-			bool synchronizationActive = MultiplayerSession.IsHost
-				? ReadyManager.IsSynchronizing
-				: GameClient.State == ClientState.LoadingWorld;
-			if (MultiplayerSession.IsHost && ReadyManager.IsSynchronizing
-				&& UnityEngine.Time.realtimeSinceStartup < ReadyManager.GameplayDrainUntil)
+            if (MultiplayerSession.IsClient)
+            {
+                if (GameClient.State == ClientState.InGame)
+                    return true;
+
+                if (GameClient.State == ClientState.LoadingWorld)
+                    return packet is IAllowedWithoutWorldPacket || IsLoadingWorldResponse(packet);
+
+                return packet is IAllowedWithoutWorldPacket || packet is IModApiPacket;
+            }
+
+            // Single player case
+			if (!MultiplayerSession.IsHost || !MultiplayerSession.SessionHasPlayers)
 				return true;
 
-			if (synchronizationActive)
-			{
-				if (packet is IAllowedWithoutWorldPacket)
-					return true;
+            if (ReadyManager.IsSynchronizing)
+            {
+                if (UnityEngine.Time.realtimeSinceStartup < ReadyManager.GameplayDrainUntil)
+                    return true;
 
-				return RejectGameplayPacket(packet);
-			}
+                return packet is IAllowedWithoutWorldPacket || IsLoadingWorldRequest(packet);
+            }
 
-			if (!ShouldDispatchWithoutWorld(packet))
-				return RejectGameplayPacket(packet);
-
-			if (packet is IAllowedWithoutWorldPacket || MultiplayerSession.IsHost
-				|| GameClient.State == ClientState.InGame)
-			{
-				return true;
-			}
-
-			if (Utils.IsInMenu() && packet is IModApiPacket)
-				return true;
-
-			return RejectGameplayPacket(packet);
+            return true;
 		}
 
-		private static bool RejectGameplayPacket(IPacket packet)
+		internal static bool IsLoadingWorldRequest(IPacket packet)
 		{
-			long blocked = ++_blockedGameplayReceiveCount;
-			if (blocked <= 5 || blocked % 100 == 0)
-				DebugConsole.LogWarning($"[PacketHandler] discarded gameplay-gated packet #{blocked} packet={packet.GetType().Name}");
-			return false;
+			return packet is RequestOperationalStatePacket or StructureStateRequestPacket;
+		}
+
+		internal static bool IsLoadingWorldResponse(IPacket packet)
+		{
+			return packet is OperationalStatePacket or StructureStatePacket or LogicStatePacket;
 		}
 
 		private static void Dispatch(IPacket packet)

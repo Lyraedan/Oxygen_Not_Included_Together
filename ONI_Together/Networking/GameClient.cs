@@ -390,8 +390,6 @@ namespace ONI_Together.Networking
 					return false;
 			}
 
-			if (MultiplayerSession.HostUserID.IsValid())
-				PacketSender.DiscardPendingGameplayForPlayer(MultiplayerSession.HostUserID);
 			SpeedControlScreen.Instance?.Pause(false);
 			return true;
 		}
