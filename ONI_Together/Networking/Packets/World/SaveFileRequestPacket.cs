@@ -62,7 +62,17 @@ namespace ONI_Together.Networking.Packets.World
 			}
 
 			if (player.readyState == ClientReadyState.Loading)
+			{
+				byte[] snapshot = GameServerHardSync.SynchronizationSnapshot;
+				if (snapshot == null)
+				{
+					DebugConsole.LogWarning($"[Packets/SaveFileRequest] Cannot resend to {Requester}; synchronization snapshot is not yet available.");
+					return;
+				}
+
+				SendSaveFile(Requester, SaveHelper.WorldName + ".sav", snapshot);
 				return;
+			}
 
 			const string reason = "Synchronization is in progress; this connection cannot join until it is complete.";
 			DebugConsole.LogWarning($"[Packets/SaveFileRequest] rejecting late join from {Requester}: {reason}");
@@ -139,7 +149,7 @@ namespace ONI_Together.Networking.Packets.World
 				return;
 			}
 
-			SendSaveFile(requester, SaveHelper.WorldName + ".sav", snapshot);
+			CoroutineRunner.RunOne(StreamChunks(snapshot, SaveHelper.WorldName + ".sav", requester));
 		}
 
 		internal static void ClearPendingSynchronizationTransfers()
