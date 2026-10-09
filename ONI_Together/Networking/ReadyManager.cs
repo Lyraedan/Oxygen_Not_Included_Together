@@ -6,11 +6,14 @@ using ONI_Together.Networking.States;
 using ONI_Together.Networking.Transport.Steamworks;
 using Steamworks;
 using Shared.Profiling;
+using System.Collections;
 
 namespace ONI_Together.Networking
 {
 	public class ReadyManager
 	{
+		private const float HostOverlayCloseGraceSeconds = 1f;
+
 		public static bool IsSynchronizing { get; private set; }
 		internal static float GameplayDrainUntil { get; private set; }
 		public static bool IsSimulationLocked => MultiplayerSession.IsHost
@@ -89,7 +92,14 @@ namespace ONI_Together.Networking
 			IsSynchronizing = false;
 			GameplayDrainUntil = 0f;
 			GameServerHardSync.OnSynchronizationCompleted();
-			AllClientsReadyPacket.ProcessAllReady();
+			MultiplayerOverlay.Show(STRINGS.UI.MP_OVERLAY.SYNC.FINALIZING_SYNC);
+			CoroutineRunner.RunOne(CloseHostOverlayAfterGrace());
+		}
+
+		private static IEnumerator CloseHostOverlayAfterGrace()
+		{
+			yield return new UnityEngine.WaitForSecondsRealtime(HostOverlayCloseGraceSeconds);
+			MultiplayerOverlay.Close();
 		}
 
 		public static void SendStatusUpdatePacketToClients()
