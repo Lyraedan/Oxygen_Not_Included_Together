@@ -10,16 +10,17 @@ public class MultiplayerPlayer
 	public bool IsLocal => PlayerId == NetworkConfig.GetLocalID();
 
 	public int AvatarImageId { get; private set; } = -1;
-	//public HSteamNetConnection? Connection { get; set; } = null;
-	public object? Connection { get; set; } = null;
+	public object Connection { get; set; } = null;
 	public bool IsConnected => Connection != null;
 	public bool ProtocolVerified { get; set; }
 
-	public ClientReadyState readyState = ClientReadyState.Ready;
+	public ClientReadyState readyState = ClientReadyState.Unready;
 
     public MultiplayerPlayer(ulong playerId)
 	{
 		PlayerId = playerId;
+		if (playerId == MultiplayerSession.HostUserID)
+			readyState = ClientReadyState.Ready;
 		ProtocolVerified = IsLocal;
 		if(NetworkConfig.IsLanConfig())
 		{

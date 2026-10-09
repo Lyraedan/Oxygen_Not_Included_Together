@@ -1,13 +1,12 @@
 ﻿using ONI_Together.DebugTools;
 using ONI_Together.Networking.Packets.Architecture;
-using Steamworks;
 using System.IO;
 using Shared.Profiling;
 using Utils = ONI_Together.Misc.Utils;
 
 namespace ONI_Together.Networking.Packets.World
 {
-	public class WorldDataRequestPacket : IPacket, IAllowedWithoutWorldPacket
+	public class WorldDataRequestPacket : IPacket
 	{
 		public ulong SenderId;
 

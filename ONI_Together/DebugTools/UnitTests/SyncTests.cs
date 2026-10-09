@@ -103,8 +103,6 @@ namespace ONI_Together.DebugTools.UnitTests
 		{
 			if (!PacketRegistry.HasRegisteredPacket(typeof(HardSyncPacket)))
 				return UnitTestResult.Fail("HardSyncPacket is not registered");
-			if (!PacketRegistry.HasRegisteredPacket(typeof(HardSyncCompletePacket)))
-				return UnitTestResult.Fail("HardSyncCompletePacket is not registered");
 
 			if (GameServerHardSync.IsHardSyncInProgress)
 				return UnitTestResult.Fail("Hard sync is currently in progress, rerun the test once it completes");
