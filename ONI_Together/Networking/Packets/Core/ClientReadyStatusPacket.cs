@@ -46,12 +46,6 @@ namespace ONI_Together.Networking.Packets.Core
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.ConnectedPlayers.TryGetValue(SenderId, out MultiplayerPlayer player))
-			{
-				DebugConsole.LogError($"Tried to update ready state for unknown player {SenderId}", false);
-				return;
-			}
-
 			if (!MultiplayerSession.IsHost)
 			{
 				if (string.IsNullOrEmpty(PlayerName))
@@ -60,12 +54,21 @@ namespace ONI_Together.Networking.Packets.Core
 				MultiplayerSession.KnownPlayerNames[SenderId] = PlayerName;
 
 				if (SenderId == MultiplayerSession.HostUserID)
-					player.PlayerName = PlayerName;
+				{
+					if (MultiplayerSession.ConnectedPlayers.TryGetValue(SenderId, out var host) && host != null)
+						host.PlayerName = PlayerName;
+				}
 				else
 				{
 					OxySyncChat.AddSystemMessage(
 						string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, PlayerName));
 				}
+				return;
+			}
+
+			if (!MultiplayerSession.ConnectedPlayers.TryGetValue(SenderId, out MultiplayerPlayer player))
+			{
+				DebugConsole.LogError($"Tried to update ready state for unknown player {SenderId}", false);
 				return;
 			}
 
