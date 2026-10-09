@@ -12,7 +12,7 @@ namespace ONI_Together.Patches.World
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession) return true; // Offline, operate normally
+			if (!MultiplayerSession.InActiveSession) return true; // Offline, operate normally
 			if (MultiplayerSession.IsHost) return true; // Host operates normally
 
 			// Client: Send Request

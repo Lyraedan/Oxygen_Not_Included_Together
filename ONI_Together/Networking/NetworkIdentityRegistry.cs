@@ -1,6 +1,7 @@
 ﻿using ONI_Together.DebugTools;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.World;
+using ONI_Together.Patches.Navigation;
 using System;
 using System.Collections.Generic;
 using Shared.Profiling;
@@ -37,6 +38,7 @@ namespace ONI_Together.Networking
 			using var _ = Profiler.Scope();
 
 			identities.Remove(netId);
+			PlayAnimPacket.ForgetNetId(netId);
 		}
 
 
@@ -72,7 +74,54 @@ namespace ONI_Together.Networking
 		}
 		public static bool Exists(int netId) => identities.ContainsKey(netId);
 
+		/// <summary>
+		/// Re-index every live NetworkIdentity in the scene under the NetId it carries.
+		/// NetworkConfig.Stop clears this registry, but the objects of a loaded world stay,
+		/// and RegisterIdentity is guarded by IsRegistered, so after a server restart in the
+		/// same world the host resolved nothing: Count went from 5318 to 0 in the log and
+		/// crept back only with newly spawned objects until the save was reloaded.
+		/// Inactive objects are included: items inside storages are inactive and are
+		/// addressed by NetId too. Returns the number of entries.
+		/// </summary>
+		public static int RebuildFromScene()
+		{
+			using var _ = Profiler.Scope();
 
+			identities.Clear();
+			_lookupFailCount = 0;
+
+			int collisions = 0;
+			// Sorted by instance id, so two live objects with one id resolve the same way
+			// on every rebuild (the older object, which registered first, wins).
+			foreach (var identity in UnityEngine.Object.FindObjectsByType<NetworkIdentity>(FindObjectsInactive.Include, FindObjectsSortMode.InstanceID))
+			{
+				if (identity == null || identity.NetId == 0) continue;
+				if (identities.ContainsKey(identity.NetId)) { collisions++; continue; }
+				identities[identity.NetId] = identity;
+			}
+
+			if (collisions > 0)
+				DebugConsole.LogWarning($"[NetEntityRegistry] {collisions} objects share a NetId with another live object; the first one found keeps the id");
+
+			return identities.Count;
+		}
+
+
+
+		[API_Method]
+		public static bool TryGetGameObject(int netId, out GameObject gameObject)
+		{
+			using var _ = Profiler.Scope();
+
+			gameObject = null;
+			if (!TryGet(netId, out var identity))
+				return false;
+			if (identity.IsNullOrDestroyed() || identity.gameObject.IsNullOrDestroyed())
+				return false;
+
+			gameObject = identity.gameObject;
+			return true;
+		}
 
 		public static bool TryGet(int netId, out NetworkIdentity entity)
 		{
@@ -99,6 +148,7 @@ namespace ONI_Together.Networking
 			return found;
 		}
 
+		[API_Method]
 		public static bool TryGetComponent<T>(int netId, out T component)
 		{
 			using var _ = Profiler.Scope();

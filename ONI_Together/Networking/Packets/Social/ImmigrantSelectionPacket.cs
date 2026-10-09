@@ -32,7 +32,7 @@ namespace ONI_Together.Networking.Packets.Social
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 
 			DebugConsole.Log($"[ImmigrantSelectionPacket] Received selection: world index {PrintingPodWorldIndex}, IsHost: {MultiplayerSession.IsHost} with id: {selectedOption.GetId()}");
 

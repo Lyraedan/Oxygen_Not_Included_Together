@@ -13,7 +13,7 @@ public static class ConstructablePatch
 	{
 		using var _ = Profiler.Scope();
 
-		if (!MultiplayerSession.IsHost || !MultiplayerSession.InSession)
+		if (!MultiplayerSession.IsHost || !MultiplayerSession.InActiveSession)
 			return;
 
 		var building = __instance.GetComponent<Building>();

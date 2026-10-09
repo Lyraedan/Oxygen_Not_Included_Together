@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using Shared.Profiling;
@@ -48,12 +48,8 @@ public static class KBatchedAnimEventTogglerPatch
 			if (!context.IsValid)
 				return;
 
-			string contextStr = context.ToString();
-			if (string.IsNullOrEmpty(contextStr))
-				return;
-
 			var eventName = enable ? toggler.enableEvent : toggler.disableEvent;
-			DuplicantPatch.ToggleEffect(identity.gameObject, eventName, contextStr, enable);
+			DuplicantPatch.ToggleEffect(identity.gameObject, eventName, context.HashValue, enable);
 		}
 		catch (System.Exception)
 		{

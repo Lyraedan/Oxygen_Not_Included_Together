@@ -21,7 +21,7 @@ namespace ONI_Together.Patches.ToolPatches.Cancel
 
 			try
 			{
-				if (!MultiplayerSession.InSession) return;
+				if (!MultiplayerSession.InActiveSession) return;
 				if (BuildingActionPacket.ProcessingIncoming) return;
 				// Drag path already syncs via CancelPacket; skip here to avoid double-send.
 				if (DragToolPacket.ProcessingIncoming) return;

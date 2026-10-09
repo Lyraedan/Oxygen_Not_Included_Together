@@ -9,7 +9,7 @@ using UnityEngine;
 
 namespace ONI_Together.Networking.Packets.Handshake
 {
-	public class GameStateRequestPacket : IPacket
+	public class GameStateRequestPacket : IPacket, IAllowedWithoutWorldPacket
 	{
 		public GameStateRequestPacket() { }
 		public GameStateRequestPacket(ulong steamID)
@@ -99,7 +99,7 @@ namespace ONI_Together.Networking.Packets.Handshake
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession)
+			if (!MultiplayerSession.InActiveSession)
 				return;
 
 			if (MultiplayerSession.IsHost)

@@ -20,7 +20,7 @@ namespace ONI_Together.Patches.World.Buildings
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.IsHost || !MultiplayerSession.InSession || __instance.IsNullOrDestroyed())
+				if (!MultiplayerSession.IsHost || !MultiplayerSession.InActiveSession || __instance.IsNullOrDestroyed())
 					return;
 
 				if (!__instance.TryGetComponent<ComplexFabricator>(out var fabricator) || fabricator == null || fabricator.IsNullOrDestroyed())
@@ -46,7 +46,7 @@ namespace ONI_Together.Patches.World.Buildings
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.IsHost || !MultiplayerSession.InSession || __instance.IsNullOrDestroyed())
+				if (!MultiplayerSession.IsHost || !MultiplayerSession.InActiveSession || __instance.IsNullOrDestroyed())
 					return;
 
 				PacketSender.SendToAllClients(WorkableProgressPacket.CreateComplexFabricator(__instance, showProgressBar: false), PacketSendMode.ReliableImmediate);
@@ -60,11 +60,39 @@ namespace ONI_Together.Patches.World.Buildings
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost)
+				if (!MultiplayerSession.InActiveSession || !MultiplayerSession.IsHost)
 					return;
 
 				PacketSender.SendToAllClients(WorkableProgressPacket.CreateComplexFabricator(__instance, showProgressBar: false), PacketSendMode.ReliableImmediate);
 				PacketSender.SendToAllClients(new ComplexFabricatorSpawnProductPacket(__instance));
+			}
+		}
+
+		[HarmonyPatch(typeof(ComplexFabricatorSideScreen), nameof(ComplexFabricatorSideScreen.HasAllRecipeRequirements))]
+		public static class ComplexFabricatorSideScreen_HasAllRecipeRequirements_Patch
+		{
+			public static bool Prefix(ComplexFabricatorSideScreen __instance, ComplexRecipe recipe, ref bool __result)
+			{
+				using var _ = Profiler.Scope();
+
+				var fabricator = __instance?.targetFab;
+				if (recipe != null && fabricator != null && !fabricator.IsNullOrDestroyed() &&
+					fabricator.inStorage != null && fabricator.buildStorage != null && fabricator.GetMyWorld() != null)
+					return true;
+
+				__result = false;
+				return false;
+			}
+		}
+
+		[HarmonyPatch(typeof(ComplexFabricatorSideScreen), nameof(ComplexFabricatorSideScreen.RefreshIngredientAvailabilityVis))]
+		public static class ComplexFabricatorSideScreen_RefreshIngredientAvailabilityVis_Patch
+		{
+			public static bool Prefix(ComplexFabricatorSideScreen __instance)
+			{
+				using var _ = Profiler.Scope();
+				return __instance != null && __instance.targetFab != null &&
+					!__instance.targetFab.IsNullOrDestroyed() && __instance.recipeCategoryToggleMap != null;
 			}
 		}
 	}

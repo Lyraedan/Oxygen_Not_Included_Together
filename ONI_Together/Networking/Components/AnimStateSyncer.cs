@@ -32,19 +32,26 @@ namespace ONI_Together.Networking.Components
 
 			_spawnTime = Time.unscaledTime;
 
-			if (networkIdentity == null || animController == null || prefabId == null)
+			EnsureRegistered();
+		}
+
+		internal bool EnsureRegistered()
+		{
+			networkIdentity ??= GetComponent<NetworkIdentity>();
+			animController ??= GetComponent<KBatchedAnimController>();
+			prefabId ??= GetComponent<KPrefabID>();
+			operational ??= GetComponent<Operational>();
+
+			if (networkIdentity == null || animController == null || prefabId == null
+				|| !AnimSyncEligibility.IsAnimatedNonMinion(gameObject))
 			{
 				enabled = false;
-				return;
+				return false;
 			}
 
-			if (!AnimSyncEligibility.IsAnimatedNonMinion(gameObject))
-			{
-				enabled = false;
-				return;
-			}
-
+			enabled = true;
 			AnimSyncCoordinator.Register(this);
+			return true;
 		}
 
 		public override void OnCleanUp()

@@ -19,6 +19,9 @@ namespace ONI_Together.Networking.Packets.World
 		public float Temperature;
 		public byte DiseaseIdx;
 		public int DiseaseCount;
+		public byte FlowDirection;
+		public int FlowElement;
+		public float FlowMass;
 	}
 
 	public class ConduitContentsPacket : IPacket
@@ -42,6 +45,9 @@ namespace ONI_Together.Networking.Packets.World
 				writer.Write(u.Temperature);
 				writer.Write(u.DiseaseIdx);
 				writer.Write(u.DiseaseCount);
+				writer.Write(u.FlowDirection);
+				writer.Write(u.FlowElement);
+				writer.Write(u.FlowMass);
 			}
 		}
 
@@ -62,6 +68,9 @@ namespace ONI_Together.Networking.Packets.World
 					Temperature = reader.ReadSingle(),
 					DiseaseIdx = reader.ReadByte(),
 					DiseaseCount = reader.ReadInt32(),
+					FlowDirection = reader.ReadByte(),
+					FlowElement = reader.ReadInt32(),
+					FlowMass = reader.ReadSingle(),
 				});
 			}
 		}

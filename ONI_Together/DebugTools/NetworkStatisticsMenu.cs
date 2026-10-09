@@ -1,4 +1,4 @@
-﻿using ONI_Together.Menus;
+using ONI_Together.Menus;
 using ONI_Together.Misc;
 using ONI_Together.Networking;
 using ONI_Together.Networking.States;
@@ -74,16 +74,10 @@ namespace ONI_Together.DebugTools
 					qualityL = SteamworksClient.GetLocalPacketQuality();
 					qualityR = SteamworksClient.GetRemotePacketQuality();
 					break;
-				case NetworkConfig.NetworkTransport.RIPTIDE:
-					var metrics = RiptideClient.Client?.Connection?.Metrics;
-
-                    float lossRate = metrics.RollingNotifyLossRate; // 0–1
-                    float quality = 1f - lossRate;
-                    float remoteQuality = 1f - lossRate;
-
-                    qualityL = quality;
-                    qualityR = remoteQuality;
-                    break;
+				case NetworkConfig.NetworkTransport.LITENETLIB:
+					qualityL = 1.0f;
+					qualityR = 1.0f;
+					break;
 			}
 
 			GUILayout.Label($"Ping: {ping}");

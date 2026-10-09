@@ -3,6 +3,7 @@ using System.Diagnostics;
 using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Packets.Animation;
+using Shared;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -34,7 +35,7 @@ namespace ONI_Together.Networking.Components
 			if (Game.Instance != null && !_subscribed)
 				SubscribeToGameHashes();
 
-			if (!MultiplayerSession.IsClient || !MultiplayerSession.InSession || !Utils.IsInGame())
+			if (!MultiplayerSession.IsClient || !MultiplayerSession.InActiveSession || !Utils.IsInGame())
 			{
 				_initialRequestSent = false;
 				_nextInitialRequestTime = float.MaxValue;

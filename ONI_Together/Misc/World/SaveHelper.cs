@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using Klei;
 using ONI_Together;
 using ONI_Together.DebugTools;
@@ -50,7 +50,34 @@ public static class SaveHelper
 
 		Directory.CreateDirectory(Path.GetDirectoryName(path));
 
+		try
+		{
+			string cloudPrefix = SaveLoader.GetCloudSavePrefix();
+			if (!string.IsNullOrEmpty(cloudPrefix))
+			{
+				string cloudDir = Path.Combine(cloudPrefix, baseName);
+				if (!Directory.Exists(cloudDir))
+					Directory.CreateDirectory(cloudDir);
+			}
+			string localPrefix = SaveLoader.GetSavePrefixAndCreateFolder();
+			if (!string.IsNullOrEmpty(localPrefix))
+			{
+				string localDir = Path.Combine(localPrefix, baseName);
+				if (!Directory.Exists(localDir))
+					Directory.CreateDirectory(localDir);
+			}
+		}
+		catch { }
+
 		File.WriteAllBytes(path, data);
+
+		try
+		{
+			string pngPath = Path.ChangeExtension(path, ".png");
+			if (!File.Exists(pngPath))
+				File.WriteAllBytes(pngPath, new byte[0]);
+		}
+		catch { }
 
 		if (!SavegameDlcListValid(data, out string errorMsg))
 		{
@@ -69,8 +96,31 @@ public static class SaveHelper
 		MultiplayerSession.PlayerCursors.Clear();
 		MultiplayerOverlay.Show(global::STRINGS.UI.FRONTEND.LOADING);
 
+		CloseWorldUiBeforeReload();
 		LoadScreen.DoLoad(path);
 	}
+
+	/// <summary>
+	/// DoLoad shuts the sim down at once but swaps the scene a frame later. In that frame a
+	/// selected duplicant's vitals panel or an open overlay reads freed Grid arrays and throws.
+	/// </summary>
+	private static void CloseWorldUiBeforeReload()
+	{
+		try
+		{
+			if (SelectTool.Instance != null)
+				SelectTool.Instance.Select(null, true);
+
+			var overlay = OverlayScreen.Instance;
+			if (overlay != null && overlay.mode != OverlayModes.None.ID)
+				overlay.ToggleOverlay(OverlayModes.None.ID, false);
+		}
+		catch (System.Exception ex)
+		{
+			DebugConsole.LogWarning($"[SaveHelper] Could not close the world UI before reload: {ex.Message}");
+		}
+	}
+
 	public static void ShowMessageAndReturnToMainMenu(string msg)
 	{
 		using var _ = Profiler.Scope();
@@ -420,6 +470,7 @@ public static class SaveHelper
 		PacketHandler.readyToProcess = false;
 		MultiplayerOverlay.Show(global::STRINGS.UI.FRONTEND.LOADING);
 
+		CloseWorldUiBeforeReload();
 		LoadScreen.DoLoad(targetFile); // use the correct variable
 	}
 

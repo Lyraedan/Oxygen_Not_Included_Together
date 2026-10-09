@@ -2,15 +2,12 @@
 using Riptide;
 using ONI_Together.DebugTools;
 using ONI_Together.Networking.Packets.Architecture;
-using ONI_Together.Networking.Packets.Core;
 using Shared.Profiling;
 
 namespace ONI_Together.Networking.Transport.Lan
 {
     public class RiptidePacketSender : TransportPacketSender
     {
-        private const int MAX_PAYLOAD_BYTES = 1000;
-
         public override bool SendPacket(object conn, IPacket packet, PacketSendMode sendType = PacketSendMode.ReliableImmediate)
         {
             using var _ = Profiler.Scope();
@@ -23,19 +20,14 @@ namespace ONI_Together.Networking.Transport.Lan
 
             byte[] bytes = PacketSender.SerializePacketForSending(packet);
 
-            if (bytes.Length > MAX_PAYLOAD_BYTES && packet is not ChunkedPacket)
-            {
-                return SendChunked(connection, bytes, sendType);
-            }
-
-            return SendRaw(connection, bytes, packet, sendType);
+            return SendChunkedIfNeeded(connection, bytes, packet, sendType, (c, b, p, s) => SendRaw((Connection)c, b, p, s));
         }
 
         private bool SendRaw(Connection connection, byte[] bytes, IPacket packet, PacketSendMode sendType)
         {
             MessageSendMode sendMode = ConvertSendType(sendType);
             int id = PacketRegistry.GetPacketId(packet);
-            Riptide.Message msg = Riptide.Message.Create(sendMode, 1); // TODO: Test with packet id though I don't think it matters since we handle packets elsewhere
+            Riptide.Message msg = Riptide.Message.Create(sendMode, 1);
             msg.AddBytes(bytes);
 
             if (MultiplayerSession.IsHost)
@@ -60,34 +52,6 @@ namespace ONI_Together.Networking.Transport.Lan
                 packet = packet,
                 size = bytes.Length
             });
-            return true;
-        }
-
-        private bool SendChunked(Connection connection, byte[] fullData, PacketSendMode sendType)
-        {
-            int chunkDataSize = MAX_PAYLOAD_BYTES - 20; // overhead for ChunkedPacket header
-            int totalChunks = (fullData.Length + chunkDataSize - 1) / chunkDataSize;
-            int sequenceId = ChunkedPacket.GetNextSequenceId();
-
-            for (int i = 0; i < totalChunks; i++)
-            {
-                int offset = i * chunkDataSize;
-                int length = Math.Min(chunkDataSize, fullData.Length - offset);
-                byte[] chunkData = new byte[length];
-                Array.Copy(fullData, offset, chunkData, 0, length);
-
-                var chunk = new ChunkedPacket
-                {
-                    SequenceId = sequenceId,
-                    ChunkIndex = i,
-                    TotalChunks = totalChunks,
-                    ChunkData = chunkData
-                };
-
-                byte[] chunkBytes = PacketSender.SerializePacketForSending(chunk);
-                SendRaw(connection, chunkBytes, chunk, sendType);
-            }
-
             return true;
         }
 

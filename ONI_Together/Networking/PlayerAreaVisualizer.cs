@@ -42,11 +42,17 @@ namespace ONI_Together.Networking
             _areaRenderer.color = Color;
             _areaRenderer.material.color = Color;
 
+            _visualizer = areaVisualizer;
+        }
+
+        private void EnsureAreaText()
+        {
+            if (_areaVisualizerText != Guid.Empty)
+                return;
+
             _textPrefab = DigTool.Instance.areaVisualizerTextPrefab;
             _areaVisualizerText = NameDisplayScreen.Instance.AddAreaText("", _textPrefab);
             NameDisplayScreen.Instance.GetWorldText(_areaVisualizerText).GetComponent<LocText>().color = Color;
-
-            _visualizer = areaVisualizer;
         }
 
         public void DestroyArea()
@@ -62,11 +68,11 @@ namespace ONI_Together.Networking
             }
         }
 
-        public void UpdateArea(Color color, Vector3 downPos, Vector3 cursorPos, bool dragging, DragTool.Mode dragMode, Vector2 lengthLimit)
+        public void UpdateArea(Color color, Vector3 downPos, Vector3 cursorPos, bool dragging, DragTool.Mode dragMode, Vector2 lengthLimit, bool hasBrushPreview, byte brushRadius)
         {
             Color = color;
 
-            if (!ShouldShow(dragging, dragMode))
+            if (!ShouldShow(dragging, dragMode, hasBrushPreview))
             {
                 DestroyArea();
                 cellChangedSinceDown = false;
@@ -81,6 +87,22 @@ namespace ONI_Together.Networking
             }
 
             InstantiateNewVisualizer();
+
+            if (hasBrushPreview)
+            {
+                if (!Grid.IsValidCell(Grid.PosToCell(cursorPos)))
+                {
+                    DestroyArea();
+                    return;
+                }
+
+                RemoveCurrentAreaText();
+                ApplyBrushRect(cursorPos, brushRadius);
+                _visualizer.SetActive(true);
+                return;
+            }
+
+            EnsureAreaText();
 
             if (Grid.PosToCell(cursorPos) != Grid.PosToCell(downPos))
             {
@@ -100,9 +122,20 @@ namespace ONI_Together.Networking
             return (Vector2)(cellCenter + (minimize ? -halfCell : halfCell));
         }
 
-        private static bool ShouldShow(bool dragging, DragTool.Mode mode)
+        private static bool ShouldShow(bool dragging, DragTool.Mode mode, bool hasBrushPreview)
         {
-            return dragging && (mode == DragTool.Mode.Box || mode == DragTool.Mode.Line);
+            return hasBrushPreview || (dragging && (mode == DragTool.Mode.Box || mode == DragTool.Mode.Line));
+        }
+
+        private void ApplyBrushRect(Vector3 cursorPos, byte brushRadius)
+        {
+            Vector3 center = Grid.CellToPosCCC(Grid.PosToCell(cursorPos), Grid.SceneLayer.Background);
+            // ONI's brush offsets cover 2 * radius - 1 cells. Radius 1 is the
+            // single-cell footprint used by regular DragTools in brush mode.
+            float diameter = Mathf.Max(1, brushRadius * 2 - 1) * Grid.CellSizeInMeters;
+
+            _visualizer.transform.position = new Vector3(center.x, center.y, 0f);
+            _areaRenderer.size = new Vector2(diameter, diameter);
         }
 
         // Dont need this tbh

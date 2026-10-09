@@ -23,5 +23,11 @@ namespace ONI_Together.Networking.Transport
         public abstract void OnMessageRecieved();
 
         public abstract void KickClient(ulong clientId);
+
+        // Bandwidth tracking (bytes/sec, packets/sec)
+        public virtual float IncomingBandwidth => 0f;
+        public virtual float OutgoingBandwidth => 0f;
+        public virtual int IncomingPps => 0;
+        public virtual int OutgoingPps => 0;
     }
 }

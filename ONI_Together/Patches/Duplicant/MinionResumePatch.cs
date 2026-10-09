@@ -15,7 +15,7 @@ namespace ONI_Together.Patches.Duplicant
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 			if (SkillMasteryPacket.IsApplying) return;
 
 			var identity = __instance.GetComponent<NetworkIdentity>();

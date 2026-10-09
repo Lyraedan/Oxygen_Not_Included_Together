@@ -31,7 +31,7 @@ namespace ONI_Together.Patches.World
 						DebugConsole.Log($"[LogicSwitch] Ignoring sync - IsApplyingPacket=true");
 						return;
 					}
-					if (!MultiplayerSession.InSession)
+					if (!MultiplayerSession.InActiveSession)
 					{
 						DebugConsole.Log($"[LogicSwitch] Not in session, skipping");
 						return;
@@ -99,7 +99,7 @@ namespace ONI_Together.Patches.World
 			using var _ = Profiler.Scope();
 
 			if (component == null) return;
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 
 			// Get NetId
 			int netId = -1;
