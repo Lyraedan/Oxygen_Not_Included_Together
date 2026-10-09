@@ -1,19 +1,12 @@
-﻿using Epic.OnlineServices.P2P;
-using ONI_Together.DebugTools;
+﻿using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Packets;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.Packets.Core;
-using ONI_Together.Networking.Packets.World;
-using ONI_Together.Networking.Packets.World.Buildings;
-using ONI_Together.Networking.Transport;
-using ONI_Together.Networking.Transport.Steam;
 using Shared.Interfaces.Networking;
-using Steamworks;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices;
 using Shared.Profiling;
 using UnityEngine;
 using ONI_Together.Networking.Components;
@@ -135,6 +128,7 @@ namespace ONI_Together.Networking
 			if (DragToolBulkPacketIds.Contains(packetId))
 				SyncStats.RecordSync(SyncStats.DragTool, flushCount, flushBytes, (float)swFlush.Elapsed.TotalMilliseconds);
 		}
+
 		private static void AppendPendingBulkPacket(object conn, IPacket packet, IBulkablePacket bp)
 		{
 			using var _ = Profiler.Scope();

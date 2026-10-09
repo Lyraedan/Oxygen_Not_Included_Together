@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Net;
 using Riptide;
 using Riptide.Utils;
 using ONI_Together.DebugTools;
@@ -13,9 +12,7 @@ using UnityEngine;
 using System.Collections;
 using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Networking.States;
-using ONI_Together.UI;
 using Shared;
-using Steamworks;
 using static ONI_Together.STRINGS.UI.MP_OVERLAY;
 
 namespace ONI_Together.Networking.Transport.Lan

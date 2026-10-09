@@ -3,7 +3,6 @@ using ONI_Together.Menus;
 using ONI_Together.Networking.Packets.Architecture;
 using System.IO;
 using Shared.Profiling;
-using UnityEngine;
 
 namespace ONI_Together.Networking.Packets.Core
 {

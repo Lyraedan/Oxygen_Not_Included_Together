@@ -1,6 +1,4 @@
-﻿using ONI_Together.DebugTools;
-using ONI_Together.Menus;
-using ONI_Together.Networking.Packets.Architecture;
+﻿using ONI_Together.Networking.Packets.Architecture;
 using System.IO;
 using Shared.Profiling;
 
@@ -30,10 +28,7 @@ namespace ONI_Together.Networking.Packets.Core
 
 			// Hide cursors until their current positions arrive after synchronization.
 			foreach (PlayerCursor cursor in MultiplayerSession.PlayerCursors.Values)
-			{
 				cursor.SetVisibility(false);
-			}
-			//PauseScreen.TriggerQuitGame();
 		}
 
 	}

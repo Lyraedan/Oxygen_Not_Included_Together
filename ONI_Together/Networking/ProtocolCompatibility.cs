@@ -5,10 +5,10 @@ namespace ONI_Together.Networking
 {
 	internal static class ProtocolCompatibility
 	{
+		// Version 3 requires transport-preserving world synchronization.
 		// Version 2 introduces deterministic OxySync field/RPC hashes, dedicated
 		// TargetRpc dispatch, and bounded/null-aware RPC and Variant framing.
 		// Version 1 peers must not connect because their wire identifiers differ.
-		// Version 3 requires transport-preserving world synchronization.
 		public const int CurrentProtocolVersion = 3;
 
 		private static int? _packetFingerprint;

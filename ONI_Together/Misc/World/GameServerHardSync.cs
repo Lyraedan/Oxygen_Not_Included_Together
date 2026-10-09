@@ -1,12 +1,10 @@
 using ONI_Together.DebugTools;
-using ONI_Together.Menus;
 using ONI_Together.Networking.Packets.Core;
-using ONI_Together.Networking.States;
 using ONI_Together.Networking.Packets.World;
+using ONI_Together.Networking.States;
 using System;
 using System.Collections;
 using Shared.Profiling;
-using UnityEngine;
 
 namespace ONI_Together.Networking
 {
@@ -50,8 +48,10 @@ namespace ONI_Together.Networking
 				if (player.PlayerId == MultiplayerSession.HostUserID)
 					continue;
 
-				if (player.Connection == null || !player.ProtocolVerified
-					|| player.readyState != ClientReadyState.Loading)
+				if (player.Connection == null || !player.ProtocolVerified)
+					continue;
+
+				if (player.readyState != ClientReadyState.Loading)
 					continue;
 
 				clientCount++;
@@ -72,6 +72,7 @@ namespace ONI_Together.Networking
 			while (ReadyManager.IsSynchronizing
 				&& UnityEngine.Time.realtimeSinceStartup < ReadyManager.GameplayDrainUntil)
 				yield return null;
+
 			if (!ReadyManager.IsSynchronizing)
 				yield break;
 

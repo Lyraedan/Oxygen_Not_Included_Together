@@ -1,7 +1,5 @@
 using System.IO;
 using ONI_Together.DebugTools;
-using ONI_Together.Misc;
-using ONI_Together.Networking.Packets.Core;
 using ONI_Together.Networking.Packets.World;
 using ONI_Together.Networking.Packets.World.Buildings;
 using ONI_Together.Networking.Overlay;

@@ -2,8 +2,6 @@ using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.States;
-using ONI_Together.Networking.Transport.Lan;
-using ONI_Together.Networking.Transport.Steamworks;
 using ONI_Together.Networking.OxySync.Components;
 using Shared.Profiling;
 using System.IO;
@@ -48,6 +46,12 @@ namespace ONI_Together.Networking.Packets.Core
 		{
 			using var _ = Profiler.Scope();
 
+			if (!MultiplayerSession.ConnectedPlayers.TryGetValue(SenderId, out MultiplayerPlayer player))
+			{
+				DebugConsole.LogError($"Tried to update ready state for unknown player {SenderId}", false);
+				return;
+			}
+
 			if (!MultiplayerSession.IsHost)
 			{
 				if (string.IsNullOrEmpty(PlayerName))
@@ -56,11 +60,7 @@ namespace ONI_Together.Networking.Packets.Core
 				MultiplayerSession.KnownPlayerNames[SenderId] = PlayerName;
 
 				if (SenderId == MultiplayerSession.HostUserID)
-				{
-					var host = MultiplayerSession.GetPlayer(SenderId);
-					if (host != null)
-						host.PlayerName = PlayerName;
-				}
+					player.PlayerName = PlayerName;
 				else
 				{
 					OxySyncChat.AddSystemMessage(
@@ -69,15 +69,11 @@ namespace ONI_Together.Networking.Packets.Core
 				return;
 			}
 
-			if (!MultiplayerSession.ConnectedPlayers.TryGetValue(SenderId, out MultiplayerPlayer player))
-			{
-				DebugConsole.LogError($"Tried to update ready state for unknown player {SenderId}", false);
-				return;
-			}
-
 			if (Status == ClientReadyState.Loading)
 			{
-				DebugConsole.LogWarning($"[ClientReadyStatusPacket] ignored client-originated Loading status from {SenderId}; only the host may begin synchronization.");
+				DebugConsole.LogWarning(
+					$"[ClientReadyStatusPacket] ignored client-originated Loading status from {SenderId}; " +
+					$"only the host may begin synchronization.");
 				return;
 			}
 
@@ -86,10 +82,11 @@ namespace ONI_Together.Networking.Packets.Core
 				if (player.readyState == ClientReadyState.Ready)
 					return;
 
-				if (!ReadyManager.IsSynchronizing
-					|| player.readyState != ClientReadyState.Loading)
+				if (!ReadyManager.IsSynchronizing || player.readyState != ClientReadyState.Loading)
 				{
-					DebugConsole.LogWarning($"[ClientReadyStatusPacket] rejected Ready for PlayerId={SenderId} while synchronization={ReadyManager.IsSynchronizing} state={player.readyState}");
+					DebugConsole.LogWarning(
+						$"[ClientReadyStatusPacket] rejected Ready for PlayerId={SenderId} " +
+						$"while synchronization={ReadyManager.IsSynchronizing} state={player.readyState}");
 					return;
 				}
 			}

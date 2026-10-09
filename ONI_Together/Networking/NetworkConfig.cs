@@ -1,23 +1,17 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using ONI_Together.Misc;
+using ONI_Together.Networking.States;
 using ONI_Together.Networking.Transport;
 using ONI_Together.Networking.Transport.Lan;
-using ONI_Together.Networking.Transport.Steam;
-using Steamworks;
-using SteamServer = ONI_Together.Networking.Transport.Steam.SteamworksServer;
-using SteamClient = ONI_Together.Networking.Transport.Steam.SteamworksClient;
 using ONI_Together.Networking.Transport.Steamworks;
-using ONI_Together.DebugTools;
-using Shared.Profiling;
 using ONI_Together.Patches.ToolPatches;
-using UnityEngine;
-using System.Collections;
+using ONI_Together.DebugTools;
 using Shared;
-using ONI_Together.Networking.States;
+using Shared.Profiling;
+using Steamworks;
+using UnityEngine;
 
 namespace ONI_Together.Networking
 {
@@ -102,11 +96,6 @@ namespace ONI_Together.Networking
         /// </summary>
         public static void Stop()
         {
-            bool resetClientLifecycle = GameClient.State != ClientState.LoadingWorld
-                && (MultiplayerSession.IsClient
-                    || GameClient.State == ClientState.Connecting
-                    || GameClient.State == ClientState.Connected
-                    || GameClient.State == ClientState.InGame);
             switch(transport)
             {
                 case NetworkTransport.STEAMWORKS:
@@ -117,9 +106,8 @@ namespace ONI_Together.Networking
                     StopRaw();
                     break;
             }
-            if (resetClientLifecycle)
-                GameClient.Handle(ClientEvent.TransportDisconnected);
 
+            GameClient.Handle(ClientEvent.TransportDisconnected);
             Game.Instance?.Trigger(MP_HASHES.OnDisconnected);
         }
 

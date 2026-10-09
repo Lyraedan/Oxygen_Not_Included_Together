@@ -8,7 +8,6 @@ using ONI_Together.Misc.World;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.States;
-using ONI_Together.Networking.Transport.Steamworks;
 using Steamworks;
 using System;
 using System.Collections;
@@ -16,7 +15,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using Shared.Profiling;
 using UnityEngine;
 

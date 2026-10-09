@@ -56,6 +56,7 @@ namespace ONI_Together.Networking
 					player.readyState = ClientReadyState.Ready;
 					continue;
 				}
+
 				if (player.Connection == null || !player.ProtocolVerified)
 					continue;
 
@@ -241,11 +242,11 @@ namespace ONI_Together.Networking
 				return;
 
 			DebugConsole.Log("Refreshing ready state...");
-			bool allReady = ReadyManager.IsEveryoneReady();
+			bool allReady = IsEveryoneReady();
 			SendStatusUpdatePacketToClients();
 			if (allReady && IsSynchronizing)
 			{
-				ReadyManager.SendAllReadyPacket();
+				SendAllReadyPacket();
 			}
 		}
 	}

@@ -41,11 +41,17 @@ namespace ONI_Together.Networking.Packets.World
 				return;
 
 			DebugConsole.Log($"[Packets/SaveFileRequest] Received request from {Requester}");
-			if (!MultiplayerSession.ConnectedPlayers.TryGetValue(Requester, out MultiplayerPlayer player)
-				|| player.Connection == null
-				|| !player.ProtocolVerified)
+			if (!MultiplayerSession.ConnectedPlayers.TryGetValue(Requester, out MultiplayerPlayer player))
 			{
-				DebugConsole.LogWarning($"[Packets/SaveFileRequest] ignored request from unverified or disconnected player {Requester}");
+				DebugConsole.LogWarning($"[Packets/SaveFileRequest] could not find player {Requester} in the session.");
+				return;
+			}
+
+			if (player.Connection == null || !player.ProtocolVerified)
+			{
+				DebugConsole.LogWarning(
+					$"[Packets/SaveFileRequest] ignored request from player {Requester} " +
+					$"with invalid connection or unverified protocol");
 				return;
 			}
 
@@ -67,17 +73,19 @@ namespace ONI_Together.Networking.Packets.World
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.IsHost || snapshot == null
-				|| !ReadyManager.IsSynchronizing)
+			if (!MultiplayerSession.IsHost || snapshot == null || !ReadyManager.IsSynchronizing)
 				return;
 
 			string fileName = SaveHelper.WorldName + ".sav";
 			foreach (var player in MultiplayerSession.ConnectedPlayers.Values)
 			{
-				if (player.PlayerId == MultiplayerSession.HostUserID
-					|| player.Connection == null
-					|| !player.ProtocolVerified
-					|| player.readyState != ClientReadyState.Loading)
+				if (player.PlayerId == MultiplayerSession.HostUserID)
+					continue;
+
+				if (player.Connection == null || !player.ProtocolVerified)
+					continue;
+
+				if (player.readyState != ClientReadyState.Loading)
 					continue;
 
 				SendSaveFile(player.PlayerId, fileName, snapshot);
