@@ -178,7 +178,7 @@ namespace ONI_Together.Networking
                 case NetworkTransport.STEAMWORKS:
                     return SteamUser.GetSteamID().m_SteamID;
                 case NetworkTransport.LITENETLIB:
-                    return MultiplayerSession.IsClient ? LiteNetLibClient.CLIENT_ID : LiteNetLibServer.CLIENT_ID;
+                    return Configuration.Instance.Network.PersistentUserId;
                 case NetworkTransport.RIPTIDE:
                     return MultiplayerSession.IsClient ? RiptideClient.CLIENT_ID : RiptideServer.CLIENT_ID;
                 default:

@@ -70,8 +70,7 @@ namespace ONI_Together.DebugTools.UnitTests
 			bool oldIsHost = MultiplayerSession.IsHost;
 			try
 			{
-				MultiplayerSession.InActiveSession = true;
-				MultiplayerSession.IsHost = false;
+				MultiplayerSession.UnitTestOverrideConn(false, true);
 				bool runOriginal = WorldDamagePatch.Prefix(0, 1f, 293.15f, 0, 0, 0);
 				return runOriginal
 					? UnitTestResult.Fail("Client would still execute the local WorldDamage spawn path")
@@ -79,8 +78,7 @@ namespace ONI_Together.DebugTools.UnitTests
 			}
 			finally
 			{
-				MultiplayerSession.InActiveSession = oldInSession;
-				MultiplayerSession.IsHost = oldIsHost;
+				MultiplayerSession.UnitTestOverrideConn(oldIsHost, oldInSession);
 			}
 		}
 

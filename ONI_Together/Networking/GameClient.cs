@@ -7,7 +7,6 @@ using ONI_Together.Networking.Packets.Handshake;
 using ONI_Together.Networking.Packets.World;
 using Shared.Profiling;
 using ONI_Together.Networking.States;
-using ONI_Together.Networking.Transport.Steamworks;
 using ONI_Together.Patches.ToolPatches;
 using Shared;
 using Shared.Helpers;
@@ -15,7 +14,6 @@ using Steamworks;
 using System;
 using System.Collections;
 using System.Linq;
-using System.Runtime.InteropServices;
 using UnityEngine;
 
 namespace ONI_Together.Networking
@@ -476,7 +474,7 @@ namespace ONI_Together.Networking
                     DebugConsole.Log($"[GameClient] Reconnecting to cached server: {_cachedConnectionInfo.Value.HostSteamID}");
                     var hostId = _cachedConnectionInfo.Value.HostSteamID;
                     _cachedConnectionInfo = null; // Clear cache to prevent re-triggering
-                    MultiplayerSession.HostUserID = hostId;
+                    MultiplayerSession.SetHost(hostId);
                     ConnectToHost(false);
                 }
 				else if(NetworkConfig.IsLanConfig())

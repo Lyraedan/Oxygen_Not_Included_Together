@@ -79,11 +79,10 @@ namespace ONI_Together.Networking.Transport.Steam
                         false
                 );
 
+                MultiplayerSession.OnDisconnectedFromHost(null);
                 DebugConsole.Log($"[GameClient] CloseConnection result: {result}");
                 Connection = null;
 
-                MultiplayerSession.InActiveSession = false;
-                //SaveHelper.CaptureWorldSnapshot();
             }
             else
             {
@@ -95,6 +94,8 @@ namespace ONI_Together.Networking.Transport.Steam
         {
             using var _ = Profiler.Scope();
 
+            ulong currentHostId = MultiplayerSession.HostUserID;
+
             // If already connected/connecting, disconnect first to avoid duplicate P2P handles
             if (Connection.HasValue || GameClient.State == ClientState.Connected || GameClient.State == ClientState.Connecting)
             {
@@ -102,6 +103,9 @@ namespace ONI_Together.Networking.Transport.Steam
                 Disconnect();
                 // Note: previous Thread.Sleep(100) removed - blocks main thread; SteamNetworkingSockets needs 1 frame via RunCallbacks instead
             }
+
+            // Restore the host id deleted by the Disconnect call
+            MultiplayerSession.SetHost(currentHostId);
 
             if (MultiplayerSession.HostUserID != Utils.NilUlong())
             {
@@ -201,24 +205,9 @@ namespace ONI_Together.Networking.Transport.Steam
         {
             using var _ = Profiler.Scope();
 
-            //MultiplayerOverlay.Close();
-
             // We've reconnected in game
-            MultiplayerSession.InActiveSession = true;
-            Game.Instance?.Trigger(MP_HASHES.OnConnected);
+            MultiplayerSession.OnConnectedToHost(MultiplayerSession.HostUserID, Connection);
             NetworkConfig.TransportClient.OnClientConnected.Invoke();
-
-            var hostId = MultiplayerSession.HostUserID;
-            if (!MultiplayerSession.ConnectedPlayers.ContainsKey(hostId))
-            {
-                var hostPlayer = new MultiplayerPlayer(hostId);
-                MultiplayerSession.ConnectedPlayers[hostId] = hostPlayer;
-            }
-
-            // Store the connection handle for host
-            MultiplayerSession.ConnectedPlayers[hostId].Connection = Connection;
-
-            DebugConsole.Log("[GameClient] Connection to host established!");
 
             // Skip mod verification if we are the host
 			if (MultiplayerSession.IsHost)
@@ -226,7 +215,6 @@ namespace ONI_Together.Networking.Transport.Steam
 				return;
 			}
 
-			PacketHandler.readyToProcess = true;
 			NetworkConfig.TransportClient.OnRequestStateOrReturn.Invoke();
 		}
 
@@ -259,6 +247,7 @@ namespace ONI_Together.Networking.Transport.Steam
                     NetworkConfig.TransportClient.OnReturnToMenu.Invoke(STRINGS.UI.MP_OVERLAY.CLIENT.STEAMWORKS.LOCAL_PROBLEM, STRINGS.UI.MP_OVERLAY.CLIENT.STEAMWORKS.LOCAL_PROBLEM_DESC);
                     break;
             }
+            MultiplayerSession.OnDisconnectedFromHost(null);
         }
 
         #region Connection Health
