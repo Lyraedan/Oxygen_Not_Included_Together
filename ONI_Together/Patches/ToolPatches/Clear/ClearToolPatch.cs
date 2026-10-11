@@ -12,7 +12,7 @@ namespace ONI_Together.Patches.ToolPatches.Clear
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession)
+			if (!MultiplayerSession.InActiveSession)
 				return;
 
 			if (!Grid.IsValidCell(cell))

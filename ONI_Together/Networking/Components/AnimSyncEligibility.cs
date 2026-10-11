@@ -7,7 +7,7 @@ namespace ONI_Together.Networking.Components
 		internal static bool IsAnimatedCritter(GameObject go)
 		{
 			return go != null
-				&& go.HasTag(GameTags.Creature)
+				&& (go.HasTag(GameTags.Creature) || go.GetComponent<CreatureBrain>() != null)
 				&& !go.HasTag(GameTags.BaseMinion)
 				&& go.GetComponent<KBatchedAnimController>() != null;
 		}
@@ -29,9 +29,16 @@ namespace ONI_Together.Networking.Components
 				|| go.GetComponent<KAnimGraphTileVisualizer>() != null;
 		}
 
+		internal static bool IsAnimatedPlant(GameObject go)
+		{
+			return go != null
+				&& go.GetComponent<Growing>() != null
+				&& go.GetComponent<KBatchedAnimController>() != null;
+		}
+
 		internal static bool IsAnimatedNonMinion(GameObject go)
 		{
-			return IsAnimatedCritter(go) || IsAnimatedBuilding(go);
+			return IsAnimatedCritter(go) || IsAnimatedBuilding(go) || IsAnimatedPlant(go);
 		}
 	}
 }

@@ -14,7 +14,7 @@ namespace ONI_Together.Patches.World
         {
             public static void Prefix(GameObject src_go, Vector3 pos, Orientation orientation, IList<Tag> selected_elements, string facadeID, ref bool restrictToActiveWorld, int layer)
             {
-                if (MultiplayerSession.InSession)
+                if (MultiplayerSession.InActiveSession)
                 {
                     restrictToActiveWorld = false;
                 }
@@ -28,7 +28,7 @@ namespace ONI_Together.Patches.World
             {
                 fail_reason = "MP Override";
 
-                if (MultiplayerSession.InSession)
+                if (MultiplayerSession.InActiveSession)
                 {
                     restrictToActiveWorld = false;
                 }
@@ -42,7 +42,7 @@ namespace ONI_Together.Patches.World
             {
                 fail_reason = "MP Override";
 
-                if (MultiplayerSession.InSession)
+                if (MultiplayerSession.InActiveSession)
                 {
                     restrictToActiveWorld = false;
                 }

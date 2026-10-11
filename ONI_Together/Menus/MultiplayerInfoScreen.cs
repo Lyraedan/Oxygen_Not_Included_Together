@@ -286,7 +286,7 @@ namespace ONI_Together.Menus
             textRT.sizeDelta = Vector2.zero;
 
             var tmp = textGO.GetComponent<TextMeshProUGUI>();
-            int playerCount = MultiplayerSession.ConnectedPlayers.Count + 1; // +1 for host
+            int playerCount = MultiplayerSession.PlayerCount;
             tmp.text = string.Format(STRINGS.UI.SERVERBROWSER.CONNECTED_PLAYERS, playerCount);
             tmp.fontSize = 16;
             tmp.alignment = TextAlignmentOptions.Center;

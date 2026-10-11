@@ -19,6 +19,9 @@ namespace ONI_Together.Patches.Bionics
         {
             static bool Prefix(BionicOilMonitor.Instance __instance)
             {
+                if (MultiplayerSession.IsClient)
+                    return false;
+
                 if (__instance == null)
                     return false;
 
@@ -37,6 +40,9 @@ namespace ONI_Together.Patches.Bionics
         {
             static bool Prefix(BionicOilMonitor.Instance __instance)
             {
+                if (MultiplayerSession.IsClient)
+                    return false;
+
                 if (__instance == null)
                     return false;
 
@@ -55,6 +61,9 @@ namespace ONI_Together.Patches.Bionics
         {
             static bool Prefix(BionicOilMonitor.Instance __instance, float delta)
             {
+                if (MultiplayerSession.IsClient)
+                    return false;
+
                 if (__instance == null)
                     return false;
 
@@ -86,6 +95,10 @@ namespace ONI_Together.Patches.Bionics
                     return false;
 
                 if (__instance.gameObject == null)
+                    return false;
+
+                var sensors = __instance.GetComponent<Sensors>();
+                if (sensors == null || sensors.GetSensor<ClosestLubricantSensor>() == null)
                     return false;
 
                 return true; // allow SM start

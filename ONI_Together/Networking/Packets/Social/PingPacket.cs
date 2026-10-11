@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace ONI_Together.Networking.Packets.Social
 {
-	public class PingPacket : IPacket
+	public class PingPacket : IPacket, IAllowedWithoutWorldPacket
 	{
 		public ulong PlayerID;
 		public float WorldX;

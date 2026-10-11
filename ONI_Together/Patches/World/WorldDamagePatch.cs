@@ -17,6 +17,11 @@ namespace ONI_Together.Patches.World
 		{
 			using var _ = Profiler.Scope();
 
+			// The host owns dig completion and sends the resulting drop explicitly.
+			// Spawning here on a client as well creates a second copy of the resource.
+			if (MultiplayerSession.IsClient)
+				return false;
+
 			try
 			{
 				OnDigCompletedUpdated(cell, mass, temperature, element_idx, disease_idx, disease_count);

@@ -1,6 +1,7 @@
-﻿using ONI_Together.DebugTools;
+using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
+using ONI_Together.Networking.OxySync.Components;
 using System.Collections;
 using Shared.Profiling;
 using UnityEngine;
@@ -18,25 +19,19 @@ namespace ONI_Together.Scripts.Duplicants
 		{
 			using var _ = Profiler.Scope();
 			base.OnSpawn();
-			StartCoroutine(WaitForSessionAndInit());
+			if (MultiplayerSession.InActiveSession)
+			{
+				FinalizeInit();
+			}
+			else
+			{
+				StartCoroutine(WaitForSessionAndInit());
+			}
 		}
 
 		IEnumerator WaitForSessionAndInit()
 		{
-			yield return new WaitUntil((() => MultiplayerSession.InSession));
-			InitializeMP();
-		}
-
-		void InitializeMP(object _ = null)
-		{
-			using var scope = Profiler.Scope();
-			StartCoroutine(DelayedInit());
-		}
-		
-		IEnumerator DelayedInit()
-		{
-			using var _ = Profiler.Scope();
-			yield return new WaitForSecondsRealtime(0.5f);
+			yield return new WaitUntil((() => MultiplayerSession.InActiveSession));
 			FinalizeInit();
 		}
 
@@ -63,20 +58,19 @@ namespace ONI_Together.Scripts.Duplicants
 			if (go.TryGetComponent<MinionBrain>(out var brain)) brain.enabled = false;
 			if (go.TryGetComponent<Sensors>(out var sensors)) sensors.enabled = false;
 
-			var stateMachineControllers = go.GetComponents<StateMachineController>();
-			foreach (var smc in stateMachineControllers)
-				if (smc != null) smc.enabled = false;
+			// Do NOT disable StateMachineController!
+			// In Klei's engine, StateMachineController drives visual animation and rendering of the Duplicant.
 
 			go.AddOrGet<ClientReceiver_ChoreErrands>();
-			var status_receiver = go.AddOrGet<ClientReceiver_StatusItems>();
-			status_receiver.recieverType = ClientReceiver_StatusItems.StatusRecieverType.DUPLICANT;
+			var statusSync = go.AddOrGet<StatusItemsSyncer>();
+			statusSync.recieverType = StatusItemsSyncer.StatusRecieverType.DUPLICANT;
 		}
 
 		void InitializeHost(GameObject go)
 		{
 			go.AddOrGet<DuplicantStateSender>();
 			go.AddOrGet<DuplicantChoreBroadcaster>();
-			go.AddOrGet<StatusBroadcaster>();
+			go.AddOrGet<StatusItemsSyncer>();
 		}
 	}
 }

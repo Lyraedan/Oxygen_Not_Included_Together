@@ -11,7 +11,7 @@ namespace ONI_Together.Networking.Packets.World
     /// Wrapper packet that provides integrity validation through serialization/deserialization
     /// If deserialization succeeds, ALL bytes arrived intact. If it fails, data is corrupted.
     /// </summary>
-    public class SecureTransferPacket : IPacket
+    public class SecureTransferPacket : IPacket, IAllowedWithoutWorldPacket
     {
         public int SequenceNumber;           // Packet order (0, 1, 2, 3...)
         public string TransferId;            // Transfer session ID (e.g., "Before_Reactor_Active")

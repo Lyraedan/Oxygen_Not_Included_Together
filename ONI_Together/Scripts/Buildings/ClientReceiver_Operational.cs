@@ -20,8 +20,15 @@ namespace ONI_Together.Scripts.Buildings
 			using var _ = Profiler.Scope();
 
 			base.OnSpawn();
-			if (MultiplayerSession.IsClient)
+			if (MultiplayerSession.IsHost)
+				return;
+
+			// Built while playing: ask for this one. A building from the save spawns while the
+			// client is still loading, so those are all asked for at once when it is in game.
+			if (MultiplayerSession.IsClient && GameClient.State == ClientState.InGame)
 				PacketSender.SendToHost(new RequestOperationalStatePacket(this));
+			else
+				RequestOperationalStatePacket.RequestAllWhenInGame();
 		}
 
 		public bool IsFunctional { get; set; }

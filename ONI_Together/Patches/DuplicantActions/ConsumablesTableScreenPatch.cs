@@ -14,7 +14,7 @@ namespace ONI_Together.Patches.DuplicantActions
         {
             using var _ = Profiler.Scope();
 
-            if (!MultiplayerSession.InSession)
+            if (!MultiplayerSession.InActiveSession)
                 return;
 
 

@@ -50,7 +50,7 @@ namespace ONI_Together.Patches.World.SideScreen
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.IsHost && MultiplayerSession.InSession)
+			if (!MultiplayerSession.IsHost && MultiplayerSession.InActiveSession)
 			{
 				__instance.do_melt_check = false;
 			}
@@ -78,7 +78,7 @@ namespace ONI_Together.Patches.World.SideScreen
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.IsHost && MultiplayerSession.InSession)
+			if (!MultiplayerSession.IsHost && MultiplayerSession.InActiveSession)
 			{
 				return false;
 			}

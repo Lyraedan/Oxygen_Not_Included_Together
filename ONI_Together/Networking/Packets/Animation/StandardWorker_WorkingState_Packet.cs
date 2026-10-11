@@ -166,7 +166,7 @@ namespace ONI_Together.Networking.Packets.Animation
 			{
 				yield return null;
 
-				if (!MultiplayerSession.InSession || MultiplayerSession.IsHost)
+				if (!MultiplayerSession.InActiveSession || MultiplayerSession.IsHost)
 					yield break;
 
 				if (packet.TryApply(logFailure: attempt == 9))

@@ -7,12 +7,17 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Shared.Interfaces.Networking;
 using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.World.Buildings
 {
-	internal class OperationalStatePacket : IPacket
+	internal class OperationalStatePacket : IPacket, IBulkablePacket
 	{
+		// A client that joins is sent the state of every building, see RequestOperationalStatePacket
+		public int MaxPackSize => 500;
+		public uint IntervalMs => 50;
+
 		public OperationalStatePacket() { }
 		public OperationalStatePacket(Operational o)
 		{

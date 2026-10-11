@@ -13,7 +13,7 @@ public class AttackToolPatch
     {
         using var _ = Profiler.Scope();
 
-        if (!MultiplayerSession.InSession)
+        if (!MultiplayerSession.InActiveSession)
             return;
 
         Vector2 min_object = __instance.GetRegularizedPos(Vector2.Min(downPos, upPos), true);

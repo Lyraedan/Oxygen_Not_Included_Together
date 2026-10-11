@@ -17,6 +17,7 @@ namespace ONI_Together.DebugTools
     public class PacketTracker
     {
         private static PacketTracker _instance;
+        public static PacketTracker Instance => _instance;
         public int _nextTrackId;
         private bool showWindow = false;
 
@@ -71,6 +72,13 @@ namespace ONI_Together.DebugTools
         }
         private Dictionary<string, TypeBw> _inBw = new();
         private Dictionary<string, TypeBw> _outBw = new();
+
+        // Combined byte counters (all types aggregated) — avoids per-type summing bugs
+        private float _combInBytes;
+        private float _combOutBytes;
+        private float[] _combInHistory = new float[BW_HISTORY_SECONDS];
+        private float[] _combOutHistory = new float[BW_HISTORY_SECONDS];
+        private int _combHistoryIdx;
         private bool _showBw = false;
         private int _bwView = 0; // 0 = combined, 1 = incoming, 2 = outgoing
 
@@ -117,6 +125,12 @@ namespace ONI_Together.DebugTools
         {
             foreach (var b in _instance._inBw.Values) FinalizeOne(b);
             foreach (var b in _instance._outBw.Values) FinalizeOne(b);
+            var inst = _instance;
+            inst._combInHistory[inst._combHistoryIdx] = inst._combInBytes;
+            inst._combOutHistory[inst._combHistoryIdx] = inst._combOutBytes;
+            inst._combHistoryIdx = (inst._combHistoryIdx + 1) % BW_HISTORY_SECONDS;
+            inst._combInBytes = 0;
+            inst._combOutBytes = 0;
         }
 
         private static void FinalizeOne(TypeBw b)
@@ -142,6 +156,7 @@ namespace ONI_Together.DebugTools
             data.Timestamp = Time.realtimeSinceStartup;
             BufferAdd(_instance._outgoingBuf, ref _instance._outgoingHead, ref _instance._outgoingCount, data);
             _instance._ppsOutCount++;
+            _instance._combOutBytes += data.size;
             RecordBw(_instance._outBw, data.packet.GetType().Name, data.size);
         }
 
@@ -152,6 +167,7 @@ namespace ONI_Together.DebugTools
             data.Timestamp = Time.realtimeSinceStartup;
             BufferAdd(_instance._incomingBuf, ref _instance._incomingHead, ref _instance._incomingCount, data);
             _instance._ppsInCount++;
+            _instance._combInBytes += data.size;
             RecordBw(_instance._inBw, data.packet.GetType().Name, data.size);
         }
 
@@ -169,10 +185,15 @@ namespace ONI_Together.DebugTools
             _instance._inspectWindows.Clear();
             _instance._inBw.Clear();
             _instance._outBw.Clear();
+            _instance._combInBytes = 0;
+            _instance._combOutBytes = 0;
+            Array.Clear(_instance._combInHistory, 0, BW_HISTORY_SECONDS);
+            Array.Clear(_instance._combOutHistory, 0, BW_HISTORY_SECONDS);
+            _instance._combHistoryIdx = 0;
             _paused = false;
         }
 
-        private void CalculatePps()
+        public void CalculatePps()
         {
             float now = Time.realtimeSinceStartup;
             float elapsed = now - _lastPpsTime;
@@ -184,6 +205,33 @@ namespace ONI_Together.DebugTools
                 _ppsOutCount = 0;
                 _lastPpsTime = now;
                 FinalizeBwSecond();
+            }
+        }
+
+        public static float IncomingPps => _instance._incomingPps;
+        public static float OutgoingPps => _instance._outgoingPps;
+        public static int IncomingCount => _instance._incomingCount;
+        public static int OutgoingCount => _instance._outgoingCount;
+        public static float IncomingBandwidth
+        {
+            get
+            {
+                var inst = _instance;
+                float sum = 0;
+                for (int i = 0; i < BW_HISTORY_SECONDS; i++)
+                    sum += inst._combInHistory[(inst._combHistoryIdx - 1 - i + BW_HISTORY_SECONDS) % BW_HISTORY_SECONDS];
+                return sum / BW_HISTORY_SECONDS;
+            }
+        }
+        public static float OutgoingBandwidth
+        {
+            get
+            {
+                var inst = _instance;
+                float sum = 0;
+                for (int i = 0; i < BW_HISTORY_SECONDS; i++)
+                    sum += inst._combOutHistory[(inst._combHistoryIdx - 1 - i + BW_HISTORY_SECONDS) % BW_HISTORY_SECONDS];
+                return sum / BW_HISTORY_SECONDS;
             }
         }
 
@@ -209,7 +257,7 @@ namespace ONI_Together.DebugTools
 
         private void DrawContent()
         {
-            if (!MultiplayerSession.InSession)
+            if (!MultiplayerSession.InActiveSession)
             {
                 if (_incomingCount > 0 || _outgoingCount > 0)
                     Clear();
@@ -222,13 +270,12 @@ namespace ONI_Together.DebugTools
             // Top bar
             float lw = ImGui.GetContentRegionAvail().x;
             ImGui.TextColored(new Vector4(0.3f, 1f, 0.3f, 1f),
-                $"{_incomingPps:F1}/s");
+                $"{IncomingPps:F1}/s");
             ImGui.SameLine();
             ImGui.TextColored(new Vector4(1f, 0.6f, 0.2f, 1f),
-                $"{_outgoingPps:F1}/s");
+                $"{OutgoingPps:F1}/s");
             ImGui.SameLine();
-            float totalBw = _inBw.Values.Sum(b => b.TotalBytes) + _outBw.Values.Sum(b => b.TotalBytes);
-            float totalBwSec = _inBw.Values.Sum(b => AvgRecent(b)) + _outBw.Values.Sum(b => AvgRecent(b));
+            float totalBwSec = IncomingBandwidth + OutgoingBandwidth;
             ImGui.Text($"  {Utils.FormatBytes((long)totalBwSec)}/s");
             ImGui.SameLine();
             float textW = ImGui.CalcTextSize("Tracked: 50000/50000").x + 30;
@@ -271,14 +318,12 @@ namespace ONI_Together.DebugTools
         private static float AvgRecent(TypeBw b)
         {
             float sum = 0;
-            int n = 0;
             for (int i = 0; i < BW_HISTORY_SECONDS; i++)
             {
                 float v = b.History[(b.HistoryIdx - 1 - i + BW_HISTORY_SECONDS) % BW_HISTORY_SECONDS];
                 sum += v;
-                if (v > 0) n++;
             }
-            return n > 0 ? sum / n : 0;
+            return sum / BW_HISTORY_SECONDS;
         }
 
         public void DrawBandwidth()

@@ -16,32 +16,27 @@ namespace ONI_Together.Patches.World
 
 			if (PrioritizeStatePacket.IsApplying) return;
 			if (DragToolPacket.ProcessingIncoming) return;
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
+			if (__instance == null || __instance.gameObject == null) return;
 
-			// Find NetId
-			int netId = -1;
-			// Prioritizable is a component, usually on the same GameObject as NetworkIdentity
-			var identity = __instance.GetComponent<NetworkIdentity>();
-			if (identity != null)
+			// Find or register NetId
+			var identity = __instance.gameObject.GetNetIdentity();
+			int netId = identity != null ? identity.NetId : 0;
+			int cell = Grid.PosToCell(__instance.gameObject);
+
+			var packet = new PrioritizeStatePacket();
+			packet.Priorities.Add(new PrioritizeStatePacket.PriorityData
 			{
-				netId = identity.NetId;
-			}
+				NetId = netId,
+				Cell = cell,
+				PriorityClass = (int)priority.priority_class,
+				PriorityValue = priority.priority_value
+			});
 
-			if (netId != -1)
-			{
-				var packet = new PrioritizeStatePacket();
-				packet.Priorities.Add(new PrioritizeStatePacket.PriorityData
-				{
-					NetId = netId,
-					PriorityClass = (int)priority.priority_class,
-					PriorityValue = priority.priority_value
-				});
-
-				if (MultiplayerSession.IsHost)
-					PacketSender.SendToAllClients(packet);
-				else
-					PacketSender.SendToHost(packet);
-			}
+			if (MultiplayerSession.IsHost)
+				PacketSender.SendToAllClients(packet);
+			else
+				PacketSender.SendToHost(packet);
 		}
 	}
 }

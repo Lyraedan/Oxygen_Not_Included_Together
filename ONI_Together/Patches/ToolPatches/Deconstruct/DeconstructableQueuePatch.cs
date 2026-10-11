@@ -23,7 +23,7 @@ namespace ONI_Together.Patches.ToolPatches.Deconstruct
 
 			try
 			{
-				if (!MultiplayerSession.InSession) return;
+				if (!MultiplayerSession.InActiveSession) return;
 				if (BuildingActionPacket.ProcessingIncoming) return;
 				// Drag path already has its own sync via DeconstructPacket; don't double-send.
 				// This patch exists specifically for non-drag entry points.

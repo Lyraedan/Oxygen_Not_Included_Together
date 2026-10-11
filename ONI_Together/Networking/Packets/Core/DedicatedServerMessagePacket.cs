@@ -10,7 +10,7 @@ using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.Core
 {
-    public class DedicatedServerMessagePacket : IPacket
+    public class DedicatedServerMessagePacket : IPacket, IAllowedWithoutWorldPacket
     {
         public int PacketID;
         public byte[] PacketData;

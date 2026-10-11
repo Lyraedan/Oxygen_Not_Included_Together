@@ -13,7 +13,7 @@ namespace ONI_Together.Patches.ToolPatches.Dig
         {
             using var _ = Profiler.Scope();
 
-            if (!MultiplayerSession.InSession)
+            if (!MultiplayerSession.InActiveSession)
             {
                 DebugConsole.LogWarning("[PlaceDig Patch] Skipped: MultiplayerSession.InSession is false");
                 return;

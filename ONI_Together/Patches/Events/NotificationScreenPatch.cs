@@ -40,4 +40,14 @@ namespace ONI_Together.Patches.Events
 			PacketSender.SendToAllClients(packet);
 		}
 	}
+
+	[HarmonyPatch(typeof(NotificationScreen), nameof(NotificationScreen.OnSpawn))]
+	public static class NotificationScreenPendingPatch
+	{
+		public static void Postfix()
+		{
+			if (MultiplayerSession.IsClient)
+				NotificationPacket.FlushPending();
+		}
+	}
 }

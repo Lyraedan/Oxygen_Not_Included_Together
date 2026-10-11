@@ -34,9 +34,9 @@ namespace ONI_Together.Networking.Components
 		private const float SYNC_INTERVAL = 1.5f;        // delta cadence — matches WorldStateSyncer.GAS_SYNC_INTERVAL
 		private const float FORCE_REFRESH_INTERVAL = 4.5f; // full re-emit cadence; 3x delta is the smallest spacing that does not duplicate the delta tick
 		private const float INITIAL_DELAY = 5f;
-		// 22 bytes/update (cell:4 + type:1 + element:4 + mass:4 + temp:4 + disease idx:1 + disease count:4)
-		// 50 * 22 = 1100 bytes, fits Steam P2P unreliable MTU (~1200 B) without fragmentation.
-		private const int MAX_UPDATES_PER_PACKET = 50;
+		// 31 bytes/update including visual flow direction/element/mass. 35 updates
+		// remain below Steam P2P's ~1200 byte unreliable MTU.
+		private const int MAX_UPDATES_PER_PACKET = 35;
 		private const float MASS_THRESHOLD = 0.01f;      // 10 g
 		private const float TEMP_THRESHOLD = 0.5f;       // 0.5 K
 
@@ -58,9 +58,11 @@ namespace ONI_Together.Networking.Components
 		private int[] _shadowGasElement;
 		private float[] _shadowGasMass;
 		private float[] _shadowGasTemp;
+		private byte[] _shadowGasDirection;
 		private int[] _shadowLiquidElement;
 		private float[] _shadowLiquidMass;
 		private float[] _shadowLiquidTemp;
+		private byte[] _shadowLiquidDirection;
 
 		// Fast-path state: per-cell time of last immediate emit (regardless of
 		// conduit type since gas/liquid pipes never coexist in the same cell),
@@ -89,7 +91,7 @@ namespace ONI_Together.Networking.Components
 		{
 			using var _ = Profiler.Scope();
 
-			if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost)
+			if (!MultiplayerSession.InActiveSession || !MultiplayerSession.IsHost)
 				return;
 
 			if (MultiplayerSession.ConnectedPlayers.Count == 0)
@@ -141,12 +143,14 @@ namespace ONI_Together.Networking.Components
 				_shadowGasElement = new int[Grid.CellCount];
 				_shadowGasMass = new float[Grid.CellCount];
 				_shadowGasTemp = new float[Grid.CellCount];
+				_shadowGasDirection = new byte[Grid.CellCount];
 				_shadowLiquidElement = new int[Grid.CellCount];
 				_shadowLiquidMass = new float[Grid.CellCount];
 				_shadowLiquidTemp = new float[Grid.CellCount];
+				_shadowLiquidDirection = new byte[Grid.CellCount];
 				_lastImmediateEmit = new float[Grid.CellCount];
-				PrimeShadow(gasFlow, (int)ObjectLayer.GasConduit, _shadowGasElement, _shadowGasMass, _shadowGasTemp);
-				PrimeShadow(liquidFlow, (int)ObjectLayer.LiquidConduit, _shadowLiquidElement, _shadowLiquidMass, _shadowLiquidTemp);
+				PrimeShadow(gasFlow, (int)ObjectLayer.GasConduit, _shadowGasElement, _shadowGasMass, _shadowGasTemp, _shadowGasDirection);
+				PrimeShadow(liquidFlow, (int)ObjectLayer.LiquidConduit, _shadowLiquidElement, _shadowLiquidMass, _shadowLiquidTemp, _shadowLiquidDirection);
 				_lastForceRefresh = Time.unscaledTime;
 				return;
 			}
@@ -179,11 +183,11 @@ namespace ONI_Together.Networking.Components
 
 				if (hasGas)
 					MaybeQueueCell(gasFlow, cell, ConduitContentsPacket.CONDUIT_GAS,
-						_shadowGasElement, _shadowGasMass, _shadowGasTemp,
+						_shadowGasElement, _shadowGasMass, _shadowGasTemp, _shadowGasDirection,
 						packet, forceRefresh);
 				if (hasLiquid)
 					MaybeQueueCell(liquidFlow, cell, ConduitContentsPacket.CONDUIT_LIQUID,
-						_shadowLiquidElement, _shadowLiquidMass, _shadowLiquidTemp,
+						_shadowLiquidElement, _shadowLiquidMass, _shadowLiquidTemp, _shadowLiquidDirection,
 						packet, forceRefresh);
 
 				if (packet.Updates.Count >= MAX_UPDATES_PER_PACKET)
@@ -207,7 +211,7 @@ namespace ONI_Together.Networking.Components
 			}
 		}
 
-		private static void PrimeShadow(ConduitFlow flow, int objectLayer, int[] shadowEl, float[] shadowMass, float[] shadowTemp)
+		private static void PrimeShadow(ConduitFlow flow, int objectLayer, int[] shadowEl, float[] shadowMass, float[] shadowTemp, byte[] shadowDirection)
 		{
 			if (flow == null) return;
 			for (int cell = 0; cell < Grid.CellCount; cell++)
@@ -217,24 +221,33 @@ namespace ONI_Together.Networking.Components
 				shadowEl[cell] = (int)c.element;
 				shadowMass[cell] = c.mass;
 				shadowTemp[cell] = c.temperature;
+				var conduit = flow.GetConduit(cell);
+				if (conduit.idx != -1)
+					shadowDirection[cell] = (byte)conduit.GetLastFlowInfo(flow).direction;
 			}
 		}
 
 		// Emit the cell's contents if it changed since last broadcast, or
 		// unconditionally during a force-refresh tick (catches packet drops).
 		private static void MaybeQueueCell(ConduitFlow flow, int cell, byte conduitType,
-			int[] shadowEl, float[] shadowMass, float[] shadowTemp,
+			int[] shadowEl, float[] shadowMass, float[] shadowTemp, byte[] shadowDirection,
 			ConduitContentsPacket packet, bool forceRefresh)
 		{
 			var c = flow.GetContents(cell);
 			int el = (int)c.element;
+			var conduit = flow.GetConduit(cell);
+			var flowInfo = conduit.idx != -1
+				? conduit.GetLastFlowInfo(flow)
+				: ConduitFlow.ConduitFlowInfo.DEFAULT;
+			byte direction = (byte)flowInfo.direction;
 
 			if (!forceRefresh)
 			{
 				bool changed =
 					el != shadowEl[cell]
 					|| Mathf.Abs(c.mass - shadowMass[cell]) > MASS_THRESHOLD
-					|| Mathf.Abs(c.temperature - shadowTemp[cell]) > TEMP_THRESHOLD;
+					|| Mathf.Abs(c.temperature - shadowTemp[cell]) > TEMP_THRESHOLD
+					|| direction != shadowDirection[cell];
 				if (!changed) return;
 			}
 			else if (c.mass <= 0f && shadowEl[cell] == 0 && shadowMass[cell] <= 0f)
@@ -247,6 +260,7 @@ namespace ONI_Together.Networking.Components
 			shadowEl[cell] = el;
 			shadowMass[cell] = c.mass;
 			shadowTemp[cell] = c.temperature;
+			shadowDirection[cell] = direction;
 
 			packet.Updates.Add(new ConduitCellUpdate
 			{
@@ -257,6 +271,9 @@ namespace ONI_Together.Networking.Components
 				Temperature = c.temperature,
 				DiseaseIdx = c.diseaseIdx,
 				DiseaseCount = c.diseaseCount,
+				FlowDirection = direction,
+				FlowElement = (int)flowInfo.contents.element,
+				FlowMass = flowInfo.contents.mass,
 			});
 		}
 
@@ -285,12 +302,33 @@ namespace ONI_Together.Networking.Components
 						: (int)ObjectLayer.LiquidConduit;
 					if (Grid.Objects[u.Cell, layer] == null) continue; // pipe not built yet on client
 
-					flow.SetContents(u.Cell, new ConduitFlow.ConduitContents(
+					var syncedContents = new ConduitFlow.ConduitContents(
 						(SimHashes)u.Element,
 						u.Mass,
 						u.Temperature,
 						u.DiseaseIdx,
-						u.DiseaseCount));
+						u.DiseaseCount);
+					flow.SetContents(u.Cell, syncedContents);
+
+					// ConduitFlowVisualizer animates from SOA lastFlowInfo rather than
+					// the grid contents. Apply both pieces of state on frozen clients.
+					var conduit = flow.GetConduit(u.Cell);
+					if (conduit.idx != -1)
+					{
+						var soa = flow.soaInfo;
+						soa.initialContents[conduit.idx] = syncedContents;
+						soa.ResetLastFlowInfo(conduit.idx);
+						if (u.FlowDirection != (byte)ConduitFlow.FlowDirections.None && u.FlowMass > 0f)
+						{
+							var movedContents = new ConduitFlow.ConduitContents(
+								(SimHashes)u.FlowElement,
+								u.FlowMass,
+								u.Temperature,
+								u.DiseaseIdx,
+								u.DiseaseCount);
+							soa.SetLastFlowInfo(conduit.idx, (ConduitFlow.FlowDirections)u.FlowDirection, ref movedContents);
+						}
+					}
 				}
 				catch (Exception ex)
 				{
@@ -326,12 +364,14 @@ namespace ONI_Together.Networking.Components
 					_shadowGasElement[cell] = el;
 					_shadowGasMass[cell] = c.mass;
 					_shadowGasTemp[cell] = c.temperature;
+					_shadowGasDirection[cell] = (byte)ConduitFlow.FlowDirections.None;
 				}
 				else
 				{
 					_shadowLiquidElement[cell] = el;
 					_shadowLiquidMass[cell] = c.mass;
 					_shadowLiquidTemp[cell] = c.temperature;
+					_shadowLiquidDirection[cell] = (byte)ConduitFlow.FlowDirections.None;
 				}
 
 				_pendingImmediate.Add(new ConduitCellUpdate
@@ -343,6 +383,9 @@ namespace ONI_Together.Networking.Components
 					Temperature = c.temperature,
 					DiseaseIdx = c.diseaseIdx,
 					DiseaseCount = c.diseaseCount,
+					FlowDirection = (byte)ConduitFlow.FlowDirections.None,
+					FlowElement = (int)c.element,
+					FlowMass = 0f,
 				});
 			}
 			catch (Exception ex)

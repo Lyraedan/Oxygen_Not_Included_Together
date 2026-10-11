@@ -15,7 +15,7 @@ public static class WorkProgressPatch
 	{
 		using var _ = Profiler.Scope();
 
-		if (!MultiplayerSession.IsHost || !MultiplayerSession.InSession)
+		if (!MultiplayerSession.IsHost || !MultiplayerSession.InActiveSession)
 			return;
 
 		if (__instance.IsNullOrDestroyed())

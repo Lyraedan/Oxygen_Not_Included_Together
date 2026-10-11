@@ -10,7 +10,7 @@ public static class CameraControllerPatch
 		using var _ = Profiler.Scope();
 
 		// Block camera zoom if mouse is over chat panel
-		if (ChatScreen.IsMouseOverChatPanel())
+		if (UnityChatBoxUI.IsMouseOverChatPanel())
 		{
 			if (e.IsAction(Action.ZoomIn) || e.IsAction(Action.ZoomOut))
 			{

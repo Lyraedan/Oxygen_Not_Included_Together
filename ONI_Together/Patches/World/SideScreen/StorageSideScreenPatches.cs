@@ -23,7 +23,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			using var _ = Profiler.Scope();
 
 			if (BuildingConfigPacket.IsApplyingPacket) return;
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 			if (__instance.targetLogicCounter == null) return;
 
 			var identity = __instance.targetLogicCounter.gameObject.AddOrGet<NetworkIdentity>();
@@ -54,7 +54,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			using var _ = Profiler.Scope();
 
 			if (BuildingConfigPacket.IsApplyingPacket) return;
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 			if (__instance.targetLogicCounter == null) return;
 
 			var identity = __instance.targetLogicCounter.gameObject.AddOrGet<NetworkIdentity>();
@@ -85,7 +85,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			using var _ = Profiler.Scope();
 
 			if (BuildingConfigPacket.IsApplyingPacket) return;
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 			if (__instance.targetLogicCounter == null) return;
 
 			var identity = __instance.targetLogicCounter.gameObject.AddOrGet<NetworkIdentity>();
@@ -116,7 +116,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			using var _ = Profiler.Scope();
 
 			if (BuildingConfigPacket.IsApplyingPacket) return;
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 
 			var identity = __instance.gameObject.AddOrGet<NetworkIdentity>();
 			identity.RegisterIdentity();
@@ -154,7 +154,7 @@ namespace ONI_Together.Patches.World.SideScreen
 					DebugConsole.Log($"[ComplexFabricator] Ignoring sync - IsApplyingPacket=true");
 					return;
 				}
-				if (!MultiplayerSession.InSession)
+				if (!MultiplayerSession.InActiveSession)
 				{
 					DebugConsole.Log($"[ComplexFabricator] Not in session, skipping sync");
 					return;
@@ -196,7 +196,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			using var _ = Profiler.Scope();
 
 			if (BuildingConfigPacket.IsApplyingPacket) return;
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 
 			var identity = __instance.gameObject.AddOrGet<NetworkIdentity>();
 			identity.RegisterIdentity();
@@ -226,7 +226,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			using var _ = Profiler.Scope();
 
 			if (BuildingConfigPacket.IsApplyingPacket) return;
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 
 			var identity = __instance.gameObject.AddOrGet<NetworkIdentity>();
 			identity.RegisterIdentity();

@@ -8,6 +8,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 using Shared.Profiling;
+using UnityEngine;
 
 namespace ONI_Together_API
 {
@@ -33,6 +34,10 @@ namespace ONI_Together_API
 			if (!ReflectionHelper.TryGetPropertyGetter("ONI_Together.Networking.MultiplayerSession, ONI_Together", "HostUserID", out _HostUserIDGetter))
 				return false;
 
+			if(!ReflectionHelper.TryCreateDelegate<TryGetPlayerCursorPosDelegate>("ONI_Together.Networking.MultiplayerSession, ONI_Together", "TryGetPlayerCursorPos", null, out _tryGetPlayerCursorPos))
+				return false;
+			if (!ReflectionHelper.TryCreateDelegate<TryGetPlayerColorDelegate>("ONI_Together.Networking.MultiplayerSession, ONI_Together", "TryGetPlayerColor", null, out _tryGetPlayeColor))
+				return false;
 
 			typesInitialized = true;
 			return true;
@@ -45,6 +50,30 @@ namespace ONI_Together_API
 
 		static FieldInfo _InSessionFieldInfo;
 		static MethodInfo _IsHostGetter, _IsClientGetter, _LocalUserIDGetter, _HostUserIDGetter;
+
+		delegate bool TryGetPlayerCursorPosDelegate(ulong playerId, out Vector3 pos);
+		static TryGetPlayerCursorPosDelegate _tryGetPlayerCursorPos;
+
+		delegate bool TryGetPlayerColorDelegate(ulong playerId, out Color pos);
+		static TryGetPlayerColorDelegate _tryGetPlayeColor;
+
+		public static bool TryGetPlayerCursorPos(ulong playerId, out Vector3 cursorPos)
+		{
+			Init();
+			cursorPos = default;
+			if (_tryGetPlayerCursorPos == null)
+				return false;
+			return _tryGetPlayerCursorPos(playerId, out cursorPos);
+		}
+		public static bool TryGetPlayerColor(ulong playerId, out Color color)
+		{
+			Init();
+			color = default;
+			if (_tryGetPlayeColor == null)
+				return false;
+			return _tryGetPlayeColor(playerId, out color);
+		}
+
 
 		public static bool InSession
 		{
