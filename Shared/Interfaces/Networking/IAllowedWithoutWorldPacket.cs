@@ -1,8 +1,8 @@
 namespace ONI_Together.Networking.Packets.Architecture
 {
 	/// <summary>
-	/// Marker for packets a client may handle while it has no world yet (connection flow,
-	/// save transfer, hard sync, chat). Everything else is dropped until the world loads.
+	/// Marks packets safe to dispatch without a loaded world and during synchronization.
+	/// Do not mark wrappers that directly dispatch arbitrary gameplay packets.
 	/// </summary>
 	public interface IAllowedWithoutWorldPacket
 	{

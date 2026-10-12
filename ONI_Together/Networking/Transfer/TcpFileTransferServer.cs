@@ -50,6 +50,11 @@ namespace ONI_Together.Networking.Transfer
 			DebugConsole.Log($"[TcpFileTransfer] Queued transfer '{fileName}' ({data.Length} bytes) for client {clientId}");
 		}
 
+		public void ClearPendingTransfers()
+		{
+			_pending.Clear();
+		}
+
 		private void AcceptLoop()
 		{
 			while (_running)

@@ -7,9 +7,7 @@ using ONI_Together.Misc;
 using ONI_Together.Misc.World;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Components;
-using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.States;
-using ONI_Together.Networking.Transport.Steamworks;
 using Steamworks;
 using System;
 using System.Collections;
@@ -17,7 +15,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Text;
-using System.Threading.Tasks;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -85,15 +82,13 @@ public static class SaveHelper
 			return;
 		}
 
-		// Notify host before disconnecting so it can suppress leave/join messages
-		ReadyManager.SendReadyStatusPacket(ClientReadyState.Loading);
+		if (MultiplayerSession.IsClient && GameClient.State != ClientState.LoadingWorld)
+		{
+			DebugConsole.LogError("[SaveHelper] Aborting save load because the host has not begun synchronization.");
+			return;
+		}
 
-		GameClient.SetState(ClientState.LoadingWorld);
-		GameClient.CacheCurrentServer();
-		GameClient.Disconnect();
-		PacketHandler.readyToProcess = false;
 		NetworkIdentityRegistry.Clear();
-		MultiplayerSession.PlayerCursors.Clear();
 		MultiplayerOverlay.Show(global::STRINGS.UI.FRONTEND.LOADING);
 
 		CloseWorldUiBeforeReload();
@@ -423,23 +418,6 @@ public static class SaveHelper
 		return File.ReadAllBytes(path);
 	}
 
-	/// <summary>
-	/// Saves the current world snapshot
-	/// </summary>
-	public static void CaptureWorldSnapshot()
-	{
-		using var _ = Profiler.Scope();
-
-		if (Utils.IsInMenu())
-		{
-			// We are not in game, ignore
-			return;
-		}
-
-		var path = SaveLoader.GetActiveSaveFilePath();
-		SaveLoader.Instance.Save(path); // Saves current state to that file
-	}
-
 	public static void LoadDownloadedSave(string fileName)
 	{
 		using var _ = Profiler.Scope();
@@ -461,13 +439,13 @@ public static class SaveHelper
 			return;
 		}
 
-		// Notify host before disconnecting so it can suppress leave/join messages
-		ReadyManager.SendReadyStatusPacket(ClientReadyState.Loading);
+		if (GameClient.State != ClientState.LoadingWorld)
+		{
+			DebugConsole.LogError("[SaveHelper] Aborting downloaded save load because the host has not begun synchronization.");
+			return;
+		}
 
-		GameClient.SetState(ClientState.LoadingWorld);
-		GameClient.CacheCurrentServer();
-		GameClient.Disconnect();
-		PacketHandler.readyToProcess = false;
+		NetworkIdentityRegistry.Clear();
 		MultiplayerOverlay.Show(global::STRINGS.UI.FRONTEND.LOADING);
 
 		CloseWorldUiBeforeReload();

@@ -344,14 +344,11 @@ namespace ONI_Together.DebugTools
 
             ImGui.SameLine();
             if (ImGui.Button("Client Disconnect"))
-            {
-                GameClient.CacheCurrentServer();
                 GameClient.Disconnect();
-            }
 
             ImGui.SameLine();
             if (ImGui.Button("Reconnect"))
-                GameClient.ReconnectFromCache();
+                GameClient.ReconnectToSession();
 
             ImGui.Separator();
             DisplaySessionDetails();

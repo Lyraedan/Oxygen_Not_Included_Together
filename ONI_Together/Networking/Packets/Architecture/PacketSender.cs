@@ -1,17 +1,12 @@
-﻿using Epic.OnlineServices.P2P;
-using ONI_Together.DebugTools;
+﻿using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Packets;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.Packets.Core;
-using ONI_Together.Networking.Transport;
-using ONI_Together.Networking.Transport.Steam;
 using Shared.Interfaces.Networking;
-using Steamworks;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices;
 using Shared.Profiling;
 using UnityEngine;
 using ONI_Together.Networking.Components;
@@ -133,7 +128,8 @@ namespace ONI_Together.Networking
 			if (DragToolBulkPacketIds.Contains(packetId))
 				SyncStats.RecordSync(SyncStats.DragTool, flushCount, flushBytes, (float)swFlush.Elapsed.TotalMilliseconds);
 		}
-		public static void AppendPendingBulkPacket(object conn, IPacket packet, IBulkablePacket bp)
+
+		private static void AppendPendingBulkPacket(object conn, IPacket packet, IBulkablePacket bp)
 		{
 			using var _ = Profiler.Scope();
 
@@ -214,6 +210,9 @@ namespace ONI_Together.Networking
 		{
 			using var _ = Profiler.Scope();
 
+			if (!CanSendPacket(packet))
+				return false;
+
 			if (packet is IBulkablePacket bp)
 			{
 				AppendPendingBulkPacket(conn, packet, bp);
@@ -232,6 +231,28 @@ namespace ONI_Together.Networking
 			}
 
 			return NetworkConfig.TransportPacketSender.SendToConnection(conn, packet, sendType);
+		}
+
+		private static bool CanSendPacket(IPacket packet)
+		{
+			if (packet is IAllowedWithoutWorldPacket)
+				return true;
+
+			if (MultiplayerSession.IsClient)
+			{
+				if (GameClient.State == States.ClientState.InGame)
+					return true;
+
+				if (GameClient.State == States.ClientState.LoadingWorld)
+					return PacketHandler.IsLoadingWorldRequest(packet);
+
+				return packet is IModApiPacket;
+			}
+
+			if (MultiplayerSession.IsHost && ReadyManager.IsSynchronizing)
+				return PacketHandler.IsLoadingWorldResponse(packet);
+
+			return true;
 		}
 
 		/// <summary>

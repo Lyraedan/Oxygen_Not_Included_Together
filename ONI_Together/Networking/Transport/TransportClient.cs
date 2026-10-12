@@ -17,6 +17,10 @@ namespace ONI_Together.Networking.Transport
         /// When the client is disconnected from the server
         /// </summary>
         public System.Action OnClientDisconnected;
+        /// <summary>
+        /// When a connection attempt fails before the client connects
+        /// </summary>
+        public System.Action OnConnectionFailed;
 
         /// <summary>
         /// Continue the connection flow

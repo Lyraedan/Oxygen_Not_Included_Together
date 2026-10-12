@@ -1,14 +1,8 @@
-﻿using Epic.OnlineServices.P2P;
-using ONI_Together.DebugTools;
+﻿using ONI_Together.DebugTools;
 using ONI_Together.Networking.Packets.Architecture;
-using ONI_Together.Networking.Packets.DuplicantActions;
-using Steamworks;
-using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.Core
@@ -75,7 +69,7 @@ namespace ONI_Together.Networking.Packets.Core
 				var reader = new BinaryReader(ms);
 				innerPacket.Deserialize(reader);
 				// Inner packets bypass HandleIncoming, so the no-world gate is applied here too.
-				if (PacketHandler.ShouldDispatchWithoutWorld(innerPacket))
+				if (PacketHandler.ShouldDispatchPacket(innerPacket))
 					innerPacket.OnDispatched();
 				reader.Dispose();
 				ms.Dispose();
