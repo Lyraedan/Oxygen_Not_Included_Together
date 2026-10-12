@@ -40,6 +40,7 @@ namespace ONI_Together.Networking.Packets.Core
 			using var _ = Profiler.Scope();
 
 			GameClient.IsHardSyncInProgress = true;
+            Refresh.ColonyRefreshCoordinator.Instance?.CancelAll();
 			MultiplayerOverlay.Show(STRINGS.UI.MP_OVERLAY.SYNC.HARDSYNC_INPROGRESS);
 			DebugConsole.Log("[HardSync] Client entering in-place sync, staying connected for save transfer");
 		}

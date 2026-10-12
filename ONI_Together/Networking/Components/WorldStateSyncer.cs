@@ -807,15 +807,7 @@ namespace ONI_Together.Networking.Components
 						_shadowMass[cell] = currentMass;
 
 						// Queue for Network
-						ONI_Together.Misc.World.WorldUpdateBatcher.Queue(new WorldUpdatePacket.CellUpdate
-						{
-							Cell = cell,
-							ElementIdx = currentElement,
-							Mass = currentMass,
-							Temperature = Grid.Temperature[cell],
-							DiseaseIdx = Grid.DiseaseIdx[cell],
-							DiseaseCount = Grid.DiseaseCount[cell]
-						});
+						ONI_Together.Misc.World.WorldUpdateBatcher.Queue(WorldUpdatePacket.CaptureCell(cell));
 					}
 				}
 			}

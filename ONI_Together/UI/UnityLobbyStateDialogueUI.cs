@@ -24,6 +24,7 @@ using static ONI_Together.STRINGS.UI.MP_SCREEN.HOSTMENU;
 using static ONI_Together.STRINGS.UI.MP_SCREEN.MAINMENU;
 using static ONI_Together.STRINGS.UI.PAUSESCREEN;
 using static PathFinder;
+using ONI_Together.Networking.Refresh;
 
 namespace ONI_Together.UI
 {
@@ -97,6 +98,13 @@ namespace ONI_Together.UI
 		void DoHardSync()
 		{
 			using var _ = Profiler.Scope();
+            if (MultiplayerSession.IsClient)
+            {
+                ColonyRefreshCoordinator.Instance?.Request();
+                RefreshHardSyncLabel();
+                return;
+            }
+            if (!MultiplayerSession.IsHostInSession) return;
 
 			if (MultiplayerSession.ConnectedPlayers.Count > 0)
 			{
@@ -111,11 +119,40 @@ namespace ONI_Together.UI
 		void RefreshHardSyncLabel()
 		{
 			using var _ = Profiler.Scope();
+            if (MultiplayerSession.IsClient)
+            {
+                var refresh = ColonyRefreshCoordinator.Instance;
+                string text = COLONY_REFRESH.REQUEST;
+                if (refresh != null)
+                {
+                    text = refresh.ClientState switch
+                    {
+                        RefreshState.Waiting => COLONY_REFRESH.WAITING,
+                        RefreshState.Accepted => string.Format(COLONY_REFRESH.PROGRESS, refresh.Total == 0 ? 0 : refresh.Done * 100 / refresh.Total),
+                        RefreshState.Completed => COLONY_REFRESH.COMPLETE,
+                        RefreshState.Incomplete => string.Format(COLONY_REFRESH.INCOMPLETE, refresh.Skipped),
+                        RefreshState.Failed => COLONY_REFRESH.FAILED,
+                        RefreshState.Busy => COLONY_REFRESH.BUSY,
+                        RefreshState.Unavailable => COLONY_REFRESH.UNAVAILABLE,
+                        RefreshState.Cancelled => COLONY_REFRESH.CANCELLED,
+                        _ => COLONY_REFRESH.REQUEST
+                    };
+                    if (refresh.ClientState != RefreshState.Waiting && refresh.ClientState != RefreshState.Accepted && refresh.RetrySeconds > 0)
+                        text += "\n" + string.Format(COLONY_REFRESH.COOLDOWN, refresh.RetrySeconds);
+                }
+                HardSyncText.SetText(text);
+                PerformHardSync.SetInteractable(refresh != null && refresh.CanRequest);
+                return;
+            }
 
 			bool hardSyncAlreadyDone = GameServerHardSync.hardSyncDoneThisCycle;
 			HardSyncText.SetText(hardSyncAlreadyDone ? HARDSYNCNOTAVAILABLE.LABEL : DOHARDSYNC.LABEL);
-			PerformHardSync.SetInteractable(!hardSyncAlreadyDone);
+			PerformHardSync.SetInteractable(MultiplayerSession.IsHostInSession && !hardSyncAlreadyDone);
 		}
+        private void Update()
+        {
+            if (init && MultiplayerSession.IsClient) RefreshHardSyncLabel();
+        }
 		void SetLobbyCodeConfirmationIcon(bool confirmed)
 		{
 			using var _ = Profiler.Scope();
@@ -169,6 +206,7 @@ namespace ONI_Together.UI
 				Instance = screen.AddOrGet<UnityLobbyStateDialogueUI>();
 				Instance.Init();
 			}
+            Instance.pause = !MultiplayerSession.IsClient;
 			Instance.Show(true);
 			Instance.ConsumeMouseScroll = true;
 			Instance.transform.SetAsLastSibling();

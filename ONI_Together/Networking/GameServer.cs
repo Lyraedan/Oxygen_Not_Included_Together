@@ -57,6 +57,7 @@ namespace ONI_Together.Networking
 			using var _ = Profiler.Scope();
 
 			SetState(ServerState.Stopped);
+            Refresh.ColonyRefreshCoordinator.Instance?.CancelAll();
 
 			NetworkConfig.TransportServer.CloseConnections();
 			NetworkConfig.TransportServer.Stop();

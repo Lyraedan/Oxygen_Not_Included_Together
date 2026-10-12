@@ -26,6 +26,7 @@ namespace ONI_Together.Misc.World
 
 			lock (pendingUpdates)
 			{
+                if (update.Revision <= 0) update.Revision = ONI_Together.Networking.Refresh.StateRevisions.Next();
 				pendingUpdates.Add(update);
 			}
 		}
@@ -66,7 +67,7 @@ namespace ONI_Together.Misc.World
                 1024; // fallback
 
             const int PacketHeaderSize = 4;
-            const float BytesPerUpdate = 5.38f; // Measured compressed size, this is a rough estimate
+            const float BytesPerUpdate = 14f; // Includes the capture revision; still a compressed-size estimate.
 
             lock (pendingUpdates)
             {
@@ -116,5 +117,10 @@ namespace ONI_Together.Misc.World
             }
         }
 
+        public static void Clear()
+        {
+            lock (pendingUpdates) pendingUpdates.Clear();
+            flushTimer = 0f;
+        }
     }
 }

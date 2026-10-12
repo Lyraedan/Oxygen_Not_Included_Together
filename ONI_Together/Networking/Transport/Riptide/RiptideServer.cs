@@ -194,7 +194,7 @@ namespace ONI_Together.Networking.Transport.Lan
 
             try
             {
-                PacketHandler.HandleIncoming(rawData);
+                PacketHandler.HandleIncoming(rawData, clientId);
             }
             catch (Exception ex)
             {

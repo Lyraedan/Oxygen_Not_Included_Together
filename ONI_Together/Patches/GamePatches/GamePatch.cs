@@ -54,6 +54,7 @@ namespace ONI_Together.Patches.GamePatches
       }
 
       Game.Instance.gameObject.AddComponent<LogicPortManager>();
+      Game.Instance.gameObject.AddOrGet<ONI_Together.Networking.Refresh.ColonyRefreshCoordinator>();
     }
   }
 }

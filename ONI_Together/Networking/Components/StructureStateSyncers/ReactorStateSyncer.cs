@@ -13,8 +13,6 @@ public class ReactorStateSyncer : StructureSyncerBase
     private Storage reactionStorage;
     private Storage wasteStorage;
 
-    private float lastFuelTemp;
-    private int lastMajorState = -1;
     private float tempChangeThreshold = 5f;
     
     protected override void Initialize()
@@ -77,8 +75,6 @@ public class ReactorStateSyncer : StructureSyncerBase
         if (wasteStorage != null)
             BuildingUtils.EncodeStorageContents(wasteStorage, optionalValues, "waste_");
         
-        lastFuelTemp = fuelTemp;
-        lastMajorState = majorState;
     }
 
     protected override void ApplyState(StructureStatePacket packet)
@@ -193,14 +189,15 @@ public class ReactorStateSyncer : StructureSyncerBase
     {
         if (reactor == null) return false;
         float currentTemp = reactor.FuelTemperature;
-        if (currentTemp >= 0f && Mathf.Abs(currentTemp - lastFuelTemp) > tempChangeThreshold)
+        if (currentTemp >= 0f && Mathf.Abs(currentTemp - lastSentValue.Float) > tempChangeThreshold)
             return true;
         int currentState = 0;
         var sm = smi.sm;
         if (smi.IsInsideState(sm.dead)) currentState = 3;
         else if (smi.IsInsideState(sm.meltdown)) currentState = 2;
         else if (smi.IsInsideState(sm.on)) currentState = 1;
-        if (currentState != lastMajorState) return true;
+        if (lastOptionalValues == null || !lastOptionalValues.TryGetValue("major_state", out var lastState)
+            || currentState != lastState.Int) return true;
         return false;
     }
 }

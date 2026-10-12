@@ -27,6 +27,11 @@ namespace ONI_Together.Networking.Packets.Architecture
 
 		public static void HandleIncoming(byte[] data)
 		{
+            HandleIncoming(data, null);
+        }
+
+        public static void HandleIncoming(byte[] data, ulong? senderId)
+		{
 			using var _ = Profiler.Scope();
 
 			if (!_readyToProcess)
@@ -57,6 +62,8 @@ namespace ONI_Together.Networking.Packets.Architecture
 
                     var packet = PacketRegistry.Create(type);
 					packet.Deserialize(reader);
+                    if (packet is ISenderAwarePacket aware)
+                        aware.SenderId = senderId;
 					Dispatch(packet);
 
                     scope.End(packet.GetType().Name, data.Length);

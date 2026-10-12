@@ -25,6 +25,7 @@ namespace ONI_Together.Networking.Components
 
         // Client: last packet time per building for stale detection
         private readonly Dictionary<int, float> _lastPacketTime = new();
+        private readonly Refresh.RevisionCache<int> _revisions = new();
         private float _clientRequestTimer;
 
         // Viewport scratch buffer
@@ -110,6 +111,7 @@ namespace ONI_Together.Networking.Components
                 var packet = new LogicStatePacket
                 {
                     NetId = netId,
+                    Revision = Refresh.StateRevisions.Next(),
                     Cell = cell,
                     Value = value,
                     IsActive = active,
@@ -168,40 +170,50 @@ namespace ONI_Together.Networking.Components
 
         public void HandlePacket(LogicStatePacket packet)
         {
-            if (!Grid.IsValidCell(packet.Cell)) return;
+            TryApplyPacket(packet);
+        }
 
-            _lastPacketTime[packet.NetId] = Time.unscaledTime;
-
-            if (!_tracked.TryGetValue(packet.NetId, out var entry))
-                return;
-
-            if (entry.go.IsNullOrDestroyed())
-                return;
-
+        internal bool TryApplyPacket(LogicStatePacket packet)
+        {
+            if (!Grid.IsValidCell(packet.Cell) || packet.Revision <= 0) return false;
+            if (!_revisions.IsNewer(packet.NetId, packet.Revision)) return true;
+            if (!_tracked.TryGetValue(packet.NetId, out var entry) || entry.go.IsNullOrDestroyed()) return false;
             ApplyBuildingState(entry.go, packet);
+            _revisions.Record(packet.NetId, packet.Revision);
+            _lastPacketTime[packet.NetId] = Time.unscaledTime;
+            return true;
         }
 
         public void SendStateToClient(ulong playerId, int netId)
         {
+            var packet = CaptureState(netId);
+            if (packet != null) PacketSender.SendToPlayer(playerId, packet, PacketSendMode.ReliableImmediate);
+        }
+
+        internal int[] TrackedIds => new List<int>(_tracked.Keys).ToArray();
+
+        internal LogicStatePacket CaptureState(int netId)
+        {
             if (!_tracked.TryGetValue(netId, out var entry))
-                return;
+                return null;
 
             if (entry.go.IsNullOrDestroyed())
-                return;
+                return null;
 
             if (!SampleBuilding(entry.go, out var value, out var active, out var optional))
-                return;
+                return null;
 
             int cell = Grid.PosToCell(entry.go);
 
-            PacketSender.SendToPlayer(playerId, new LogicStatePacket
+            return new LogicStatePacket
             {
                 NetId = netId,
+                Revision = Refresh.StateRevisions.Next(),
                 Cell = cell,
                 Value = value,
                 IsActive = active,
                 OptionalValues = optional,
-            }, PacketSendMode.ReliableImmediate);
+            };
         }
 
         public void Register(GameObject go)

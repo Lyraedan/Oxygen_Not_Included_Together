@@ -47,6 +47,7 @@ namespace ONI_Together.Networking
 		{
 			using var _ = Profiler.Scope();
 
+            Refresh.ColonyRefreshCoordinator.Instance?.CancelAll();
 			ConnectedPlayers.Clear();
 			KnownPlayerNames.Clear();
 			HostUserID = Utils.NilUlong();

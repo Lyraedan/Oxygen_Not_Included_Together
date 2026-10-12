@@ -739,6 +739,19 @@ namespace ONI_Together
 					public static LocString LABEL = "Multiplayer Session";
 				}
 				public static LocString LOBBYCODETITLE = "Lobby Code:";
+                public class COLONY_REFRESH
+                {
+                    public static LocString REQUEST = "Refresh My Colony";
+                    public static LocString WAITING = "Requesting refresh...";
+                    public static LocString PROGRESS = "Refreshing: {0}%";
+                    public static LocString COMPLETE = "Colony refreshed";
+                    public static LocString INCOMPLETE = "Incomplete: {0} skipped";
+                    public static LocString FAILED = "Refresh failed — retry";
+                    public static LocString BUSY = "Host busy — retry";
+                    public static LocString COOLDOWN = "Refresh available in {0}s";
+                    public static LocString UNAVAILABLE = "Refresh unavailable";
+                    public static LocString CANCELLED = "Refresh cancelled";
+                }
 				public class INVITEFRIENDS
 				{
 					public static LocString TEXT = "Invite Friends";

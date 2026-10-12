@@ -13,6 +13,7 @@ namespace ONI_Together.Networking.Packets.World
     {
         public int NetId;
         public int Cell;
+        public long Revision;
         public Variant Value;
         public Dictionary<string, Variant> OptionalValues = [];
         public bool IsActive;
@@ -22,6 +23,7 @@ namespace ONI_Together.Networking.Packets.World
             using var _ = Profiler.Scope();
 
             writer.Write(NetId);
+            writer.Write(Revision);
             writer.Write(Cell);
             Value.Write(writer);
             writer.Write(IsActive);
@@ -43,20 +45,12 @@ namespace ONI_Together.Networking.Packets.World
             using var _ = Profiler.Scope();
 
             NetId = reader.ReadInt32();
+            Revision = reader.ReadInt64();
             Cell = reader.ReadInt32();
             Value = Variant.Read(reader);
             IsActive = reader.ReadBoolean();
 
-            int optLen = reader.ReadInt32();
-            byte[] optBlob = reader.ReadBytes(optLen);
-            using var optBr = new BinaryReader(new MemoryStream(optBlob));
-            int length = optBr.ReadInt32();
-            OptionalValues = new Dictionary<string, Variant>(length);
-            for (int i = 0; i < length; i++)
-            {
-                string key = optBr.ReadString();
-                OptionalValues[key] = Variant.Read(optBr);
-            }
+            OptionalValues = StatePacketValues.Read(reader);
         }
 
         public void OnDispatched()

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using Shared.Profiling;
+using ONI_Together.Networking.Refresh;
 
 namespace ONI_Together.Networking.Packets.World
 {
@@ -17,6 +18,7 @@ namespace ONI_Together.Networking.Packets.World
 			public float Temperature, Mass;
 			public byte DiseaseIdx;
 			public int DiseaseCount;
+            public long Revision;
 		}
 
 		public void Serialize(BinaryWriter w)
@@ -37,6 +39,7 @@ namespace ONI_Together.Networking.Packets.World
 						compressedWriter.Write(u.Mass);
 						compressedWriter.Write(u.DiseaseIdx);
 						compressedWriter.Write(u.DiseaseCount);
+                        compressedWriter.Write(u.Revision);
 					}
 				}
 
@@ -51,6 +54,9 @@ namespace ONI_Together.Networking.Packets.World
 			using var _ = Profiler.Scope();
 
 			int compressedLength = r.ReadInt32();
+            if (compressedLength < 0 || compressedLength > RefreshLimits.RecordBytes
+                || compressedLength > r.BaseStream.Length - r.BaseStream.Position)
+                throw new InvalidDataException("Invalid terrain payload length");
 			byte[] compressedData = r.ReadBytes(compressedLength);
 
 			using (var ms = new MemoryStream(compressedData))
@@ -58,6 +64,7 @@ namespace ONI_Together.Networking.Packets.World
 			using (var reader = new BinaryReader(deflate))
 			{
 				int count = reader.ReadInt32();
+                if (count < 0 || count > 65536) throw new InvalidDataException("Invalid terrain cell count");
 				Updates = new List<CellUpdate>(count);
 				for (int i = 0; i < count; i++)
 				{
@@ -68,7 +75,8 @@ namespace ONI_Together.Networking.Packets.World
 						Temperature = reader.ReadSingle(),
 						Mass = reader.ReadSingle(),
 						DiseaseIdx = reader.ReadByte(),
-						DiseaseCount = reader.ReadInt32()
+						DiseaseCount = reader.ReadInt32(),
+                        Revision = reader.ReadInt64()
 					});
 				}
 			}
@@ -80,13 +88,15 @@ namespace ONI_Together.Networking.Packets.World
 
 			if (MultiplayerSession.IsHost) return;
 
+            foreach (var u in Updates) TryApplyCell(u);
+        }
+
+        internal static bool TryApplyCell(CellUpdate u)
+        {
+            if (!Grid.IsValidCell(u.Cell) || u.Revision <= 0) return false;
+            if (!StateRevisions.Terrain.IsNewer(u.Cell, u.Revision)) return true;
 			// Minimum simulation temperature - cells with mass must have temperature above this
 			const float SIM_MIN_TEMPERATURE = 1f; // 1 Kelvin
-
-			foreach (var u in Updates)
-			{
-				// Skip invalid cells
-				if (!Grid.IsValidCell(u.Cell)) continue;
 
 				float temperature = u.Temperature;
 				float mass = u.Mass;
@@ -111,7 +121,7 @@ namespace ONI_Together.Networking.Packets.World
 				// Skip if mass is negative (corrupt data)
 				if (mass < 0f || float.IsNaN(mass) || float.IsInfinity(mass))
 				{
-					continue;
+                    return false;
 				}
 
 				SimMessages.ModifyCell(
@@ -119,8 +129,15 @@ namespace ONI_Together.Networking.Packets.World
 						temperature, mass,
 						u.DiseaseIdx, u.DiseaseCount,
 						SimMessages.ReplaceType.Replace
-				);
-			}
+					);
+                StateRevisions.Terrain.Record(u.Cell, u.Revision);
+                return true;
 		}
+
+        internal static CellUpdate CaptureCell(int cell) => new CellUpdate
+        {
+            Cell = cell, ElementIdx = Grid.ElementIdx[cell], Temperature = Grid.Temperature[cell], Mass = Grid.Mass[cell],
+            DiseaseIdx = Grid.DiseaseIdx[cell], DiseaseCount = Grid.DiseaseCount[cell], Revision = StateRevisions.Next()
+        };
 	}
 }

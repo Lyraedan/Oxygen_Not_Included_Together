@@ -27,6 +27,7 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
         private const float INITIAL_DELAY = 5f;
 
         private float _lastClientPacketTime;
+        private long _lastAppliedRevision;
         private float _clientRequestTimer;
         private const float CLIENT_REQUEST_COOLDOWN = 0.5f;
         private const float CLIENT_STALE_THRESHOLD = 2f;
@@ -93,6 +94,8 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
                 var packet = new StructureStatePacket
                 {
                     NetId = identity.NetId,
+                    SyncerType = GetType().FullName,
+                    Revision = Refresh.StateRevisions.Next(),
                     Cell = cell,
                     Value = currentValue,
                     IsActive = currentActive,
@@ -143,23 +146,31 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
 
         public void SendStateToClient(ulong playerId)
         {
+            var packet = CaptureState();
+            if (packet != null) PacketSender.SendToPlayer(playerId, packet, PacketSendMode.ReliableImmediate);
+        }
+
+        internal StructureStatePacket CaptureState()
+        {
             SampleState(out var value, out var active, out var optionalValues);
             if (operational != null)
                 active = operational.IsActive;
 
             var identity = gameObject.GetNetIdentity();
-            if (identity.NetId == 0) return;
+            if (identity.NetId == 0) return null;
 
             var packet = new StructureStatePacket
             {
                 NetId = identity.NetId,
+                SyncerType = GetType().FullName,
+                Revision = Refresh.StateRevisions.Next(),
                 Cell = cell,
                 Value = value,
                 IsActive = active,
                 OptionalValues = optionalValues,
             };
 
-            PacketSender.SendToPlayer(playerId, packet, PacketSendMode.ReliableImmediate);
+            return packet;
         }
 
         protected abstract void SampleState(out Variant value, out bool active, out Dictionary<string, Variant> optionalValues);
@@ -169,13 +180,21 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
 
         public void HandlePacket(StructureStatePacket packet)
         {
-            if (!Grid.IsValidCell(packet.Cell)) return;
+            TryApplyPacket(packet);
+        }
+
+        internal bool TryApplyPacket(StructureStatePacket packet)
+        {
+            if (!Grid.IsValidCell(packet.Cell) || packet.SyncerType != GetType().FullName || packet.Revision <= 0) return false;
+            if (packet.Revision <= _lastAppliedRevision) return true;
 
             if (!MultiplayerSession.IsHost)
                 _lastClientPacketTime = Time.unscaledTime;
 
             ApplyState(packet);
             ApplyOperationalState(packet);
+            _lastAppliedRevision = packet.Revision;
+            return true;
         }
 
         private void ApplyOperationalState(StructureStatePacket packet)

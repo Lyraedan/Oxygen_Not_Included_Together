@@ -87,6 +87,8 @@ namespace ONI_Together.Networking
 			if (_state != newState)
 			{
 				_state = newState;
+                if (newState != ClientState.InGame)
+                    Refresh.ColonyRefreshCoordinator.Instance?.CancelAll();
 				DebugConsole.Log($"[GameClient] State changed to: {_state}");
 			}
 		}

@@ -180,7 +180,7 @@ namespace ONI_Together.Networking.Transport.Lan
 
                 try
                 {
-                    PacketHandler.HandleIncoming(rawData);
+                    PacketHandler.HandleIncoming(rawData, MultiplayerSession.HostUserID);
                 }
                 catch (Exception ex)
                 {

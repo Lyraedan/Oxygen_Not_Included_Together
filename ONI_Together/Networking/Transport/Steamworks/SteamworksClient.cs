@@ -158,7 +158,7 @@ namespace ONI_Together.Networking.Transport.Steam
                 try
                 {
                     //DebugConsole.Log($"[GameClient] Processing packet {i+1}/{msgCount}, size: {msg.m_cbSize} bytes, readyToProcess: {PacketHandler.readyToProcess}");
-                    PacketHandler.HandleIncoming(data);
+                    PacketHandler.HandleIncoming(data, msg.m_identityPeer.GetSteamID64());
                 }
                 catch (Exception ex)
                 {
