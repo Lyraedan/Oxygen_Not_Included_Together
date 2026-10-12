@@ -489,7 +489,8 @@ namespace ONI_Together.UI
 			SteamLobby.JoinLobby(lobbyId.AsCSteamID(), (lobbyId) =>
 			{
 				DebugConsole.Log($"[LobbyBrowser] Successfully joined lobby: {lobbyId}");
-				this.Show(false);
+				if (this != null && Instance == this)
+					Show(false);
 			});
 		}
 		void OpenPasswordDialogue(ulong lobbyId)
