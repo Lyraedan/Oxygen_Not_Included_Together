@@ -44,16 +44,24 @@ namespace ONI_Together.Networking.Packets.Tools
 		public Vector3 downPos, upPos;
 		public int cell, distFromOrigin;
 		private PrioritySetting Priority;
+		private bool hasCapturedToolState;
 
 		public virtual void Serialize(BinaryWriter writer)
 		{
 			using var _ = Profiler.Scope();
 
-			if (ToolMenu.Instance?.PriorityScreen != null)
-				Priority = ToolMenu.Instance.PriorityScreen.GetLastSelectedPriority();
+			// A received packet is serialized again when the host relays it. Keep
+			// the sender's selection instead of replacing it with the host's UI.
+			if (!hasCapturedToolState)
+			{
+				if (ToolMenu.Instance?.PriorityScreen != null)
+					Priority = ToolMenu.Instance.PriorityScreen.GetLastSelectedPriority();
 
-			if(ToolInstance is FilteredDragTool filteredToolInstance)
-				StoreFilterData(filteredToolInstance);
+				if (ToolInstance is FilteredDragTool filteredToolInstance)
+					StoreFilterData(filteredToolInstance);
+
+				hasCapturedToolState = true;
+			}
 
 			if (ToolInstance is FilteredDragTool)
 			{
@@ -107,6 +115,7 @@ namespace ONI_Together.Networking.Packets.Tools
 			}
 
 			Priority = new PrioritySetting((PriorityScreen.PriorityClass)reader.ReadInt32(), reader.ReadInt32());
+			hasCapturedToolState = true;
 		}
 
 		public virtual void OnDispatched()
