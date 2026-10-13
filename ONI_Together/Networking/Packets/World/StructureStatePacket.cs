@@ -1,14 +1,10 @@
 using ONI_Together.Networking.Packets.Architecture;
 using System.IO;
+using Shared.OxySync;
 using Shared.Profiling;
-using ONI_Together.Networking.Components;
-using static TUNING.NOISE_POLLUTION;
-using ONI_Together.Misc;
 using UnityEngine;
 using ONI_Together.Networking.Components.StructureStateSyncers;
-using static ONI_Together.STRINGS.UI.MP_OVERLAY;
 using System.Collections.Generic;
-using Shared.Interfaces.Networking;
 
 namespace ONI_Together.Networking.Packets.World
 {
