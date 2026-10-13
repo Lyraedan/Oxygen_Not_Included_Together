@@ -56,6 +56,8 @@ namespace ONI_Together.Networking.OxySync.Packets
             BehaviourId = reader.ReadInt32();
             Timestamp = reader.ReadInt64();
             Count = reader.ReadInt32();
+            if (Count < 0 || Count > Variant.MaxArrayElements)
+                throw new InvalidDataException($"Invalid SyncVarBatch count: {Count}.");
             FieldHashes = new int[Count];
             Values = new Variant[Count];
             for (int i = 0; i < Count; i++)
