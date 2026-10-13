@@ -16,6 +16,9 @@ namespace ONI_Together.Networking.Packets.World
     public class PickupItemPacket : IPacket, IBulkablePacket
     {
         public int NetId;
+        public float UnitsTaken;
+        public float UnitsRemaining;
+        public bool SourceRemains;
 
         public int MaxPackSize => 500;
 
@@ -25,12 +28,18 @@ namespace ONI_Together.Networking.Packets.World
         {
             using var _ = Profiler.Scope();
             writer.Write(NetId);
+            writer.Write(UnitsTaken);
+            writer.Write(UnitsRemaining);
+            writer.Write(SourceRemains);
         }
 
         public void Deserialize(BinaryReader reader)
         {
             using var _ = Profiler.Scope();
             NetId = reader.ReadInt32();
+            UnitsTaken = reader.ReadSingle();
+            UnitsRemaining = reader.ReadSingle();
+            SourceRemains = reader.ReadBoolean();
         }
 
         public void OnDispatched()
@@ -41,7 +50,17 @@ namespace ONI_Together.Networking.Packets.World
                 return; // skip
 
             DisplayFX(pickupable.gameObject);
-            Util.KDestroyGameObject(pickupable.gameObject);
+
+            if (SourceRemains)
+            {
+                var primaryElement = pickupable.GetComponent<PrimaryElement>();
+                if (primaryElement != null)
+                    primaryElement.Units = UnitsRemaining;
+            }
+            else
+            {
+                Util.KDestroyGameObject(pickupable.gameObject);
+            }
         }
 
         public void DisplayFX(GameObject go)
@@ -57,7 +76,7 @@ namespace ONI_Together.Networking.Packets.World
             Transform target_transform = go.transform;
             Vector3 offset = Vector3.zero;
 
-            string text = (Assets.IsTagCountable(go.PrefabID()) ? string.Format(locString, (int)component.Units, go.GetProperName()) : string.Format(locString, GameUtil.GetFormattedMass(component.Units), go.GetProperName()));
+            string text = (Assets.IsTagCountable(go.PrefabID()) ? string.Format(locString, (int)UnitsTaken, go.GetProperName()) : string.Format(locString, GameUtil.GetFormattedMass(UnitsTaken * component.MassPerUnit), go.GetProperName()));
             PopFXManager.Instance.SpawnFX(Def.GetUISprite(go).first, PopFXManager.Instance.sprite_Plus, text, target_transform, offset);
         }
     }
