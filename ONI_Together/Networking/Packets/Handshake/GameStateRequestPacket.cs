@@ -195,7 +195,7 @@ namespace ONI_Together.Networking.Packets.Handshake
 				return false;
 			}
 
-			if (!ProtocolCompatibility.Matches(ProtocolVersion, PacketRegistryFingerprint))
+			if (!ProtocolCompatibility.Matches(ProtocolVersion, PacketRegistryFingerprint, ModVersion))
 			{
 				reason = ProtocolCompatibility.BuildMismatchReason(ProtocolVersion, PacketRegistryFingerprint, ModVersion, true);
 				return false;

@@ -1,4 +1,4 @@
-using ONI_Together.DebugTools;
+﻿using ONI_Together.DebugTools;
 using ONI_Together.Menus;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Components;
@@ -264,6 +264,17 @@ namespace ONI_Together.Networking
 			if (packet.PacketRegistryFingerprint != ProtocolCompatibility.PacketFingerprint)
 			{
 				message = string.Format(STRINGS.UI.PROTOCOL.VALIDATION.FINGERPRINT_MISMATCH, packet.PacketRegistryFingerprint, ProtocolCompatibility.PacketFingerprint);
+				return false;
+			}
+
+			// The host's mod version, which this side did not check either. Without it a
+			// client still joins a host it cannot agree with, even though the host now
+			// refuses the reverse.
+			if (!string.IsNullOrEmpty(packet.ModVersion)
+				&& packet.ModVersion != ProtocolCompatibility.ModVersion)
+			{
+				message = string.Format(STRINGS.UI.PROTOCOL.MOD_VERSION_MISMATCH,
+					ProtocolCompatibility.ModVersion, packet.ModVersion);
 				return false;
 			}
 
