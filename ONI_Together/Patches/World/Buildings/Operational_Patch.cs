@@ -59,36 +59,51 @@ namespace ONI_Together.Patches.World.Buildings
 			}
 		}
 
+		[HarmonyPatch(typeof(Operational), nameof(Operational.SetFlag))]
+		public class Operational_SetFlag_Patch
+		{
+			public static void Postfix(Operational __instance, Operational.Flag flag)
+			{
+				using var _ = Profiler.Scope();
 
+				if (!MultiplayerSession.InSession || !MultiplayerSession.IsHost)
+					return;
+
+				if (flag != EnergyConsumer.PoweredFlag)
+					return;
+
+				if (__instance.IsNullOrDestroyed())
+					return;
+
+				PacketSender.SendToAllClients(new OperationalStatePacket(__instance));
+			}
+		}
 
 		/// <summary>
 		/// Clients receive their states from the server
 		/// </summary>
-		///
-
 		[HarmonyPatch(typeof(Operational), nameof(Operational.IsOperational), MethodType.Getter)]
-        public class Operational_IsOperational_Patch
-        {
-            public static bool Prefix(Operational __instance, ref bool __result)
-            {
-	            using var _ = Profiler.Scope();
+		public class Operational_IsOperational_Patch
+		{
+			public static bool Prefix(Operational __instance, ref bool __result)
+			{
+				using var _ = Profiler.Scope();
 
-                if (!MultiplayerSession.IsClient)
-                    return true;
+				if (!MultiplayerSession.IsClient)
+					return true;
 
-                if(__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
-                {
-                    __result = wrap.IsOperational;
+				if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
+				{
+					__result = wrap.IsOperational;
 					return false;
-                }
-                return true;
-            }
-        }
+				}
+				return true;
+			}
+		}
 
-
-        [HarmonyPatch(typeof(Operational), nameof(Operational.IsActive), MethodType.Getter)]
+		[HarmonyPatch(typeof(Operational), nameof(Operational.IsActive), MethodType.Getter)]
 		public class Operational_IsActive_Patch
-        {
+		{
 			public static bool Prefix(Operational __instance, ref bool __result)
 			{
 				using var _ = Profiler.Scope();
@@ -104,6 +119,7 @@ namespace ONI_Together.Patches.World.Buildings
 				return true;
 			}
 		}
+
 		[HarmonyPatch(typeof(Operational), nameof(Operational.IsFunctional), MethodType.Getter)]
 		public class Operational_IsFunctional_Patch
 		{
