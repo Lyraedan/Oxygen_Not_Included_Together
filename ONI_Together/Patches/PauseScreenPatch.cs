@@ -1,15 +1,14 @@
 ﻿using HarmonyLib;
 using JetBrains.Annotations;
 using ONI_Together.Networking;
-using ONI_Together.Networking.Transport.Steamworks;
 using ONI_Together.UI;
-using Steamworks;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection.Emit;
 using Shared.Profiling;
 using UnityEngine;
 using UnityEngine.Events;
+using System.Reflection;
 
 namespace ONI_Together.Patches
 {
@@ -31,21 +30,6 @@ namespace ONI_Together.Patches
 
 			NetworkConfig.Stop();
 			MultiplayerSession.Clear();
-		}
-
-		// This prevents the game from pausing when the PauseScreen opens in multiplayer
-		[HarmonyPatch(typeof(SpeedControlScreen), nameof(SpeedControlScreen.Pause))]
-		[HarmonyPrefix]
-		[UsedImplicitly]
-		public static bool PreventPauseInMultiplayer(bool playSound = true, bool isCrashed = false)
-		{
-			// Restore pause functionality
-			/*if (MultiplayerSession.InSession && !isCrashed)
-			{
-					return false;
-			}*/
-
-			return true;
 		}
 
 		[HarmonyPatch(typeof(PauseScreen), "ConfigureButtonInfos")]
@@ -95,9 +79,22 @@ namespace ONI_Together.Patches
             }
 		}
 
-		[HarmonyPatch(typeof(KModalScreen), nameof(KModalScreen.OnShow), new[] { typeof(bool) })]
+		[HarmonyPatch]
 		public static class ModalPauseScreen_PreventPauses
 		{
+			static IEnumerable<MethodBase> TargetMethods()
+			{
+				yield return AccessTools.Method(
+					typeof(KModalScreen),
+					nameof(KModalScreen.OnShow),
+					new[] { typeof(bool) });
+
+				yield return AccessTools.Method(
+					typeof(KModalButtonMenu),
+					nameof(KModalButtonMenu.OnShow),
+					new[] { typeof(bool) });
+			}
+
             static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> insts)
 			{
 				using var _ = Profiler.Scope();

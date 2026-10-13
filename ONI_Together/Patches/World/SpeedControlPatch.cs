@@ -2,65 +2,97 @@
 using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.OxySync.Components;
-using System;
-using Shared.Profiling;
 
-namespace ONI_Together.Patches
+namespace ONI_Together.Patches.World
 {
 	[HarmonyPatch(typeof(SpeedControlScreen))]
-	public static class SpeedControlScreen_SendSpeedPacketPatch
+	public static class SpeedControlPatch
 	{
-		public static bool IsSyncing = false;
+		private static readonly bool ENABLE_LOG = false;
 
-		[HarmonyPatch("OnPrefabInit")]
 		[HarmonyPostfix]
+		[HarmonyPatch(nameof(SpeedControlScreen.OnPrefabInit))]
 		public static void OnPrefabInit_Postfix(SpeedControlScreen __instance)
 		{
-			if (!__instance.TryGetComponent<GameSpeedSyncer>(out _))
-				__instance.gameObject.AddComponent<GameSpeedSyncer>();
+			if (ENABLE_LOG)
+				DebugConsole.Log("[SpeedControlPatch][OnPrefabInit_Postfix] Adding GameSpeedSyncer component.");
+			__instance?.gameObject.AddOrGet<GameSpeedSyncer>();
 		}
 
-		[HarmonyPatch("SetSpeed")]
-		[HarmonyPostfix]
-		public static void SetSpeed_Postfix(int Speed)
+		[HarmonyPrefix]
+		[HarmonyPatch(nameof(SpeedControlScreen.SetSpeed))]
+		public static bool SetSpeed_Prefix(int Speed)
 		{
-			using var _ = Profiler.Scope();
+			if (!ShouldInterceptForSync())
+				return true;
 
-			try
-			{
-				if (IsSyncing) return;
-				if (!MultiplayerSession.InActiveSession) return;
+			SpeedControlScreen screen = SpeedControlScreen.Instance;
 
-				GameSpeedSyncer.Instance?.RequestSetSpeed(Speed);
-			}
-			catch (Exception ex)
+			// Preserve vanilla SetSpeed's normalization.
+			// The vanilla game would keep adding to the speed, ex: Tab
+			// so the Speed can be > 2 when SetSpeed is called.
+			int normalizedSpeed = Speed % 3;
+
+			// Do NOT accidentally turn SetSpeed(-1) into Paused.
+			// Vanilla SetSpeed(-1) does not mean TogglePause().
+			if (normalizedSpeed < 0)
 			{
-				DebugConsole.LogError($"[SpeedControlPatch.SetSpeed_Postfix] {ex}");
+				if (ENABLE_LOG)
+					DebugConsole.Log("[SpeedControlPatch][SetSpeed_Prefix] Normalized speed is negative, allowing vanilla behavior.");
+				return true;
 			}
+
+			var state = (GameSpeedSyncer.SpeedMode)normalizedSpeed;
+
+			// The vanilla game would proceed to set the speed even if it is already the current speed.
+			// We intercept this to avoid unnecessary network requests, while still allowing the vanilla behavior to proceed.
+			if (GameSpeedSyncer.Instance.IsStateSynchronized(state, screen.IsPaused))
+				return true;
+
+			if (ENABLE_LOG)
+				DebugConsole.LogNonImportant($"[SpeedControlPatch][SetSpeed_Prefix] Requesting speed {Speed} -> normalized {normalizedSpeed}.");
+
+			GameSpeedSyncer.Instance.RequestSetSpeed(state, screen.IsPaused);
+			return false;
 		}
 
+		[HarmonyPrefix]
 		[HarmonyPatch(nameof(SpeedControlScreen.TogglePause))]
-		[HarmonyPostfix]
-		public static void TogglePause_Postfix()
+		public static bool TogglePause_Prefix()
 		{
-			using var _ = Profiler.Scope();
+			if (!ShouldInterceptForSync())
+				return true;
+			
+			SpeedControlScreen screen = SpeedControlScreen.Instance;
+			bool isPaused = screen.IsPaused;
+			GameSpeedSyncer.SpeedMode state = (GameSpeedSyncer.SpeedMode)screen.GetSpeed();
 
-			try
+
+			if (ENABLE_LOG)
+				DebugConsole.LogNonImportant($"[SpeedControlPatch][TogglePause_Prefix] request setting speed to {state}, isPaused: {!isPaused}.");
+
+			GameSpeedSyncer.Instance.RequestSetSpeed(state, !isPaused);
+			return false;
+		}
+
+		public static bool ShouldInterceptForSync() {
+			if (!MultiplayerSession.InActiveSession || (MultiplayerSession.IsHost && !MultiplayerSession.SessionHasPlayers))
+				return false;
+
+			if (GameSpeedSyncer.Instance == null)
 			{
-				if (IsSyncing) return;
-				if (!MultiplayerSession.InActiveSession) return;
-
-				// Original TogglePause has already run. Determine the resulting state.
-				var newState = SpeedControlScreen.Instance.IsPaused
-					? (int)GameSpeedSyncer.SpeedState.Paused
-					: SpeedControlScreen.Instance.GetSpeed();
-
-				GameSpeedSyncer.Instance?.RequestSetSpeed(newState);
+				DebugConsole.LogWarning("[SpeedControlPatch][ShouldInterceptForSync] GameSpeedSyncer instance is null.");
+				return false;
 			}
-			catch (Exception ex)
+
+			if (GameSpeedSyncer.Instance.IsApplyingNetworkState)
 			{
-				DebugConsole.LogError($"[SpeedControlPatch.TogglePause_Postfix] {ex}");
+				if (ENABLE_LOG)
+					DebugConsole.LogNonImportant("[SpeedControlPatch][ShouldInterceptForSync] GameSpeedSyncer instance is syncing.");
+				return false;
 			}
+
+			return true;
 		}
 	}
 }
