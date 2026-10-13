@@ -30,12 +30,30 @@ namespace ONI_Together.Networking.Components
         // Viewport scratch buffer
         private readonly HashSet<ulong> _viewportScratch = new();
 
+        /// <summary>
+        /// How often a logic building states itself even though nothing changed.
+        ///
+        /// A signal is one bit that sits unchanged for hours, so "nothing changed" is the
+        /// normal state of a working circuit. Delta-only means two peers that disagree once
+        /// stay that way: the host's value never changes again, so it never speaks again,
+        /// and the client keeps the opposite bit for the rest of the session - doors that
+        /// will not open and pumps that will not run, with nothing on screen to say why.
+        ///
+        /// Fifteen seconds, phase-spread per entry. One small packet per building per
+        /// fifteen seconds, and it is the only thing that can close a divergence nobody is
+        /// touching.
+        /// </summary>
+        private const float RESYNC_INTERVAL = 15f;
+
         private class BuildingEntry
         {
             public GameObject go;
             public Variant lastValue;
             public bool lastActive;
             public Dictionary<string, Variant> lastOptional;
+
+            /// <summary>When this building next owes a keyframe whatever it thinks changed.</summary>
+            public float nextResync;
         }
 
         public override void OnSpawn()
@@ -94,16 +112,15 @@ namespace ONI_Together.Networking.Components
                 if (!SampleBuilding(entry.go, out var value, out var active, out var optional))
                     continue;
 
+                bool dueForResync = Time.unscaledTime >= entry.nextResync;
+
                 bool changed = LogicStatePacket.VariantValueChanged(value, entry.lastValue)
                     || active != entry.lastActive
-                    || LogicStatePacket.OptionalValuesChanged(optional, entry.lastOptional);
+                    || LogicStatePacket.OptionalValuesChanged(optional, entry.lastOptional)
+                    || dueForResync;
 
                 if (!changed)
                     continue;
-
-                entry.lastValue = value;
-                entry.lastActive = active;
-                entry.lastOptional = optional;
 
                 int cell = Grid.PosToCell(entry.go);
 
@@ -116,7 +133,19 @@ namespace ONI_Together.Networking.Components
                     OptionalValues = optional,
                 };
 
-                if (WorldStateSyncer.Instance != null)
+                entry.lastValue = value;
+                entry.lastActive = active;
+                entry.lastOptional = optional;
+                if (dueForResync)
+                    entry.nextResync = Time.unscaledTime + RESYNC_INTERVAL;
+
+                // A keyframe ignores the viewport, which is the whole point of it.
+                //
+                // Culling deltas is right - nobody needs a signal change for a circuit they
+                // cannot see - but sending the repair only to watchers would make it wait on
+                // the same condition that caused the damage. A circuit nobody is looking at
+                // is exactly the one that has drifted.
+                if (!dueForResync && WorldStateSyncer.Instance != null)
                 {
                     WorldStateSyncer.Instance.GetClientsViewingCell(cell, _viewportScratch, 2);
                     foreach (var playerId in _viewportScratch)
@@ -221,6 +250,10 @@ namespace ONI_Together.Networking.Components
                 lastValue = default,
                 lastActive = false,
                 lastOptional = null,
+
+                // Spread by id so a colony's automation does not all come due on one frame.
+                nextResync = Time.unscaledTime + INIT_DELAY
+                             + ((System.Math.Abs(netId) % 1024) / 1024f) * RESYNC_INTERVAL,
             };
         }
 
