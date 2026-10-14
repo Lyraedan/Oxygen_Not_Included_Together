@@ -16,8 +16,12 @@ namespace ONI_Together.Networking.Transport
 			// Never put latency-sensitive snapshots behind reliable state traffic.
 			// Old movement data has no value and causes visible catch-up/teleports.
 			if (!Configuration.Instance.EnablePacketQueue || IsLatencySensitive(sendType)
-				|| packet is ILatencySensitivePacket)
-                return SendPacket(conn, packet, sendType);
+				|| packet is ILatencySensitivePacket
+				// Session control (hard sync, ready, save transfer, pause, clock) must not
+				// wait in this FIFO behind the world stream either; the transport's
+				// priority lane would be pointless if it did.
+				|| (sendType & PacketSendMode.Priority) != 0 || packet is IPriorityPacket)
+				return SendPacket(conn, packet, sendType);
             // queue it
             if (!_pendingQueues.TryGetValue(conn, out var queue))
                 _pendingQueues[conn] = queue = new();
