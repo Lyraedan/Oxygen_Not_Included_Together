@@ -275,7 +275,7 @@ namespace ONI_Together.Networking.Overlay
 			internal static void Postfix(SelectToolHoverTextCard __instance)
 			{
 				__instance.modeFilters[NetworkingOverlayMode.ID] =
-					(KSelectable sel) => sel.GetComponent<NetworkIdentity>() != null;
+					(KSelectable sel) => sel.GetExistingNetIdentity() != null;
 				__instance.overlayFilterMap[NetworkingOverlayMode.ID] = () => false;
 			}
 		}
@@ -290,7 +290,7 @@ namespace ONI_Together.Networking.Overlay
 
 				var hover = SelectTool.Instance?.hover;
 				if (hover == null) return;
-				var identity = hover.GetComponent<NetworkIdentity>();
+				var identity = hover.GetExistingNetIdentity();
 				if (identity == null || identity.NetId == 0) return;
 
 				var tracker = NetIdActivityTracker.Instance;
