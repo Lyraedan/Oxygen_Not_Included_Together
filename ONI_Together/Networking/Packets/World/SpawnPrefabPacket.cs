@@ -1,4 +1,5 @@
 using System.IO;
+using ONI_Together.Misc;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Architecture;
 using UnityEngine;
@@ -92,7 +93,7 @@ public class SpawnPrefabPacket : IPacket
         // Race condition guard: Was this prefab already picked up / stored before the packet arrived?
         if (GroundItemPickedUpPacket.TryConsumePending(NetId) || StorageItemPacket.TryConsumePending(NetId))
         {
-            Util.KDestroyGameObject(go);
+            Utils.DestroyReplicatedItem(go);
         }
     }
 }

@@ -1,4 +1,5 @@
 ﻿using ONI_Together.DebugTools;
+using ONI_Together.Misc;
 using ONI_Together.Networking.Packets.Architecture;
 using System.Collections.Generic;
 using System.IO;
@@ -95,13 +96,13 @@ namespace ONI_Together.Networking.Packets.World
             if (!NetworkIdentityRegistry.TryGetComponent<Storage>(StorageNetId, out var storage))
             {
                 DebugConsole.LogWarning($"[StoreItemPacket] No storage found with NetID: {StorageNetId}");
-                Util.KDestroyGameObject(pickupable.gameObject); // Still destroy the pickupable
+                Utils.DestroyReplicatedItem(pickupable.gameObject); // Still destroy the pickupable
                 return;
             }
 
             DisplayFX(pickupable.gameObject, storage);
             HandleDiseaseTransfer(pickupable.gameObject, storage);
-            Util.KDestroyGameObject(pickupable.gameObject);
+            Utils.DestroyReplicatedItem(pickupable.gameObject);
         }
 
         public void DisplayFX(GameObject pickupable, Storage storage)

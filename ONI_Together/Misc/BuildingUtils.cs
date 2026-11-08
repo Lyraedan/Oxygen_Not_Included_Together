@@ -123,7 +123,7 @@ namespace ONI_Together.Misc
         private static void ClearStorage(Storage storage)
         {
             for (int i = storage.items.Count - 1; i >= 0; i--)
-                storage.items[i].DeleteObject();
+                Utils.DestroyReplicatedItem(storage.items[i]);
             storage.items.Clear();
         }
         
