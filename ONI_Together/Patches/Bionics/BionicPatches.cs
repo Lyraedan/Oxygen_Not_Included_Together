@@ -14,6 +14,17 @@ namespace ONI_Together.Patches.Bionics
     {
         // Crude bionic patches, TODO ensure this gets synced properly
 
+        [HarmonyPatch(typeof(GunkEmptierWorkable), nameof(GunkEmptierWorkable.TriggerRoomEffects))]
+        public static class GunkEmptierWorkable_TriggerRoomEffects_Patch
+        {
+            static bool Prefix()
+            {
+                // Effects.Add is host-authoritative and returns null for local client effects.
+                // Replay the work normally, but receive room effects through ToggleEffectPacket.
+                return !MultiplayerSession.IsClient;
+            }
+        }
+
         public static class BionicOilMonitor_OilAmountInstanceWatcherUpdate_Patch
         {
             static bool Prefix()
