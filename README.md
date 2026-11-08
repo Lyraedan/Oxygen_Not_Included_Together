@@ -30,14 +30,6 @@ Raise it on the issues page, and make a bug report on the discord.
 
 Please at least try to include a video if you can. It makes replicating it so much easier
 
-### Bionic room and oil effects
-
-Gunk Extractor work is replayed on clients, but its room effects are generated only by the host (or in single-player). Clients receive effects through `ToggleEffectPacket`. Running `GunkEmptierWorkable.TriggerRoomEffects()` locally on a client would otherwise dereference a null effect because the multiplayer effect guard blocks local `Effects.Add()` calls.
-
-The host (or single-player game) owns the bionic oil monitor's startup, periodic watcher, and oil transition signals. Clients receive oil amounts through `VitalStatsPacket` and lubrication effects through `ToggleEffectPacket`. Running the monitor locally on clients can enter `root.online.seeking.noOil` and dereference the null result of an `Effects.Add()` call suppressed by the existing multiplayer effect guard.
-
-The watcher guard also covers monitors already running when a client session begins. Its static-method patch is registered after `Db.Initialize`, alongside the deferred door patches: registering it during the initial Harmony patch scan can trigger `BionicOilMonitor`'s static constructor before the database is ready and prevent startup.
-
 ---
 
 ## Why not just contribute to the old multiplayer mod?
