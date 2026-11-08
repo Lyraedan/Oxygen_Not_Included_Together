@@ -14,12 +14,30 @@ namespace ONI_Together.Patches.Bionics
     {
         // Crude bionic patches, TODO ensure this gets synced properly
 
+        public static class BionicOilMonitor_OilAmountInstanceWatcherUpdate_Patch
+        {
+            static bool Prefix()
+            {
+                // Loaded monitors can retain scheduled updates after client AI is disabled.
+                // Oil amounts and effects are synchronized from the host, not simulated locally.
+                return !MultiplayerSession.IsClient;
+            }
+
+            public static void ExecutePatch()
+            {
+                // Harmony can run this type's static constructor, which requires an initialized Db.
+                var target = AccessTools.Method(typeof(BionicOilMonitor), nameof(BionicOilMonitor.OilAmountInstanceWatcherUpdate));
+                var prefix = AccessTools.Method(typeof(BionicOilMonitor_OilAmountInstanceWatcherUpdate_Patch), nameof(Prefix));
+                MultiplayerMod.Harmony.Patch(target, new HarmonyMethod(prefix));
+            }
+        }
+
         [HarmonyPatch(typeof(BionicOilMonitor.Instance), nameof(BionicOilMonitor.Instance.ReportOilTankFilled))]
         public static class BionicOilMonitor_ReportOilTankFilled_Patch
         {
             static bool Prefix(BionicOilMonitor.Instance __instance)
             {
-                if (__instance == null)
+                if (MultiplayerSession.IsClient || __instance == null)
                     return false;
 
                 if (__instance.sm == null || __instance.sm.OilFilledSignal == null)
@@ -37,7 +55,7 @@ namespace ONI_Together.Patches.Bionics
         {
             static bool Prefix(BionicOilMonitor.Instance __instance)
             {
-                if (__instance == null)
+                if (MultiplayerSession.IsClient || __instance == null)
                     return false;
 
                 if (__instance.sm == null || __instance.sm.OilRanOutSignal == null)
@@ -55,7 +73,7 @@ namespace ONI_Together.Patches.Bionics
         {
             static bool Prefix(BionicOilMonitor.Instance __instance, float delta)
             {
-                if (__instance == null)
+                if (MultiplayerSession.IsClient || __instance == null)
                     return false;
 
                 if (__instance.sm == null || __instance.sm.OilValueChanged == null)
@@ -75,10 +93,9 @@ namespace ONI_Together.Patches.Bionics
         {
             static bool Prefix(BionicOilMonitor.Instance __instance)
             {
-                if (__instance == null)
+                if (MultiplayerSession.IsClient || __instance == null)
                     return false;
 
-                // This is what crashes in noOil.Enter
                 if (__instance.effects == null)
                     return false;
 
