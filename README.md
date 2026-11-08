@@ -30,14 +30,6 @@ Raise it on the issues page, and make a bug report on the discord.
 
 Please at least try to include a video if you can. It makes replicating it so much easier
 
-### Replicated equipment removal
-
-Replicated item removal unassigns `Equippable` items before calling `Util.KDestroyGameObject`. Otherwise, `Assignable.OnCleanUp` can reach `Equipment.Unequip` during Unity destruction and attempt to reparent an equipped item, producing `Cannot set the parent of the GameObject 'Oxygen_Mask' while it is being destroyed`.
-
-Pickup, storage, pending-spawn removal, and storage reconciliation share `Utils.DestroyReplicatedItem`. The helper preserves normal unassignment and Klei destruction callbacks; it does not suppress cleanup, bypass equipment ownership, or patch host equip/unequip behavior.
-
-Verification: the U59-744825 cleanup methods reproduced the reported call chain in an isolated managed fixture with a simulated Unity destruction boundary. The compiled ground-removal, pickup, storage-delivery, missing-storage, storage-clearing, unequipped-item, and ordinary-item scenarios passed ownership and destruction-order checks. This is not native Unity or live multiplayer verification. There is no retained automated regression test for the native destruction boundary; in-game confirmation must exercise removal of an equipped mask. The stack alone does not identify which action initiated destruction.
-
 ---
 
 ## Why not just contribute to the old multiplayer mod?
