@@ -24,6 +24,17 @@ namespace ONI_Together.Misc
 		/// </summary>
 		public static int MaxSteamNetworkingSocketsMessageSizeSend = 512 * 1024;
 
+		internal static void DestroyReplicatedItem(GameObject item)
+		{
+			// Assignable.OnCleanUp runs during Unity destruction, too late for
+			// Equipment.Unequip to detach the item's transform from its wearer.
+			var equippable = item.GetComponent<Equippable>();
+			if (equippable != null)
+				equippable.Unassign();
+
+			Util.KDestroyGameObject(item);
+		}
+
 		/// <summary>
 		/// Force quites the game without the Klei metrics that can cause crashes
 		/// </summary>

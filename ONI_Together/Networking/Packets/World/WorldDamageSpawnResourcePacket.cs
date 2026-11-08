@@ -1,4 +1,5 @@
 ﻿using ONI_Together.DebugTools;
+using ONI_Together.Misc;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Architecture;
 using System.IO;
@@ -86,7 +87,7 @@ namespace ONI_Together.Networking.Packets.World
 			if (GroundItemPickedUpPacket.TryConsumePending(NetId) || StorageItemPacket.TryConsumePending(NetId))
 			{
 				DebugConsole.Log($"[WorldDamageSpawnResourcePacket] Consumed pending ground-item pickup for NetId {NetId}");
-				Util.KDestroyGameObject(dropped);
+				Utils.DestroyReplicatedItem(dropped);
 				return;
 			}
 
