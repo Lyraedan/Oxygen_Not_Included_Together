@@ -154,7 +154,7 @@ namespace ONI_Together.Networking.OxySync.Components
 
         private static Telepad FindTelepad(int worldIndex)
         {
-            foreach (Telepad existing in global::Components.Telepads)
+            foreach (Telepad existing in global::Components.Telepads.Items)
                 if (existing.GetMyWorldId() == worldIndex)
                     return existing;
             return null;

@@ -406,7 +406,7 @@ namespace ONI_Together.Misc
 			{
 				AllLogicPortCells.Add(portVis);
 			}
-			foreach (LogicPorts portsComponent in LogicPortsCmps)
+			foreach (LogicPorts portsComponent in LogicPortsCmps.Items)
 			{
 				if (portsComponent.IsNullOrDestroyed())
 					continue;

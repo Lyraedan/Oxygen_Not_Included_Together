@@ -14,6 +14,7 @@ namespace ONI_Together.Networking.OxySync.StateMachines
 
         private bool _storageDirty;
         private float _storageSyncTimer;
+        private int _storageChangeHandle;
 
         private const float STORAGE_SYNC_DELAY = 0.2f;
 
@@ -39,7 +40,7 @@ namespace ONI_Together.Networking.OxySync.StateMachines
             {
                 _storage.OnStorageChange += OnStorageChanged;
 
-                _storage.Subscribe((int)GameHashes.OnStorageChange, OnStorageChangedGameHash);
+                _storageChangeHandle = _storage.Subscribe((int)GameHashes.OnStorageChange, OnStorageChangedGameHash);
             }
 
         }
@@ -49,7 +50,7 @@ namespace ONI_Together.Networking.OxySync.StateMachines
             if (_storage != null)
             {
                 _storage.OnStorageChange -= OnStorageChanged;
-                _storage.Unsubscribe((int)GameHashes.OnStorageChange, OnStorageChangedGameHash);
+                _storage.Unsubscribe(ref _storageChangeHandle);
             }
 
             base.OnCleanUp();

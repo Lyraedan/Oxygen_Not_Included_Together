@@ -28,6 +28,8 @@ namespace ONI_Together
         private ClusterIcons.Entry? _cachedAstroidData;
         private bool _hasCachedAstroidData;
 
+        private int _activeWorldChangedHandle;
+
         private void Start()
         {
             try
@@ -61,7 +63,7 @@ namespace ONI_Together
             {
                 _hasRecordedStartTime = true;
                 Game.Instance.OnSpawnComplete += RefreshAstroid;
-                Game.Instance.Subscribe((int) GameHashes.ActiveWorldChanged, OnActiveWorldChanged);
+                _activeWorldChangedHandle = Game.Instance.Subscribe((int) GameHashes.ActiveWorldChanged, OnActiveWorldChanged);
             }
 
             App.OnPostLoadScene += OnSceneLoaded;
@@ -251,7 +253,7 @@ namespace ONI_Together
             if (Game.Instance != null)
             {
                 Game.Instance.OnSpawnComplete -= RefreshAstroid;
-                Game.Instance.Unsubscribe((int) GameHashes.ActiveWorldChanged, OnActiveWorldChanged);
+                Game.Instance.Unsubscribe(ref _activeWorldChangedHandle);
             }
 
             App.OnPostLoadScene -= OnSceneLoaded;

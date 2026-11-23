@@ -106,7 +106,7 @@ namespace ONI_Together.Networking.Packets.Social
 				try
 				{
 					Telepad telepad = null;
-					foreach (Telepad existing in global::Components.Telepads)
+					foreach (Telepad existing in global::Components.Telepads.Items)
 					{
 						if (existing.GetMyWorldId() == PrintingPodWorldIndex)
 						{

@@ -64,8 +64,8 @@ namespace ONI_Together.Networking.Overlay
 		private const float LEGEND_REFRESH_INTERVAL = 1f;
 
 		private UniformGrid<NetworkIdentity> partition;
-		private readonly HashSet<NetworkIdentity> layerTargets = new HashSet<NetworkIdentity>();
-		private readonly List<NetworkIdentity> intersecting = new List<NetworkIdentity>();
+		private readonly HybridListHashSet<NetworkIdentity> layerTargets = new HybridListHashSet<NetworkIdentity>();
+		private readonly HashSet<NetworkIdentity> intersecting = new HashSet<NetworkIdentity>();
 
 		private int targetLayer;
 		private int cameraLayerMask;
@@ -131,7 +131,7 @@ namespace ONI_Together.Networking.Overlay
 			tracker = NetIdActivityTracker.Instance;
 			_lastLegendRefresh = Time.unscaledTime;
 			RegisterSaveLoadListeners();
-			partition = OverlayModes.Mode.PopulatePartition<NetworkIdentity>(new List<Tag>());
+			partition = OverlayModes.Mode.PopulatePartition<NetworkIdentity>(new HashSet<Tag>());
 			if (_cellInViewport == null || _cellInViewport.Length != Grid.CellCount)
 				_cellInViewport = new Color[Grid.CellCount];
 			CameraController.Instance.ToggleColouredOverlayView(true);
@@ -191,8 +191,6 @@ namespace ONI_Together.Networking.Overlay
 		{
 			Grid.GetVisibleExtents(out var min, out var max);
 
-			OverlayModes.Mode.RemoveOffscreenTargets(layerTargets, min, max);
-
 			intersecting.Clear();
 			if (partition != null)
 			{
@@ -241,8 +239,7 @@ namespace ONI_Together.Networking.Overlay
 				));
 			}
 
-			var emptyTags = new HashSet<Tag>();
-			UpdateHighlightTypeOverlay(min, max, layerTargets, emptyTags,
+			RemoveOffscreenAndUpdateHighlights(min, max, layerTargets,
 				highlights.ToArray(), OverlayModes.BringToFrontLayerSetting.Constant, targetLayer);
 			
 			UpdateViewportOverlay(min, max);
@@ -334,7 +331,7 @@ namespace ONI_Together.Networking.Overlay
 
 			var activeSet = new HashSet<int>();
 
-			foreach (var identity in layerTargets)
+			foreach (var identity in layerTargets.AsList())
 			{
 				if (identity == null || identity.NetId == 0) continue;
 

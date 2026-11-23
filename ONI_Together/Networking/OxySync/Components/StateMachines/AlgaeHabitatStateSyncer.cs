@@ -21,6 +21,8 @@ namespace ONI_Together.Networking.OxySync.StateMachines
 
         private bool _pollutedWaterStorageDirty;
         private float _pollutedWaterStorageSyncTimer;
+        private int _storageChangeHandle;
+        private int _pollutedWaterStorageChangeHandle;
 
         private const float STORAGE_SYNC_DELAY = 0.2f;
 
@@ -51,13 +53,13 @@ namespace ONI_Together.Networking.OxySync.StateMachines
             if (_storage != null)
             {
                 _storage.OnStorageChange += OnStorageChanged;
-                _storage.Subscribe((int)GameHashes.OnStorageChange, OnStorageChangedGameHash);
+                _storageChangeHandle = _storage.Subscribe((int)GameHashes.OnStorageChange, OnStorageChangedGameHash);
             }
 
             if (_pollutedWaterStorage != null)
             {
                 _pollutedWaterStorage.OnStorageChange += OnPollutedWaterStorageChanged;
-                _pollutedWaterStorage.Subscribe((int)GameHashes.OnStorageChange, OnPollutedWaterStorageChangedGameHash);
+                _pollutedWaterStorageChangeHandle = _pollutedWaterStorage.Subscribe((int)GameHashes.OnStorageChange, OnPollutedWaterStorageChangedGameHash);
             }
 
         }
@@ -67,13 +69,13 @@ namespace ONI_Together.Networking.OxySync.StateMachines
             if (_storage != null)
             {
                 _storage.OnStorageChange -= OnStorageChanged;
-                _storage.Unsubscribe((int)GameHashes.OnStorageChange, OnStorageChangedGameHash);
+                _storage.Unsubscribe(ref _storageChangeHandle);
             }
 
             if (_pollutedWaterStorage != null)
             {
                 _pollutedWaterStorage.OnStorageChange -= OnPollutedWaterStorageChanged;
-                _pollutedWaterStorage.Unsubscribe((int)GameHashes.OnStorageChange, OnPollutedWaterStorageChangedGameHash);
+                _pollutedWaterStorage.Unsubscribe(ref _pollutedWaterStorageChangeHandle);
             }
 
             base.OnCleanUp();

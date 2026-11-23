@@ -38,6 +38,7 @@ public class OxySyncChat : NetworkBehaviour
 
     private static List<PendingMessage> _chatHistory = new();
     private List<long> _timestampCache = new ();
+    private int _playerJoinedHandle;
     
     public static IReadOnlyList<PendingMessage> ChatHistory => _chatHistory;
 
@@ -50,7 +51,7 @@ public class OxySyncChat : NetworkBehaviour
         
         if (Game.Instance != null)
         {
-            Game.Instance.Subscribe(MP_HASHES.OnPlayerJoined, OnPlayerJoined);
+            _playerJoinedHandle = Game.Instance.Subscribe(MP_HASHES.OnPlayerJoined, OnPlayerJoined);
         }
     }
 
@@ -63,7 +64,7 @@ public class OxySyncChat : NetworkBehaviour
     {
         if (Game.Instance != null)
         {
-            Game.Instance.Unsubscribe(MP_HASHES.OnPlayerJoined, OnPlayerJoined);
+            Game.Instance.Unsubscribe(ref _playerJoinedHandle);
         }
 
         if (Instance == this)

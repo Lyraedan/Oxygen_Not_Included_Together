@@ -48,8 +48,9 @@
 		<BeachedDlcBeta>731233</BeachedDlcBeta>
 		<BeachedDlcRelease>736649</BeachedDlcRelease>
 		<BeacheedDlcHotfix1>737790</BeacheedDlcHotfix1>
+		<NovBugFix>764025</NovBugFix>
 		<!--Latest-->
-		<TargetGameVersion>$(BeachedDlcRelease)</TargetGameVersion>
+		<TargetGameVersion>$(NovBugFix)</TargetGameVersion>
 		
 	</PropertyGroup>
 
