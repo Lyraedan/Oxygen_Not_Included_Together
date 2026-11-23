@@ -1,4 +1,4 @@
-using ONI_Together.DebugTools;
+﻿using ONI_Together.DebugTools;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Architecture;
 using System.IO;
@@ -57,10 +57,38 @@ namespace ONI_Together.Networking.Packets.World
 					GameObject buildingGO = Grid.Objects[Cell, (int)ObjectLayer.Building];
 					if (buildingGO != null)
 					{
-						buildingIdentity = buildingGO.AddOrGet<NetworkIdentity>();
-						buildingIdentity.NetId = BuildingNetId;
-						buildingIdentity.RegisterIdentity();
-						DebugConsole.Log($"[AssignmentPacket] Resolved building by cell {Cell}, assigned NetId {BuildingNetId}");
+						// Position finds a candidate; it does not license renaming it.
+						//
+						// An assignable is not always a building - a duplicant is assigned
+						// to an atmo suit, and that suit sits inside a locker at the same
+						// cell. When the id cannot be resolved, this took whatever building
+						// occupied the cell and gave it the packet's id, so one number
+						// meant a suit on one peer and a locker on the other.
+						//
+						// A building that already carries a different id is something else,
+						// and this packet is not about it.
+						var existing = buildingGO.GetComponent<NetworkIdentity>();
+						if (existing != null && existing.NetId != 0 && existing.NetId != BuildingNetId)
+						{
+							DebugConsole.LogWarning(
+								$"[AssignmentPacket] not renaming '{buildingGO.PrefabID()}' at cell {Cell} " +
+								$"from NetId {existing.NetId} to {BuildingNetId} - it is already " +
+								"addressed as something else, so this packet is about a different object.");
+						}
+						else
+						{
+							// OverrideNetId, not a field write.
+							//
+							// Assigning NetId directly moved the field without moving the
+							// registry entry, and RegisterIdentity begins with
+							// "if (IsRegistered) return" - so for a building that was already
+							// registered the new id was never filed at all, leaving the object
+							// unreachable at the old id and the new one alike. OverrideNetId
+							// unregisters, reassigns and re-registers together.
+							buildingIdentity = buildingGO.AddOrGet<NetworkIdentity>();
+							buildingIdentity.OverrideNetId(BuildingNetId);
+							DebugConsole.Log($"[AssignmentPacket] Resolved building by cell {Cell}, assigned NetId {BuildingNetId}");
+						}
 					}
 				}
 			}
