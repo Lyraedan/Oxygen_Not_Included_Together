@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 
-namespace ONI_Together.Misc
+namespace Shared.OxySync
 {
     public static class VariantHelper
     {
@@ -95,6 +95,10 @@ namespace ONI_Together.Misc
                         $"Null SyncVar cannot be assigned to non-nullable type '{targetType}'.");
                 return null;
             }
+
+            Type nullableUnderlying = Nullable.GetUnderlyingType(targetType);
+            if (nullableUnderlying != null)
+                return VariantToObject(v, nullableUnderlying);
 
             if (targetType == typeof(int)) return v.Int;
             if (targetType == typeof(float)) return v.Float;

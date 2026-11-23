@@ -1,11 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.IO;
-using System.Text;
 using HarmonyLib;
+using Shared.OxySync;
 using ONI_Together.DebugTools;
 using UnityEngine;
-using static LogicGateVisualizer;
 
 namespace ONI_Together.Misc
 {
