@@ -1,6 +1,5 @@
 using ONI_Together.DebugTools;
 using ONI_Together.Networking.Packets.World;
-using Steamworks;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -54,6 +53,11 @@ namespace ONI_Together.Networking
             using var _ = Profiler.Scope();
 
             return $"{clientID}_{transferId}";
+        }
+
+        public static void ClearTransfers()
+        {
+            ActiveTransfers.Clear();
         }
 
         /// <summary>

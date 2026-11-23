@@ -48,12 +48,18 @@ namespace ONI_Together.Networking.OxySync.Components
 
         public void RequestSetSpeed(int speed)
         {
+            if (ReadyManager.IsSimulationLocked)
+                return;
+
             CallCommand(nameof(CmdSetSpeed), speed);
         }
 
         [Command]
         private void CmdSetSpeed(int speed)
         {
+            if (ReadyManager.IsSimulationLocked)
+                return;
+
             ApplyAndBroadcast((SpeedState)speed);
         }
 
@@ -88,6 +94,9 @@ namespace ONI_Together.Networking.OxySync.Components
         [ClientRpc]
         private void RpcApplySpeed(int state)
         {
+            if (ReadyManager.IsSimulationLocked)
+                return;
+
             SpeedControlScreen_SendSpeedPacketPatch.IsSyncing = true;
             try
             {

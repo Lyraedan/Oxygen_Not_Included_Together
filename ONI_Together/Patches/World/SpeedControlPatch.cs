@@ -21,6 +21,13 @@ namespace ONI_Together.Patches
 		}
 
 		[HarmonyPatch("SetSpeed")]
+		[HarmonyPrefix]
+		public static bool SetSpeed_Prefix()
+		{
+			return !ReadyManager.IsSimulationLocked;
+		}
+
+		[HarmonyPatch("SetSpeed")]
 		[HarmonyPostfix]
 		public static void SetSpeed_Postfix(int Speed)
 		{
@@ -37,6 +44,14 @@ namespace ONI_Together.Patches
 			{
 				DebugConsole.LogError($"[SpeedControlPatch.SetSpeed_Postfix] {ex}");
 			}
+		}
+
+		[HarmonyPatch(nameof(SpeedControlScreen.TogglePause))]
+		[HarmonyPrefix]
+		public static bool TogglePause_Prefix()
+		{
+			return !ReadyManager.IsSimulationLocked
+				|| (SpeedControlScreen.Instance != null && !SpeedControlScreen.Instance.IsPaused);
 		}
 
 		[HarmonyPatch(nameof(SpeedControlScreen.TogglePause))]
@@ -61,6 +76,13 @@ namespace ONI_Together.Patches
 			{
 				DebugConsole.LogError($"[SpeedControlPatch.TogglePause_Postfix] {ex}");
 			}
+		}
+
+		[HarmonyPatch(nameof(SpeedControlScreen.Unpause))]
+		[HarmonyPrefix]
+		public static bool Unpause_Prefix()
+		{
+			return !ReadyManager.IsSimulationLocked;
 		}
 	}
 }

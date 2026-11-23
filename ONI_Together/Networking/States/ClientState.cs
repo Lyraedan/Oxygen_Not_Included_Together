@@ -4,7 +4,6 @@ namespace ONI_Together.Networking.States
 {
 	public enum ClientState
 	{
-		Error = -1,
 		Disconnected,
 		Connecting,
 		Connected,

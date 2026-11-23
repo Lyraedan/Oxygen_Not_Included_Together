@@ -123,6 +123,14 @@ namespace ONI_Together.Networking.Packets.Handshake
 				return;
 			}
 
+			if (ReadyManager.IsSynchronizing)
+			{
+				reason = "Synchronization is in progress; this connection cannot join until it is complete.";
+				DebugConsole.LogWarning($"[GameStateRequestPacket] Rejecting client {ClientId}: {reason}");
+				RejectClient(reason);
+				return;
+			}
+
 			MarkClientAsProtocolVerified();
 			CreateStateResponse();
 		}

@@ -4,7 +4,6 @@ using System;
 using Shared.Profiling;
 using TMPro;
 using UnityEngine;
-using UnityEngine.SceneManagement;
 
 namespace ONI_Together.Menus
 {
@@ -47,7 +46,6 @@ namespace ONI_Together.Menus
 		{
 			using var _ = Profiler.Scope();
 
-			SceneManager.sceneLoaded += OnPostLoadScene;
 			ScreenResize.Instance.OnResize += OnResize;
 			CreateOverlay();
 		}
@@ -96,11 +94,6 @@ namespace ONI_Together.Menus
 		}
 
 
-		private void OnPostLoadScene(Scene scene, LoadSceneMode mode)
-		{
-			//SteamNetworkingComponent.scheduler.Run(CreateOverlay);
-		}
-
 		private void OnResize()
 		{
 		}
@@ -109,7 +102,6 @@ namespace ONI_Together.Menus
 		{
 			using var _ = Profiler.Scope();
 
-			SceneManager.sceneLoaded -= OnPostLoadScene;
 			ScreenResize.Instance.OnResize -= OnResize;
 			LoadingOverlay.Clear();
 		}
@@ -121,6 +113,12 @@ namespace ONI_Together.Menus
 			if (overlay == null)
 			{
 				overlay = new MultiplayerOverlay();
+			}
+			else
+			{
+				var inst = instance;
+				if (inst == null || overlay.textComponent == null || !inst.gameObject.activeInHierarchy)
+					overlay.CreateOverlay();
 			}
 			Text = text;
 		}

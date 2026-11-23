@@ -93,6 +93,7 @@ namespace ONI_Together.Networking
 		{
 			using var _ = Profiler.Scope();
 
+			ReadyManager.ResetSynchronizationState();
 			ConnectedPlayers.Clear();
 			KnownPlayerNames.Clear();
 			HostUserID = Utils.NilUlong();
