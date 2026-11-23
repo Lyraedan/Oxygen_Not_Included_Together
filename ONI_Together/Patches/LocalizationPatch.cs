@@ -14,15 +14,14 @@ namespace ONI_Together.Patches
 {
 	internal class LocalizationPatch
 	{
-
-        [HarmonyPatch(typeof(Localization), nameof(Localization.Initialize))]
-        public class Localization_Initialize_Patch
-        {
+		[HarmonyPatch(typeof(Localization), nameof(Localization.Initialize))]
+		public class Localization_Initialize_Patch
+		{
 			public static void Postfix()
-            {
-	            using var _ = Profiler.Scope();
+			{
+				using var _ = Profiler.Scope();
 				Translate(typeof(STRINGS), true);
-            }
+			}
 
 			static string ModPath => Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 
