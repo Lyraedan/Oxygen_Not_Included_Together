@@ -1,11 +1,8 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
-using HarmonyLib;
+﻿using System.Collections.Generic;
+using Shared.OxySync;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Packets.World;
 using UnityEngine;
-using static STRINGS.UI.METERS;
 
 namespace ONI_Together.Networking.Components.StructureStateSyncers
 {

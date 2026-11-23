@@ -1,10 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
 using ONI_Together.DebugTools;
-using ONI_Together.Misc;
 using ONI_Together.Networking.Packets.World;
 using ONI_Together.Patches.World;
+using Shared.OxySync;
 using UnityEngine;
 
 namespace ONI_Together.Networking.Components.StructureStateSyncers
