@@ -10,7 +10,7 @@ namespace ONI_Together.Patches.World.Buildings
 {
 	internal class ComplexFabricator_Patches
 	{
-		private const float SEND_INTERVAL = 0.5f;
+		private const float SEND_INTERVAL = 0.15f;
 		private static readonly Dictionary<int, float> _nextSendTime = new();
 
 		[HarmonyPatch(typeof(ComplexFabricatorWorkable), nameof(ComplexFabricatorWorkable.UpdateOrderProgress))]
