@@ -1,6 +1,8 @@
 using HarmonyLib;
 using ONI_Together.Networking.Components;
+using System;
 using System.Collections;
+using System.Collections.Generic;
 using Shared.Profiling;
 using UnityEngine;
 using ONI_Together.DebugTools;
@@ -10,6 +12,25 @@ namespace ONI_Together.Patches.World.SideScreen
 	/// <summary>
 	/// Patches for slider-based side screens: SingleSliderSideScreen, IntSliderSideScreen, SingleCheckboxSideScreen
 	/// </summary>
+
+	/// <summary>
+	/// Tracks the handler last registered on each side-screen control so that re-wiring
+	/// a side screen (SetTarget runs every time a building is selected) removes the
+	/// previous handler instead of accumulating a new one per call.
+	/// The previous code used `evt -= () => ...; evt += () => ...`, but two
+	/// separately-written lambdas are distinct delegate instances, so the `-=` removed
+	/// nothing and every SetTarget leaked one more handler holding a stale target
+	/// reference (issues #57 and #58).
+	/// Side-screen controls are game-lifetime singletons (created once and reused by
+	/// DetailsScreen), so a plain dictionary is safe: entries are replaced on every
+	/// SetTarget and the keys are never destroyed mid-session.
+	/// </summary>
+	internal static class SideScreenHandlerCache
+	{
+		public static readonly Dictionary<KSlider, System.Action> ReleaseHandlers = new();
+		public static readonly Dictionary<KNumberInputField, System.Action> EndEditHandlers = new();
+		public static readonly Dictionary<KToggle, System.Action<bool>> CheckboxHandlers = new();
+	}
 
 	[HarmonyPatch(typeof(SingleSliderSideScreen), "SetTarget")]
 	public static class SingleSliderSideScreen_SetTarget_Patch
@@ -35,13 +56,21 @@ namespace ONI_Together.Patches.World.SideScreen
 					int index = i;
 					if (slider != null)
 					{
-						slider.onReleaseHandle -= () => OnSliderReleased(new_target, slider, index);
-						slider.onReleaseHandle += () => OnSliderReleased(new_target, slider, index);
+						if (SideScreenHandlerCache.ReleaseHandlers.TryGetValue(slider, out var previousRelease))
+							slider.onReleaseHandle -= previousRelease;
+
+						System.Action releaseHandler = () => OnSliderReleased(new_target, slider, index);
+						SideScreenHandlerCache.ReleaseHandlers[slider] = releaseHandler;
+						slider.onReleaseHandle += releaseHandler;
 					}
 					if (numberInput != null)
 					{
-						numberInput.onEndEdit -= () => OnInputEndEdit(new_target, numberInput, index);
-						numberInput.onEndEdit += () => OnInputEndEdit(new_target, numberInput, index);
+						if (SideScreenHandlerCache.EndEditHandlers.TryGetValue(numberInput, out var previousEndEdit))
+							numberInput.onEndEdit -= previousEndEdit;
+
+						System.Action endEditHandler = () => OnInputEndEdit(new_target, numberInput, index);
+						SideScreenHandlerCache.EndEditHandlers[numberInput] = endEditHandler;
+						numberInput.onEndEdit += endEditHandler;
 					}
 				}
 			}
@@ -118,13 +147,21 @@ namespace ONI_Together.Patches.World.SideScreen
 					int index = i;
 					if (slider != null)
 					{
-						slider.onReleaseHandle -= () => OnSliderReleased(new_target, slider, index);
-						slider.onReleaseHandle += () => OnSliderReleased(new_target, slider, index);
+						if (SideScreenHandlerCache.ReleaseHandlers.TryGetValue(slider, out var previousRelease))
+							slider.onReleaseHandle -= previousRelease;
+
+						System.Action releaseHandler = () => OnSliderReleased(new_target, slider, index);
+						SideScreenHandlerCache.ReleaseHandlers[slider] = releaseHandler;
+						slider.onReleaseHandle += releaseHandler;
 					}
 					if (numberInput != null)
 					{
-						numberInput.onEndEdit -= () => OnInputEndEdit(new_target, numberInput, index);
-						numberInput.onEndEdit += () => OnInputEndEdit(new_target, numberInput, index);
+						if (SideScreenHandlerCache.EndEditHandlers.TryGetValue(numberInput, out var previousEndEdit))
+							numberInput.onEndEdit -= previousEndEdit;
+
+						System.Action endEditHandler = () => OnInputEndEdit(new_target, numberInput, index);
+						SideScreenHandlerCache.EndEditHandlers[numberInput] = endEditHandler;
+						numberInput.onEndEdit += endEditHandler;
 					}
 				}
 			}
@@ -169,8 +206,12 @@ namespace ONI_Together.Patches.World.SideScreen
 			var checkboxToggle = __instance.toggle;
 			if (checkboxToggle != null)
 			{
-				checkboxToggle.onValueChanged -= (action) => OnCheckboxClicked(target, action);
-				checkboxToggle.onValueChanged += (action) => OnCheckboxClicked(target, action);
+				if (SideScreenHandlerCache.CheckboxHandlers.TryGetValue(checkboxToggle, out var previousCheckbox))
+					checkboxToggle.onValueChanged -= previousCheckbox;
+
+				System.Action<bool> checkboxHandler = (value) => OnCheckboxClicked(target, value);
+				SideScreenHandlerCache.CheckboxHandlers[checkboxToggle] = checkboxHandler;
+				checkboxToggle.onValueChanged += checkboxHandler;
 			}
 		}
 
