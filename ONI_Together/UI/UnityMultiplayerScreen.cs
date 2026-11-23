@@ -6,6 +6,7 @@ using ONI_Together.DebugTools;
 using ONI_Together.Menus;
 using ONI_Together.Misc;
 using ONI_Together.Networking;
+using ONI_Together.Networking.Transport.Lan;
 using ONI_Together.Networking.Transport.Steamworks;
 using ONI_Together.Patches.ToolPatches;
 using ONI_Together.UI.Components;
@@ -23,6 +24,7 @@ using System.Threading.Tasks;
 using UI.lib.UI.FUI;
 using UI.lib.UIcmp;
 using UnityEngine;
+using UnityEngine.UI;
 using static ONI_Together.STRINGS.UI;
 using static ONI_Together.STRINGS.UI.MP_SCREEN.HOSTMENU;
 using static ONI_Together.STRINGS.UI.MP_SCREEN.HOSTMENU.LOBBYSIZE;
@@ -112,10 +114,12 @@ namespace ONI_Together.UI
 		Dictionary<LobbyListEntry, LobbyEntryUI> Lobbies = [];
 
 		//AdditionalLobbySettingsSegment
-		GameObject TogglePrefab, CyclePrefab;
+		GameObject TogglePrefab, CyclePrefab, NumberInputPrefab;
 		GameObject SettingsContainer;
 		Dictionary<string, FToggle> SettingsToggles = [];
 		Dictionary<string, FCycle> SettingsCycles = [];
+		Dictionary<string, FInputField2> SettingsNumberInputs = [];
+		Dictionary<string, FInputField2> SettingsTextInputs = [];
 
 		Callback<LobbyDataUpdate_t> lobbyDataCallback;
 
@@ -249,6 +253,8 @@ namespace ONI_Together.UI
 			TogglePrefab.SetActive(false);
 			CyclePrefab = transform.Find("AdditionalHostSettings/ScrollArea/Content/SwitchPrefab").gameObject;
 			CyclePrefab.SetActive(false);
+			NumberInputPrefab = transform.Find("AdditionalHostSettings/ScrollArea/Content/NumInputPrefab").gameObject;
+			NumberInputPrefab.SetActive(false);
 
 
 			var entryPrefabGO = transform.Find("LobbyList/ScrollArea/Content/EntryPrefab").gameObject;
@@ -272,6 +278,9 @@ namespace ONI_Together.UI
 
 			HostLanToggle.SetIsSelected(current == HostMode.LAN);
 			HostSteamToggle.SetIsSelected(current == HostMode.Steam);
+
+			if (ShowAdditionalHostSettings)
+				ShowLobbySettings();
 		}
 
 		private void SetJoinVia(JoinMode current)
@@ -325,6 +334,8 @@ namespace ONI_Together.UI
 			if (!int.TryParse(LobbySize.Text, out int lobbySize))
 				lobbySize = NetworkConfig.LOBBY_SIZE_DEFAULT;
 
+			LobbySize.inputField.ForceLabelUpdate();
+
 			IncreaseSize.SetInteractable(lobbySize < NetworkConfig.LOBBY_SIZE_MAX);
 			DecreaseSize.SetInteractable(lobbySize > NetworkConfig.LOBBY_SIZE_MIN);
 		}
@@ -369,6 +380,12 @@ namespace ONI_Together.UI
 			Instance.ConsumeMouseScroll = true;
 			Instance.transform.SetAsLastSibling();
 		}
+		public override void OnSpawn()
+		{
+			base.OnSpawn();
+			RefreshLobbySizeButtons();
+		}
+
 		public override void OnShow(bool show)
 		{
 			using var _ = Profiler.Scope();
@@ -376,10 +393,39 @@ namespace ONI_Together.UI
 			base.OnShow(show);
 
 			if (show)
+			{
+				ApplyLocalization();
 				LobbyRefresh = StartCoroutine(RefreshLobbiesEnumerator());
+			}
 			else
 				StopCoroutine(LobbyRefresh);
 		}
+
+		private void ApplyLocalization()
+		{
+			try
+			{
+				if (AdditionalLobbySettings != null)
+				{
+					var textComp = AdditionalLobbySettings.GetComponentInChildren<LocText>();
+					if (textComp != null)
+						textComp.SetText(STRINGS.UI.MP_SCREEN.HOSTMENU.ADDITIONALSETTINGS.TEXT);
+				}
+			}
+			catch (Exception ex)
+			{
+				DebugConsole.LogError($"[UnityMultiplayerScreen.ApplyLocalization] {ex}");
+			}
+		}
+		public override void OnKeyDown(KButtonEvent e)
+		{
+			if (e.TryConsume(Action.Escape) || e.TryConsume(Action.MouseRight))
+			{
+				this.Show(false);
+			}
+			base.OnKeyDown(e);
+		}
+
 
 		public static void OpenFromMainMenu()
 		{
@@ -405,7 +451,7 @@ namespace ONI_Together.UI
 		void JoinLanLobby()
 		{
 			using var _ = Profiler.Scope();
-			NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.RIPTIDE);
+			NetworkConfig.UpdateLanTransport();
 
 			string ipAdress = JoinIPInput.Text;
 			string portText = JoinPortInput.Text;
@@ -588,7 +634,12 @@ namespace ONI_Together.UI
 			if (!ShowLobbies)
 				return;
 
-			SteamLobby.RequestLobbyList(OnLobbyListReceived);
+			if (SteamManager.Initialized)
+			{
+				SteamLobby.RequestLobbyList(OnLobbyListReceived);
+			}
+
+			LiteNetLibClient.StartLanDiscovery(Configuration.Instance.Host.LanSettings.Port);
 		}
 		private void OnLobbyListReceived(List<LobbyListEntry> lobbies)
 		{
@@ -633,8 +684,43 @@ namespace ONI_Together.UI
 				STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.PAUSE_SIM_ON_PLAYER_DISCONNECT,
 				STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.SERVER_SETTINGS.PAUSE_SIM_ON_PLAYER_DISCONNECT)
 				.SetOnFromCode(Configuration.Instance.Host.Server.PauseSimOnPlayerDisconnect);
+
+			var tickRateOptions = new List<FCycle.Option>
+			{
+				new("TPS_20", "20 TPS", ""),
+				new("TPS_30", "30 TPS", ""),
+				new("TPS_60", "60 TPS", ""),
+				new("TPS_90", "90 TPS", ""),
+				new("TPS_120", "120 TPS", ""),
+				new("TPS_128", "128 TPS", ""),
+			};
+
+			AddOrGetLobbySettingsEntry_Cycle("ServerTickRate", tickRateOptions, OnTickRateChanged,
+				STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.SERVER_TICK_RATE,
+				STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.SERVER_SETTINGS.SERVER_TICK_RATE)
+				.SetValueById(Configuration.Instance.Host.Server.TickRate.ToString());
+
+			var lanTransportOptions = new List<FCycle.Option>
+			{
+				new("LiteNetLib", "LiteNetLib", ""),
+				new("Riptide", "Riptide", ""),
+			};
+
+			var lanTransportCycle = AddOrGetLobbySettingsEntry_Cycle("LanTransport", lanTransportOptions, OnLanTransportChanged,
+				STRINGS.UI.CONFIGURATION.TITLES.LAN_SETTINGS.LAN_TRANSPORT,
+				STRINGS.UI.CONFIGURATION.TOOLTIPS.LAN_SETTINGS.LAN_TRANSPORT);
+			lanTransportCycle.SetValueById(Configuration.Instance.Host.LanSettings.Transport.ToString());
+			lanTransportCycle.gameObject.SetActive(CurrentHostMode == HostMode.LAN);
+
+			var lanDisplayNameInput = AddOrGetLobbySettingsEntry_TextInput("LanDisplayName", OnLanDisplayNameChanged,
+				STRINGS.UI.CONFIGURATION.TITLES.LAN_SETTINGS.LAN_DISPLAY_NAME,
+				STRINGS.UI.CONFIGURATION.TOOLTIPS.LAN_SETTINGS.LAN_DISPLAY_NAME,
+				placeholder: "Player <id>",
+				value: Configuration.Instance.Host.LanSettings.DisplayName,
+				characterLimit: Utils.MaxLocalPlayerNameLength);
+			lanDisplayNameInput.transform.parent.gameObject.SetActive(CurrentHostMode == HostMode.LAN);
 		}
-		
+
 		void ToggleHardSyncSetting(bool hardSyncEnabled)
 		{
 			var config = Configuration.Instance;
@@ -646,6 +732,36 @@ namespace ONI_Together.UI
 		{
 			var config = Configuration.Instance;
 			config.Host.Server.PauseSimOnPlayerDisconnect = enabled;
+			config.Save();
+		}
+
+		void OnTickRateChanged(FCycle.Option option)
+		{
+			if (Enum.TryParse<ServerTickRate>(option.id, out var rate))
+			{
+				var config = Configuration.Instance;
+				config.Host.Server.TickRate = rate;
+				config.Save();
+
+				if (MultiplayerSession.IsHost)
+					ONI_Together.Networking.GameServer.RefreshTickRate();
+			}
+		}
+
+		void OnLanTransportChanged(FCycle.Option option)
+		{
+			if (Enum.TryParse<LanTransportType>(option.id, out var transport))
+			{
+				var config = Configuration.Instance;
+				config.Host.LanSettings.Transport = transport;
+				config.Save();
+			}
+		}
+
+		void OnLanDisplayNameChanged(string text)
+		{
+			var config = Configuration.Instance;
+			config.Host.LanSettings.DisplayName = text;
 			config.Save();
 		}
 
@@ -667,6 +783,62 @@ namespace ONI_Together.UI
 			optionToggle.gameObject.SetActive(true);
 			return optionToggle;
 		}
+
+		public FInputField2 AddOrGetLobbySettingsEntry_NumInput(string id, System.Action<int> onInputChanged, string label, string tooltip = "", string placeholder = "", int defaultValue = 0)
+		{
+			if (!SettingsNumberInputs.TryGetValue(id, out FInputField2 numOption))
+			{
+				var go = Util.KInstantiateUI(NumberInputPrefab, SettingsContainer, true);
+				var numberInput = go.transform.Find("Input").gameObject.AddOrGet<FInputField2>();
+				numberInput.Text = string.Empty;
+				numberInput.inputField.characterLimit = 10;
+				var settingLabel = go.transform.Find("Label").gameObject.AddOrGet<LocText>();
+				numberInput.transform.Find("TextArea/Placeholder").gameObject.GetComponent<LocText>().SetText(placeholder);
+
+				settingLabel.text = label;
+				if (tooltip.Any())
+					UIUtils.AddSimpleTooltipToObject(settingLabel.transform, tooltip, alignCenter: true, onBottom: true);
+
+				numberInput.AddListener(text => ParseNumber(text, onInputChanged));
+				numOption = SettingsNumberInputs[id] = numberInput;
+			}
+			numOption.SetTextFromData(defaultValue.ToString());
+			numOption.transform.parent.gameObject.SetActive(true);
+			numOption.SetInteractable(true);
+			return numOption;
+		}
+
+		static void ParseNumber(string text, System.Action<int> OnParse)
+		{
+			if (int.TryParse(text, out int value))
+				OnParse(value);
+		}
+
+		public FInputField2 AddOrGetLobbySettingsEntry_TextInput(string id, System.Action<string> onTextChanged, string label, string tooltip = "", string placeholder = "", string value = "", int characterLimit = 16)
+		{
+			if (!SettingsTextInputs.TryGetValue(id, out FInputField2 textInput))
+			{
+				var go = Util.KInstantiateUI(NumberInputPrefab, SettingsContainer, true);
+				var input = go.transform.Find("Input").gameObject.AddOrGet<FInputField2>();
+				input.inputField.contentType = TMPro.TMP_InputField.ContentType.Standard;
+				input.Text = string.Empty;
+				input.inputField.characterLimit = characterLimit;
+				var settingLabel = go.transform.Find("Label").gameObject.AddOrGet<LocText>();
+				input.transform.Find("TextArea/Placeholder").gameObject.GetComponent<LocText>().SetText(placeholder);
+
+				settingLabel.text = label;
+				if (tooltip.Any())
+					UIUtils.AddSimpleTooltipToObject(settingLabel.transform, tooltip, alignCenter: true, onBottom: true);
+
+				input.AddListener(text => onTextChanged(text));
+				textInput = SettingsTextInputs[id] = input;
+			}
+			textInput.SetTextFromData(value);
+			textInput.transform.parent.gameObject.SetActive(true);
+			textInput.SetInteractable(true);
+			return textInput;
+		}
+
 		public FCycle AddOrGetLobbySettingsEntry_Cycle(string id, List<FCycle.Option> options, System.Action<FCycle.Option> onOptionSelect, string label, string tooltip = "")
 		{
 			if (!SettingsCycles.TryGetValue(id, out var optionCycle))
@@ -741,7 +913,7 @@ namespace ONI_Together.UI
 
 		void StartHostingGame()
 		{
-            switch (CurrentHostMode)
+			switch (CurrentHostMode)
 			{
 				case HostMode.Steam:
 					StartHostingSteamGame();
@@ -754,9 +926,9 @@ namespace ONI_Together.UI
 		private void StartHostingLanGame()
 		{
 			using var _ = Profiler.Scope();
-            NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.RIPTIDE);
+			NetworkConfig.UpdateLanTransport();
 
-            string ipAdress = HostIPInput.Text;
+			string ipAdress = HostIPInput.Text;
 			string portText = HostPortInput.Text;
 
 			if (int.TryParse(portText, out int port))
@@ -809,10 +981,10 @@ namespace ONI_Together.UI
 		private void StartHostingSteamGame()
 		{
 			using var _ = Profiler.Scope();
-            NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.STEAMWORKS);
+			NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.STEAMWORKS);
 
-            // Save the host config
-            StoreHostConfigurationSettings();
+			// Save the host config
+			StoreHostConfigurationSettings();
 
 			if (Utils.IsInGame())
 			{

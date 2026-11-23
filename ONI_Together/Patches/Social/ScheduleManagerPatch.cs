@@ -21,7 +21,7 @@ namespace ONI_Together.Patches.Social
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.InSession) return;
+				if (!MultiplayerSession.InActiveSession) return;
 				if (ScheduleBlockUpdatePacket.IsApplying) return;
 
 				int scheduleIndex = __instance.GetScheduleIndex();
@@ -46,7 +46,7 @@ namespace ONI_Together.Patches.Social
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.InSession) return;
+				if (!MultiplayerSession.InActiveSession) return;
 				if (ScheduleAddPacket.IsApplying) return;
 
 				ScheduleAddPacket packet = new ScheduleAddPacket()
@@ -68,7 +68,7 @@ namespace ONI_Together.Patches.Social
             {
 	            using var _ = Profiler.Scope();
 
-                if (!MultiplayerSession.InSession) return;
+                if (!MultiplayerSession.InActiveSession) return;
 				if (ScheduleAddPacket.IsApplying) return;
 
                 ScheduleAddPacket packet = new ScheduleAddPacket()
@@ -90,7 +90,7 @@ namespace ONI_Together.Patches.Social
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.InSession) return;
+				if (!MultiplayerSession.InActiveSession) return;
 				if (ScheduleDeletePacket.IsApplying) return;
 
 				int index = schedule.GetScheduleIndex();

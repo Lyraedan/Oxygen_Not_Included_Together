@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking;
@@ -32,7 +32,9 @@ namespace ONI_Together.Patches.DuplicantActions
 				typeof(IceKettleWorkable),
 				typeof(Sleepable),
 				typeof(Bottler),
-				typeof(ClusterTelescopeIdentifyMeteorWorkable)
+				typeof(ClusterTelescopeIdentifyMeteorWorkable),
+				typeof(Edible),
+				typeof(Pickupable)
             };
 
 			public static void Postfix(StandardWorker __instance, StartWorkInfo start_work_info)

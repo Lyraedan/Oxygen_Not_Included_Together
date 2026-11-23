@@ -18,7 +18,7 @@ namespace ONI_Together.Patches.World
             public static void Postfix()
             {
                 if (IsSyncing) return;
-                if (!MultiplayerSession.InSession) return;
+                if (!MultiplayerSession.InActiveSession) return;
 
                 bool state = ClusterManager.Instance.activeWorld.AlertManager.IsRedAlertToggledOn();
                 var packet = new RedAlertStatePacket { 

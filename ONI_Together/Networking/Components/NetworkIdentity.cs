@@ -1,4 +1,4 @@
-﻿using KSerialization;
+using KSerialization;
 using ONI_Together.DebugTools;
 using System.IO;
 using Shared.Profiling;
@@ -44,8 +44,12 @@ namespace ONI_Together.Networking.Components
 					if (detId != 0)
 					{
 						NetId = detId;
-						// DebugConsole.Log($"[NetworkIdentity] Generated Deterministic NetId {detId} for building {gameObject.name}");
 					}
+				}
+				else if (TryGetComponent<MinionIdentity>(out var minionComp) || (TryGetComponent<KPrefabID>(out var kpid) && (kpid.HasTag(GameTags.BaseMinion) || kpid.HasTag(GameTags.Creature))) || TryGetComponent<CreatureBrain>(out var brainComp))
+				{
+					// Minions and Creatures must ALWAYS receive unique random NetIds to prevent collisions/overwrites!
+					NetId = 0;
 				}
 				else if(TryGetComponent<Workable>(out var workable))
 				{
@@ -61,7 +65,6 @@ namespace ONI_Together.Networking.Components
 					if (detId != 0)
 					{
 						NetId = detId;
-						// DebugConsole.Log($"[NetworkIdentity] Generated Deterministic NetId {detId} for building {gameObject.name}");
 					}
 				}
 				//DebugConsole.Log($"[NetworkIdentity] Generated Deterministic NetId {NetId} for {gameObject.name}");

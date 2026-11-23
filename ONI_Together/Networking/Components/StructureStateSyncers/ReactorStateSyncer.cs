@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Packets.World;
+using Shared.OxySync;
 using UnityEngine;
 
 namespace ONI_Together.Networking.Components.StructureStateSyncers;
@@ -163,7 +164,7 @@ public class ReactorStateSyncer : StructureSyncerBase
         {
             case 0:
                 if (smi.IsInsideState(sm.on))
-                    smi.GoTo(sm.off);
+                    smi.TryGoTo(sm.off);
                 break;
             case 1:
                 if (smi.IsInsideState(sm.off))
@@ -184,7 +185,7 @@ public class ReactorStateSyncer : StructureSyncerBase
                 if (smi.IsInsideState(sm.meltdown))
                     sm.meltdownMassRemaining.Set(0f, smi);
                 else if (!smi.IsInsideState(sm.dead))
-                    smi.GoTo(sm.dead);
+                    smi.TryGoTo(sm.dead);
                 break;
         }
     }

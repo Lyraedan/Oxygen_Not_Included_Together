@@ -30,7 +30,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			using var _ = Profiler.Scope();
 
 			if (AssignmentPacket.IsApplying) return;
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 			if (__instance == null || __instance.gameObject == null) return;
             if (__instance.IsNullOrDestroyed()) return;
 
@@ -92,7 +92,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			using var _ = Profiler.Scope();
 
 			if (AssignmentPacket.IsApplying) return;
-			if (!MultiplayerSession.InSession) return;
+			if (!MultiplayerSession.InActiveSession) return;
 			if (__instance.IsNullOrDestroyed()) return;
 
 			var buildingIdentity = __instance.gameObject.GetComponent<NetworkIdentity>();

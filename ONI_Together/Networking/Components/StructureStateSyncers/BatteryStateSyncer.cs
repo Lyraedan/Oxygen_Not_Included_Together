@@ -19,6 +19,7 @@ namespace ONI_Together.Networking.Components.StructureStateSyncers
             battery = GetComponent<Battery>();
             batteryTracker = GetComponent<BatteryTracker>();
             checkOptionalsValuesForChanges = false;
+            cullByViewport = false;
         }
 
         protected override void SampleState(out Variant value, out bool active, out Dictionary<string, Variant> optionalValues)

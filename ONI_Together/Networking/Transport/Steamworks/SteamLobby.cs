@@ -4,10 +4,12 @@ using ONI_Together.Misc;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Patches.ToolPatches;
+using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.UI;
 using Steamworks;
 using System;
 using System.Collections.Generic;
+using Shared;
 using Shared.Profiling;
 using UnityEngine;
 using static STRINGS.GAMEPLAY_EVENTS;
@@ -260,9 +262,10 @@ namespace ONI_Together.Networking.Transport.Steamworks
                 }
 
 				DebugConsole.Log($"[SteamLobby] {name} joined the lobby.");
-				ChatScreen.PendingMessage pending = ChatScreen.GeneratePendingMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, name));
-				ChatScreen.QueueMessage(pending);
-                Game.Instance?.Trigger(MP_HASHES.OnPlayerJoined);
+				OxySyncChat.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_JOINED, name));
+                var boxedId = Boxed<ulong>.Get(userId);
+				Game.Instance?.Trigger(MP_HASHES.OnPlayerJoined, boxedId);
+				boxedId.Release();
             }
 
 			if ((stateChange & EChatMemberStateChange.k_EChatMemberStateChangeLeft) != 0 ||
@@ -276,10 +279,11 @@ namespace ONI_Together.Networking.Transport.Steamworks
 
 				RefreshLobbyMembers();
 				DebugConsole.Log($"[SteamLobby] {name} left the lobby.");
-                ChatScreen.PendingMessage pending = ChatScreen.GeneratePendingMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_LEFT, name));
-                ChatScreen.QueueMessage(pending);
+                OxySyncChat.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_CLIENT_LEFT, name));
                 Utils.PauseSimOnPlayerLeft();
-                Game.Instance?.Trigger(MP_HASHES.OnPlayerLeft);
+				var boxedId = Boxed<ulong>.Get(userId);
+				Game.Instance?.Trigger(MP_HASHES.OnPlayerLeft, boxedId);
+				boxedId.Release();
             }
 		}
 

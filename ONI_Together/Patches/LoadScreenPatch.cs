@@ -1,5 +1,6 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using ONI_Together.DebugTools;
+using ONI_Together.Networking;
 using System.Reflection;
 using Shared.Profiling;
 
@@ -30,6 +31,14 @@ namespace ONI_Together.Patches
 			using var _ = Profiler.Scope();
 
 			DebugConsole.Log($"Loading {filename}");
+
+			// A live server still references the scene that LoadScreen is about to
+			// destroy. Stop it first and recreate it after the save has loaded.
+			if (MultiplayerSession.IsHostInSession)
+			{
+				MultiplayerSession.ShouldHostAfterLoad = true;
+				NetworkConfig.Stop();
+			}
 		}
 
 		[HarmonyPostfix]

@@ -42,7 +42,7 @@ namespace ONI_Together.Patches.World
 	        using var _ = Profiler.Scope();
 
             TryCreateLobbyAfterLoad("[Multiplayer] Lobby created after world load.");
-            if (MultiplayerSession.InSession)
+            if (MultiplayerSession.InActiveSession)
             {
 				//SpeedControlScreen.Instance?.Unpause(true); // Force pause the game
 			}

@@ -178,7 +178,13 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 			var bottleEmptier = go.GetComponent<BottleEmptier>();
 			if (bottleEmptier != null && hash == "BottleEmptierAllowManualPump".GetHashCode())
 			{
-				bottleEmptier.allowManualPumpingStationFetching = packet.Value > 0.5f;
+				bool allowManualPump = packet.Value > 0.5f;
+				if (bottleEmptier.allowManualPumpingStationFetching != allowManualPump)
+				{
+					// Use the game's own change path so the existing FetchChore is
+					// cancelled and recreated with the updated forbidden source tags.
+					bottleEmptier.OnChangeAllowManualPumpingStationFetching();
+				}
 				//DebugConsole.Log($"[MiscBuildingHandler] Set BottleEmptier allowManualPump={packet.Value > 0.5f} on {go.name}");
 				return true;
 			}
