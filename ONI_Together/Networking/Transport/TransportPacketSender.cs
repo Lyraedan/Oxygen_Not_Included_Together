@@ -1,5 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
 using ONI_Together.Networking.Packets.Architecture;
+using ONI_Together.Networking.Packets.Core;
 using UnityEngine;
 
 namespace ONI_Together.Networking.Transport
@@ -11,8 +13,10 @@ namespace ONI_Together.Networking.Transport
 
         public bool SendToConnection(object conn, IPacket packet, PacketSendMode sendType = PacketSendMode.ReliableImmediate)
         {
-            // This does work but if it queues up the client will see what the host saw but will be behind and plays catchup
-            if (!Configuration.Instance.EnablePacketQueue)
+			// Never put latency-sensitive snapshots behind reliable state traffic.
+			// Old movement data has no value and causes visible catch-up/teleports.
+			if (!Configuration.Instance.EnablePacketQueue || IsLatencySensitive(sendType)
+				|| packet is ILatencySensitivePacket)
                 return SendPacket(conn, packet, sendType);
             // queue it
             if (!_pendingQueues.TryGetValue(conn, out var queue))
@@ -26,6 +30,12 @@ namespace ONI_Together.Networking.Transport
             queue.Enqueue((packet, sendType));
             return true;
         }
+
+		internal static bool IsLatencySensitive(PacketSendMode sendType)
+		{
+			return (sendType & PacketSendMode.Reliable) == 0
+				&& (sendType & PacketSendMode.NoDelay) != 0;
+		}
 
         public void Flush()
         {
@@ -55,6 +65,45 @@ namespace ONI_Together.Networking.Transport
         }
 
         public abstract bool SendPacket(object conn, IPacket packet, PacketSendMode sendType = PacketSendMode.ReliableImmediate);
+
+        private const int MAX_PAYLOAD_BYTES = 1000;
+
+        /// <summary>
+        /// Payloads larger than MAX_PAYLOAD_BYTES are split into ChunkedPacket fragments before hitting the transport, so backends
+        /// with a hard single-message cap (e.g. LiteNetLib's 1023-byte unreliable limit or Riptides 1024-byte limit)
+        /// never throw. sendRaw is provided by the transport to emit one serialized payload.
+        /// </summary>
+        protected bool SendChunkedIfNeeded(object conn, byte[] bytes, IPacket packet, PacketSendMode sendType, Func<object, byte[], IPacket, PacketSendMode, bool> sendRaw)
+        {
+            if (bytes.Length <= MAX_PAYLOAD_BYTES || packet is ChunkedPacket)
+                return sendRaw(conn, bytes, packet, sendType);
+
+            int chunkDataSize = MAX_PAYLOAD_BYTES - 20; // overhead for ChunkedPacket header
+            int totalChunks = (bytes.Length + chunkDataSize - 1) / chunkDataSize;
+            int sequenceId = ChunkedPacket.GetNextSequenceId();
+
+            for (int i = 0; i < totalChunks; i++)
+            {
+                int offset = i * chunkDataSize;
+                int length = Math.Min(chunkDataSize, bytes.Length - offset);
+                byte[] chunkData = new byte[length];
+                Array.Copy(bytes, offset, chunkData, 0, length);
+
+                var chunk = new ChunkedPacket
+                {
+                    SequenceId = sequenceId,
+                    ChunkIndex = i,
+                    TotalChunks = totalChunks,
+                    ChunkData = chunkData
+                };
+
+                byte[] chunkBytes = PacketSender.SerializePacketForSending(chunk);
+                if (!sendRaw(conn, chunkBytes, chunk, sendType))
+                    return false;
+            }
+
+            return true;
+        }
 
     }
 }

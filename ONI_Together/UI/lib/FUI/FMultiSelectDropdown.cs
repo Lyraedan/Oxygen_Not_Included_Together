@@ -54,8 +54,8 @@ namespace UI.lib.UIcmp
 			backgroundImage = GetComponent<Image>();
 			backgroundImage.color = Inactive;
 			DropDownContent = transform.Find("DropDownContent").gameObject;
-			entryPrefab = transform.Find("DropDownContent/Item").gameObject.AddOrGet<FToggle>();
-			entryPrefab.gameObject.SetActive(false);
+			entryPrefab = transform.Find("DropDownContent/Item")?.gameObject?.AddOrGet<FToggle>();
+			entryPrefab?.gameObject.SetActive(false);
 			buttonEntryPrefab = transform.Find("DropDownContent/ButtonItem")?.gameObject?.AddOrGet<FButton>();
 			buttonEntryPrefab?.gameObject?.SetActive(false);
 			InitializeDropDown();

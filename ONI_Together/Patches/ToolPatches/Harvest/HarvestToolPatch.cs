@@ -12,7 +12,7 @@ public class HarvestToolPatch
     {
         using var _ = Profiler.Scope();
 
-        if (!MultiplayerSession.InSession)
+        if (!MultiplayerSession.InActiveSession)
             return;
 
         if (HarvestToolPacket.ProcessingIncoming)

@@ -1,4 +1,4 @@
-﻿using ONI_Together.DebugTools;
+using ONI_Together.DebugTools;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Patches.GamePatches;
 using System.IO;
@@ -34,13 +34,26 @@ namespace ONI_Together.Networking.Packets.World
 			if (MultiplayerSession.IsHost)
 				return;
 
-			float totalTime = Cycle * 600f + CycleTime;
+			float hostTotalTime = Cycle * 600f + CycleTime;
 
 			if (GameClock.Instance != null)
 			{
-				GameClockPatch.allowAddTimeForSetTime = true;
-				GameClock.Instance.SetTime(totalTime);
-				GameClockPatch.allowAddTimeForSetTime = false;
+				float clientTime = GameClock.Instance.GetTime();
+				float diff = hostTotalTime - clientTime;
+
+				if (UnityEngine.Mathf.Abs(diff) > 1.5f || GameClock.Instance.GetCycle() != Cycle)
+				{
+					GameClockPatch.allowAddTimeForSetTime = true;
+					GameClock.Instance.SetTime(hostTotalTime);
+					GameClockPatch.allowAddTimeForSetTime = false;
+				}
+				else if (UnityEngine.Mathf.Abs(diff) > 0.05f)
+				{
+					float correctedTime = UnityEngine.Mathf.Lerp(clientTime, hostTotalTime, 0.25f);
+					GameClockPatch.allowAddTimeForSetTime = true;
+					GameClock.Instance.SetTime(correctedTime);
+					GameClockPatch.allowAddTimeForSetTime = false;
+				}
 			}
 			else
 			{

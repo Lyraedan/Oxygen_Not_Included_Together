@@ -36,7 +36,7 @@ namespace ONI_Together.Patches.ToolPatches.Build
 
             try
             {
-                if (!MultiplayerSession.InSession || __instance == null)
+                if (!MultiplayerSession.InActiveSession || __instance == null)
                     return;
 
                 var def = __instance.def;

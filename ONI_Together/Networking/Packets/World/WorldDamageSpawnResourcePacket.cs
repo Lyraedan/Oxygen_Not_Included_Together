@@ -1,4 +1,4 @@
-﻿using ONI_Together.DebugTools;
+using ONI_Together.DebugTools;
 using ONI_Together.Networking.Components;
 using ONI_Together.Networking.Packets.Architecture;
 using System.IO;
@@ -10,6 +10,8 @@ namespace ONI_Together.Networking.Packets.World
 {
 	public class WorldDamageSpawnResourcePacket : IPacket
 	{
+		public static bool ProcessingIncoming;
+
 		public int NetId;
 		public Vector3 Position;
 		public float Mass;
@@ -69,35 +71,43 @@ namespace ONI_Together.Networking.Packets.World
 		{
 			using var _ = Profiler.Scope();
 
-			Element element = ElementLoader.elements[ElementIndex];
-
-			InvokePlaySoundForSubstance(element, Position);
-
-			float dropMass = Mass;
-			if (dropMass <= 0f)
-				return;
-
-			GameObject dropped = element.substance.SpawnResource(Position, dropMass, Temperature, DiseaseIndex, DiseaseCount);
-			NetworkIdentity identity = dropped.GetComponent<NetworkIdentity>();
-			identity.OverrideNetId(NetId);
-			DebugConsole.Log("[WorldDamageSpawnResourcePacket] Synchronized Network ID");
-
-			// First check GroundItemPickedUp, then PickupItem then StoreItem, TODO: Rope into 1 list
-			if (GroundItemPickedUpPacket.TryConsumePending(NetId) || StorageItemPacket.TryConsumePending(NetId))
+			ProcessingIncoming = true;
+			try
 			{
-				DebugConsole.Log($"[WorldDamageSpawnResourcePacket] Consumed pending ground-item pickup for NetId {NetId}");
-				Util.KDestroyGameObject(dropped);
-				return;
+				Element element = ElementLoader.elements[ElementIndex];
+
+				InvokePlaySoundForSubstance(element, Position);
+
+				float dropMass = Mass;
+				if (dropMass <= 0f)
+					return;
+
+				GameObject dropped = element.substance.SpawnResource(Position, dropMass, Temperature, DiseaseIndex, DiseaseCount);
+				NetworkIdentity identity = dropped.GetComponent<NetworkIdentity>();
+				identity.OverrideNetId(NetId);
+				DebugConsole.Log("[WorldDamageSpawnResourcePacket] Synchronized Network ID");
+
+				// First check GroundItemPickedUp, then PickupItem then StoreItem, TODO: Rope into 1 list
+				if (GroundItemPickedUpPacket.TryConsumePending(NetId) || StorageItemPacket.TryConsumePending(NetId))
+				{
+					DebugConsole.Log($"[WorldDamageSpawnResourcePacket] Consumed pending ground-item pickup for NetId {NetId}");
+					Util.KDestroyGameObject(dropped);
+					return;
+				}
+
+				Pickupable pickup = dropped.GetComponent<Pickupable>();
+				if (pickup != null && pickup.GetMyWorld()?.worldInventory.IsReachable(pickup) == true)
+				{
+					PopFXManager.Instance.SpawnFX(
+							PopFXManager.Instance.sprite_Resource,
+							Mathf.RoundToInt(dropMass) + " " + element.name,
+							dropped.transform
+					);
+				}
 			}
-
-			Pickupable pickup = dropped.GetComponent<Pickupable>();
-			if (pickup != null && pickup.GetMyWorld()?.worldInventory.IsReachable(pickup) == true)
+			finally
 			{
-				PopFXManager.Instance.SpawnFX(
-						PopFXManager.Instance.sprite_Resource,
-						Mathf.RoundToInt(dropMass) + " " + element.name,
-						dropped.transform
-				);
+				ProcessingIncoming = false;
 			}
 		}
 

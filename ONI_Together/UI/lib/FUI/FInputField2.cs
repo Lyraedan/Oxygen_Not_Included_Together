@@ -98,6 +98,7 @@ namespace UI.lib.UIcmp //Source: Aki
 		}
 
 		public TMP_InputField.OnChangeEvent OnValueChanged => inputField.onValueChanged;
+		public TMP_InputField.SubmitEvent OnSubmit => inputField.onSubmit;
 
 		public void AddListener(System.Action<string> onValueChangedEvent)
 		{
@@ -160,6 +161,12 @@ namespace UI.lib.UIcmp //Source: Aki
 			inputField.Select();
 			inputField.ActivateInputField();
 
+			KScreenManager.Instance.RefreshStack();
+		}
+		public void ExternalStopEditing()
+		{
+			isEditing = false;
+			inputField.DeactivateInputField();
 			KScreenManager.Instance.RefreshStack();
 		}
 

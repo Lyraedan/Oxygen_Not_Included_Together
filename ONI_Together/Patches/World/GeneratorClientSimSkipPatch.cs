@@ -28,12 +28,8 @@ namespace ONI_Together.Patches.World
 
                 __instance.CheckConnectionStatus();
 
-                if (__instance.hasMeter && __instance.formula.inputs != null && __instance.formula.inputs.Length > 0)
-                {
-                    var inputItem = __instance.formula.inputs[0];
-                    float positionPercent = __instance.storage.GetMassAvailable(inputItem.tag) / inputItem.maxStoredMass;
-                    __instance.meter?.SetPositionPercent(positionPercent);
-                }
+                // GeneratorFuelSyncer owns the client meter. Reading the unsimulated
+                // local storage here overwrote the authoritative host value with zero.
 
                 ushort circuitID = __instance.CircuitID;
                 __instance.operational.SetFlag(Generator.wireConnectedFlag, circuitID != ushort.MaxValue);

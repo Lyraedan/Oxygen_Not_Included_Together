@@ -29,7 +29,7 @@ namespace ONI_Together.Patches.Social
                 if (__instance.schedule.IsNullOrDestroyed())
                     return;
 
-                if (!MultiplayerSession.InSession)
+                if (!MultiplayerSession.InActiveSession)
                     return;
                 if (ScheduleRowPacket.IsApplying)
                     return;
@@ -82,7 +82,7 @@ namespace ONI_Together.Patches.Social
                 if (__instance.schedule.IsNullOrDestroyed())
                     return;
 
-                if (!MultiplayerSession.InSession)
+                if (!MultiplayerSession.InActiveSession)
                     return;
                 if (ScheduleRowPacket.IsApplying)
                     return;
@@ -118,7 +118,7 @@ namespace ONI_Together.Patches.Social
                 if (__instance.schedule.IsNullOrDestroyed())
                     return;
 
-                if (!MultiplayerSession.InSession)
+                if (!MultiplayerSession.InActiveSession)
                     return;
                 if (ScheduleDetailsUpdatePacket.IsApplying)
                     return;
@@ -150,7 +150,7 @@ namespace ONI_Together.Patches.Social
                 if (__instance.schedule.IsNullOrDestroyed())
                     return;
 
-                if (!MultiplayerSession.InSession)
+                if (!MultiplayerSession.InActiveSession)
                     return;
                 if (ScheduleDetailsUpdatePacket.IsApplying)
                     return;

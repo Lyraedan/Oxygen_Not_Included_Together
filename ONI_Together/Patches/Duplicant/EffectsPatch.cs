@@ -52,7 +52,7 @@ namespace ONI_Together.Patches.Duplicant
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.InSession) return true;
+				if (!MultiplayerSession.InActiveSession) return true;
 
 				if (!__instance.HasTag(GameTags.BaseMinion))
 					return true;
@@ -74,7 +74,7 @@ namespace ONI_Together.Patches.Duplicant
 			{
 				using var _ = Profiler.Scope();
 
-				if (!MultiplayerSession.InSession) return true;
+				if (!MultiplayerSession.InActiveSession) return true;
 				if (MultiplayerSession.IsClient && !TogglingEffectFromPacket)
 					return false;
 

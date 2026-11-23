@@ -1,29 +1,43 @@
-using ONI_Together.DebugTools;
+using System.IO;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.Synchronization;
-using System;
-using System.Collections.Generic;
-using System.IO;
 using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.World
 {
+	/// <summary>
+	/// Host -> clients: what the inventory screen and the build menu of one world
+	/// should say.
+	///
+	/// A client counts resources from its own copies of the pickupables, and those
+	/// copies are not what the host has: ore merged on the ground, anything dropped
+	/// out of a container, whatever a lost packet skipped. The visible symptom was a
+	/// client at 0 kg of a metal the host had a tonne of, and a build menu that
+	/// refused it. The numbers of the host are the answer the client should give -
+	/// the host does the actual building from its own stock either way.
+	///
+	/// One packet per world. Per tag: the hash, GetAmount (what the build menu
+	/// checks: the total minus what pending builds have already claimed) and
+	/// GetTotalAmount.
+	/// </summary>
 	public class ResourceCountPacket : IPacket
 	{
-
-		// Using a dictionary is heavy, so let's Serialize a list of tag hashes/names and amounts.
-		// Tag (string) -> Amount (float)
-		public Dictionary<string, float> Resources = new Dictionary<string, float>();
+		public int WorldId;
+		public int[] TagHashes = System.Array.Empty<int>();
+		public float[] Available = System.Array.Empty<float>();
+		public float[] Total = System.Array.Empty<float>();
 
 		public void Serialize(BinaryWriter writer)
 		{
 			using var _ = Profiler.Scope();
 
-			writer.Write(Resources.Count);
-			foreach (var kvp in Resources)
+			writer.Write(WorldId);
+			writer.Write(TagHashes.Length);
+			for (int i = 0; i < TagHashes.Length; i++)
 			{
-				writer.Write(kvp.Key);
-				writer.Write(kvp.Value);
+				writer.Write(TagHashes[i]);
+				writer.Write(Available[i]);
+				writer.Write(Total[i]);
 			}
 		}
 
@@ -31,13 +45,16 @@ namespace ONI_Together.Networking.Packets.World
 		{
 			using var _ = Profiler.Scope();
 
+			WorldId = reader.ReadInt32();
 			int count = reader.ReadInt32();
-			Resources.Clear();
+			TagHashes = new int[count];
+			Available = new float[count];
+			Total = new float[count];
 			for (int i = 0; i < count; i++)
 			{
-				string key = reader.ReadString();
-				float val = reader.ReadSingle();
-				Resources[key] = val;
+				TagHashes[i] = reader.ReadInt32();
+				Available[i] = reader.ReadSingle();
+				Total[i] = reader.ReadSingle();
 			}
 		}
 
@@ -46,37 +63,7 @@ namespace ONI_Together.Networking.Packets.World
 			using var _ = Profiler.Scope();
 
 			if (MultiplayerSession.IsHost) return;
-			Apply();
-		}
-
-		private void Apply()
-		{
-			using var _ = Profiler.Scope();
-
-			// Update local cache for the patch to use
-			ResourceSyncer.ClientResources = Resources;
-
-			// Ensure these resources are "Discovered" so they show up in the UI list
-			if (DiscoveredResources.Instance != null)
-			{
-				foreach (var kvp in Resources)
-				{
-					Tag tag = TagManager.Create(kvp.Key);
-					// DiscoveredResources.Instance.Discover(tag);
-					// To avoid spamming notifications or issues, we can check if already discovered.
-					if (!DiscoveredResources.Instance.IsDiscovered(tag))
-					{
-						try
-						{
-							DiscoveredResources.Instance.Discover(tag);
-						}
-						catch (Exception ex)
-						{
-							DebugConsole.LogError($"[ResourceCountPacket] Error discovering resource: {ex}");
-						}
-					}
-				}
-			}
+			ResourceSyncer.ApplyHostCounts(WorldId, TagHashes, Available, Total);
 		}
 	}
 }
