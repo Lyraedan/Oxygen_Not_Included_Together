@@ -79,6 +79,13 @@ namespace ONI_Together.Patches.World.Buildings
                     return false;
                 }
 
+                // During prefab init the synced mirror isn't authoritative yet — fall
+                // through to vanilla so SetFlag/UpdateOperational read the real backing
+                // fields instead of the optimistic default, and don't fire
+                // OnOperationalChanged against a half-initialized building.
+                if (!__instance.isSpawned)
+                    return true;
+
                 if (!MultiplayerSession.IsClient)
                     return true;
 
@@ -105,12 +112,15 @@ namespace ONI_Together.Patches.World.Buildings
                     return false;
                 }
 
-				if (!MultiplayerSession.IsClient)
-					return true;
+                if (!__instance.isSpawned)
+                    return true;
 
-				if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
-				{
-					__result = wrap.IsActive;
+                if (!MultiplayerSession.IsClient)
+                    return true;
+
+                if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
+                {
+                    __result = wrap.IsActive;
 					return false;
 				}
 				return true;
@@ -129,12 +139,15 @@ namespace ONI_Together.Patches.World.Buildings
                     return false;
                 }
 
-				if (!MultiplayerSession.IsClient)
-					return true;
+                if (!__instance.isSpawned)
+                    return true;
 
-				if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
-				{
-					__result = wrap.IsFunctional;
+                if (!MultiplayerSession.IsClient)
+                    return true;
+
+                if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
+                {
+                    __result = wrap.IsFunctional;
 					return false;
 				}
 				return true;

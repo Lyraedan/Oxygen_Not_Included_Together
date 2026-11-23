@@ -33,6 +33,9 @@ namespace ONI_Together.Patches.World
                 if (!SkipOnClient())
                     return true;
 
+                if (!__instance.isSpawned)
+                    return true;
+
                 if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
                 {
                     __result = wrap.IsOperational;
@@ -48,6 +51,9 @@ namespace ONI_Together.Patches.World
             public static bool Prefix(Operational __instance, Operational.Flag flag, ref bool __result)
             {
                 if (!SkipOnClient())
+                    return true;
+
+                if (!__instance.isSpawned)
                     return true;
 
                 if (flag != EnergyConsumer.PoweredFlag)
