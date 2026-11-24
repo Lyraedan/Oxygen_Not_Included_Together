@@ -4,6 +4,7 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
+
 #. ONI_Together.STRINGS.UI.CONFIGURATION.HEADERS.A_HOST_SETTINGS
 msgctxt "ONI_Together.STRINGS.UI.CONFIGURATION.HEADERS.A_HOST_SETTINGS"
 msgid "Host Settings"
