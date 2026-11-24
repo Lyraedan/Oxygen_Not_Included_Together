@@ -57,9 +57,11 @@ namespace ONI_Together.Patches.Duplicant
 				if (!__instance.HasTag(GameTags.BaseMinion))
 					return true;
 
-				if (MultiplayerSession.IsClient && !TogglingEffectFromPacket)
-					return false;
-
+				// Clients also run Effects.Add locally: several game state machines
+				// use the returned EffectInstance directly (e.g. BionicOilMonitor.noOil,
+				// RoomType.TriggerRoomEffects, Clinic), so returning null here crashes them.
+				// The host still broadcasts its own Add calls; Effects.Add de-duplicates
+				// by effect instance.
 				if (MultiplayerSession.IsHost)
 					PacketSender.SendToAllClients(new ToggleEffectPacket(__instance, newEffect, should_save));
 
