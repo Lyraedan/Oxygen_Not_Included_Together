@@ -132,7 +132,8 @@ Please make sure your changes are clear and well-documented where necessary.
 
 Some contributors use AI in their contributions. These models vary from ChatGPT, Gemini etc
 > Personally I am not against the use of AI, I believe AI is a tool not a solution. If you're a contributor who uses AI thats fine. I will however personally review them.
-> However, full AI PRs will be ignored.
+
+> Full AI PRs will be ignored.
 
 ---
 
