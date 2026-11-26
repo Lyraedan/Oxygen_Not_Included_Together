@@ -27,6 +27,8 @@ namespace ONI_Together.Networking.OxySync.Components
         private readonly Dictionary<(int NetId, int TypeHash), int> _typeOrdinals = new();
 
         private float _tickAccumulator;
+        private int _nonTransformCursor;
+        private const double NON_TRANSFORM_BUDGET_MS = 2.5;
 
         public int RegisteredCount => _behaviours.Count;
         public IReadOnlyList<ISyncBehaviour> AllBehaviours => _behaviours;
@@ -314,7 +316,10 @@ namespace ONI_Together.Networking.OxySync.Components
 
             var sw = Stopwatch.StartNew();
             int totalChanges = 0;
+            float now = Time.unscaledTime;
 
+            // Pass 1: Always process NetworkTransform behaviours first so duplicants and critters
+            // never stall behind large numbers of building/plant syncers in mid/late-game colonies.
             for (int i = _behaviours.Count - 1; i >= 0; i--)
             {
                 var behaviour = _behaviours[i];
@@ -324,84 +329,38 @@ namespace ONI_Together.Networking.OxySync.Components
                     continue;
                 }
 
-                if (Time.unscaledTime - behaviour.LastSyncTime < behaviour.SyncInterval)
-                    continue;
-
-                behaviour.LastSyncTime = Time.unscaledTime;
-                behaviour.RefreshSyncVars();
-
-                ulong manualDirty = behaviour.GetAndClearDirtyBits();
-
-                _changedByGroup.Clear();
-                CollectChanges(behaviour, manualDirty, _changedByGroup);
-
-                if (_changedByGroup.Count == 0) continue;
-
-                int netId = behaviour.NetId;
-                if (netId == 0)
-                    continue;
-                int behaviourId = behaviour.BehaviourId;
-                long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-
-                foreach (var kvp in _changedByGroup)
+                if (behaviour is NativeSyncBehaviour native && native.Native is NetworkTransform)
                 {
-                    int groupId = kvp.Key.Group;
-                    var sendMode = kvp.Key.Mode;
-                    var updates = kvp.Value;
-                    totalChanges += updates.Count;
-
-                    if (updates.Count == 1)
-                    {
-                        var update = updates[0];
-                        PacketSender.SendToGroup(groupId, new SyncVarPacket
-                        {
-                            NetId = netId,
-                            BehaviourId = behaviourId,
-                            FieldHash = update.Hash,
-                            Value = update.Value,
-                            Timestamp = timestamp,
-                        }, sendMode);
-                    }
-                    else
-                    {
-						var batch = new SyncVarBatchPacket(netId, behaviourId, updates)
-                        {
-                            Timestamp = timestamp,
-                        };
-                        PacketSender.SendToGroup(groupId, batch, sendMode);
-                    }
+                    totalChanges += ProcessBehaviourTick(behaviour, now);
                 }
+            }
 
-                bool hasSubscribers = false;
-                foreach (var key in _changedByGroup.Keys)
+            // Pass 2: Process remaining behaviours with a fair rotating cursor and per-tick time budget.
+            int count = _behaviours.Count;
+            if (count > 0)
+            {
+                if (_nonTransformCursor >= count)
+                    _nonTransformCursor = 0;
+
+                int visited = 0;
+                while (visited < count)
                 {
-                    if (InterestGroupManager.GetPlayersInGroup(key.Group).Count > 0)
-                    {
-                        hasSubscribers = true;
+                    int idx = _nonTransformCursor;
+                    _nonTransformCursor = (_nonTransformCursor + 1) % count;
+                    visited++;
+
+                    var behaviour = _behaviours[idx];
+                    if (behaviour.IsDestroyed)
+                        continue;
+
+                    if (behaviour is NativeSyncBehaviour native && native.Native is NetworkTransform)
+                        continue;
+
+                    totalChanges += ProcessBehaviourTick(behaviour, now);
+
+                    if (sw.Elapsed.TotalMilliseconds >= NON_TRANSFORM_BUDGET_MS)
                         break;
-                    }
                 }
-
-                if (hasSubscribers)
-                    behaviour.LastActiveSyncTime = Time.unscaledTime;
-
-                behaviour.SyncLastSentValues();
-
-				if (!_explicitGroupTypes.Contains(behaviour.UnderlyingType))
-				{
-					int currentWorld = behaviour.GetMyWorldId();
-					if (currentWorld >= 0 && behaviour.GameObject != null)
-					{
-						int newGroup = WorldChunkHelper.GetGroupId(currentWorld, Grid.PosToCell(behaviour.GameObject.transform.position));
-						if (newGroup != behaviour.InterestGroup)
-                        {
-                            RemoveBehaviourFromGroupIndex(behaviour, behaviour.InterestGroup);
-                            behaviour.InterestGroup = newGroup;
-                            AddBehaviourToGroupIndex(behaviour, newGroup);
-                            behaviour.MarkAllDirty(); // Looking at this I'm not 100% sure I need this anymore but I'll leave it - Lyraedan
-                        }
-					}
-				}
             }
 
             if (totalChanges > 0)
@@ -409,6 +368,93 @@ namespace ONI_Together.Networking.OxySync.Components
                 sw.Stop();
                 SyncStats.RecordSync(SyncStats.OxySync, totalChanges, totalChanges * 16, sw.ElapsedMilliseconds);
             }
+        }
+
+        private int ProcessBehaviourTick(ISyncBehaviour behaviour, float now)
+        {
+            if (now - behaviour.LastSyncTime < behaviour.SyncInterval)
+                return 0;
+
+            behaviour.LastSyncTime = now;
+            behaviour.RefreshSyncVars();
+
+            ulong manualDirty = behaviour.GetAndClearDirtyBits();
+
+            _changedByGroup.Clear();
+            CollectChanges(behaviour, manualDirty, _changedByGroup);
+
+            if (_changedByGroup.Count == 0)
+                return 0;
+
+            int netId = behaviour.NetId;
+            if (netId == 0)
+                return 0;
+
+            int behaviourId = behaviour.BehaviourId;
+            long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
+            int changesCount = 0;
+
+            foreach (var kvp in _changedByGroup)
+            {
+                int groupId = kvp.Key.Group;
+                var sendMode = kvp.Key.Mode;
+                var updates = kvp.Value;
+                changesCount += updates.Count;
+
+                if (updates.Count == 1)
+                {
+                    var update = updates[0];
+                    PacketSender.SendToGroup(groupId, new SyncVarPacket
+                    {
+                        NetId = netId,
+                        BehaviourId = behaviourId,
+                        FieldHash = update.Hash,
+                        Value = update.Value,
+                        Timestamp = timestamp,
+                    }, sendMode);
+                }
+                else
+                {
+                    var batch = new SyncVarBatchPacket(netId, behaviourId, updates)
+                    {
+                        Timestamp = timestamp,
+                    };
+                    PacketSender.SendToGroup(groupId, batch, sendMode);
+                }
+            }
+
+            bool hasSubscribers = false;
+            foreach (var key in _changedByGroup.Keys)
+            {
+                if (InterestGroupManager.GetPlayersInGroup(key.Group).Count > 0)
+                {
+                    hasSubscribers = true;
+                    break;
+                }
+            }
+
+            if (hasSubscribers)
+                behaviour.LastActiveSyncTime = now;
+
+            behaviour.SyncLastSentValues();
+
+            if (!_explicitGroupTypes.Contains(behaviour.UnderlyingType))
+            {
+                int currentWorld = behaviour.GetMyWorldId();
+                if (currentWorld >= 0 && behaviour.GameObject != null)
+                {
+                    int newGroup = WorldChunkHelper.GetGroupId(currentWorld, Grid.PosToCell(behaviour.GameObject.transform.position));
+                    if (newGroup != behaviour.InterestGroup)
+                    {
+                        RemoveBehaviourFromGroupIndex(behaviour, behaviour.InterestGroup);
+                        behaviour.InterestGroup = newGroup;
+                        AddBehaviourToGroupIndex(behaviour, newGroup);
+                        behaviour.MarkAllDirty();
+                    }
+                }
+            }
+
+            return changesCount;
         }
 
         internal static void CollectChanges(NetworkBehaviour behaviour, ulong manualDirty, Dictionary<(int Group, PacketSendMode Mode), List<(int Hash, Variant Value)>> changes)

@@ -141,21 +141,33 @@ namespace ONI_Together.Networking.Packets.Tools.Build
             }
 
             // Always build the completed building even if the ghost Constructable was missing on the client.
-            var builtObj = def.Build(
-                Cell,
-                Orientation,
-                null,
-                tags,
-                Temperature,
-                FacadeID,
-                playsound: false,
-                GameClock.Instance.GetTime()
-            );
+            float safeTemp = Temperature > 1f && !float.IsNaN(Temperature) && !float.IsInfinity(Temperature)
+                ? Temperature
+                : def.Temperature;
+            string safeFacade = string.IsNullOrEmpty(FacadeID) ? "DEFAULT_FACADE" : FacadeID;
 
-            // Apply wire/pipe connections for utility buildings
-            if (builtObj != null && (int)UtilityConnectionFlags != 0)
+            try
             {
-                ApplyUtilityConnections(builtObj, def);
+                var builtObj = def.Build(
+                    Cell,
+                    Orientation,
+                    null,
+                    tags,
+                    safeTemp,
+                    safeFacade,
+                    playsound: false,
+                    GameClock.Instance != null ? GameClock.Instance.GetTime() : 0f
+                );
+
+                // Apply wire/pipe connections for utility buildings
+                if (builtObj != null && (int)UtilityConnectionFlags != 0)
+                {
+                    ApplyUtilityConnections(builtObj, def);
+                }
+            }
+            catch (System.Exception ex)
+            {
+                DebugConsole.LogError($"[BuildCompletePacket] Failed to build {PrefabID} at cell {Cell}: {ex}");
             }
 
             DebugConsole.Log($"[BuildCompletePacket] Finalized {PrefabID} at cell {Cell}");

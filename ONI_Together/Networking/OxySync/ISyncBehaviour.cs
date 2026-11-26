@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq.Expressions;
 using System.Reflection;
 using UnityEngine;
 
@@ -21,7 +22,33 @@ namespace ONI_Together.Networking.OxySync
         public int SendMode;
 
         private FieldInfo _field;
+        private Func<object, object> _getter;
         private object _instance;
+
+        private static readonly Dictionary<FieldInfo, Func<object, object>> _getterCache = new();
+
+        private static Func<object, object> GetOrCreateGetter(FieldInfo field)
+        {
+            if (field == null) return null;
+            if (_getterCache.TryGetValue(field, out var getter))
+                return getter;
+
+            try
+            {
+                var param = System.Linq.Expressions.Expression.Parameter(typeof(object), "obj");
+                var cast = System.Linq.Expressions.Expression.Convert(param, field.DeclaringType);
+                var access = System.Linq.Expressions.Expression.Field(cast, field);
+                var box = System.Linq.Expressions.Expression.Convert(access, typeof(object));
+                getter = System.Linq.Expressions.Expression.Lambda<Func<object, object>>(box, param).Compile();
+            }
+            catch
+            {
+                getter = obj => field.GetValue(obj);
+            }
+
+            _getterCache[field] = getter;
+            return getter;
+        }
 
         public static SyncVarDescriptor FromField(object instance, FieldInfo field, int hash,
             object lastSentValue, float epsilon, int interestGroup, int sendMode)
@@ -36,11 +63,12 @@ namespace ONI_Together.Networking.OxySync
                 InterestGroup = interestGroup,
                 SendMode = sendMode,
                 _field = field,
+                _getter = GetOrCreateGetter(field),
                 _instance = instance,
             };
         }
 
-        public object GetValue() => _field?.GetValue(_instance);
+        public object GetValue() => _getter != null ? _getter(_instance) : _field?.GetValue(_instance);
 
         public void SetValue(object value)
         {

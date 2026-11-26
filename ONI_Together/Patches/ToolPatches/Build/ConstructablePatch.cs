@@ -13,61 +13,70 @@ public static class ConstructablePatch
 	{
 		using var _ = Profiler.Scope();
 
-		if (!MultiplayerSession.IsHost || !MultiplayerSession.InActiveSession)
-			return;
-
-		var building = __instance.GetComponent<Building>();
-		if (building == null || building.Def == null)
-			return;
-
-		int cell = Grid.PosToCell(__instance.transform.position);
-		var def = building.Def;
-
-		var materialTags = __instance.SelectedElementsTags?.Select(tag => tag.ToString()).ToList() ?? new System.Collections.Generic.List<string>();
-
-		float temp = __instance.GetComponent<PrimaryElement>()?.Temperature ?? def.Temperature;
-
-		var rotatable = __instance.GetComponent<Rotatable>();
-		var orientation = rotatable != null ? rotatable.GetOrientation() : Orientation.Neutral;
-
-		var facade = __instance.GetComponent<BuildingFacade>()?.CurrentFacade ?? "DEFAULT_FACADE";
-
-        // Handle utility connections
-        UtilityConnections utilityConnectionFlags = (UtilityConnections)0;
-        // Capture connection directions for wires/pipes
-        var tileVis = __instance.GetComponent<KAnimGraphTileVisualizer>();
-		if (tileVis != null)
+		try
 		{
-			utilityConnectionFlags = tileVis.Connections;
-		}
+			if (!MultiplayerSession.IsHost || !MultiplayerSession.InActiveSession)
+				return;
 
-		/*
-        IHaveUtilityNetworkMgr mgr = def.BuildingComplete.GetComponent<IHaveUtilityNetworkMgr>();
-        if (mgr != null)
-		{
-			var networkManager = mgr.GetNetworkManager();
-			if(networkManager != null)
+			if (__instance == null || __instance.IsNullOrDestroyed())
+				return;
+
+			var building = __instance.GetComponent<Building>();
+			if (building == null || building.Def == null)
+				return;
+
+			int cell = Grid.PosToCell(__instance.transform.position);
+			if (!Grid.IsValidCell(cell))
+				return;
+
+			var def = building.Def;
+
+			var materialTags = __instance.SelectedElementsTags?
+				.Where(tag => tag.IsValid)
+				.Select(tag => tag.ToString())
+				.ToList() ?? new System.Collections.Generic.List<string>();
+
+			var primaryElement = __instance.GetComponent<PrimaryElement>();
+			float temp = primaryElement != null && primaryElement.Temperature > 1f
+				? primaryElement.Temperature
+				: def.Temperature;
+
+			var rotatable = __instance.GetComponent<Rotatable>();
+			var orientation = rotatable != null ? rotatable.GetOrientation() : Orientation.Neutral;
+
+			var facade = __instance.GetComponent<BuildingFacade>()?.CurrentFacade;
+			if (string.IsNullOrEmpty(facade))
+				facade = "DEFAULT_FACADE";
+
+			// Capture connection directions for wires/pipes
+			UtilityConnections utilityConnectionFlags = (UtilityConnections)0;
+			var tileVis = __instance.GetComponent<KAnimGraphTileVisualizer>();
+			if (tileVis != null)
 			{
-                utilityConnectionFlags = networkManager.GetConnections(cell, false);
-            }
-		}*/
+				utilityConnectionFlags = tileVis.Connections;
+			}
 
-		int workerId = workerForGameplayEvent.GetNetId();
-		var packet = new BuildCompletePacket
+			int workerId = workerForGameplayEvent != null ? workerForGameplayEvent.GetNetId() : 0;
+			var packet = new BuildCompletePacket
+			{
+				Cell = cell,
+				PrefabID = def.PrefabID,
+				Orientation = orientation,
+				MaterialTags = materialTags,
+				Temperature = temp,
+				FacadeID = facade,
+				UtilityConnectionFlags = utilityConnectionFlags,
+				ObjectLayer = def.ObjectLayer,
+				WorkerNetId = workerId
+			};
+
+			PacketSender.SendToAllClients(packet);
+			DebugConsole.Log($"[Host] Sent BuildCompletePacket for {def.PrefabID} at cell {cell}");
+		}
+		catch (System.Exception ex)
 		{
-			Cell = cell,
-			PrefabID = def.PrefabID,
-			Orientation = orientation,
-			MaterialTags = materialTags,
-			Temperature = temp,
-			FacadeID = facade,
-			UtilityConnectionFlags = utilityConnectionFlags,
-			ObjectLayer = def.ObjectLayer,
-			WorkerNetId = workerId
-		};
-
-		PacketSender.SendToAllClients(packet);
-		DebugConsole.Log($"[Host] Sent BuildCompletePacket for {def.PrefabID} at cell {cell}");
+			DebugConsole.LogError($"[ConstructablePatch.Prefix] Failed to sync finished building: {ex}");
+		}
 	}
 }
 

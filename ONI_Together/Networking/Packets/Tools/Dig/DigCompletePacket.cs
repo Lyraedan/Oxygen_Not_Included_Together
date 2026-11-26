@@ -48,15 +48,12 @@ public class DigCompletePacket : IPacket
 			return;
 
 		// Destroy dig placers or tile visuals
-		for (int i = 0; i < (int)Grid.SceneLayer.SceneMAX; i++)
+		for (int i = 0; i < (int)ObjectLayer.NumLayers; i++)
 		{
 			GameObject obj = Grid.Objects[Cell, i];
-			if (obj != null)
+			if (obj != null && obj.HasTag(new Tag("DigPlacer")))
 			{
-				if (obj.HasTag(new Tag("DigPlacer")))
-				{
-					Util.KDestroyGameObject(obj);
-				}
+				obj.DeleteObject();
 			}
 		}
 

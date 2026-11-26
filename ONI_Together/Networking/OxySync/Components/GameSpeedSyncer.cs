@@ -22,6 +22,7 @@ namespace ONI_Together.Networking.OxySync.Components
 
         private SpeedState _currentState;
         private float _lastForceSyncTime;
+        private int _lastPlayerCount;
         private const float FORCE_SYNC_INTERVAL = 2f;
 
         public override void OnSpawn()
@@ -120,9 +121,19 @@ namespace ONI_Together.Networking.OxySync.Components
         {
             if (!isServer) return;
 
-            if (Time.unscaledTime - _lastForceSyncTime >= FORCE_SYNC_INTERVAL)
+            int playerCount = MultiplayerSession.ConnectedPlayers.Count;
+            bool playerJoined = playerCount > _lastPlayerCount;
+            _lastPlayerCount = playerCount;
+
+            if (playerJoined || Time.unscaledTime - _lastForceSyncTime >= FORCE_SYNC_INTERVAL)
             {
                 _lastForceSyncTime = Time.unscaledTime;
+                if (SpeedControlScreen.Instance != null)
+                {
+                    _currentState = SpeedControlScreen.Instance.IsPaused
+                        ? SpeedState.Paused
+                        : (SpeedState)SpeedControlScreen.Instance.GetSpeed();
+                }
                 CallClientRpc(nameof(RpcApplySpeed), (int)_currentState);
             }
         }

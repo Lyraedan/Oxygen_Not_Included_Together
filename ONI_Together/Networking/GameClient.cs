@@ -399,12 +399,17 @@ namespace ONI_Together.Networking
 
 		private static IEnumerator ShowMessageAndReturnToTitle(string reason = "", string message = "")
 		{
-			// Auto-reconnect if still in game and under max attempts
-			//if (Utils.IsInGame() && _reconnectAttempt < MAX_RECONNECT_ATTEMPTS)
-			//{
-			//	CoroutineRunner.RunOne(AutoReconnectCoroutine());
-			//	yield break;
-			//}
+			// Auto-reconnect on transient network drops while in game (not on host close, kick, or protocol mismatch)
+			bool isTransientDrop =
+				string.IsNullOrEmpty(reason)
+				|| reason == STRINGS.UI.MP_OVERLAY.CLIENT.STEAMWORKS.LOCAL_PROBLEM
+				|| reason == STRINGS.UI.MP_OVERLAY.CLIENT.LITENETLIB.CONNECTION_TIMED_OUT;
+
+			if (isTransientDrop && Utils.IsInGame() && !MultiplayerSession.IsHost && _reconnectAttempt < 3)
+			{
+				CoroutineRunner.RunOne(AutoReconnectCoroutine());
+				yield break;
+			}
 
 			// Reset on final failure
 			_reconnectAttempt = 0;
