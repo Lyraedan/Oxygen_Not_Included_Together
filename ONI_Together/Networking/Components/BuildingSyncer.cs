@@ -12,8 +12,11 @@ namespace ONI_Together.Networking.Components
     {
         public static BuildingSyncer Instance { get; private set; }
 
-        private const float SYNC_INTERVAL = 30f;
+        private const float SYNC_INTERVAL = 15f;
         private float _lastSyncTime;
+        // Track local buildings missing from host across 2 consecutive passes before deleting,
+        // avoiding races with just-placed buildings while cleaning up missed deconstructions/breaks.
+        private readonly HashSet<(int, ObjectLayer)> _missingOnce = new HashSet<(int, ObjectLayer)>();
 
         private bool _initialized = false;
         private float _initializationTime;
@@ -100,7 +103,8 @@ namespace ONI_Together.Networking.Components
         {
             using var _ = Profiler.Scope();
 
-            // Build remote lookup: (Cell, Layer) -> Prefab
+            // Build remote lookup: (Cell, ObjectLayer) -> Prefab
+            // Note: use ObjectLayer (not TileLayer, which is NumLayers for all non-tile buildings and causes collisions!).
             var remoteByCellLayer = new Dictionary<(int, ObjectLayer), string>();
             foreach (var b in remoteBuildings)
             {
@@ -109,15 +113,16 @@ namespace ONI_Together.Networking.Components
                     var def = Assets.GetBuildingDef(b.PrefabName);
                     if (def != null)
                     {
-                        remoteByCellLayer[(b.Cell, def.TileLayer)] = b.PrefabName;
+                        remoteByCellLayer[(b.Cell, def.ObjectLayer)] = b.PrefabName;
                     }
                 }
             }
 
             var localBuildings = global::Components.BuildingCompletes.Items;
             var localList = new List<BuildingComplete>(localBuildings);
+            var stillMissing = new HashSet<(int, ObjectLayer)>();
 
-            // Replace buildings ONLY if something different exists at same cell AND same layer
+            // Replace mismatched buildings and remove phantoms absent from host for 2 consecutive passes
             foreach (var building in localList)
             {
                 if (building == null) continue;
@@ -127,23 +132,39 @@ namespace ONI_Together.Networking.Components
                 // triggers Door.OnCleanUp which displaces elements and creates ore debris.
                 if (building.GetComponent<Door>() != null) continue;
 
-                ObjectLayer layer = building.Def.TileLayer;
+                ObjectLayer layer = building.Def.ObjectLayer;
                 int cell = Grid.PosToCell(building);
                 var kpid = building.GetComponent<KPrefabID>();
                 if (kpid == null) continue;
 
                 string localPrefab = kpid.PrefabTag.Name;
+                var key = (cell, layer);
 
-                if (remoteByCellLayer.TryGetValue((cell, layer), out var remotePrefab))
+                if (remoteByCellLayer.TryGetValue(key, out var remotePrefab))
                 {
                     if (remotePrefab != localPrefab)
                     {
                         DebugConsole.Log($"[BuildingSyncer] Replacing {localPrefab} with {remotePrefab} at {cell} (Layer: {layer})");
-                        Util.KDestroyGameObject(building.gameObject);
+                        building.gameObject.DeleteObject();
                     }
                 }
-                // If no remote building at this cell+layer then do nothing
+                else
+                {
+                    if (_missingOnce.Contains(key))
+                    {
+                        DebugConsole.Log($"[BuildingSyncer] Removing phantom building {localPrefab} at {cell} (Layer: {layer})");
+                        building.gameObject.DeleteObject();
+                    }
+                    else
+                    {
+                        stillMissing.Add(key);
+                    }
+                }
             }
+
+            _missingOnce.Clear();
+            foreach (var k in stillMissing)
+                _missingOnce.Add(k);
 
             // Build a set of (cell, layer, prefab) for existing local buildings
             var localSet = new HashSet<(int, ObjectLayer, string)>();
@@ -158,7 +179,7 @@ namespace ONI_Together.Networking.Components
                 var kpid = building.GetComponent<KPrefabID>();
                 if (kpid == null) continue;
 
-                localSet.Add((cell, building.Def.TileLayer, kpid.PrefabTag.Name));
+                localSet.Add((cell, building.Def.ObjectLayer, kpid.PrefabTag.Name));
             }
 
             // Spawn missing remote buildings
@@ -173,9 +194,9 @@ namespace ONI_Together.Networking.Components
                 if (def.BuildingComplete != null && def.BuildingComplete.GetComponent<Door>() != null)
                     continue;
 
-                if (!localSet.Contains((remote.Cell, def.TileLayer, remote.PrefabName)))
+                if (!localSet.Contains((remote.Cell, def.ObjectLayer, remote.PrefabName)))
                 {
-                    DebugConsole.Log($"[BuildingSyncer] Spawning missing building {remote.PrefabName} at {remote.Cell} (Layer: {def.TileLayer})");
+                    DebugConsole.Log($"[BuildingSyncer] Spawning missing building {remote.PrefabName} at {remote.Cell} (Layer: {def.ObjectLayer})");
                     SpawnBuilding(remote.Cell, remote.PrefabName);
                     yield return null;
                 }

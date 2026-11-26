@@ -35,7 +35,9 @@ namespace ONI_Together.Networking.OxySync.Components
             syncRotation = false;
             syncScale = false;
             useSnapshotInterpolation = true;
+            updateMethod = UpdateMethod.LateUpdate;
             _lastHeartbeatTime = Time.unscaledTime;
+            _lastSyncReceivedTime = Time.unscaledTime;
             _lastPosition = transform.position;
         }
 
@@ -107,7 +109,14 @@ namespace ONI_Together.Networking.OxySync.Components
         [TargetRpc]
         private void TargetRpcReceiveFullState(Vector3 position, bool flipX, bool flipY, NavType navType)
         {
-            // Clients can not set sync vars, just teleport the dupe
+            // Keep cached sync fields and snapshot buffer in sync so ClientUpdate
+            // does not snap the entity right back to the stale pre-resync position.
+            _netPosition = position;
+            _netFlipX = flipX;
+            _netFlipY = flipY;
+            _netNavType = navType;
+            ResetSnapshots(position, _netRotation, _netScale);
+
             transform.SetPosition(position);
             if (kbac != null)
             {

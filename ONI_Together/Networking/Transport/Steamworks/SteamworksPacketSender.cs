@@ -14,46 +14,118 @@ namespace ONI_Together.Networking.Transport.Steam
 {
     public class SteamworksPacketSender : TransportPacketSender
     {
+        private readonly Dictionary<uint, Queue<(HSteamNetConnection conn, byte[] bytes, int sendFlags, IPacket packet)>> _reliableRetryQueues = new();
+        private readonly List<uint> _emptyRetryKeys = new();
+        private const int MAX_RELIABLE_RETRY_QUEUE = 2048;
+
         public override bool SendPacket(object conn, IPacket packet, PacketSendMode sendType = PacketSendMode.ReliableImmediate)
         {
             using var _ = Profiler.Scope();
 
-            if (conn is not HSteamNetConnection)
+            if (conn is not HSteamNetConnection s_conn)
                 return false;
 
-            HSteamNetConnection s_conn = (HSteamNetConnection)conn;
-
             var bytes = PacketSender.SerializePacketForSending(packet);
-            var _sendType = ConvertSendType(sendType); //(int)sendType;
+            var _sendType = ConvertSendType(sendType);
+            bool isReliable = (sendType & PacketSendMode.Reliable) == PacketSendMode.Reliable;
 
-            IntPtr unmanagedPointer = Marshal.AllocHGlobal(bytes.Length);
+            // Preserve ordering for reliable packets when a connection already has queued retries.
+            if (isReliable && _reliableRetryQueues.TryGetValue(s_conn.m_HSteamNetConnection, out var existingQueue) && existingQueue.Count > 0)
+            {
+                if (existingQueue.Count < MAX_RELIABLE_RETRY_QUEUE)
+                {
+                    existingQueue.Enqueue((s_conn, bytes, _sendType, packet));
+                    return true;
+                }
+                DebugConsole.LogWarning($"[SteamworksPacketSender] Reliable retry queue full ({MAX_RELIABLE_RETRY_QUEUE}) for conn {s_conn.m_HSteamNetConnection}, dropping {packet.GetType().Name}");
+                return false;
+            }
+
+            var result = SendRawPinned(s_conn, bytes, _sendType);
+            if (result == EResult.k_EResultOK)
+            {
+                PacketTracker.TrackSent(new PacketTracker.PacketTrackData
+                {
+                    packet = packet,
+                    size = bytes.Length
+                });
+                return true;
+            }
+
+            if (isReliable && result == EResult.k_EResultLimitExceeded)
+            {
+                if (!_reliableRetryQueues.TryGetValue(s_conn.m_HSteamNetConnection, out var queue))
+                {
+                    queue = new Queue<(HSteamNetConnection, byte[], int, IPacket)>();
+                    _reliableRetryQueues[s_conn.m_HSteamNetConnection] = queue;
+                }
+                if (queue.Count < MAX_RELIABLE_RETRY_QUEUE)
+                {
+                    queue.Enqueue((s_conn, bytes, _sendType, packet));
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private static EResult SendRawPinned(HSteamNetConnection s_conn, byte[] bytes, int sendFlags)
+        {
+            GCHandle handle = GCHandle.Alloc(bytes, GCHandleType.Pinned);
             try
             {
-                Marshal.Copy(bytes, 0, unmanagedPointer, bytes.Length);
-
-                var result = SteamNetworkingSockets.SendMessageToConnection(s_conn, unmanagedPointer, (uint)bytes.Length, _sendType, out long msgNum);
-
-                bool sent = result == EResult.k_EResultOK;
-
-                if (!sent)
-                {
-                    // DebugConsole.LogError($"[Sockets] Failed to send {packet.Type} to conn {conn} ({Utils.FormatBytes(bytes.Length)} | result: {result})", false);
-                }
-                else
-                {
-                    PacketTracker.TrackSent(new PacketTracker.PacketTrackData
-                    {
-                        packet = packet,
-                        size = bytes.Length
-                    });
-                    //DebugConsole.Log($"[Sockets] Sent {packet.Type} to conn {conn} ({Utils.FormatBytes(bytes.Length)})");
-                }
-                return sent;
+                IntPtr ptr = handle.AddrOfPinnedObject();
+                return SteamNetworkingSockets.SendMessageToConnection(s_conn, ptr, (uint)bytes.Length, sendFlags, out _);
             }
             finally
             {
-                Marshal.FreeHGlobal(unmanagedPointer);
+                handle.Free();
             }
+        }
+
+        public override void Flush()
+        {
+            base.Flush();
+
+            if (_reliableRetryQueues.Count == 0)
+                return;
+
+            _emptyRetryKeys.Clear();
+            foreach (var kvp in _reliableRetryQueues)
+            {
+                var queue = kvp.Value;
+                while (queue.Count > 0)
+                {
+                    var item = queue.Peek();
+                    var result = SendRawPinned(item.conn, item.bytes, item.sendFlags);
+                    if (result == EResult.k_EResultOK)
+                    {
+                        queue.Dequeue();
+                        PacketTracker.TrackSent(new PacketTracker.PacketTrackData
+                        {
+                            packet = item.packet,
+                            size = item.bytes.Length
+                        });
+                    }
+                    else if (result == EResult.k_EResultLimitExceeded)
+                    {
+                        // Buffer still full; try again next frame.
+                        break;
+                    }
+                    else
+                    {
+                        // Connection closed or invalid; discard queued packets for this handle.
+                        queue.Clear();
+                        break;
+                    }
+                }
+
+                if (queue.Count == 0)
+                    _emptyRetryKeys.Add(kvp.Key);
+            }
+
+            for (int i = 0; i < _emptyRetryKeys.Count; i++)
+                _reliableRetryQueues.Remove(_emptyRetryKeys[i]);
         }
 
         public int ConvertSendType(PacketSendMode mode)

@@ -33,11 +33,11 @@ namespace Shared.OxySync
         public CoordinateSpace coordinateSpace = CoordinateSpace.World;
         public UpdateMethod updateMethod = UpdateMethod.Update;
 
-        public float snapThreshold = 1.5f;
-        public float lerpSpeed = 15f;
+        public float snapThreshold = 4.0f;
+        public float lerpSpeed = 20f;
 
         public bool useSnapshotInterpolation;
-        public double bufferTimeMultiplier = 2.0;
+        public double bufferTimeMultiplier = 2.5;
 
         private struct SnapshotEntry
         {
@@ -51,6 +51,8 @@ namespace Shared.OxySync
         private Vector3 _interpolatedPosition;
         private Quaternion _interpolatedRotation;
         private Vector3 _interpolatedScale;
+        private bool _hasClockOffset;
+        private double _clockOffsetMs;
         
         public int NetPositionHash { get; private set; }
         public int NetRotationHash { get; private set; }
@@ -85,14 +87,53 @@ namespace Shared.OxySync
             }
         }
 
-        private void AddSnapshot(long timestamp)
+        private static long GetLocalTimeMs() => (long)(Time.unscaledTimeAsDouble * 1000.0);
+
+        protected void ResetSnapshots(Vector3 position, Quaternion rotation, Vector3 scale)
         {
-            if (_snapshots.Count > 0 && _snapshots[_snapshots.Count - 1].timestamp == timestamp)
+            _snapshots?.Clear();
+            _interpolatedPosition = position;
+            _interpolatedRotation = rotation;
+            _interpolatedScale = scale;
+        }
+
+        private void AddSnapshot(long hostTimestamp)
+        {
+            long localNow = GetLocalTimeMs();
+            double measuredOffset = localNow - hostTimestamp;
+            if (!_hasClockOffset || Math.Abs(measuredOffset - _clockOffsetMs) > 500.0)
+            {
+                _clockOffsetMs = measuredOffset;
+                _hasClockOffset = true;
+            }
+            else
+            {
+                // Slowly track clock drift while preserving host inter-packet spacing.
+                _clockOffsetMs += (measuredOffset - _clockOffsetMs) * 0.05;
+            }
+
+            long adjustedTimestamp = hostTimestamp + (long)_clockOffsetMs;
+
+            if (_snapshots.Count > 0 && _snapshots[_snapshots.Count - 1].timestamp >= adjustedTimestamp)
+            {
+                // Keep timestamps strictly monotonic even if two fields arrive with the same host timestamp.
+                if (_snapshots[_snapshots.Count - 1].timestamp == adjustedTimestamp)
+                {
+                    _snapshots[_snapshots.Count - 1] = new SnapshotEntry
+                    {
+                        timestamp = adjustedTimestamp,
+                        position = _netPosition,
+                        rotation = _netRotation,
+                        scale = _netScale,
+                    };
+                    return;
+                }
                 return;
+            }
 
             _snapshots.Add(new SnapshotEntry
             {
-                timestamp = timestamp,
+                timestamp = adjustedTimestamp,
                 position = _netPosition,
                 rotation = _netRotation,
                 scale = _netScale,
@@ -177,9 +218,12 @@ namespace Shared.OxySync
                     else
                         target.position = desired;
                 }
-                else if (interpolatePosition && !useSnapshotInterpolation)
+                else if (interpolatePosition)
                 {
-                    Vector3 lerped = Vector3.Lerp(currentPos, desired, Mathf.Clamp01(lerpSpeed * Time.unscaledDeltaTime));
+                    // Frame-rate independent exponential smoothing eliminates micro-stutter
+                    // when unreliable position snapshots arrive with jitter or a dropped packet.
+                    float alpha = 1f - Mathf.Exp(-lerpSpeed * Time.unscaledDeltaTime);
+                    Vector3 lerped = Vector3.Lerp(currentPos, desired, alpha);
                     if (coordinateSpace == CoordinateSpace.Local)
                         target.localPosition = lerped;
                     else
@@ -243,7 +287,8 @@ namespace Shared.OxySync
         [Client]
         private void UpdateInterpolation()
         {
-            PruneSnapshots();
+            long now = GetLocalTimeMs();
+            PruneSnapshots(now);
 
             if (_snapshots.Count == 0)
             {
@@ -253,7 +298,6 @@ namespace Shared.OxySync
                 return;
             }
 
-            long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
             long bufferMs = (long)(SyncInterval * bufferTimeMultiplier * 1000);
             long playbackTime = now - bufferMs;
 
@@ -286,7 +330,8 @@ namespace Shared.OxySync
             {
                 var from = _snapshots[index];
                 var to = _snapshots[index + 1];
-                double t = (double)(playbackTime - from.timestamp) / (to.timestamp - from.timestamp);
+                double span = to.timestamp - from.timestamp;
+                double t = span > 0.0 ? (double)(playbackTime - from.timestamp) / span : 1.0;
                 t = Math.Clamp(t, 0.0, 1.0);
                 float ft = (float)t;
 
@@ -296,12 +341,11 @@ namespace Shared.OxySync
             }
         }
 
-        private void PruneSnapshots()
+        private void PruneSnapshots(long now)
         {
-            long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            long cutoff = now - (long)(SyncInterval * bufferTimeMultiplier * 2 * 1000);
+            long cutoff = now - Math.Max(500L, (long)(SyncInterval * bufferTimeMultiplier * 4 * 1000));
 
-            while (_snapshots.Count > 0 && _snapshots[0].timestamp < cutoff)
+            while (_snapshots.Count > 1 && _snapshots[0].timestamp < cutoff)
                 _snapshots.RemoveAt(0);
         }
 

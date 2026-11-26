@@ -26,10 +26,12 @@ namespace ONI_Together.Networking.OxySync.Components
 
         public override void OnSpawn()
         {
-            base.OnSpawn();
-            Instance = this;
+            // Set NetId and InterestGroup BEFORE base.OnSpawn() so OxySyncManager registers
+            // this behaviour under the deterministic SpeedControlScreen NetId instead of 0.
             NetId = nameof(SpeedControlScreen).GetHashCode();
             InterestGroup = -1;
+            base.OnSpawn();
+            Instance = this;
 
             if (SpeedControlScreen.Instance != null)
             {

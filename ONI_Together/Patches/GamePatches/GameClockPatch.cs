@@ -59,20 +59,30 @@ namespace ONI_Together.Patches.GamePatches
 					return;
 
 				float currentTime = __instance.GetTime();
+				int currentCycle = __instance.GetCycle();
+				bool cycleChanged = currentCycle != _lastCycle;
 
-				// 1. Broadcast world time every 1s via OxySync ClientRpc
-				if (currentTime - _lastSentTime >= 1f)
+				// 1. Broadcast world time every 1s (in-game or if time jumped backwards on save load)
+				// and immediately on cycle transitions.
+				if (cycleChanged || Mathf.Abs(currentTime - _lastSentTime) >= 1f)
 				{
 					_lastSentTime = currentTime;
+					float cycleTime = __instance.GetTimeSinceStartOfCycle();
 
-					GameTimeSyncer.Instance?.BroadcastTime(
-						__instance.GetCycle(),
-						__instance.GetTimeSinceStartOfCycle());
+					GameTimeSyncer.Instance?.BroadcastTime(currentCycle, cycleTime);
+
+					if (MultiplayerSession.ConnectedPlayers.Count > 0)
+					{
+						PacketSender.SendToAllClients(new ONI_Together.Networking.Packets.World.WorldCyclePacket
+						{
+							Cycle = currentCycle,
+							CycleTime = cycleTime
+						}, cycleChanged ? PacketSendMode.Reliable : PacketSendMode.Unreliable);
+					}
 				}
 
 				// 2. Trigger HardSync at the start of a new cycle
-				int currentCycle = __instance.GetCycle();
-				if (currentCycle != _lastCycle)
+				if (cycleChanged)
 				{
 					_lastCycle = currentCycle;
 

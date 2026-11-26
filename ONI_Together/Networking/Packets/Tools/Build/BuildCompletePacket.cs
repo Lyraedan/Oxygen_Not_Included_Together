@@ -122,42 +122,40 @@ namespace ONI_Together.Networking.Packets.Tools.Build
 
             if (existing != null)
             {
-                //if (existing.TryGetComponent<Constructable>(out Constructable con))
-                //{
-                //    if (NetworkIdentityRegistry.TryGet(WorkerNetId, out var identity) &&
-                //       identity.TryGetComponent<WorkerBase>(out var worker))
-                //    {
-                //        con.initialTemperature = Temperature;
-                //        con.SelectedElementsTags = tags;
-                //        con.FinishConstruction(UtilityConnectionFlags, worker);
-                //    }
-                //}
-                //else
+                // If the exact completed building is already present (e.g. duplicate packet or BuildingSyncer),
+                // just ensure utility connections match without destroying and recreating it.
+                if (existing.TryGetComponent<BuildingComplete>(out var existingComplete) &&
+                    existing.TryGetComponent<KPrefabID>(out var existingKpid) &&
+                    existingKpid.PrefabTag.Name == PrefabID &&
+                    existingComplete.Orientation == Orientation)
                 {
-                    // Clean up using ONI's proper lifecycle to ensure automation port visualizers
-                    // are removed from LogicCircuitManager.uiVisElements synchronously.
-                    // Object.Destroy() would defer cleanup, leaving stale port entries
-                    // that block future building placement.
-                    existing.DeleteObject();
-                    Grid.Objects[Cell, layerIndex] = null;
-
-                    var builtObj = def.Build(
-                        Cell,
-                        Orientation,
-                        null,
-                        tags,
-                        Temperature,
-                        FacadeID,
-                        playsound: false,
-                        GameClock.Instance.GetTime()
-                    );
-
-                    // Apply wire/pipe connections for utility buildings
-                    if (builtObj != null && (int)UtilityConnectionFlags != 0)
-                    {
-                        ApplyUtilityConnections(builtObj, def);
-                    }
+                    if ((int)UtilityConnectionFlags != 0)
+                        ApplyUtilityConnections(existing, def);
+                    return;
                 }
+
+                // Clean up ghost/constructable or replaced building using ONI's proper lifecycle
+                // so automation port visualizers are removed synchronously.
+                existing.DeleteObject();
+                Grid.Objects[Cell, layerIndex] = null;
+            }
+
+            // Always build the completed building even if the ghost Constructable was missing on the client.
+            var builtObj = def.Build(
+                Cell,
+                Orientation,
+                null,
+                tags,
+                Temperature,
+                FacadeID,
+                playsound: false,
+                GameClock.Instance.GetTime()
+            );
+
+            // Apply wire/pipe connections for utility buildings
+            if (builtObj != null && (int)UtilityConnectionFlags != 0)
+            {
+                ApplyUtilityConnections(builtObj, def);
             }
 
             DebugConsole.Log($"[BuildCompletePacket] Finalized {PrefabID} at cell {Cell}");

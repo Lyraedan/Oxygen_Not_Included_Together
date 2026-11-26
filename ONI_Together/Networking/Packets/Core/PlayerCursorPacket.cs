@@ -192,7 +192,12 @@ namespace ONI_Together.Networking.Packets.Core
 						UpdateChunkSubscriptions(PlayerID, chunkCursor, worldId);
 				}
 
-				PacketSender.SendToAllOtherPeers(this);
+				// Forward cursor updates unreliably only to OTHER clients (never echo back to sender or send Reliable)
+				if (MultiplayerSession.ConnectedPlayers.Count > 1)
+				{
+					var excluded = new HashSet<ulong> { MultiplayerSession.HostUserID, PlayerID };
+					PacketSender.SendToAllExcluding(this, excluded, PacketSendMode.Unreliable);
+				}
 			}
 		}
 

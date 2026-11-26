@@ -235,7 +235,7 @@ namespace ONI_Together
     {
         [JsonProperty] public int NetworkTransport { get; set; } = 0;
         [JsonProperty] public int MaxLobbySize { get; set; } = 4;
-        [JsonProperty] public int MaxMessagesPerPoll { get; set; } = 128;
+        [JsonProperty] public int MaxMessagesPerPoll { get; set; } = 256;
         [JsonProperty] public int SaveFileTransferChunkKB { get; set; } = 256;
         [JsonProperty] public int TimeoutSeconds { get; set; } = 30;
 
@@ -248,7 +248,7 @@ namespace ONI_Together
     [Serializable]
     public class ClientSettings
     {
-        [JsonProperty] public int MaxMessagesPerPoll { get; set; } = 16;
+        [JsonProperty] public int MaxMessagesPerPoll { get; set; } = 256;
         [JsonProperty] public bool UseRandomPlayerColor { get; set; } = true;
         [JsonProperty] public ColorRGB PlayerColor { get; set; } = new ColorRGB(255, 255, 255);
         [JsonProperty] public LanSettings LanSettings { get; set; } = new LanSettings();

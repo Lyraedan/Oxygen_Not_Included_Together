@@ -337,13 +337,9 @@ namespace ONI_Together.Networking.OxySync.Components
 
                 if (_changedByGroup.Count == 0) continue;
 
-                var identity = behaviour.GameObject != null
-                    ? behaviour.GameObject.GetComponent<NetworkIdentity>()
-                    : null;
-                if (identity == null || identity.NetId == 0)
+                int netId = behaviour.NetId;
+                if (netId == 0)
                     continue;
-
-                int netId = identity.NetId;
                 int behaviourId = behaviour.BehaviourId;
                 long timestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
@@ -547,14 +543,14 @@ namespace ONI_Together.Networking.OxySync.Components
                         FieldHash = update.Hash,
                         Value = update.Value,
                         Timestamp = timestamp,
-                    }, PacketSendMode.ReliableImmediate);
+                    }, PacketSendMode.Reliable);
                 }
                 else
                 {
 					PacketSender.SendToPlayer(playerId, new SyncVarBatchPacket(netId, behaviourId, updates)
                     {
                         Timestamp = timestamp,
-                    }, PacketSendMode.ReliableImmediate);
+                    }, PacketSendMode.Reliable);
                 }
             }
         }

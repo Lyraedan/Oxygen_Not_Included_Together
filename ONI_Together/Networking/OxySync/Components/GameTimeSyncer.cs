@@ -21,11 +21,13 @@ namespace ONI_Together.Networking.OxySync.Components
 
         public override void OnSpawn()
         {
-            base.OnSpawn();
-            Instance = this;
-            SyncInterval = 1f; // Every 1 second
+            // Set NetId and InterestGroup BEFORE base.OnSpawn() so OxySyncManager registers
+            // this behaviour under the deterministic GameClock NetId instead of 0.
             NetId = nameof(GameClock).GetHashCode();
             InterestGroup = -1;
+            base.OnSpawn();
+            Instance = this;
+            SyncInterval = 0.5f;
         }
 
         public override void OnCleanUp()
@@ -65,8 +67,8 @@ namespace ONI_Together.Networking.OxySync.Components
             float clientTime = GameClock.Instance.GetTime();
             float diff = hostTotalTime - clientTime;
 
-            // If time is significantly off (> 1.5s) or cycle differs, snap time
-            if (UnityEngine.Mathf.Abs(diff) > 1.5f || GameClock.Instance.GetCycle() != _cycle)
+            // If time is significantly off (> 1.0s) or cycle differs, snap time
+            if (UnityEngine.Mathf.Abs(diff) > 1.0f || GameClock.Instance.GetCycle() != _cycle)
             {
                 GameClockPatch.allowAddTimeForSetTime = true;
                 GameClock.Instance.SetTime(hostTotalTime);
@@ -75,7 +77,7 @@ namespace ONI_Together.Networking.OxySync.Components
             else if (UnityEngine.Mathf.Abs(diff) > 0.05f)
             {
                 // Smoothly nudge clock towards host time without teleporting
-                float correctedTime = UnityEngine.Mathf.Lerp(clientTime, hostTotalTime, 0.25f);
+                float correctedTime = UnityEngine.Mathf.Lerp(clientTime, hostTotalTime, 0.5f);
                 GameClockPatch.allowAddTimeForSetTime = true;
                 GameClock.Instance.SetTime(correctedTime);
                 GameClockPatch.allowAddTimeForSetTime = false;
