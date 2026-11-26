@@ -70,15 +70,20 @@ namespace ONI_Together.Networking.Packets.Core
 
 			foreach (var packetData in SerializedInnerPackets)
 			{
-				var innerPacket = PacketRegistry.Create(InnerPacketId);
-				var ms = new MemoryStream(packetData);
-				var reader = new BinaryReader(ms);
-				innerPacket.Deserialize(reader);
-				// Inner packets bypass HandleIncoming, so the no-world gate is applied here too.
-				if (PacketHandler.ShouldDispatchWithoutWorld(innerPacket))
-					innerPacket.OnDispatched();
-				reader.Dispose();
-				ms.Dispose();
+				try
+				{
+					var innerPacket = PacketRegistry.Create(InnerPacketId);
+					using var ms = new MemoryStream(packetData);
+					using var reader = new BinaryReader(ms);
+					innerPacket.Deserialize(reader);
+					// Inner packets bypass HandleIncoming, so the no-world gate is applied here too.
+					if (PacketHandler.ShouldDispatchWithoutWorld(innerPacket))
+						innerPacket.OnDispatched();
+				}
+				catch (Exception ex)
+				{
+					DebugConsole.LogWarning($"[BulkSenderPacket] Failed to dispatch inner packet {InnerPacketId}: {ex.Message}");
+				}
 			}
 		}
 	}

@@ -41,6 +41,37 @@ namespace ONI_Together.Patches.World
 			}
 		}
 
+		[HarmonyPatch(typeof(BuildingHP), nameof(BuildingHP.Repair))]
+		public static class BuildingHP_Repair_Patch
+		{
+			public static bool Prefix()
+			{
+				using var _ = Profiler.Scope();
+				return !MultiplayerSession.IsClient || BuildingConfigPacket.IsApplyingPacket;
+			}
+
+			public static void Postfix(BuildingHP __instance)
+			{
+				using var _ = Profiler.Scope();
+
+				if (!MultiplayerSession.IsHostInSession || __instance == null)
+					return;
+
+				var identity = __instance.gameObject.AddOrGet<NetworkIdentity>();
+				identity.RegisterIdentity();
+				if (identity.NetId == 0)
+					return;
+
+				PacketSender.SendToAllClients(new BuildingConfigPacket
+				{
+					NetId = identity.NetId,
+					Cell = Grid.PosToCell(__instance.gameObject),
+					ConfigHash = AuthoritativeStateHandler.HitPointsKey.GetHashCode(),
+					Value = __instance.HitPoints
+				}, PacketSendMode.Reliable);
+			}
+		}
+
 		[HarmonyPatch(typeof(EmptyConduitWorkable), nameof(EmptyConduitWorkable.MarkForEmptying))]
 		public static class EmptyConduitWorkable_MarkForEmptying_Patch
 		{

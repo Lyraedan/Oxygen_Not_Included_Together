@@ -17,9 +17,13 @@ namespace ONI_Together.Networking.Overlay
 		public static NetIdActivityTracker Instance { get; private set; }
 
 		private readonly Dictionary<int, ActivityData> _activities = new Dictionary<int, ActivityData>();
+		private readonly List<KeyValuePair<int, ActivityData>> _decayScratch = new List<KeyValuePair<int, ActivityData>>();
+		private static readonly Dictionary<System.Type, FieldInfo> _netIdFieldCache = new Dictionary<System.Type, FieldInfo>();
 
 		private const float DECAY_ALPHA = 0.9f;
 		private const float ACTIVITY_TIMEOUT = 5f;
+		private const float DECAY_INTERVAL = 1f;
+		private float _lastDecayTime;
 
 		private void Awake()
 		{
@@ -31,19 +35,31 @@ namespace ONI_Together.Networking.Overlay
 			using var _ = Profiler.Scope();
 
 			float now = Time.unscaledTime;
-			var updates = new List<KeyValuePair<int, ActivityData>>();
+			if (now - _lastDecayTime < DECAY_INTERVAL)
+				return;
+			_lastDecayTime = now;
+
+			if (_activities.Count == 0)
+				return;
+
+			_decayScratch.Clear();
 			foreach (var kvp in _activities)
 			{
 				float elapsed = now - kvp.Value.lastActivityTime;
-				if (elapsed > ACTIVITY_TIMEOUT)
+				if (elapsed > ACTIVITY_TIMEOUT && kvp.Value.bytesPerSecond > 0.01f)
 				{
 					var updated = kvp.Value;
 					updated.bytesPerSecond *= Mathf.Pow(DECAY_ALPHA, elapsed);
-					updates.Add(new KeyValuePair<int, ActivityData>(kvp.Key, updated));
+					if (updated.bytesPerSecond < 0.01f)
+						updated.bytesPerSecond = 0f;
+					_decayScratch.Add(new KeyValuePair<int, ActivityData>(kvp.Key, updated));
 				}
 			}
-			foreach (var pair in updates)
+			for (int i = 0; i < _decayScratch.Count; i++)
+			{
+				var pair = _decayScratch[i];
 				_activities[pair.Key] = pair.Value;
+			}
 		}
 
 		public void RecordActivity(int netId, int bytes)
@@ -102,15 +118,19 @@ namespace ONI_Together.Networking.Overlay
 			if (packet == null) return 0;
 			var type = packet.GetType();
 
-			var field = type.GetField("NetId", BindingFlags.Public | BindingFlags.Instance);
-			if (field != null && field.FieldType == typeof(int))
-				return (int)field.GetValue(packet);
+			if (!_netIdFieldCache.TryGetValue(type, out var field))
+			{
+				field = type.GetField("NetId", BindingFlags.Public | BindingFlags.Instance);
+				if (field == null || field.FieldType != typeof(int))
+				{
+					field = type.GetField("NetID", BindingFlags.Public | BindingFlags.Instance);
+					if (field != null && field.FieldType != typeof(int))
+						field = null;
+				}
+				_netIdFieldCache[type] = field;
+			}
 
-			field = type.GetField("NetID", BindingFlags.Public | BindingFlags.Instance);
-			if (field != null && field.FieldType == typeof(int))
-				return (int)field.GetValue(packet);
-
-			return 0;
+			return field != null ? (int)field.GetValue(packet) : 0;
 		}
 
 		public void Clear()

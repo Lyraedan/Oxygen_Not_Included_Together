@@ -8,7 +8,7 @@ namespace Shared.OxySync
 {
     public class NetworkTransform : NetworkBehaviour
     {
-        [SyncVar(Epsilon = 0.01f, SendMode = (int) PacketSendMode.Unreliable)]
+        [SyncVar(Epsilon = 0.01f, SendMode = (int)(PacketSendMode.Unreliable | PacketSendMode.Immediate))]
         protected Vector3 _netPosition;
 
         [SyncVar(Epsilon = 0.01f, SendMode = (int) PacketSendMode.Unreliable)]
@@ -33,11 +33,11 @@ namespace Shared.OxySync
         public CoordinateSpace coordinateSpace = CoordinateSpace.World;
         public UpdateMethod updateMethod = UpdateMethod.Update;
 
-        public float snapThreshold = 1.5f;
-        public float lerpSpeed = 15f;
+        public float snapThreshold = 4.0f;
+        public float lerpSpeed = 20f;
 
         public bool useSnapshotInterpolation;
-        public double bufferTimeMultiplier = 2.0;
+        public double bufferTimeMultiplier = 2.5;
 
         private struct SnapshotEntry
         {
@@ -51,6 +51,10 @@ namespace Shared.OxySync
         private Vector3 _interpolatedPosition;
         private Quaternion _interpolatedRotation;
         private Vector3 _interpolatedScale;
+        private bool _hasClockOffset;
+        private double _clockOffsetMs;
+        private double _jitterEstimateMs;
+        private long _lastHostTimestamp;
         
         public int NetPositionHash { get; private set; }
         public int NetRotationHash { get; private set; }
@@ -85,14 +89,75 @@ namespace Shared.OxySync
             }
         }
 
-        private void AddSnapshot(long timestamp)
+        private static readonly double StopwatchTicksToMs = 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+        private static long GetLocalTimeMs() => (long)(System.Diagnostics.Stopwatch.GetTimestamp() * StopwatchTicksToMs);
+
+        protected void ResetSnapshots(Vector3 position, Quaternion rotation, Vector3 scale)
         {
-            if (_snapshots.Count > 0 && _snapshots[_snapshots.Count - 1].timestamp == timestamp)
+            _snapshots?.Clear();
+            _interpolatedPosition = position;
+            _interpolatedRotation = rotation;
+            _interpolatedScale = scale;
+            _lastHostTimestamp = 0;
+        }
+
+        private void AddSnapshot(long hostTimestamp)
+        {
+            // Drop truly out-of-order UDP packets based on the host's own monotonic clock.
+            if (hostTimestamp < _lastHostTimestamp)
                 return;
+
+            long localNow = GetLocalTimeMs();
+            double measuredOffset = localNow - hostTimestamp;
+            if (!_hasClockOffset || Math.Abs(measuredOffset - _clockOffsetMs) > 1000.0)
+            {
+                _clockOffsetMs = measuredOffset;
+                _jitterEstimateMs = 0.0;
+                _hasClockOffset = true;
+            }
+            else
+            {
+                // Minimum-envelope clock tracking: fast drop when a packet arrives with lower RTT,
+                // very slow upward drift so Steam P2P latency spikes never shift the playback clock.
+                double delta = measuredOffset - _clockOffsetMs;
+                if (delta < 0.0)
+                {
+                    _clockOffsetMs += delta * 0.25;
+                }
+                else
+                {
+                    _clockOffsetMs += delta * 0.002;
+                    // Track positive arrival jitter to adaptively expand the interpolation buffer.
+                    _jitterEstimateMs = Math.Min(130.0, _jitterEstimateMs + (delta - _jitterEstimateMs) * 0.15);
+                }
+                _jitterEstimateMs *= 0.995;
+            }
+
+            long adjustedTimestamp = hostTimestamp + (long)_clockOffsetMs;
+
+            if (_snapshots.Count > 0)
+            {
+                long prevTs = _snapshots[_snapshots.Count - 1].timestamp;
+                if (hostTimestamp == _lastHostTimestamp)
+                {
+                    _snapshots[_snapshots.Count - 1] = new SnapshotEntry
+                    {
+                        timestamp = prevTs,
+                        position = _netPosition,
+                        rotation = _netRotation,
+                        scale = _netScale,
+                    };
+                    return;
+                }
+                if (adjustedTimestamp <= prevTs)
+                    adjustedTimestamp = prevTs + 1;
+            }
+
+            _lastHostTimestamp = hostTimestamp;
 
             _snapshots.Add(new SnapshotEntry
             {
-                timestamp = timestamp,
+                timestamp = adjustedTimestamp,
                 position = _netPosition,
                 rotation = _netRotation,
                 scale = _netScale,
@@ -177,9 +242,12 @@ namespace Shared.OxySync
                     else
                         target.position = desired;
                 }
-                else if (interpolatePosition && !useSnapshotInterpolation)
+                else if (interpolatePosition)
                 {
-                    Vector3 lerped = Vector3.Lerp(currentPos, desired, Mathf.Clamp01(lerpSpeed * Time.unscaledDeltaTime));
+                    // Frame-rate independent exponential smoothing eliminates micro-stutter
+                    // when unreliable position snapshots arrive with jitter or a dropped packet.
+                    float alpha = 1f - Mathf.Exp(-lerpSpeed * Time.unscaledDeltaTime);
+                    Vector3 lerped = Vector3.Lerp(currentPos, desired, alpha);
                     if (coordinateSpace == CoordinateSpace.Local)
                         target.localPosition = lerped;
                     else
@@ -243,7 +311,8 @@ namespace Shared.OxySync
         [Client]
         private void UpdateInterpolation()
         {
-            PruneSnapshots();
+            long now = GetLocalTimeMs();
+            PruneSnapshots(now);
 
             if (_snapshots.Count == 0)
             {
@@ -253,8 +322,10 @@ namespace Shared.OxySync
                 return;
             }
 
-            long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            long bufferMs = (long)(SyncInterval * bufferTimeMultiplier * 1000);
+            // Minimum 150ms buffer + adaptive jitter margin (up to 280ms) prevents buffer underruns
+            // at 30 Hz (0.033s) when Steam P2P relay jitter spikes.
+            long baseBufferMs = Math.Max(150L, (long)(SyncInterval * bufferTimeMultiplier * 1000));
+            long bufferMs = baseBufferMs + (long)_jitterEstimateMs;
             long playbackTime = now - bufferMs;
 
             int index = -1;
@@ -277,16 +348,34 @@ namespace Shared.OxySync
                 }
                 else
                 {
-                    _interpolatedPosition = _snapshots[_snapshots.Count - 1].position;
-                    _interpolatedRotation = _snapshots[_snapshots.Count - 1].rotation;
-                    _interpolatedScale = _snapshots[_snapshots.Count - 1].scale;
+                    var last = _snapshots[_snapshots.Count - 1];
+                    _interpolatedPosition = last.position;
+                    _interpolatedRotation = last.rotation;
+                    _interpolatedScale = last.scale;
+
+                    // Short bounded velocity extrapolation (up to 100ms) bridges a late or dropped
+                    // unreliable packet without stopping dead and lurching forward on the next one.
+                    if (_snapshots.Count >= 2)
+                    {
+                        var prev = _snapshots[_snapshots.Count - 2];
+                        long dtMs = last.timestamp - prev.timestamp;
+                        long extraMs = playbackTime - last.timestamp;
+                        if (dtMs > 5 && dtMs <= 250 && extraMs > 0 && extraMs <= 100)
+                        {
+                            float ratio = (float)extraMs / dtMs;
+                            Vector3 delta = last.position - prev.position;
+                            if (delta.sqrMagnitude < 4f)
+                                _interpolatedPosition = last.position + delta * ratio;
+                        }
+                    }
                 }
             }
             else
             {
                 var from = _snapshots[index];
                 var to = _snapshots[index + 1];
-                double t = (double)(playbackTime - from.timestamp) / (to.timestamp - from.timestamp);
+                double span = to.timestamp - from.timestamp;
+                double t = span > 0.0 ? (double)(playbackTime - from.timestamp) / span : 1.0;
                 t = Math.Clamp(t, 0.0, 1.0);
                 float ft = (float)t;
 
@@ -296,12 +385,11 @@ namespace Shared.OxySync
             }
         }
 
-        private void PruneSnapshots()
+        private void PruneSnapshots(long now)
         {
-            long now = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
-            long cutoff = now - (long)(SyncInterval * bufferTimeMultiplier * 2 * 1000);
+            long cutoff = now - Math.Max(500L, (long)(SyncInterval * bufferTimeMultiplier * 4 * 1000));
 
-            while (_snapshots.Count > 0 && _snapshots[0].timestamp < cutoff)
+            while (_snapshots.Count > 1 && _snapshots[0].timestamp < cutoff)
                 _snapshots.RemoveAt(0);
         }
 

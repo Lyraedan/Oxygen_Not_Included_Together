@@ -14,7 +14,7 @@ namespace ONI_Together.Networking.Components
 	/// </summary>
 	internal static class AnimReconciliationHelper
 	{
-		private const float DriftThreshold = 0.15f;
+		private const float DriftThreshold = 0.6f;
 
 		internal static void Reconcile(KBatchedAnimController kbac, HashedString animHash, KAnim.PlayMode playMode, float animSpeed, float elapsedTime, string source)
 		{
@@ -36,6 +36,11 @@ namespace ONI_Together.Networking.Components
 					TrySetElapsedTime(kbac, elapsedTime);
                     return;
 				}
+
+				// Looping animations (walk, climb, work) play smoothly on their own;
+				// frequent elapsed-time rewinds from RTT lag cause visible leg/body twitching.
+				if (playMode == KAnim.PlayMode.Loop)
+					return;
 
 				float localElapsed = kbac.GetElapsedTime();
 				if (Mathf.Abs(localElapsed - elapsedTime) > DriftThreshold)

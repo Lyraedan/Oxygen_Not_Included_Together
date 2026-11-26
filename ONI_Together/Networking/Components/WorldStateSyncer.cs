@@ -150,13 +150,31 @@ namespace ONI_Together.Networking.Components
                    y >= rect.yMin - margin && y < rect.yMax + margin;
         }
 
+        private static int _cachedViewportFrame = -1;
+        private static int _cachedViewportMargin = -1;
+        private static bool _cachedViewportValid;
+        private static RectInt _cachedViewportRect;
+
         public static bool TryGetLocalViewport(out RectInt viewport, int margin = 2)
 		{
 			using var _ = Profiler.Scope();
 
+			int frame = Time.frameCount;
+			if (_cachedViewportFrame == frame && _cachedViewportMargin == margin)
+			{
+				viewport = _cachedViewportRect;
+				return _cachedViewportValid;
+			}
+
 			viewport = default;
 			if (Camera.main == null || Grid.WidthInCells == 0 || Grid.HeightInCells == 0)
+			{
+				_cachedViewportFrame = frame;
+				_cachedViewportMargin = margin;
+				_cachedViewportRect = default;
+				_cachedViewportValid = false;
 				return false;
+			}
 
 			Camera cam = Camera.main;
 			Vector3 bl = cam.ViewportToWorldPoint(new Vector3(0, 0, 0));
@@ -170,7 +188,12 @@ namespace ONI_Together.Networking.Components
 			y2 = Mathf.Min(Grid.HeightInCells, y2 + margin);
 
 			viewport = new RectInt(x1, y1, Mathf.Max(0, x2 - x1), Mathf.Max(0, y2 - y1));
-			return viewport.width > 0 && viewport.height > 0;
+			bool valid = viewport.width > 0 && viewport.height > 0;
+			_cachedViewportFrame = frame;
+			_cachedViewportMargin = margin;
+			_cachedViewportRect = viewport;
+			_cachedViewportValid = valid;
+			return valid;
 		}
 
 		private bool _lastSandboxEnabled = false;
@@ -823,12 +846,8 @@ namespace ONI_Together.Networking.Components
 					ushort currentElement = Grid.ElementIdx[cell];
 					float currentMass = Grid.Mass[cell];
 
-					// Optimization: Ignore very small mass changes?
-					// Gas flow changes mass constantly.
-					bool changed = false;
-
-					if (currentElement != _shadowElements[cell]) changed = true;
-					else if (Mathf.Abs(currentMass - _shadowMass[cell]) > 0.01f) changed = true; // 10g threshold
+					bool elementChanged = currentElement != _shadowElements[cell];
+					bool changed = elementChanged || Mathf.Abs(currentMass - _shadowMass[cell]) > 0.01f; // 10g threshold
 
 					if (changed)
 					{
@@ -836,7 +855,7 @@ namespace ONI_Together.Networking.Components
 						_shadowElements[cell] = currentElement;
 						_shadowMass[cell] = currentMass;
 
-						// Queue for Network
+						// Queue for Network (element transitions sent Reliable to prevent ghost tiles/desyncs)
 						ONI_Together.Misc.World.WorldUpdateBatcher.Queue(new WorldUpdatePacket.CellUpdate
 						{
 							Cell = cell,
@@ -845,7 +864,7 @@ namespace ONI_Together.Networking.Components
 							Temperature = Grid.Temperature[cell],
 							DiseaseIdx = Grid.DiseaseIdx[cell],
 							DiseaseCount = Grid.DiseaseCount[cell]
-						});
+						}, reliable: elementChanged);
 					}
 				}
 			}

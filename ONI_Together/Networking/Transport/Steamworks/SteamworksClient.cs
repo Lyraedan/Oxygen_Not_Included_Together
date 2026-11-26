@@ -28,6 +28,14 @@ namespace ONI_Together.Networking.Transport.Steam
         // Network health
         private const int JITTER_SAMPLE_COUNT = 20;
         private static readonly Queue<int> _pingSamples = new();
+        private static IntPtr[] _receiveBuffer = new IntPtr[256];
+        private static float _lastHealthEvalTime = -1f;
+        private const float HEALTH_EVAL_INTERVAL = 0.25f;
+        private const int MAX_MESSAGES_PER_FRAME = 1024;
+        private const double MAX_POLL_MS_PER_FRAME = 12.0;
+        private const int STEAM_SEND_BUFFER_BYTES = 4 * 1024 * 1024;
+        private const int STEAM_SEND_RATE_MIN = 512 * 1024;
+        private const int STEAM_SEND_RATE_MAX = 4 * 1024 * 1024;
 
         public override void Prepare()
         {
@@ -51,7 +59,7 @@ namespace ONI_Together.Networking.Transport.Steam
             var identity = new SteamNetworkingIdentity();
             identity.SetSteamID64(hostSteamId);
 
-            var options = new SteamNetworkingConfigValue_t[2];
+            var options = new SteamNetworkingConfigValue_t[5];
             options[0].m_eValue = ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_TimeoutInitial;
             options[0].m_eDataType = ESteamNetworkingConfigDataType.k_ESteamNetworkingConfig_Int32;
             options[0].m_val.m_int32 = Configuration.Instance.Client.TimeoutSeconds * 1000;
@@ -59,6 +67,18 @@ namespace ONI_Together.Networking.Transport.Steam
             options[1].m_eValue = ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_TimeoutConnected;
             options[1].m_eDataType = ESteamNetworkingConfigDataType.k_ESteamNetworkingConfig_Int32;
             options[1].m_val.m_int32 = Configuration.Instance.Client.TimeoutSeconds * 1000;
+
+            options[2].m_eValue = ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_SendBufferSize;
+            options[2].m_eDataType = ESteamNetworkingConfigDataType.k_ESteamNetworkingConfig_Int32;
+            options[2].m_val.m_int32 = STEAM_SEND_BUFFER_BYTES;
+
+            options[3].m_eValue = ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_SendRateMin;
+            options[3].m_eDataType = ESteamNetworkingConfigDataType.k_ESteamNetworkingConfig_Int32;
+            options[3].m_val.m_int32 = STEAM_SEND_RATE_MIN;
+
+            options[4].m_eValue = ESteamNetworkingConfigValue.k_ESteamNetworkingConfig_SendRateMax;
+            options[4].m_eDataType = ESteamNetworkingConfigDataType.k_ESteamNetworkingConfig_Int32;
+            options[4].m_val.m_int32 = STEAM_SEND_RATE_MAX;
 
             Connection = SteamNetworkingSockets.ConnectP2P(ref identity, 0, options.Length, options);
             DebugConsole.Log($"[GameClient] ConnectP2P returned handle: {Connection.Value.m_HSteamNetConnection}");
@@ -120,7 +140,12 @@ namespace ONI_Together.Networking.Transport.Steam
             using var _ = Profiler.Scope();
 
             SteamNetworkingSockets.RunCallbacks();
-            EvaluateConnectionHealth();
+            float now = Time.unscaledTime;
+            if (now - _lastHealthEvalTime >= HEALTH_EVAL_INTERVAL)
+            {
+                _lastHealthEvalTime = now;
+                EvaluateConnectionHealth();
+            }
         }
 
         public override void OnMessageRecieved()
@@ -129,8 +154,6 @@ namespace ONI_Together.Networking.Transport.Steam
 
             if (Connection.HasValue)
                 ProcessIncomingMessages(Connection.Value);
-            //else
-            //    DebugConsole.LogWarning($"[GameClient] Poll() - Connection is null! State: {State}");
         }
 
         private static void ProcessIncomingMessages(HSteamNetConnection conn)
@@ -139,36 +162,54 @@ namespace ONI_Together.Networking.Transport.Steam
 
             var scope = Profiler.Scope();
             int totalBytes = 0;
+            int totalMessages = 0;
 
-            int maxMessagesPerConnectionPoll = Configuration.GetClientProperty<int>("MaxMessagesPerPoll");
-            IntPtr[] messages = new IntPtr[maxMessagesPerConnectionPoll];
-            int msgCount = SteamNetworkingSockets.ReceiveMessagesOnConnection(conn, messages, maxMessagesPerConnectionPoll);
+            int configuredBatch = Configuration.Instance?.Client?.MaxMessagesPerPoll ?? 256;
+            int batchSize = Math.Max(configuredBatch, 128);
+            if (_receiveBuffer.Length < batchSize)
+                _receiveBuffer = new IntPtr[batchSize];
 
-            //if (msgCount > 0)
-            //{
-            //	DebugConsole.Log($"[GameClient] ProcessIncomingMessages() - Received {msgCount} messages");
-            //}
+            long startTicks = System.Diagnostics.Stopwatch.GetTimestamp();
+            double ticksToMs = 1000.0 / System.Diagnostics.Stopwatch.Frequency;
 
-            for (int i = 0; i < msgCount; i++)
+            while (totalMessages < MAX_MESSAGES_PER_FRAME)
             {
-                var msg = Marshal.PtrToStructure<SteamNetworkingMessage_t>(messages[i]);
-                totalBytes += msg.m_cbSize;
-                byte[] data = new byte[msg.m_cbSize];
-                Marshal.Copy(msg.m_pData, data, 0, msg.m_cbSize);
+                int remaining = MAX_MESSAGES_PER_FRAME - totalMessages;
+                int toReceive = Math.Min(batchSize, remaining);
+                int msgCount = SteamNetworkingSockets.ReceiveMessagesOnConnection(conn, _receiveBuffer, toReceive);
+                if (msgCount <= 0)
+                    break;
 
-                try
+                for (int i = 0; i < msgCount; i++)
                 {
-                    //DebugConsole.Log($"[GameClient] Processing packet {i+1}/{msgCount}, size: {msg.m_cbSize} bytes, readyToProcess: {PacketHandler.readyToProcess}");
-                    PacketHandler.HandleIncoming(data);
-                }
-                catch (Exception ex)
-                {
-                    DebugConsole.LogWarning($"[GameClient] Failed to handle incoming packet: {ex}"); // Prevent crashes from packet handling
+                    var msg = Marshal.PtrToStructure<SteamNetworkingMessage_t>(_receiveBuffer[i]);
+                    totalBytes += msg.m_cbSize;
+                    byte[] data = new byte[msg.m_cbSize];
+                    Marshal.Copy(msg.m_pData, data, 0, msg.m_cbSize);
+
+                    try
+                    {
+                        PacketHandler.HandleIncoming(data);
+                    }
+                    catch (Exception ex)
+                    {
+                        DebugConsole.LogWarning($"[GameClient] Failed to handle incoming packet: {ex}");
+                    }
+
+                    SteamNetworkingMessage_t.Release(_receiveBuffer[i]);
                 }
 
-                SteamNetworkingMessage_t.Release(messages[i]);
+                totalMessages += msgCount;
+
+                if (msgCount < toReceive)
+                    break;
+
+                double elapsedMs = (System.Diagnostics.Stopwatch.GetTimestamp() - startTicks) * ticksToMs;
+                if (elapsedMs >= MAX_POLL_MS_PER_FRAME)
+                    break;
             }
-            scope.End(msgCount, totalBytes);
+
+            scope.End(totalMessages, totalBytes);
         }
 
         private static void OnConnectionStatusChanged(SteamNetConnectionStatusChangedCallback_t data)

@@ -44,6 +44,31 @@ namespace ONI_Together.Patches.Navigation
 		}
 	}
 
+	[HarmonyPatch(typeof(Navigator), nameof(Navigator.SimEveryTick))]
+	public static class Navigator_SimEveryTick_Patch
+	{
+		static bool Prefix(Navigator __instance)
+		{
+			if (!MultiplayerSession.InActiveSession || MultiplayerSession.IsHost)
+				return true;
+
+			return !__instance.TryGetComponent<NetworkIdentity>(out _);
+		}
+	}
+
+	[HarmonyPatch(typeof(GravityComponents), nameof(GravityComponents.Add))]
+	public static class GravityComponents_Add_Patch
+	{
+		static bool Prefix(UnityEngine.GameObject go)
+		{
+			if (!MultiplayerSession.InActiveSession || MultiplayerSession.IsHost || go == null)
+				return true;
+
+			// Prevent local client gravity from fighting host-synced entity transforms
+			return !go.TryGetComponent<ONI_Together.Networking.OxySync.Components.OxySyncEntityPositionHandler>(out _);
+		}
+	}
+
 	/*
 
 	[HarmonyPatch(typeof(Navigator), nameof(Navigator.BeginTransition))]

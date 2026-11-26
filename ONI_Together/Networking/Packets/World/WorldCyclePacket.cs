@@ -41,7 +41,7 @@ namespace ONI_Together.Networking.Packets.World
 				float clientTime = GameClock.Instance.GetTime();
 				float diff = hostTotalTime - clientTime;
 
-				if (UnityEngine.Mathf.Abs(diff) > 1.5f || GameClock.Instance.GetCycle() != Cycle)
+				if (UnityEngine.Mathf.Abs(diff) > 1.0f || GameClock.Instance.GetCycle() != Cycle)
 				{
 					GameClockPatch.allowAddTimeForSetTime = true;
 					GameClock.Instance.SetTime(hostTotalTime);
@@ -49,7 +49,7 @@ namespace ONI_Together.Networking.Packets.World
 				}
 				else if (UnityEngine.Mathf.Abs(diff) > 0.05f)
 				{
-					float correctedTime = UnityEngine.Mathf.Lerp(clientTime, hostTotalTime, 0.25f);
+					float correctedTime = UnityEngine.Mathf.Lerp(clientTime, hostTotalTime, 0.5f);
 					GameClockPatch.allowAddTimeForSetTime = true;
 					GameClock.Instance.SetTime(correctedTime);
 					GameClockPatch.allowAddTimeForSetTime = false;

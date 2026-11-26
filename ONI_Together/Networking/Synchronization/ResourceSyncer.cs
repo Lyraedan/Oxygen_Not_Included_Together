@@ -23,6 +23,7 @@ namespace ONI_Together.Networking.Synchronization
 		private const float SEND_INTERVAL = 2f;
 		private const float FULL_RESEND_INTERVAL = 30f;
 		private const float CHANGE_EPSILON = 0.01f;
+		private static readonly int KcalSyncTagHash = "ONI_TOGETHER_WORLD_KCAL".GetHashCode();
 
 		public struct Amounts
 		{
@@ -32,6 +33,8 @@ namespace ONI_Together.Networking.Synchronization
 
 		// client: worldId -> tag hash -> amounts, as last reported by the host
 		private static readonly Dictionary<int, Dictionary<int, Amounts>> _hostCounts = new();
+		// client: worldId -> total & reachable colony kcal, as last reported by the host
+		private static readonly Dictionary<int, Amounts> _hostKcal = new();
 
 		// host: worldId -> what was last sent, so an unchanged world is skipped
 		private readonly Dictionary<int, Dictionary<int, Amounts>> _lastSent = new();
@@ -42,11 +45,17 @@ namespace ONI_Together.Networking.Synchronization
 		public static void ClearClientCounts()
 		{
 			_hostCounts.Clear();
+			_hostKcal.Clear();
 		}
 
 		public static bool TryGetHostCounts(int worldId, out Dictionary<int, Amounts> counts)
 		{
 			return _hostCounts.TryGetValue(worldId, out counts);
+		}
+
+		public static bool TryGetHostKcal(int worldId, out Amounts kcal)
+		{
+			return _hostKcal.TryGetValue(worldId, out kcal);
 		}
 
 		public static void ApplyHostCounts(int worldId, int[] tagHashes, float[] available, float[] total)
@@ -55,7 +64,14 @@ namespace ONI_Together.Networking.Synchronization
 
 			var counts = new Dictionary<int, Amounts>(tagHashes.Length);
 			for (int i = 0; i < tagHashes.Length; i++)
+			{
+				if (tagHashes[i] == KcalSyncTagHash)
+				{
+					_hostKcal[worldId] = new Amounts { Available = available[i], Total = total[i] };
+					continue;
+				}
 				counts[tagHashes[i]] = new Amounts { Available = available[i], Total = total[i] };
+			}
 			_hostCounts[worldId] = counts;
 
 			DiscoverReported(counts);
@@ -136,10 +152,10 @@ namespace ONI_Together.Networking.Synchronization
 				_lastSent[worldId] = last;
 			}
 
-			var hashes = new List<int>(accessible.Count);
-			var available = new List<float>(accessible.Count);
-			var total = new List<float>(accessible.Count);
-			bool changed = last.Count != accessible.Count;
+			var hashes = new List<int>(accessible.Count + 1);
+			var available = new List<float>(accessible.Count + 1);
+			var total = new List<float>(accessible.Count + 1);
+			bool changed = last.Count != accessible.Count + 1;
 
 			foreach (var kvp in accessible)
 			{
@@ -157,6 +173,19 @@ namespace ONI_Together.Networking.Synchronization
 					 Mathf.Abs(previous.Total - totalNow) > CHANGE_EPSILON))
 					changed = true;
 			}
+
+			// Append colony total & reachable calories (kcal) for this world so the client HUD stays in sync
+			var rationTracker = RationTracker.Get();
+			float kcalAvailable = rationTracker != null ? rationTracker.CountAmount(null, inventory, true) : 0f;
+			float kcalTotal = rationTracker != null ? rationTracker.CountAmount(null, inventory, false) : 0f;
+			hashes.Add(KcalSyncTagHash);
+			available.Add(kcalAvailable);
+			total.Add(kcalTotal);
+			if (!changed &&
+				(!last.TryGetValue(KcalSyncTagHash, out var prevKcal) ||
+				 Mathf.Abs(prevKcal.Available - kcalAvailable) > 1f ||
+				 Mathf.Abs(prevKcal.Total - kcalTotal) > 1f))
+				changed = true;
 
 			if (!changed) return;
 
@@ -227,6 +256,35 @@ namespace ONI_Together.Networking.Synchronization
 			foreach (var kvp in counts)
 				reported[new Tag(kvp.Key)] = kvp.Value.Total;
 			__result = reported;
+		}
+	}
+
+	/// <summary>
+	/// Overrides the client's RationTracker calorie total with the host's authoritative kcal
+	/// so the top-left colony calories HUD always matches the host.
+	/// </summary>
+	[HarmonyPatch(typeof(WorldResourceAmountTracker<RationTracker>), nameof(WorldResourceAmountTracker<RationTracker>.CountAmount),
+		new[] { typeof(Dictionary<string, float>), typeof(WorldInventory), typeof(bool) })]
+	public static class RationTrackerCountAmountPatch
+	{
+		public static void Postfix(WorldInventory inventory, bool excludeUnreachable, ref float __result)
+		{
+			if (!MultiplayerSession.InActiveSession || MultiplayerSession.IsHost || inventory == null) return;
+			if (!ResourceSyncer.TryGetHostKcal(inventory.worldId, out var kcal)) return;
+			__result = excludeUnreachable ? kcal.Available : kcal.Total;
+		}
+	}
+
+	[HarmonyPatch(typeof(WorldResourceAmountTracker<RationTracker>), nameof(WorldResourceAmountTracker<RationTracker>.CountAmount),
+		new[] { typeof(Dictionary<string, float>), typeof(float), typeof(WorldInventory), typeof(bool) },
+		new[] { ArgumentType.Normal, ArgumentType.Out, ArgumentType.Normal, ArgumentType.Normal })]
+	public static class RationTrackerCountAmountOutPatch
+	{
+		public static void Postfix(WorldInventory inventory, bool excludeUnreachable, ref float __result)
+		{
+			if (!MultiplayerSession.InActiveSession || MultiplayerSession.IsHost || inventory == null) return;
+			if (!ResourceSyncer.TryGetHostKcal(inventory.worldId, out var kcal)) return;
+			__result = excludeUnreachable ? kcal.Available : kcal.Total;
 		}
 	}
 }

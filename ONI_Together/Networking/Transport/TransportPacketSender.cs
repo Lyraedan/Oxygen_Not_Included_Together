@@ -37,7 +37,7 @@ namespace ONI_Together.Networking.Transport
 				&& (sendType & PacketSendMode.NoDelay) != 0;
 		}
 
-        public void Flush()
+        public virtual void Flush()
         {
             if (!Configuration.Instance.EnablePacketQueue)
                 return;

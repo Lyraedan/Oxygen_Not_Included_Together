@@ -340,14 +340,12 @@ namespace ONI_Together.Networking.Components
 			using var _ = Profiler.Scope();
 
 			var sw = Stopwatch.StartNew();
-			int bytes = 0;
-			try { bytes = packet.SerializeToByteArray().Length; } catch { }
 			foreach (var recipient in _visibleRecipients)
 				PacketSender.SendToPlayer(recipient, packet, PacketSendMode.Unreliable);
 
 			_syncStates[syncer].LastSentTime = now;
 			sw.Stop();
-			SyncStats.RecordSync(SyncStats.AnimSync, _visibleRecipients.Count, bytes, (float)sw.Elapsed.TotalMilliseconds);
+			SyncStats.RecordSync(SyncStats.AnimSync, _visibleRecipients.Count, _visibleRecipients.Count * 48, (float)sw.Elapsed.TotalMilliseconds);
 		}
 
 		private bool ShouldBackOffForSteamQueue()

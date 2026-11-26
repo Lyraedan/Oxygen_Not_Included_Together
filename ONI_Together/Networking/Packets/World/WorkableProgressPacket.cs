@@ -213,7 +213,7 @@ namespace ONI_Together.Networking.Packets.World
 					yield break;
 			}
 
-			DebugConsole.LogWarning($"[WorkableProgressPacket] Failed to resolve target {packet.TargetNetId} ({packet.TargetTypeName})");
+			// Target finished or removed before retries completed; avoid spamming Player.log.
 		}
 	}
 }

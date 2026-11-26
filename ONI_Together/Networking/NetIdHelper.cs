@@ -44,7 +44,6 @@ namespace ONI_Together.Networking
 				breakoff++;
 			}
 			hash += breakoff;
-			DebugConsole.Log($"Registered workable {go.PrefabID().ToString()} with id: {hash} for workable type {workable.GetType().Name} at cell {cell}");
 			return hash;
 		}
 

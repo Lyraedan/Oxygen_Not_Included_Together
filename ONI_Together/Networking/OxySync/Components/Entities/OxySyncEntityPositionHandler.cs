@@ -29,13 +29,25 @@ namespace ONI_Together.Networking.OxySync.Components
         private float _lastHeartbeatTime;
         private Vector3 _lastPosition;
 
+        private bool _isMinion;
+
         public override void OnSpawn()
         {
+            _isMinion = TryGetComponent<MinionIdentity>(out _);
+            if (_isMinion)
+                InterestGroup = -1; // Always broadcast duplicant transforms so chunk-edge dropouts never trigger 0.5s resync teleports
             base.OnSpawn();
             syncRotation = false;
             syncScale = false;
             useSnapshotInterpolation = true;
+            updateMethod = UpdateMethod.LateUpdate;
+            if (_isMinion)
+            {
+                SyncInterval = 0.033f; // 30 Hz for duplicants
+                InterestGroup = -1;
+            }
             _lastHeartbeatTime = Time.unscaledTime;
+            _lastSyncReceivedTime = Time.unscaledTime;
             _lastPosition = transform.position;
         }
 
@@ -107,7 +119,14 @@ namespace ONI_Together.Networking.OxySync.Components
         [TargetRpc]
         private void TargetRpcReceiveFullState(Vector3 position, bool flipX, bool flipY, NavType navType)
         {
-            // Clients can not set sync vars, just teleport the dupe
+            // Keep cached sync fields and snapshot buffer in sync so ClientUpdate
+            // does not snap the entity right back to the stale pre-resync position.
+            _netPosition = position;
+            _netFlipX = flipX;
+            _netFlipY = flipY;
+            _netNavType = navType;
+            ResetSnapshots(position, _netRotation, _netScale);
+
             transform.SetPosition(position);
             if (kbac != null)
             {

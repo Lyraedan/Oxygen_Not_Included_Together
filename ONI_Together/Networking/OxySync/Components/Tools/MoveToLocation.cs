@@ -21,10 +21,14 @@ namespace ONI_Together.Networking.OxySync.Components.Tools
             }
 
             var go = tool.targetNavigator?.gameObject ?? tool.targetMovable?.gameObject;
-            if (go != null && go.TryGetComponent<NetworkIdentity>(out var identity))
+            if (go != null)
             {
-                netId = identity.NetId;
-                return true;
+                var identity = go.GetNetIdentity();
+                if (identity != null && identity.NetId != 0)
+                {
+                    netId = identity.NetId;
+                    return true;
+                }
             }
 
             return false;
@@ -63,9 +67,12 @@ namespace ONI_Together.Networking.OxySync.Components.Tools
 
         public override void OnSpawn()
         {
+            // Set NetId and InterestGroup BEFORE base.OnSpawn() so OxySyncManager registers
+            // this behaviour under the deterministic NetId instead of 0.
+            NetId = nameof(MoveToLocationToolSyncer).GetHashCode();
+            InterestGroup = -1;
             base.OnSpawn();
             Instance = this;
-            InterestGroup = -1;
         }
 
         public override void OnCleanUp()

@@ -220,17 +220,6 @@ namespace ONI_Together.Networking
 				return true;
 			}
 
-			var tracker = NetIdActivityTracker.Instance;
-			if (tracker != null)
-			{
-				int netId = NetIdActivityTracker.GetNetIdFromPacket(packet);
-				if (netId > 0)
-				{
-					byte[] serialized = SerializePacketForSending(packet);
-					tracker.RecordActivity(netId, serialized.Length);
-				}
-			}
-
 			return NetworkConfig.TransportPacketSender.SendToConnection(conn, packet, sendType);
 		}
 

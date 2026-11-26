@@ -50,10 +50,9 @@ namespace ONI_Together.Networking.Synchronization
 				// VitalStatsPacket is idempotent set-last-value, next tick resyncs if dropped.
 				var sw = Stopwatch.StartNew();
 				var packet = new VitalStatsPacket(_identity.NetId, _amounts, _element);
-				var bytes = packet.SerializeToByteArray();
 				PacketSender.SendToAllClients(packet, PacketSendMode.Unreliable);
 				sw.Stop();
-				SyncStats.RecordSync(SyncStats.VitalStats, 1, bytes.Length, (float)sw.Elapsed.TotalMilliseconds);
+				SyncStats.RecordSync(SyncStats.VitalStats, 1, 64, (float)sw.Elapsed.TotalMilliseconds);
 			}
 			catch (Exception ex)
 			{

@@ -11,10 +11,16 @@ namespace ONI_Together.Misc.World
 	public static class WorldUpdateBatcher
 	{
 		private static readonly List<WorldUpdatePacket.CellUpdate> pendingUpdates = new List<WorldUpdatePacket.CellUpdate>();
+		private static readonly List<WorldUpdatePacket.CellUpdate> pendingReliableUpdates = new List<WorldUpdatePacket.CellUpdate>();
 		private static float flushTimer = 0f;
 		private const float FlushInterval = 10f; // Seconds
 
-		public static void Queue(WorldUpdatePacket.CellUpdate update)
+		// Conservative per-packet caps so Deflate-compressed UDP unreliable payloads stay under Steam MTU (~1200B)
+		private const int MAX_UNRELIABLE_UPDATES_STEAM = 60;
+		private const int MAX_UNRELIABLE_UPDATES_LAN = 32;
+		private const int MAX_RELIABLE_UPDATES_PER_PACKET = 128;
+
+		public static void Queue(WorldUpdatePacket.CellUpdate update, bool reliable = false)
 		{
 			using var _ = Profiler.Scope();
 
@@ -26,7 +32,10 @@ namespace ONI_Together.Misc.World
 
 			lock (pendingUpdates)
 			{
-				pendingUpdates.Add(update);
+				if (reliable)
+					pendingReliableUpdates.Add(update);
+				else
+					pendingUpdates.Add(update);
 			}
 		}
 
@@ -57,62 +66,45 @@ namespace ONI_Together.Misc.World
             }
 
             bool isLan = NetworkConfig.IsLanConfig();
-            bool isSteam = NetworkConfig.IsSteamConfig();
-
-            // Max packet sizes (bytes)
-            float maxPacketSize =
-                isLan ? PacketSender.MAX_PACKET_SIZE_LAN * 1024 :
-                isSteam ? PacketSender.MAX_PACKET_SIZE_UNRELIABLE :
-                1024; // fallback
-
-            const int PacketHeaderSize = 4;
-            const float BytesPerUpdate = 5.38f; // Measured compressed size, this is a rough estimate
+            int maxUnreliablePerPacket = isLan ? MAX_UNRELIABLE_UPDATES_LAN : MAX_UNRELIABLE_UPDATES_STEAM;
+            int maxReliablePerPacket = isLan ? MAX_UNRELIABLE_UPDATES_LAN : MAX_RELIABLE_UPDATES_PER_PACKET;
+            const float EstimatedBytesPerUpdate = 12f;
 
             lock (pendingUpdates)
             {
-                if (pendingUpdates.Count == 0)
+                int totalUpdates = pendingUpdates.Count + pendingReliableUpdates.Count;
+                if (totalUpdates == 0)
                     return 0;
 
-                int totalUpdates = pendingUpdates.Count;
-
-                List<WorldUpdatePacket.CellUpdate> currentBatch = new List<WorldUpdatePacket.CellUpdate>();
-                float currentSize = PacketHeaderSize;
-
-                for (int i = 0; i < pendingUpdates.Count; i++)
+                // 1. Flush critical element-change updates reliably so dug tiles / phase changes never desync
+                if (pendingReliableUpdates.Count > 0)
                 {
-                    var update = pendingUpdates[i];
-
-                    // If adding this update would exceed packet size -> flush current batch
-                    if (currentSize + BytesPerUpdate > maxPacketSize)
+                    for (int i = 0; i < pendingReliableUpdates.Count; i += maxReliablePerPacket)
                     {
-                        if (currentBatch.Count > 0)
-                        {
-                            var packet = new WorldUpdatePacket();
-                            packet.Updates.AddRange(currentBatch);
-
-                            PacketSender.SendToAllClients(packet, sendType: PacketSendMode.Unreliable);
-
-                            currentBatch.Clear();
-                            currentSize = PacketHeaderSize;
-                        }
+                        int count = Math.Min(maxReliablePerPacket, pendingReliableUpdates.Count - i);
+                        var packet = new WorldUpdatePacket();
+                        for (int j = 0; j < count; j++)
+                            packet.Updates.Add(pendingReliableUpdates[i + j]);
+                        PacketSender.SendToAllClients(packet, sendType: PacketSendMode.Reliable);
                     }
-
-                    currentBatch.Add(update);
-                    currentSize += BytesPerUpdate;
+                    pendingReliableUpdates.Clear();
                 }
 
-                // Flush remaining
-                if (currentBatch.Count > 0)
+                // 2. Flush mass/temperature drift updates unreliably in MTU-safe batches
+                if (pendingUpdates.Count > 0)
                 {
-                    var packet = new WorldUpdatePacket();
-                    packet.Updates.AddRange(currentBatch);
-
-                    PacketSender.SendToAllClients(packet, sendType: PacketSendMode.Unreliable);
+                    for (int i = 0; i < pendingUpdates.Count; i += maxUnreliablePerPacket)
+                    {
+                        int count = Math.Min(maxUnreliablePerPacket, pendingUpdates.Count - i);
+                        var packet = new WorldUpdatePacket();
+                        for (int j = 0; j < count; j++)
+                            packet.Updates.Add(pendingUpdates[i + j]);
+                        PacketSender.SendToAllClients(packet, sendType: PacketSendMode.Unreliable);
+                    }
+                    pendingUpdates.Clear();
                 }
 
-                pendingUpdates.Clear();
-
-                return (int)(totalUpdates * BytesPerUpdate);
+                return (int)(totalUpdates * EstimatedBytesPerUpdate);
             }
         }
 
