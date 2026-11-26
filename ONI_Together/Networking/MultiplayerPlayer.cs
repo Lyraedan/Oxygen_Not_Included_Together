@@ -15,12 +15,13 @@ public class MultiplayerPlayer
 	public bool IsConnected => Connection != null;
 	public bool ProtocolVerified { get; set; }
 
-	public ClientReadyState readyState = ClientReadyState.Ready;
+	public ClientReadyState readyState = ClientReadyState.Unready;
 
     public MultiplayerPlayer(ulong playerId)
 	{
 		PlayerId = playerId;
 		ProtocolVerified = IsLocal;
+		readyState = IsLocal ? ClientReadyState.Ready : ClientReadyState.Unready;
 		if(NetworkConfig.IsLanConfig())
 		{
             PlayerName = $"Player {playerId}";

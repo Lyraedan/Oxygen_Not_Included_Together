@@ -1,6 +1,7 @@
 using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Packets.Architecture;
+using ONI_Together.Networking.Packets.World;
 using ONI_Together.Networking.States;
 using ONI_Together.Networking.Transport.Lan;
 using ONI_Together.Networking.OxySync.Components;
@@ -92,8 +93,11 @@ namespace ONI_Together.Networking.Packets.Core
 
 			if (Status == ClientReadyState.Loading)
 			{
+				ReadyManager.SetPlayerReadyState(player, ClientReadyState.Loading);
 				var server = NetworkConfig.TransportServer as LiteNetLibServer;
-				server?.MarkClientLoading(SenderId);
+				server?.MarkClientLoading(SenderId, player.PlayerName);
+				ReadyManager.RefreshScreen();
+				ReadyManager.SendStatusUpdatePacketToClients();
 				return;
 			}
 
@@ -103,13 +107,22 @@ namespace ONI_Together.Networking.Packets.Core
 				player.PlayerName = PlayerName;
 			}
 
-            ReadyManager.SetPlayerReadyState(player, Status);
+			ReadyManager.SetPlayerReadyState(player, Status);
 			DebugConsole.Log($"[ClientReadyStatusPacket] {SenderId} marked as {Status}");
+
+			bool consumedLoadingReconnect = false;
+			if (Status == ClientReadyState.Ready)
+			{
+				SyncProgressPacket.RemoveClientProgress(SenderId, closeOverlay: false);
+				var lnlServer = NetworkConfig.TransportServer as LiteNetLibServer;
+				if (lnlServer != null)
+					consumedLoadingReconnect = lnlServer.ConsumeReconnectFromLoad(SenderId, player.PlayerName);
+			}
 
 			if (NetworkConfig.IsLanConfig() && nameChanged)
 			{
 				var server = NetworkConfig.TransportServer as LiteNetLibServer;
-				bool isLoadingReconnect = server != null && server.ConsumeReconnectFromLoad(SenderId);
+				bool isLoadingReconnect = consumedLoadingReconnect || (server != null && server.ConsumeReconnectFromLoad(SenderId, player.PlayerName));
 
 				if (!isLoadingReconnect)
 				{
@@ -130,9 +143,12 @@ namespace ONI_Together.Networking.Packets.Core
 				});
 			}
 
-			ReadyManager.RefreshScreen();
 			bool allReady = ReadyManager.IsEveryoneReady();
-            DebugConsole.Log($"[ClientReadyStatusPacket] Is everyone ready? {allReady}");
+			DebugConsole.Log($"[ClientReadyStatusPacket] Is everyone ready? {allReady}");
+			if (!allReady)
+			{
+				ReadyManager.RefreshScreen();
+			}
 			ReadyManager.RefreshReadyState();
 		}
 	}

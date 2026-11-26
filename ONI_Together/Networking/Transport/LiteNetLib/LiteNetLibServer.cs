@@ -36,8 +36,99 @@ namespace ONI_Together.Networking.Transport.Lan
         public int ConnectedClientCount => _server != null ? _server.ConnectedPeersCount : 0;
         public TcpFileTransferServer TcpTransfer => _tcpTransfer;
 
-        public void MarkClientLoading(ulong clientId) { }
-        public bool ConsumeReconnectFromLoad(ulong clientId) { return false; }
+        private const float LOADING_CLIENT_TIMEOUT_SECONDS = 180f;
+
+        private struct LoadingClientEntry
+        {
+            public ulong ClientId;
+            public string PlayerName;
+            public float MarkedAt;
+        }
+
+        private readonly List<LoadingClientEntry> _loadingClients = new List<LoadingClientEntry>();
+
+        public void MarkClientLoading(ulong clientId, string playerName = null)
+        {
+            string resolvedName = !string.IsNullOrEmpty(playerName)
+                ? playerName
+                : (MultiplayerSession.ConnectedPlayers.TryGetValue(clientId, out var p) ? p.PlayerName : $"Player {clientId}");
+
+            float now = Time.realtimeSinceStartup;
+            for (int i = 0; i < _loadingClients.Count; i++)
+            {
+                if (_loadingClients[i].ClientId == clientId ||
+                    (!string.IsNullOrEmpty(resolvedName) && _loadingClients[i].PlayerName == resolvedName))
+                {
+                    _loadingClients[i] = new LoadingClientEntry
+                    {
+                        ClientId = clientId,
+                        PlayerName = resolvedName,
+                        MarkedAt = now
+                    };
+                    return;
+                }
+            }
+
+            _loadingClients.Add(new LoadingClientEntry
+            {
+                ClientId = clientId,
+                PlayerName = resolvedName,
+                MarkedAt = now
+            });
+        }
+
+        public bool ConsumeReconnectFromLoad(ulong clientId, string playerName = null)
+        {
+            for (int i = 0; i < _loadingClients.Count; i++)
+            {
+                if (_loadingClients[i].ClientId == clientId ||
+                    (!string.IsNullOrEmpty(playerName) && _loadingClients[i].PlayerName == playerName))
+                {
+                    _loadingClients.RemoveAt(i);
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public bool HasPendingLoadingClients()
+        {
+            PruneExpiredLoadingClients(Time.realtimeSinceStartup, notifyReadyManager: false);
+            return _loadingClients.Count > 0;
+        }
+
+        public List<string> GetPendingLoadingClientNames()
+        {
+            PruneExpiredLoadingClients(Time.realtimeSinceStartup, notifyReadyManager: false);
+            var names = new List<string>(_loadingClients.Count);
+            foreach (var entry in _loadingClients)
+            {
+                if (!MultiplayerSession.ConnectedPlayers.ContainsKey(entry.ClientId))
+                {
+                    names.Add(entry.PlayerName);
+                }
+            }
+            return names;
+        }
+
+        private void PruneExpiredLoadingClients(float now, bool notifyReadyManager)
+        {
+            bool removedAny = false;
+            for (int i = _loadingClients.Count - 1; i >= 0; i--)
+            {
+                if (now - _loadingClients[i].MarkedAt > LOADING_CLIENT_TIMEOUT_SECONDS)
+                {
+                    DebugConsole.LogWarning($"[LiteNetLibServer] Timed out waiting for loading client '{_loadingClients[i].PlayerName}' to reconnect.");
+                    _loadingClients.RemoveAt(i);
+                    removedAny = true;
+                }
+            }
+
+            if (removedAny && notifyReadyManager)
+            {
+                ReadyManager.RefreshReadyState();
+            }
+        }
 
         public List<ulong> ClientList { get; internal set; } = new List<ulong>();
 
@@ -271,6 +362,7 @@ namespace ONI_Together.Networking.Transport.Lan
             _peersByClientId.Clear();
             _clientIdByPeerId.Clear();
             ClientList.Clear();
+            _loadingClients.Clear();
 
             while (_incomingPackets.TryDequeue(out var _)) { }
 
@@ -292,6 +384,7 @@ namespace ONI_Together.Networking.Transport.Lan
             _peersByClientId.Clear();
             _clientIdByPeerId.Clear();
             ClientList.Clear();
+            _loadingClients.Clear();
             ClientList.Add(1);
         }
 
@@ -348,6 +441,8 @@ namespace ONI_Together.Networking.Transport.Lan
             float dt = now - _srvLastBwPollTime;
             if (dt < 1f)
                 return;
+
+            PruneExpiredLoadingClients(now, notifyReadyManager: true);
 
             long totalBytesIn = _server.Statistics.BytesReceived;
             long totalBytesOut = _server.Statistics.BytesSent;

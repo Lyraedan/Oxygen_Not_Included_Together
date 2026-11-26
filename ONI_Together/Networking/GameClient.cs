@@ -339,14 +339,14 @@ namespace ONI_Together.Networking
 				}
 
 				Game.Instance?.Trigger(MP_HASHES.GameClient_OnConnectedInGame);
-                ReadyManager.SendReadyStatusPacket(ClientReadyState.Ready);
+				ReadyManager.SendReadyStatusPacket(ClientReadyState.Ready);
 				MultiplayerSession.CreateConnectedPlayerCursors();
 
 				//CursorManager.Instance.AssignColor();
 				SelectToolPatch.UpdateColor();
 
-				// Fechar overlay se reconectou com sucesso
-				MultiplayerOverlay.Close();
+				// Keep the connecting/waiting overlay open until the host confirms
+				// everyone is ready via AllClientsReadyPacket.
 
 				// Reset reconnect state on successful connection
 				ResetReconnectState();
@@ -482,15 +482,15 @@ namespace ONI_Together.Networking
                     var hostId = _cachedConnectionInfo.Value.HostSteamID;
                     _cachedConnectionInfo = null; // Clear cache to prevent re-triggering
                     MultiplayerSession.HostUserID = hostId;
-                    ConnectToHost(false);
+                    ConnectToHost(true);
                 }
 				else if(NetworkConfig.IsLanConfig())
 				{
-                    DebugConsole.Log($"[GameClient] Reconnecting to cached server: {_cachedConnectionInfo.Value.ServerPort}:{_cachedConnectionInfo.Value.ServerPort}");
+                    DebugConsole.Log($"[GameClient] Reconnecting to cached server: {_cachedConnectionInfo.Value.ServerIp}:{_cachedConnectionInfo.Value.ServerPort}");
                     var ip = _cachedConnectionInfo.Value.ServerIp;
                     var port = _cachedConnectionInfo.Value.ServerPort;
                     _cachedConnectionInfo = null; // Clear cache to prevent re-triggering
-                    ConnectToHost(false, ip, port);
+                    ConnectToHost(true, ip, port);
                 }
 			}
 		}

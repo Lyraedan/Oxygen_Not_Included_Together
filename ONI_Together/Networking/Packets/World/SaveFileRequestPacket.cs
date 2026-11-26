@@ -40,6 +40,12 @@ namespace ONI_Together.Networking.Packets.World
 				return;
 
 			DebugConsole.Log($"[Packets/SaveFileRequest] Received request from {Requester}");
+			if (MultiplayerSession.ConnectedPlayers.TryGetValue(Requester, out var player))
+			{
+				ReadyManager.SetPlayerReadyState(player, Networking.States.ClientReadyState.Loading);
+				if (NetworkConfig.TransportServer is LiteNetLibServer lnlServer)
+					lnlServer.MarkClientLoading(Requester, player.PlayerName);
+			}
 			MultiplayerOverlay.Show(STRINGS.UI.MP_OVERLAY.HOST.SEND_SAVE_FILE);
 			SendSaveFile(Requester);
 		}
