@@ -53,6 +53,7 @@ namespace Shared.OxySync
         private Vector3 _interpolatedScale;
         private bool _hasClockOffset;
         private double _clockOffsetMs;
+        private double _jitterEstimateMs;
         private long _lastHostTimestamp;
         
         public int NetPositionHash { get; private set; }
@@ -108,14 +109,28 @@ namespace Shared.OxySync
 
             long localNow = GetLocalTimeMs();
             double measuredOffset = localNow - hostTimestamp;
-            if (!_hasClockOffset || Math.Abs(measuredOffset - _clockOffsetMs) > 500.0)
+            if (!_hasClockOffset || Math.Abs(measuredOffset - _clockOffsetMs) > 1000.0)
             {
                 _clockOffsetMs = measuredOffset;
+                _jitterEstimateMs = 0.0;
                 _hasClockOffset = true;
             }
             else
             {
-                _clockOffsetMs += (measuredOffset - _clockOffsetMs) * 0.05;
+                // Minimum-envelope clock tracking: fast drop when a packet arrives with lower RTT,
+                // very slow upward drift so Steam P2P latency spikes never shift the playback clock.
+                double delta = measuredOffset - _clockOffsetMs;
+                if (delta < 0.0)
+                {
+                    _clockOffsetMs += delta * 0.25;
+                }
+                else
+                {
+                    _clockOffsetMs += delta * 0.002;
+                    // Track positive arrival jitter to adaptively expand the interpolation buffer.
+                    _jitterEstimateMs = Math.Min(130.0, _jitterEstimateMs + (delta - _jitterEstimateMs) * 0.15);
+                }
+                _jitterEstimateMs *= 0.995;
             }
 
             long adjustedTimestamp = hostTimestamp + (long)_clockOffsetMs;
@@ -307,7 +322,10 @@ namespace Shared.OxySync
                 return;
             }
 
-            long bufferMs = (long)(SyncInterval * bufferTimeMultiplier * 1000);
+            // Minimum 150ms buffer + adaptive jitter margin (up to 280ms) prevents buffer underruns
+            // at 30 Hz (0.033s) when Steam P2P relay jitter spikes.
+            long baseBufferMs = Math.Max(150L, (long)(SyncInterval * bufferTimeMultiplier * 1000));
+            long bufferMs = baseBufferMs + (long)_jitterEstimateMs;
             long playbackTime = now - bufferMs;
 
             int index = -1;

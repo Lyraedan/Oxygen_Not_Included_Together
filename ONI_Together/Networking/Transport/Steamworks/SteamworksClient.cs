@@ -31,8 +31,8 @@ namespace ONI_Together.Networking.Transport.Steam
         private static IntPtr[] _receiveBuffer = new IntPtr[256];
         private static float _lastHealthEvalTime = -1f;
         private const float HEALTH_EVAL_INTERVAL = 0.25f;
-        private const int MAX_MESSAGES_PER_FRAME = 512;
-        private const double MAX_POLL_MS_PER_FRAME = 6.0;
+        private const int MAX_MESSAGES_PER_FRAME = 1024;
+        private const double MAX_POLL_MS_PER_FRAME = 12.0;
         private const int STEAM_SEND_BUFFER_BYTES = 4 * 1024 * 1024;
         private const int STEAM_SEND_RATE_MIN = 512 * 1024;
         private const int STEAM_SEND_RATE_MAX = 4 * 1024 * 1024;

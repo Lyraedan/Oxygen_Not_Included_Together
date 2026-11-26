@@ -93,7 +93,6 @@ namespace ONI_Together.Networking.Packets.Animation
 			if (!StartingToWork)
 			{
 				worker.StopWork();
-				DebugConsole.Log("[StandardWorker_WorkingState_Packet] workable change triggered for " + worker.name + ": stopped working");
 				return true;
 			}
 
@@ -145,7 +144,6 @@ namespace ONI_Together.Networking.Packets.Animation
 				return false;
 			}
 
-			DebugConsole.Log("[StandardWorker_WorkingState_Packet] workable change triggered for " + worker.name + ": Started working on " + workableGO.name);
 			return true;
 		}
 

@@ -73,7 +73,7 @@ namespace ONI_Together.Networking.Packets.Tools.Clear
 				}
 				else
 				{
-					DebugConsole.LogWarning($"[ClearableActionPacket] Target not found (NetId={NetId}, Cell={Cell})");
+					// Target already picked up or cleared locally; ignore without spamming Player.log.
 				}
 			}
 			catch (System.Exception ex)
