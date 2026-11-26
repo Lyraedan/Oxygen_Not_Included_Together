@@ -47,7 +47,7 @@ namespace ONI_Together.Networking.Transport.Lan
 
         private readonly List<LoadingClientEntry> _loadingClients = new List<LoadingClientEntry>();
 
-        public void MarkClientLoading(ulong clientId, string playerName = null)
+        public override void MarkClientLoading(ulong clientId, string playerName = null)
         {
             string resolvedName = !string.IsNullOrEmpty(playerName)
                 ? playerName
@@ -77,7 +77,7 @@ namespace ONI_Together.Networking.Transport.Lan
             });
         }
 
-        public bool ConsumeReconnectFromLoad(ulong clientId, string playerName = null)
+        public override bool ConsumeReconnectFromLoad(ulong clientId, string playerName = null)
         {
             for (int i = 0; i < _loadingClients.Count; i++)
             {
@@ -91,13 +91,13 @@ namespace ONI_Together.Networking.Transport.Lan
             return false;
         }
 
-        public bool HasPendingLoadingClients()
+        public override bool HasPendingLoadingClients()
         {
             PruneExpiredLoadingClients(Time.realtimeSinceStartup, notifyReadyManager: false);
             return _loadingClients.Count > 0;
         }
 
-        public List<string> GetPendingLoadingClientNames()
+        public override List<string> GetPendingLoadingClientNames()
         {
             PruneExpiredLoadingClients(Time.realtimeSinceStartup, notifyReadyManager: false);
             var names = new List<string>(_loadingClients.Count);

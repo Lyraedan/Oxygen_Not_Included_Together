@@ -94,8 +94,7 @@ namespace ONI_Together.Networking.Packets.Core
 			if (Status == ClientReadyState.Loading)
 			{
 				ReadyManager.SetPlayerReadyState(player, ClientReadyState.Loading);
-				var server = NetworkConfig.TransportServer as LiteNetLibServer;
-				server?.MarkClientLoading(SenderId, player.PlayerName);
+				NetworkConfig.TransportServer?.MarkClientLoading(SenderId, player.PlayerName);
 				ReadyManager.RefreshScreen();
 				ReadyManager.SendStatusUpdatePacketToClients();
 				return;
@@ -114,15 +113,14 @@ namespace ONI_Together.Networking.Packets.Core
 			if (Status == ClientReadyState.Ready)
 			{
 				SyncProgressPacket.RemoveClientProgress(SenderId, closeOverlay: false);
-				var lnlServer = NetworkConfig.TransportServer as LiteNetLibServer;
-				if (lnlServer != null)
-					consumedLoadingReconnect = lnlServer.ConsumeReconnectFromLoad(SenderId, player.PlayerName);
+				if (NetworkConfig.TransportServer != null)
+					consumedLoadingReconnect = NetworkConfig.TransportServer.ConsumeReconnectFromLoad(SenderId, player.PlayerName);
 			}
 
 			if (NetworkConfig.IsLanConfig() && nameChanged)
 			{
-				var server = NetworkConfig.TransportServer as LiteNetLibServer;
-				bool isLoadingReconnect = consumedLoadingReconnect || (server != null && server.ConsumeReconnectFromLoad(SenderId, player.PlayerName));
+				bool isLoadingReconnect = consumedLoadingReconnect ||
+					(NetworkConfig.TransportServer != null && NetworkConfig.TransportServer.ConsumeReconnectFromLoad(SenderId, player.PlayerName));
 
 				if (!isLoadingReconnect)
 				{

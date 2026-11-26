@@ -126,14 +126,13 @@ namespace ONI_Together.Networking
 
 		private static System.Collections.Generic.List<string> GetPendingLanLoadingNames()
 		{
-			if (NetworkConfig.TransportServer is LiteNetLibServer lnlServer)
-				return lnlServer.GetPendingLoadingClientNames();
-			return new System.Collections.Generic.List<string>();
+			return NetworkConfig.TransportServer?.GetPendingLoadingClientNames()
+				?? new System.Collections.Generic.List<string>();
 		}
 
 		private static bool HasPendingLanLoadingClients()
 		{
-			return NetworkConfig.TransportServer is LiteNetLibServer lnlServer && lnlServer.HasPendingLoadingClients();
+			return NetworkConfig.TransportServer != null && NetworkConfig.TransportServer.HasPendingLoadingClients();
 		}
 
 		private static int GetReadyCount()

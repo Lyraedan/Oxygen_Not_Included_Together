@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Riptide;
 using Riptide.Utils;
 using ONI_Together.DebugTools;
@@ -21,7 +21,7 @@ namespace ONI_Together.Networking.Transport.Lan
         private static Server _server;
         private static Client _client; // Server client (Other users will use GameClient)
         private TcpFileTransferServer _tcpTransfer;
-        private Dictionary<ulong, float> _loadingClients = new Dictionary<ulong, float>();
+        private Dictionary<ulong, (float markedAt, string playerName)> _loadingClients = new Dictionary<ulong, (float, string)>();
         private List<ulong> _expiredLoadingClients = new List<ulong>();
         private HashSet<ulong> _reconnectedFromLoad = new HashSet<ulong>();
 
@@ -283,6 +283,8 @@ namespace ONI_Together.Networking.Transport.Lan
 
             _server.Stop();
             _server = null;
+            _loadingClients.Clear();
+            _reconnectedFromLoad.Clear();
         }
 
         // The server is shutting down so disconnect everyone
@@ -305,6 +307,8 @@ namespace ONI_Together.Networking.Transport.Lan
 
             // Clear our session player list
             MultiplayerSession.ConnectedPlayers.Clear();
+            _loadingClients.Clear();
+            _reconnectedFromLoad.Clear();
         }
 
         public override void OnMessageRecieved()
@@ -323,10 +327,11 @@ namespace ONI_Together.Networking.Transport.Lan
             if (_loadingClients.Count > 0)
             {
                 float now = UnityEngine.Time.unscaledTime;
+                float timeout = Math.Max(180f, Configuration.Instance.Host.TimeoutSeconds);
                 _expiredLoadingClients.Clear();
                 foreach (var kvp in _loadingClients)
                 {
-                    if (now - kvp.Value > Configuration.Instance.Host.TimeoutSeconds)
+                    if (now - kvp.Value.markedAt > timeout)
                     {
                         _expiredLoadingClients.Add(kvp.Key);
                     }
@@ -335,17 +340,42 @@ namespace ONI_Together.Networking.Transport.Lan
                 {
                     _loadingClients.Remove(id);
                 }
+                if (_expiredLoadingClients.Count > 0)
+                {
+                    ReadyManager.RefreshReadyState();
+                }
             }
         }
 
-        public bool ConsumeReconnectFromLoad(ulong id)
+        public override bool ConsumeReconnectFromLoad(ulong id, string playerName = null)
         {
             return _reconnectedFromLoad.Remove(id);
         }
 
-        public void MarkClientLoading(ulong id)
+        public override void MarkClientLoading(ulong id, string playerName = null)
         {
-            _loadingClients[id] = UnityEngine.Time.unscaledTime;
+            string resolvedName = !string.IsNullOrEmpty(playerName)
+                ? playerName
+                : (MultiplayerSession.ConnectedPlayers.TryGetValue(id, out var p) ? p.PlayerName : $"Player {id}");
+            _loadingClients[id] = (UnityEngine.Time.unscaledTime, resolvedName);
+        }
+
+        public override bool HasPendingLoadingClients()
+        {
+            return _loadingClients.Count > 0;
+        }
+
+        public override List<string> GetPendingLoadingClientNames()
+        {
+            var names = new List<string>(_loadingClients.Count);
+            foreach (var kvp in _loadingClients)
+            {
+                if (!MultiplayerSession.ConnectedPlayers.ContainsKey(kvp.Key))
+                {
+                    names.Add(kvp.Value.playerName);
+                }
+            }
+            return names;
         }
 
         public void AddClientToList(ulong id)
