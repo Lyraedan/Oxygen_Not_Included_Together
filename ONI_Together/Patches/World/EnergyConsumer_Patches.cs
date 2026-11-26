@@ -30,7 +30,7 @@ namespace ONI_Together.Patches.World
         {
             public static bool Prefix(EnergyConsumerSelfSustaining __instance, ref bool __result)
             {
-                if (!SkipOnClient())
+                if (!SkipOnClient() || !__instance.isSpawned)
                     return true;
 
                 if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
@@ -47,7 +47,7 @@ namespace ONI_Together.Patches.World
         {
             public static bool Prefix(Operational __instance, Operational.Flag flag, ref bool __result)
             {
-                if (!SkipOnClient())
+                if (!SkipOnClient() || !__instance.isSpawned)
                     return true;
 
                 if (flag != EnergyConsumer.PoweredFlag)

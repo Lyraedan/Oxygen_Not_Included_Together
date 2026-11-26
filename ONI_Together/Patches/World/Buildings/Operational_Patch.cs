@@ -79,7 +79,7 @@ namespace ONI_Together.Patches.World.Buildings
                     return false;
                 }
 
-                if (!MultiplayerSession.IsClient)
+                if (!MultiplayerSession.IsClient || !__instance.isSpawned)
                     return true;
 
                 if(__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
@@ -105,7 +105,7 @@ namespace ONI_Together.Patches.World.Buildings
                     return false;
                 }
 
-				if (!MultiplayerSession.IsClient)
+				if (!MultiplayerSession.IsClient || !__instance.isSpawned)
 					return true;
 
 				if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
@@ -129,7 +129,7 @@ namespace ONI_Together.Patches.World.Buildings
                     return false;
                 }
 
-				if (!MultiplayerSession.IsClient)
+				if (!MultiplayerSession.IsClient || !__instance.isSpawned)
 					return true;
 
 				if (__instance.TryGetComponent<ClientReceiver_Operational>(out var wrap))
