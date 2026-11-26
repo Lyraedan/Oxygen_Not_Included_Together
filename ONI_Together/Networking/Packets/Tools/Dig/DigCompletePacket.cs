@@ -1,4 +1,4 @@
-﻿using ONI_Together.Networking;
+using ONI_Together.Networking;
 using ONI_Together.Networking.Packets.Architecture;
 using System.IO;
 using Shared.Profiling;

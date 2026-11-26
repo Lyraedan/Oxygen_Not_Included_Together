@@ -1,4 +1,4 @@
-﻿using HarmonyLib;
+using HarmonyLib;
 using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Packets.Tools.Build;

@@ -161,7 +161,6 @@ namespace ONI_Together.Patches.KleiPatches
 			else
 				DebugConsole.LogWarning("could not find anim " + kanim);
 
-			Console.WriteLine("Adding Kanim Override " + kanim);
 			TogglingOverrideFromPacket = false;
 		}
 
@@ -176,7 +175,6 @@ namespace ONI_Together.Patches.KleiPatches
 			}
 			else
 				DebugConsole.LogWarning("could not find anim " + kanim);
-			Console.WriteLine("Removing Kanim Override " + kanim);
 			TogglingOverrideFromPacket = false;
 		}
 
@@ -199,7 +197,6 @@ namespace ONI_Together.Patches.KleiPatches
 					if (MultiplayerSession.IsClient)
 						return TogglingOverrideFromPacket;
 
-					Console.WriteLine("sending addAnimOveridePacket");
 					PacketSender.SendToAllClients(new ToggleAnimOverridePacket(__instance.gameObject, kanim_file, priority));
 					return kanim_file != null;
 				}
@@ -229,7 +226,6 @@ namespace ONI_Together.Patches.KleiPatches
 					if (MultiplayerSession.IsClient)
 						return TogglingOverrideFromPacket;
 
-					Console.WriteLine("sending removeAnimOveridePacket");
 					PacketSender.SendToAllClients(new ToggleAnimOverridePacket(__instance.gameObject, kanim_file));
 					return kanim_file != null;
 				}

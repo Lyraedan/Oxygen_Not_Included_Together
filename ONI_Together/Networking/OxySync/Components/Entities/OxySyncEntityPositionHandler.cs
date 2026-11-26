@@ -29,15 +29,23 @@ namespace ONI_Together.Networking.OxySync.Components
         private float _lastHeartbeatTime;
         private Vector3 _lastPosition;
 
+        private bool _isMinion;
+
         public override void OnSpawn()
         {
+            _isMinion = TryGetComponent<MinionIdentity>(out _);
+            if (_isMinion)
+                InterestGroup = -1; // Always broadcast duplicant transforms so chunk-edge dropouts never trigger 0.5s resync teleports
             base.OnSpawn();
             syncRotation = false;
             syncScale = false;
             useSnapshotInterpolation = true;
             updateMethod = UpdateMethod.LateUpdate;
-            if (TryGetComponent<MinionIdentity>(out _))
+            if (_isMinion)
+            {
                 SyncInterval = 0.033f; // 30 Hz for duplicants
+                InterestGroup = -1;
+            }
             _lastHeartbeatTime = Time.unscaledTime;
             _lastSyncReceivedTime = Time.unscaledTime;
             _lastPosition = transform.position;

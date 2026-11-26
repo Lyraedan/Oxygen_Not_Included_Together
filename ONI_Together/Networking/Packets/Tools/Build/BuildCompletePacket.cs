@@ -1,4 +1,4 @@
-﻿using ONI_Together.DebugTools;
+using ONI_Together.DebugTools;
 using ONI_Together.Networking.Packets.Architecture;
 using System.Collections.Generic;
 using System.IO;

@@ -53,6 +53,7 @@ namespace Shared.OxySync
         private Vector3 _interpolatedScale;
         private bool _hasClockOffset;
         private double _clockOffsetMs;
+        private long _lastHostTimestamp;
         
         public int NetPositionHash { get; private set; }
         public int NetRotationHash { get; private set; }
@@ -87,7 +88,8 @@ namespace Shared.OxySync
             }
         }
 
-        private static long GetLocalTimeMs() => (long)(Time.unscaledTimeAsDouble * 1000.0);
+        private static readonly double StopwatchTicksToMs = 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+        private static long GetLocalTimeMs() => (long)(System.Diagnostics.Stopwatch.GetTimestamp() * StopwatchTicksToMs);
 
         protected void ResetSnapshots(Vector3 position, Quaternion rotation, Vector3 scale)
         {
@@ -95,10 +97,15 @@ namespace Shared.OxySync
             _interpolatedPosition = position;
             _interpolatedRotation = rotation;
             _interpolatedScale = scale;
+            _lastHostTimestamp = 0;
         }
 
         private void AddSnapshot(long hostTimestamp)
         {
+            // Drop truly out-of-order UDP packets based on the host's own monotonic clock.
+            if (hostTimestamp < _lastHostTimestamp)
+                return;
+
             long localNow = GetLocalTimeMs();
             double measuredOffset = localNow - hostTimestamp;
             if (!_hasClockOffset || Math.Abs(measuredOffset - _clockOffsetMs) > 500.0)
@@ -108,28 +115,30 @@ namespace Shared.OxySync
             }
             else
             {
-                // Slowly track clock drift while preserving host inter-packet spacing.
                 _clockOffsetMs += (measuredOffset - _clockOffsetMs) * 0.05;
             }
 
             long adjustedTimestamp = hostTimestamp + (long)_clockOffsetMs;
 
-            if (_snapshots.Count > 0 && _snapshots[_snapshots.Count - 1].timestamp >= adjustedTimestamp)
+            if (_snapshots.Count > 0)
             {
-                // Keep timestamps strictly monotonic even if two fields arrive with the same host timestamp.
-                if (_snapshots[_snapshots.Count - 1].timestamp == adjustedTimestamp)
+                long prevTs = _snapshots[_snapshots.Count - 1].timestamp;
+                if (hostTimestamp == _lastHostTimestamp)
                 {
                     _snapshots[_snapshots.Count - 1] = new SnapshotEntry
                     {
-                        timestamp = adjustedTimestamp,
+                        timestamp = prevTs,
                         position = _netPosition,
                         rotation = _netRotation,
                         scale = _netScale,
                     };
                     return;
                 }
-                return;
+                if (adjustedTimestamp <= prevTs)
+                    adjustedTimestamp = prevTs + 1;
             }
+
+            _lastHostTimestamp = hostTimestamp;
 
             _snapshots.Add(new SnapshotEntry
             {

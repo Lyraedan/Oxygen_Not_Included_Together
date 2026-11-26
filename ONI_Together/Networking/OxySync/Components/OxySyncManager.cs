@@ -257,10 +257,17 @@ namespace ONI_Together.Networking.OxySync.Components
 
             if (behaviour.InterestGroup == -1 && !_explicitGroupTypes.Contains(behaviourType))
             {
-                int worldId = behaviour.GetMyWorldId();
-                if (worldId >= 0 && behaviour.GameObject != null)
-                    behaviour.InterestGroup = WorldChunkHelper.GetGroupId(worldId,
-                        Grid.PosToCell(behaviour.GameObject.transform.position));
+                bool isMinionTransform = behaviour.GameObject != null
+                    && behaviour is NativeSyncBehaviour nat && nat.Native is NetworkTransform
+                    && behaviour.GameObject.TryGetComponent<MinionIdentity>(out _);
+
+                if (!isMinionTransform)
+                {
+                    int worldId = behaviour.GetMyWorldId();
+                    if (worldId >= 0 && behaviour.GameObject != null)
+                        behaviour.InterestGroup = WorldChunkHelper.GetGroupId(worldId,
+                            Grid.PosToCell(behaviour.GameObject.transform.position));
+                }
             }
 
             IndexBehaviour(behaviour);
@@ -438,7 +445,7 @@ namespace ONI_Together.Networking.OxySync.Components
 
             behaviour.SyncLastSentValues();
 
-            if (!_explicitGroupTypes.Contains(behaviour.UnderlyingType))
+            if (behaviour.InterestGroup != -1 && !_explicitGroupTypes.Contains(behaviour.UnderlyingType))
             {
                 int currentWorld = behaviour.GetMyWorldId();
                 if (currentWorld >= 0 && behaviour.GameObject != null)
