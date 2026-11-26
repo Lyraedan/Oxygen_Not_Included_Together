@@ -6,6 +6,7 @@ using System.Text;
 using System.Threading.Tasks;
 using ClipperLib;
 using ONI_Together.DebugTools;
+using ONI_Together.Networking.Overlay;
 using ONI_Together.Networking.Packets.Architecture;
 using Shared.Profiling;
 using Steamworks;
@@ -49,6 +50,7 @@ namespace ONI_Together.Networking.Transport.Steam
                     packet = packet,
                     size = bytes.Length
                 });
+                NetIdActivityTracker.RecordOutgoing(packet, bytes.Length);
                 return true;
             }
 
@@ -106,6 +108,7 @@ namespace ONI_Together.Networking.Transport.Steam
                             packet = item.packet,
                             size = item.bytes.Length
                         });
+                        NetIdActivityTracker.RecordOutgoing(item.packet, item.bytes.Length);
                     }
                     else if (result == EResult.k_EResultLimitExceeded)
                     {

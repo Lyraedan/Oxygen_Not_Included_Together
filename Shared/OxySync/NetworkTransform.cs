@@ -62,6 +62,7 @@ namespace Shared.OxySync
 
         protected float _lastRequestTime;
         protected const float REQUEST_COOLDOWN = 0.5f;
+        private const float POSITION_EPSILON_SQR = 1e-8f;
 
         public override void OnSpawn()
         {
@@ -237,29 +238,18 @@ namespace Shared.OxySync
 
                 if (dist > snapThreshold)
                 {
-                    if (coordinateSpace == CoordinateSpace.Local)
-                        target.localPosition = desired;
-                    else
-                        target.position = desired;
+                    ApplyTargetPosition(desired);
                 }
                 else if (interpolatePosition)
                 {
                     // Frame-rate independent exponential smoothing eliminates micro-stutter
                     // when unreliable position snapshots arrive with jitter or a dropped packet.
                     float alpha = 1f - Mathf.Exp(-lerpSpeed * Time.unscaledDeltaTime);
-                    Vector3 lerped = Vector3.Lerp(currentPos, desired, alpha);
-                    if (coordinateSpace == CoordinateSpace.Local)
-                        target.localPosition = lerped;
-                    else
-                        target.position = lerped;
-                }
-                else if (coordinateSpace == CoordinateSpace.Local)
-                {
-                    target.localPosition = desired;
+                    ApplyTargetPosition(Vector3.Lerp(currentPos, desired, alpha));
                 }
                 else
                 {
-                    target.position = desired;
+                    ApplyTargetPosition(desired);
                 }
             }
 
@@ -306,6 +296,27 @@ namespace Shared.OxySync
             }
 
             TryRequestPosition();
+        }
+
+        /// <summary>
+        /// Moves the target through ONI's transform extensions so CellChangeMonitor is notified.
+        /// A plain <c>Transform.position</c> assignment leaves KCollider2D partition entries
+        /// (used by SelectTool) and other cell-dependent systems at the stale cell, making
+        /// client-side duplicants unselectable where they are actually drawn.
+        /// </summary>
+        private void ApplyTargetPosition(Vector3 position)
+        {
+            Vector3 current = coordinateSpace == CoordinateSpace.Local
+                ? target.localPosition
+                : target.position;
+
+            if ((current - position).sqrMagnitude <= POSITION_EPSILON_SQR)
+                return;
+
+            if (coordinateSpace == CoordinateSpace.Local)
+                target.SetLocalPosition(position);
+            else
+                target.SetPosition(position);
         }
 
         [Client]
@@ -435,10 +446,7 @@ namespace Shared.OxySync
         {
             if (syncPosition)
             {
-                if (coordinateSpace == CoordinateSpace.Local)
-                    target.localPosition = position;
-                else
-                    target.position = position;
+                ApplyTargetPosition(position);
             }
             if (syncRotation)
             {

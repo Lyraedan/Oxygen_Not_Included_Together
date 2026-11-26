@@ -116,6 +116,8 @@ namespace ONI_Together
                 return;
             }
 
+            var info = PresenceInfo.Capture();
+
             var presence = new RichPresence
             {
                 Assets = new DiscordRPC.Assets
@@ -129,33 +131,30 @@ namespace ONI_Together
                 }
             };
 
-            if (Utils.IsInGame())
+            // Cluster data is only valid once a save is loaded. Resolving it on the
+            // frontend throws inside Klei's GetCurrentQualitySetting (see ClusterIcons).
+            if (info.InGame)
             {
-                var entry = GetAstroidData();
-                if (entry.HasValue)
+                var asteroid = GetAstroidData();
+                if (asteroid.HasValue)
                 {
-                    presence.Assets.SmallImageKey = entry.Value.IconUrl;
-                    presence.Assets.SmallImageText = entry.Value.Name;
+                    presence.Assets.SmallImageKey = asteroid.Value.IconUrl;
+                    presence.Assets.SmallImageText = asteroid.Value.Name;
                 }
             }
 
-            if (MultiplayerSession.InActiveSession)
+            if (!string.IsNullOrEmpty(info.Details))
+                presence.Details = info.Details;
+
+            if (!string.IsNullOrEmpty(info.State))
+                presence.State = info.State;
+
+            if (info.InSession)
             {
-                int cycle = GameClock.Instance != null ? (GameClock.Instance.GetCycle() + 1) : 1;
-                int dupeCount = global::Components.LiveMinionIdentities?.Count ?? 0;
-                string baseName = SaveGame.Instance?.BaseName ?? "";
-                presence.Details = string.IsNullOrEmpty(baseName)
-                    ? $"Cycle {cycle} with {dupeCount} dupes"
-                    : $"{baseName} — Cycle {cycle} with {dupeCount} dupes";
-
-                string role = MultiplayerSession.IsHost ? "Hosting" : "Playing";
-                string transport = NetworkConfig.IsSteamConfig() ? "Steam" : "LAN";
-                presence.State = $"{role} over {transport}";
-
                 string party_id = "oni_together_session";
                 bool isPublic = false;
                 
-                if (_client.HasRegisteredUriScheme && NetworkConfig.IsSteamConfig() && SteamLobby.InLobby)
+                if (_client.HasRegisteredUriScheme && info.SteamTransport && SteamLobby.InLobby)
                 {
                     party_id = $"{SteamLobby.CurrentLobby.m_SteamID}";
                     string visibility = SteamMatchmaking.GetLobbyData(SteamLobby.CurrentLobby, "visibility");
@@ -176,23 +175,6 @@ namespace ONI_Together
                     Max = NetworkConfig.GetMaxServerCapacity(),
                     Privacy = isPublic ? Party.PrivacySetting.Public : Party.PrivacySetting.Private,
                 };
-            }
-            else
-            {
-                if (Utils.IsInMenu())
-                {
-                    presence.Details = "At main menu";
-                }
-                else if(Utils.IsInGame())
-                {
-                    int cycle = GameClock.Instance != null ? (GameClock.Instance.GetCycle() + 1) : 1;
-                    int dupeCount = global::Components.LiveMinionIdentities?.Count ?? 0;
-                    string baseName = SaveGame.Instance?.BaseName ?? "";
-                    presence.Details = string.IsNullOrEmpty(baseName)
-                        ? $"Cycle {cycle} with {dupeCount} dupes"
-                        : $"{baseName} — Cycle {cycle} with {dupeCount} dupes";
-                    presence.State = "Playing singleplayer";
-                }
             }
 
             _client.SetPresence(presence);

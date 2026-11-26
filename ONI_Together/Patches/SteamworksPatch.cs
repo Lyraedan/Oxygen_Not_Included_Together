@@ -18,7 +18,7 @@ namespace ONI_Together.Patches
 			if (SteamManager.Initialized)
 			{
 				DebugConsole.Log("Steam initialized – setting rich presence.");
-				SteamRichPresence.SetStatus("Multiplayer – In Main Menu");
+				SteamRichPresence.Refresh(force: true);
 			}
 			else
 			{

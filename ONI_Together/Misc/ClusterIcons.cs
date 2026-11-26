@@ -1,5 +1,7 @@
+using System;
 using System.Collections.Generic;
 using Klei.CustomSettings;
+using ONI_Together.DebugTools;
 using ProcGen;
 
 namespace ONI_Together.Misc;
@@ -80,22 +82,43 @@ public static class ClusterIcons
 
         public static Entry? ResolveCurrent()
         {
-            var setting = CustomGameSettings.Instance.GetCurrentQualitySetting(
-                CustomGameSettingConfigs.ClusterLayout);
-
-            if (setting == null || string.IsNullOrEmpty(setting.id))
+            var settings = CustomGameSettings.Instance;
+            if (settings == null)
                 return null;
 
-            if (!SettingsCache.clusterLayouts.clusterCache.TryGetValue(
-                    setting.id, out var clusterLayout))
+            var config = CustomGameSettingConfigs.ClusterLayout;
+
+            // ClusterLayout.levels is only populated by CustomGameSettings.LoadClusters(),
+            // which runs when the new-game screen opens or a save loads. Until then it is
+            // null, and Klei's GetCurrentQualitySetting -> ListSettingConfig.GetLevel
+            // dereferences it without a null check (NRE on the frontend).
+            var levels = config?.GetLevels();
+            if (levels == null || levels.Count == 0)
                 return null;
 
-            var clusterId = setting.id.Substring(setting.id.LastIndexOf('/') + 1);
+            try
+            {
+                var setting = settings.GetCurrentQualitySetting(config);
 
-            return new Entry {
-                Id = clusterId,
-                Name = Strings.Get(clusterLayout.name),
-                IconUrl = ResolveUrl(clusterId)
-            };
+                if (setting == null || string.IsNullOrEmpty(setting.id))
+                    return null;
+
+                if (!SettingsCache.clusterLayouts.clusterCache.TryGetValue(
+                        setting.id, out var clusterLayout))
+                    return null;
+
+                var clusterId = setting.id.Substring(setting.id.LastIndexOf('/') + 1);
+
+                return new Entry {
+                    Id = clusterId,
+                    Name = Strings.Get(clusterLayout.name),
+                    IconUrl = ResolveUrl(clusterId)
+                };
+            }
+            catch (Exception ex)
+            {
+                DebugConsole.LogWarning($"[ClusterIcons] Failed to resolve cluster layout: {ex.Message}");
+                return null;
+            }
         }
     }

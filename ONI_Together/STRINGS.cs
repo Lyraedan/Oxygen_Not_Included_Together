@@ -61,6 +61,7 @@ namespace ONI_Together
                         public static LocString PUFT_LOADINGSCREEN = "Use Puft Loading Icon";
                         public static LocString LOADINGSCREEN_COLOR = "Use Custom Loading Screen Color";
                         public static LocString USE_DISCORD_RICH_PRESENCE = "Use Discord Rich Presence";
+                        public static LocString USE_STEAM_RICH_PRESENCE = "Use Steam Rich Presence";
                     }
 
                     public class LAN_SETTINGS
@@ -111,6 +112,7 @@ namespace ONI_Together
 						public static LocString PUFT_LOADINGSCREEN = "Override the loading icon with a Puft.";
 						public static LocString LOADINGSCREEN_COLOR = "Override the purple background of the loading screen with turquoise.";
 						public static LocString USE_DISCORD_RICH_PRESENCE = "Enables Discord Rich Presence integration, showing your current game state (colony name, cycle, asteroid) on your Discord profile.";
+						public static LocString USE_STEAM_RICH_PRESENCE = "Shows your colony name, cycle, Duplicant count, role and asteroid as your Steam status, and lets friends join from the Steam friends list.";
                     }
 
                     public class LAN_SETTINGS

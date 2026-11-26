@@ -62,6 +62,27 @@ namespace ONI_Together.Networking.Overlay
 			}
 		}
 
+		/// <summary>
+		/// Records bytes for a packet that was actually handed to the transport.
+		/// Called by the transports with the final serialized size, so the activity
+		/// overlay never has to serialize a packet a second time just to measure it.
+		/// </summary>
+		public static void RecordOutgoing(object packet, int bytes)
+		{
+			using var _ = Profiler.Scope();
+
+			if (packet == null || bytes <= 0)
+				return;
+
+			var tracker = Instance;
+			if (tracker == null)
+				return;
+
+			int netId = GetNetIdFromPacket(packet);
+			if (netId > 0)
+				tracker.RecordActivity(netId, bytes);
+		}
+
 		public void RecordActivity(int netId, int bytes)
 		{
 			using var _ = Profiler.Scope();
@@ -136,6 +157,18 @@ namespace ONI_Together.Networking.Overlay
 		public void Clear()
 		{
 			_activities.Clear();
+		}
+
+		/// <summary>
+		/// Drops the activity entry for a destroyed identity. Without this the
+		/// dictionary accumulates an entry for every object ever seen in a session.
+		/// </summary>
+		public void Forget(int netId)
+		{
+			if (netId == 0)
+				return;
+
+			_activities.Remove(netId);
 		}
 
 		public Dictionary<int, ActivityData> GetAllActivities()

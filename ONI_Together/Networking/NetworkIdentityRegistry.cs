@@ -39,6 +39,7 @@ namespace ONI_Together.Networking
 
 			identities.Remove(netId);
 			PlayAnimPacket.ForgetNetId(netId);
+			Overlay.NetIdActivityTracker.Instance?.Forget(netId);
 		}
 
 

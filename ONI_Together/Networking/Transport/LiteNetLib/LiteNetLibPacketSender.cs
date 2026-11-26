@@ -1,5 +1,6 @@
 using LiteNetLib;
 using ONI_Together.DebugTools;
+using ONI_Together.Networking.Overlay;
 using ONI_Together.Networking.Packets.Architecture;
 using Shared.Profiling;
 using System;
@@ -42,6 +43,8 @@ namespace ONI_Together.Networking.Transport.Lan
                     packet = packet,
                     size = bytes.Length
                 });
+
+                NetIdActivityTracker.RecordOutgoing(packet, bytes.Length);
 
                 return true;
             }

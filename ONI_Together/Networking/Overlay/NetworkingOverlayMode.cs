@@ -243,7 +243,8 @@ namespace ONI_Together.Networking.Overlay
 				highlights.ToArray(), OverlayModes.BringToFrontLayerSetting.Constant, targetLayer);
 			
 			UpdateViewportOverlay(min, max);
-			UpdateSyncIcons();
+			// Disabled: active syncing icons on networked objects
+			//UpdateSyncIcons();
 			UpdateGroupLabels(min, max);
 
 			PacketTracker.Instance?.CalculatePps();
@@ -475,8 +476,9 @@ namespace ONI_Together.Networking.Overlay
 				entries.Add(new LegendEntry("  Idle (No activity)", null,
 					Color.gray));
 
-				entries.Add(new LegendEntry("  Syncing (last 2s)", "OxySync actively syncing",
-					Color.white, sprite: SyncSprite));
+				// Disabled: active syncing legend entry
+				//entries.Add(new LegendEntry("  Syncing (last 2s)", "OxySync actively syncing",
+				//	Color.white, sprite: SyncSprite));
 			}
 
 			if (showViewports && MultiplayerSession.IsHost && WorldStateSyncer.Instance != null)

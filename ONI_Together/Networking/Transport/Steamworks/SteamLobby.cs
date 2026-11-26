@@ -20,6 +20,7 @@ namespace ONI_Together.Networking.Transport.Steamworks
 	{
 		private static Callback<LobbyCreated_t> _lobbyCreated;
 		private static Callback<GameLobbyJoinRequested_t> _lobbyJoinRequested;
+		private static Callback<GameRichPresenceJoinRequested_t> _richPresenceJoinRequested;
 		private static Callback<LobbyEnter_t> _lobbyEntered;
 		private static Callback<LobbyChatUpdate_t> _lobbyChatUpdate;
 
@@ -58,6 +59,7 @@ namespace ONI_Together.Networking.Transport.Steamworks
 			{
 				_lobbyCreated = Callback<LobbyCreated_t>.Create(OnLobbyCreated);
 				_lobbyJoinRequested = Callback<GameLobbyJoinRequested_t>.Create(OnLobbyJoinRequested);
+				_richPresenceJoinRequested = Callback<GameRichPresenceJoinRequested_t>.Create(OnRichPresenceJoinRequested);
 				_lobbyEntered = Callback<LobbyEnter_t>.Create(OnLobbyEntered);
 				_lobbyChatUpdate = Callback<LobbyChatUpdate_t>.Create(OnLobbyChatUpdate);
 
@@ -115,8 +117,9 @@ namespace ONI_Together.Networking.Transport.Steamworks
 				SteamMatchmaking.LeaveLobby(CurrentLobby);
 				MultiplayerSession.Clear();
 				CurrentLobby = CSteamID.Nil;
+				CurrentLobbyCode = "";
 				MaxLobbySize = 0;
-				SteamRichPresence.Clear();
+				SteamRichPresence.Refresh(force: true);
 
                 SelectToolPatch.UpdateColor();
             }
@@ -162,7 +165,7 @@ namespace ONI_Together.Networking.Transport.Steamworks
 				MultiplayerSession.Clear();
 
 				GameServer.Start();
-				SteamRichPresence.SetLobbyInfo(CurrentLobby, "Multiplayer – Hosting Lobby");
+				SteamRichPresence.Refresh(force: true);
 				_onLobbyCreatedSuccess?.Invoke();
 				_onLobbyCreatedSuccess = null;
 
@@ -192,6 +195,50 @@ namespace ONI_Together.Networking.Transport.Steamworks
             CoroutineRunner.RunOne(CheckLobbyPasswordAfterDelay(lobbyId));
         }
 
+		private static void OnRichPresenceJoinRequested(GameRichPresenceJoinRequested_t callback)
+		{
+			using var _ = Profiler.Scope();
+
+			if (!TryParseConnectString(callback.m_rgchConnect, out ulong parsedLobby))
+			{
+				DebugConsole.LogWarning($"[SteamLobby] Rich presence join: could not parse '{callback.m_rgchConnect}'");
+				return;
+			}
+
+			CSteamID lobbyId = parsedLobby.AsCSteamID();
+			DebugConsole.Log($"[SteamLobby] Joining lobby from Steam rich presence: {lobbyId}");
+			NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.STEAMWORKS);
+
+			SteamMatchmaking.RequestLobbyData(lobbyId);
+			CoroutineRunner.RunOne(CheckLobbyPasswordAfterDelay(lobbyId));
+		}
+
+		private static bool TryParseConnectString(string connect, out ulong lobbyId)
+		{
+			lobbyId = 0;
+
+			if (string.IsNullOrWhiteSpace(connect))
+				return false;
+
+			string[] parts = connect.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+			for (int i = 0; i < parts.Length; i++)
+			{
+				if (parts[i] == "+connect_lobby" && i + 1 < parts.Length && ulong.TryParse(parts[i + 1], out lobbyId))
+					return true;
+			}
+
+			if (connect.IndexOf(' ') < 0)
+			{
+				if (connect.Length > 8)
+					return ulong.TryParse(connect, out lobbyId);
+
+				if (LobbyCodeHelper.TryParseCode(connect, out lobbyId))
+					return true;
+			}
+
+			return ulong.TryParse(connect, out lobbyId);
+		}
+
         private static System.Collections.IEnumerator CheckLobbyPasswordAfterDelay(CSteamID lobbyId)
         {
 	        using var _ = Profiler.Scope();
@@ -220,6 +267,10 @@ namespace ONI_Together.Networking.Transport.Steamworks
 			CurrentLobby = new CSteamID(callback.m_ulSteamIDLobby);
 			DebugConsole.Log($"[SteamLobby] Entered lobby: {CurrentLobby}");
 
+			CurrentLobbyCode = SteamMatchmaking.GetLobbyData(CurrentLobby, "lobby_code");
+			if (string.IsNullOrEmpty(CurrentLobbyCode))
+				CurrentLobbyCode = LobbyCodeHelper.GenerateCode(CurrentLobby.m_SteamID);
+
 			MultiplayerSession.Clear();
 
 			string hostStr = SteamMatchmaking.GetLobbyData(CurrentLobby, "host");
@@ -228,7 +279,7 @@ namespace ONI_Together.Networking.Transport.Steamworks
 				MultiplayerSession.SetHost(hostId);
 			}
 
-			SteamRichPresence.SetLobbyInfo(CurrentLobby, "Multiplayer – In Lobby");
+			SteamRichPresence.Refresh(force: true);
 			_onLobbyJoined?.Invoke(CurrentLobby);
 			RefreshLobbyMembers();
 
@@ -285,6 +336,8 @@ namespace ONI_Together.Networking.Transport.Steamworks
 				Game.Instance?.Trigger(MP_HASHES.OnPlayerLeft, boxedId);
 				boxedId.Release();
             }
+
+			SteamRichPresence.Refresh(force: true);
 		}
 
 		public static void JoinLobby(CSteamID lobbyId, Action<CSteamID> onJoinedLobby = null, string password = null)

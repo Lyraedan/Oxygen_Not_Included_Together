@@ -166,6 +166,18 @@ namespace ONI_Together
             set => Client.Discord.UseDiscordRichPresence = value;
         }
 
+        [Option("STRINGS.UI.CONFIGURATION.TITLES.MISC_SETTINGS.USE_STEAM_RICH_PRESENCE", "STRINGS.UI.CONFIGURATION.TOOLTIPS.MISC_SETTINGS.USE_STEAM_RICH_PRESENCE", "STRINGS.UI.CONFIGURATION.HEADERS.E_MISC_SETTINGS")]
+        [JsonIgnore]
+        public bool UseSteamRichPresence
+        {
+            get => Client.Steam?.UseSteamRichPresence ?? true;
+            set
+            {
+                Client.Steam ??= new SteamSettings();
+                Client.Steam.UseSteamRichPresence = value;
+            }
+        }
+
         public static T GetHostProperty<T>(string propertyName)
         {
             return Instance.GetProperty<T>(Instance.Host, propertyName);
@@ -264,12 +276,19 @@ namespace ONI_Together
         [JsonProperty] public bool ChatWindowExpanded { get; set; } = true;
 
         [JsonProperty] public DiscordSettings Discord { get; set; } = new DiscordSettings();
+        [JsonProperty] public SteamSettings Steam { get; set; } = new SteamSettings();
     }
 
     [Serializable]
     public class DiscordSettings
     {
         [JsonProperty] public bool UseDiscordRichPresence { get; set; } = true;
+    }
+
+    [Serializable]
+    public class SteamSettings
+    {
+        [JsonProperty] public bool UseSteamRichPresence { get; set; } = true;
     }
 
     [Serializable]
