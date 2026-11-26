@@ -36,6 +36,8 @@ namespace ONI_Together.Networking.OxySync.Components
             syncScale = false;
             useSnapshotInterpolation = true;
             updateMethod = UpdateMethod.LateUpdate;
+            if (TryGetComponent<MinionIdentity>(out _))
+                SyncInterval = 0.033f; // 30 Hz for duplicants
             _lastHeartbeatTime = Time.unscaledTime;
             _lastSyncReceivedTime = Time.unscaledTime;
             _lastPosition = transform.position;

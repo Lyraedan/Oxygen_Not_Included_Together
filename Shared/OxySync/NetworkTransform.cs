@@ -8,7 +8,7 @@ namespace Shared.OxySync
 {
     public class NetworkTransform : NetworkBehaviour
     {
-        [SyncVar(Epsilon = 0.01f, SendMode = (int) PacketSendMode.Unreliable)]
+        [SyncVar(Epsilon = 0.01f, SendMode = (int)(PacketSendMode.Unreliable | PacketSendMode.Immediate))]
         protected Vector3 _netPosition;
 
         [SyncVar(Epsilon = 0.01f, SendMode = (int) PacketSendMode.Unreliable)]
@@ -321,9 +321,26 @@ namespace Shared.OxySync
                 }
                 else
                 {
-                    _interpolatedPosition = _snapshots[_snapshots.Count - 1].position;
-                    _interpolatedRotation = _snapshots[_snapshots.Count - 1].rotation;
-                    _interpolatedScale = _snapshots[_snapshots.Count - 1].scale;
+                    var last = _snapshots[_snapshots.Count - 1];
+                    _interpolatedPosition = last.position;
+                    _interpolatedRotation = last.rotation;
+                    _interpolatedScale = last.scale;
+
+                    // Short bounded velocity extrapolation (up to 100ms) bridges a late or dropped
+                    // unreliable packet without stopping dead and lurching forward on the next one.
+                    if (_snapshots.Count >= 2)
+                    {
+                        var prev = _snapshots[_snapshots.Count - 2];
+                        long dtMs = last.timestamp - prev.timestamp;
+                        long extraMs = playbackTime - last.timestamp;
+                        if (dtMs > 5 && dtMs <= 250 && extraMs > 0 && extraMs <= 100)
+                        {
+                            float ratio = (float)extraMs / dtMs;
+                            Vector3 delta = last.position - prev.position;
+                            if (delta.sqrMagnitude < 4f)
+                                _interpolatedPosition = last.position + delta * ratio;
+                        }
+                    }
                 }
             }
             else

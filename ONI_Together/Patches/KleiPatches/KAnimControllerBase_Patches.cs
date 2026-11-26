@@ -21,7 +21,20 @@ namespace ONI_Together.Patches.KleiPatches
 		static bool _allowedToPlayAnims = false;
 		public static void AllowAnims() => _allowedToPlayAnims = true;
 		public static void ForbidAnims() => _allowedToPlayAnims = false;
-		public static bool CanPlayAnims => true;// (MultiplayerSession.InSession && MultiplayerSession.IsClient) ? _allowedToPlayAnims : true;
+		public static bool CanPlayAnims => true;
+
+		private static bool CanPlayForInstance(KAnimControllerBase instance)
+		{
+			if (!MultiplayerSession.InActiveSession || !MultiplayerSession.IsClient)
+				return true;
+			if (_allowedToPlayAnims)
+				return true;
+			if (instance != null && instance.gameObject != null &&
+				instance.gameObject.TryGetComponent<KPrefabID>(out var id) &&
+				id.HasTag(GameTags.BaseMinion))
+				return false;
+			return true;
+		}
 
 
 
@@ -69,7 +82,7 @@ namespace ONI_Together.Patches.KleiPatches
 
 					if(MultiplayerSession.IsHost)
 						SendAnimPacketToClients(__instance, false, [anim_name],mode,speed,time_offset);
-					return CanPlayAnims;
+					return CanPlayForInstance(__instance);
 				}
 				catch (Exception ex)
 				{
@@ -95,7 +108,7 @@ namespace ONI_Together.Patches.KleiPatches
 					if (__instance.IsNullOrDestroyed() || !__instance.enabled) return CanPlayAnims;
 					if (MultiplayerSession.IsHost)
 						SendAnimPacketToClients(__instance, false, anim_names, mode);
-					return CanPlayAnims;
+					return CanPlayForInstance(__instance);
 				}
 				catch (Exception ex)
 				{
@@ -121,7 +134,7 @@ namespace ONI_Together.Patches.KleiPatches
 					if (__instance.IsNullOrDestroyed() || !__instance.enabled) return CanPlayAnims;
 					if (MultiplayerSession.IsHost)
 						SendAnimPacketToClients(__instance, true, [anim_name], mode, speed, time_offset);
-					return CanPlayAnims;
+					return CanPlayForInstance(__instance);
 				}
 				catch (Exception ex)
 				{
