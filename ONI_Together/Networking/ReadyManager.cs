@@ -110,9 +110,14 @@ namespace ONI_Together.Networking
 			using var _ = Profiler.Scope();
 
 			var pendingLanNames = GetPendingLanLoadingNames();
-			int readyCount = GetReadyCount();
-			int maxPlayers = MultiplayerSession.ConnectedPlayers.Values.Count + pendingLanNames.Count;
+			bool includeImplicitHost = MultiplayerSession.IsHost && !MultiplayerSession.ConnectedPlayers.ContainsKey(MultiplayerSession.HostUserID);
+			int readyCount = GetReadyCount() + (includeImplicitHost ? 1 : 0);
+			int maxPlayers = MultiplayerSession.ConnectedPlayers.Values.Count + pendingLanNames.Count + (includeImplicitHost ? 1 : 0);
 			string message = string.Format(STRINGS.UI.MP_OVERLAY.SYNC.WAITING_FOR_PLAYERS_SYNC, readyCount, maxPlayers);
+			if (includeImplicitHost)
+			{
+				message += $"{Utils.GetLocalPlayerName()}: {GetReadyText(ClientReadyState.Ready)}\n";
+			}
 			foreach (MultiplayerPlayer player in MultiplayerSession.ConnectedPlayers.Values)
 			{
 				message += $"{player.PlayerName}: {GetReadyText(player.readyState)}\n";
