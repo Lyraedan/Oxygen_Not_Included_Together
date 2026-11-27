@@ -40,6 +40,7 @@ namespace ONI_Together.Networking.Packets.World
 				return;
 
 			DebugConsole.Log($"[Packets/SaveFileRequest] Received request from {Requester}");
+			SpeedControlScreen.Instance?.Pause(false);
 			MultiplayerOverlay.Show(STRINGS.UI.MP_OVERLAY.HOST.SEND_SAVE_FILE);
 			SendSaveFile(Requester);
 		}

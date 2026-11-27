@@ -94,13 +94,29 @@ namespace ONI_Together.Networking.Packets.Tools.Build
                 return;
 			}
 
-			var tags = MaterialTags.Select(t => new Tag(t)).ToList();
+			var rawTags = MaterialTags.Select(t => new Tag(t)).ToList();
+			var defaultTags = def.DefaultElements();
+			int requiredCount = def.CraftRecipe?.Ingredients != null && def.CraftRecipe.Ingredients.Count > 0
+				? def.CraftRecipe.Ingredients.Count
+				: (defaultTags != null && defaultTags.Count > 0 ? defaultTags.Count : 1);
 
-            if (tags.Count == 0)
-            {
-                DebugConsole.LogWarning($"[BuildCompletePacket] No materials provided for {PrefabID} at cell {Cell}, using SandStone as fallback.");
-                tags.Add(SimHashes.SandStone.CreateTag());
-            }
+			var tags = new List<Tag>(requiredCount);
+			for (int i = 0; i < requiredCount; i++)
+			{
+				Tag candidate = i < rawTags.Count ? rawTags[i] : Tag.Invalid;
+				bool valid = candidate.IsValid &&
+					(ElementLoader.GetElement(candidate) != null || Assets.TryGetPrefab(candidate) != null);
+
+				if (!valid)
+				{
+					Tag fallback = (defaultTags != null && i < defaultTags.Count && defaultTags[i].IsValid)
+						? defaultTags[i]
+						: (defaultTags != null && defaultTags.Count > 0 ? defaultTags[0] : SimHashes.SandStone.CreateTag());
+					DebugConsole.LogWarning($"[BuildCompletePacket] Invalid or missing material tag '{candidate}' (index {i}) for {PrefabID} at cell {Cell}, using {fallback} as fallback.");
+					candidate = fallback;
+				}
+				tags.Add(candidate);
+			}
 
 
 			bool isBridge = def.BuildingComplete.GetComponent<ConduitBridgeBase>() || def.BuildingComplete.GetComponent<WireUtilityNetworkLink>() || def.BuildingComplete.GetComponent<LogicUtilityNetworkLink>() || PrefabID == ContactConductivePipeBridgeConfig.ID;
@@ -108,16 +124,27 @@ namespace ONI_Together.Networking.Packets.Tools.Build
             // Destroy ghost/constructable if it still exists
             GameObject existing = Grid.Objects[Cell, layerIndex];
 
-            if(existing == null && isBridge)
-            {
-                bool vertical = Orientation == Orientation.R90 || Orientation == Orientation.R270;
-                //todo: account for other width bridges; get the offsets from bridge width instead
-                int firstToCheck = vertical ? Grid.CellAbove(Cell) : Grid.CellLeft(Cell);
-                int secondToCheck = vertical ? Grid.CellBelow(Cell) : Grid.CellRight(Cell);
+			if (existing == null && isBridge)
+			{
+				bool vertical = Orientation == Orientation.R90 || Orientation == Orientation.R270;
+				//todo: account for other width bridges; get the offsets from bridge width instead
+				int firstToCheck = vertical ? Grid.CellAbove(Cell) : Grid.CellLeft(Cell);
+				int secondToCheck = vertical ? Grid.CellBelow(Cell) : Grid.CellRight(Cell);
 
-				existing = Grid.Objects[firstToCheck, layerIndex];
-                if(existing == null)
-					existing = Grid.Objects[secondToCheck, layerIndex];
+				existing = FindMatchingBridgeConstructable(firstToCheck, layerIndex, PrefabID)
+					?? FindMatchingBridgeConstructable(secondToCheck, layerIndex, PrefabID);
+			}
+
+			// Also clean up any replacement Constructable ghost (e.g. WireBridgeHighWattage or Tile replacing an existing tile)
+			if (def.ReplacementLayer != ObjectLayer.NumLayers && def.ReplacementLayer != ObjectLayer)
+			{
+				int replLayer = (int)def.ReplacementLayer;
+				GameObject replExisting = Grid.Objects[Cell, replLayer];
+				if (replExisting != null && replExisting.TryGetComponent<Constructable>(out var replConstructable) && replConstructable != null)
+				{
+					replExisting.DeleteObject();
+					Grid.Objects[Cell, replLayer] = null;
+				}
 			}
 
             if (existing != null)
@@ -164,6 +191,12 @@ namespace ONI_Together.Networking.Packets.Tools.Build
                 {
                     ApplyUtilityConnections(builtObj, def);
                 }
+
+                // Ensure tile visuals refresh immediately on clients after def.Build
+                if (def.TileLayer != ObjectLayer.NumLayers)
+                {
+                    TileVisualizer.RefreshCell(Cell, def.TileLayer, def.ReplacementLayer);
+                }
             }
             catch (System.Exception ex)
             {
@@ -171,6 +204,26 @@ namespace ONI_Together.Networking.Packets.Tools.Build
             }
 
             DebugConsole.Log($"[BuildCompletePacket] Finalized {PrefabID} at cell {Cell}");
+        }
+
+        private static GameObject FindMatchingBridgeConstructable(int checkCell, int layerIndex, string expectedPrefabId)
+        {
+            if (!Grid.IsValidCell(checkCell))
+                return null;
+
+            GameObject candidate = Grid.Objects[checkCell, layerIndex];
+            if (candidate == null)
+                return null;
+
+            if (candidate.TryGetComponent<Constructable>(out _) &&
+                candidate.TryGetComponent<Building>(out var building) &&
+                building.Def != null &&
+                building.Def.PrefabID == expectedPrefabId)
+            {
+                return candidate;
+            }
+
+            return null;
         }
 
         private void ApplyUtilityConnections(GameObject go, BuildingDef def)

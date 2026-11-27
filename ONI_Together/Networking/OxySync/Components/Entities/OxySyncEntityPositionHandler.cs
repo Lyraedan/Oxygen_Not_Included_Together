@@ -13,6 +13,8 @@ namespace ONI_Together.Networking.OxySync.Components
         private KBatchedAnimController kbac;
         [MyCmpGet]
         private Navigator navigator;
+        [MyCmpGet]
+        private Facing facing;
 
         [SyncVar]
         private bool _netFlipX;
@@ -34,6 +36,12 @@ namespace ONI_Together.Networking.OxySync.Components
         public override void OnSpawn()
         {
             _isMinion = TryGetComponent<MinionIdentity>(out _);
+            if (kbac == null)
+                kbac = GetComponent<KBatchedAnimController>();
+            if (navigator == null)
+                navigator = GetComponent<Navigator>();
+            if (facing == null)
+                facing = GetComponent<Facing>();
             if (_isMinion)
                 InterestGroup = -1; // Always broadcast duplicant transforms so chunk-edge dropouts never trigger 0.5s resync teleports
             base.OnSpawn();
@@ -56,7 +64,13 @@ namespace ONI_Together.Networking.OxySync.Components
         {
             base.ServerUpdate();
 
-            if (kbac != null)
+            if (facing != null)
+            {
+                _netFlipX = facing.GetFacing();
+                if (kbac != null)
+                    _netFlipY = kbac.FlipY;
+            }
+            else if (kbac != null)
             {
                 _netFlipX = kbac.FlipX;
                 _netFlipY = kbac.FlipY;
@@ -90,6 +104,10 @@ namespace ONI_Together.Networking.OxySync.Components
         {
             base.ClientUpdate();
 
+            if (facing != null)
+            {
+                facing.SetFacing(_netFlipX);
+            }
             if (kbac != null)
             {
                 kbac.FlipX = _netFlipX;
@@ -128,6 +146,10 @@ namespace ONI_Together.Networking.OxySync.Components
             ResetSnapshots(position, _netRotation, _netScale);
 
             transform.SetPosition(position);
+            if (facing != null)
+            {
+                facing.SetFacing(flipX);
+            }
             if (kbac != null)
             {
                 kbac.FlipX = flipX;

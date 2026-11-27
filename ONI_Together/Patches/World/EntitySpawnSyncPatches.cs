@@ -59,7 +59,7 @@ namespace ONI_Together.Patches.World
 		{
 			static void Postfix(GameObject __result)
 			{
-				if (_capturingHostSpawns && __result != null && __result.GetComponent<KPrefabID>() != null)
+				if (_capturingHostSpawns && __result != null && __result.TryGetComponent<KPrefabID>(out var kpid) && kpid.PrefabTag.Name != "TargetLocator")
 					_capturedSpawns?.Add(__result);
 			}
 		}
@@ -242,6 +242,18 @@ namespace ONI_Together.Patches.World
 		}
 
 		// --- Plant seed drops (including digging up wild plants / buried seeds) ---
+
+		// SeedProducer.CropPickedInternal calls ProduceSeed() and immediately invokes
+		// seed.Trigger(...) without a null check, so skip CropPicked on clients before
+		// it calls ProduceSeed() and returns null.
+		[HarmonyPatch(typeof(SeedProducer), "CropPicked")]
+		internal static class SeedProducer_CropPicked_Patch
+		{
+			static bool Prefix()
+			{
+				return !(MultiplayerSession.InActiveSession && MultiplayerSession.IsClient);
+			}
+		}
 
 		[HarmonyPatch(typeof(SeedProducer), nameof(SeedProducer.ProduceSeed))]
 		internal static class SeedProducer_ProduceSeed_Patch
