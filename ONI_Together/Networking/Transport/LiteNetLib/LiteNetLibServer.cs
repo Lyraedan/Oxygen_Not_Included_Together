@@ -88,6 +88,19 @@ namespace ONI_Together.Networking.Transport.Lan
                     return true;
                 }
             }
+
+            // Fallback for clients using the default "Player <id>" LAN name: on reconnect
+            // the peer gets a new ID (e.g. 2 -> 3) so neither ID nor name matches.
+            // Consume the oldest pending entry whose previous client ID is no longer connected.
+            for (int i = 0; i < _loadingClients.Count; i++)
+            {
+                if (!MultiplayerSession.ConnectedPlayers.ContainsKey(_loadingClients[i].ClientId))
+                {
+                    _loadingClients.RemoveAt(i);
+                    return true;
+                }
+            }
+
             return false;
         }
 
