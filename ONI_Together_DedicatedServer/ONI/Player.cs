@@ -1,32 +1,30 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Riptide;
-using Shared.Profiling;
+using LiteNetLib;
 
 namespace ONI_Together_DedicatedServer.ONI
 {
     public class Player
     {
-        public Connection Connection { get; private set; }
+        public NetPeer Connection { get; private set; }
         public bool IsMaster { get; private set; }
+        public ulong ClientID { get; private set; }
+        public DateTime ConnectedAtUtc { get; }
 
-        public ulong ClientID => Connection?.Id ?? 0uL;
+        /// <summary>
+        /// Round-trip time in milliseconds (LiteNetLib exposes one-way Ping).
+        /// </summary>
+        public int PingMs => Connection != null ? Connection.Ping * 2 : -1;
 
-        public Player(Connection conn, bool IsMaster)
+        public Player(NetPeer conn, bool isMaster, ulong clientId)
         {
-            using var _ = Profiler.Scope();
-
             Connection = conn;
-            UpdateMasterState(IsMaster);
+            ClientID = clientId;
+            ConnectedAtUtc = DateTime.UtcNow;
+            UpdateMasterState(isMaster);
         }
 
         public void UpdateMasterState(bool state)
         {
-            using var _ = Profiler.Scope();
-
             IsMaster = state;
         }
     }

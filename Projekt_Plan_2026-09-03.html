@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ONI Together – Projekt-Plan & Status (03.09.2026)</title>
+<style>
+:root{--bg:#0f172a;--card:#1e293b;--accent:#38bdf8;--green:#22c55e;--yellow:#eab308;--red:#ef4444;--text:#e2e8f0;--muted:#94a3b8}
+*{box-sizing:border-box}body{font-family:'Segoe UI',system-ui,Arial,sans-serif;background:var(--bg);color:var(--text);margin:0;padding:24px;line-height:1.6}
+h1,h2,h3{color:#fff}h1{border-bottom:3px solid var(--accent);padding-bottom:12px}a{color:var(--accent)}
+.container{max-width:1200px;margin:auto}
+.card{background:var(--card);border-radius:12px;padding:20px;margin:16px 0;border:1px solid #334155}
+.badge{display:inline-block;padding:2px 10px;border-radius:20px;font-size:12px;font-weight:bold;margin:2px}
+.open{background:#1d4ed8}.merged{background:#6d28d9}.closed{background:#475569}.critical{background:var(--red)}.warn{background:var(--yellow);color:#000}.ok{background:var(--green)}
+table{width:100%;border-collapse:collapse;font-size:14px;margin:12px 0}th,td{border:1px solid #334155;padding:8px;text-align:left;vertical-align:top}th{background:#0f172a;color:var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px}
+.kpi{font-size:28px;font-weight:bold;color:var(--accent)}
+small{color:var(--muted)}
+ol.plan li{margin:10px 0;padding:10px;background:#0f172a;border-left:4px solid var(--accent);border-radius:6px;list-style-position:inside}
+.do{border-left-color:var(--green)!important}.dont{border-left-color:var(--red)!important}
+code{background:#0f172a;padding:2px 6px;border-radius:4px;font-size:13px}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>🚀 Oxygen Not Included Together – Status & Plan</h1>
+<p>Stand: <b>03.09.2026</b> | Lokaler Branch: <code>testing/network-backend-upgrades @ 68491597</code> (sauber, up-to-date) | Hauptbranch: <code>main</code><br>
+Origin: <a href="https://github.com/Malionaro/Oxygen_Not_Included_Together">Malionaro (Fork)</a> | Upstream: <a href="https://github.com/Lyraedan/Oxygen_Not_Included_Together">Lyraedan (126 ⭐)</a></p>
+
+<div class="grid">
+<div class="card"><div class="kpi">~75–80%</div><b>Core-Multiplayer spielbar (Live)</b><br><small>OxySync-Migration ~90% Code-fertig, Runtime-QA fehlt. Build: 0 Fehler / 290 Warnungen.</small></div>
+<div class="card"><div class="kpi">345 Files</div><b>Diff testing vs. main</b><br><small>+20.720 / −3.593 Zeilen. Aktiver Dev-Strang ist <code>testing/network-backend-upgrades</code>, nicht <code>main</code>.</small></div>
+<div class="card"><div class="kpi">21 offen</div><b>PRs / 22 Issues (upstream)</b><br><small>Alle offenen PRs zielen auf <code>testing/network-backend-upgrades</code>. Größter: Epic #145 (+20k).</small></div>
+</div>
+
+<h2>1. Wie sieht es aus? (Architektur)</h2>
+<div class="card">
+<p><b>Prinzip:</b> Host-autoritativ, kein Lockstep. Host simuliert, Clients senden Intents.</p>
+<ul>
+<li><b>Legacy IPacket (144x):</b> <code>Serialize/Deserialize/OnDispatched</code>, Handshake+DLC+ModHash-Check, Save-Transfer via TCP, Tools (je Request+Broadcast), Chores, Animation, Chat/Cursor.</li>
+<li><b>OxySync (neu, Mirror-inspiriert):</b> <code>Shared/OxySync/NetworkBehaviour + [SyncVar]/[Command]/[ClientRpc] + InterestGroups</code>, DirtyBits 64-bit, deterministische Behaviour-IDs, <code>OxySyncManager</code> mit Frame-Budget, <code>NetworkTransform</code>, Viewport-Culling.</li>
+<li><b>Transport:</b> <code>ITransport</code> – Steamworks P2P (Default, Lobby/Codes/Passwort), LiteNetLib 1.3.1 (LAN/Direct, löst Riptide-1000B-Limit), Riptide legacy, EOS gebenched.</li>
+<li><b>Module:</b> <code>ONI_Together/</code> (Hauptmod), <code>Shared/</code> (OxySync-Core), <code>ONI_Together_API/</code> (NuGet für Drittmods), <code>ONI_Together_DedicatedServer/</code> (nur Relay-Konzept).</li>
+</ul>
+<p><small>Quellen: README.md, TRELLO_PROGRESS_STATUS.md (165 Karten: 60 synced, 32 complete), animation_sync_spec.md, Project_Status_Report.html, Deep_Scan_Code_Report.html</small></p>
+</div>
+
+<h2>2. Was wird gerade getan? – Die 3 neuesten Branches</h2>
+<div class="card">
+<table>
+<tr><th>Branch</th><th>Datum / Autor</th><th>Was</th><th>Einschätzung</th></tr>
+<tr><td><code>upstream/experimental/oxysync-ready-tracking</code><br><small>9ad75023 „Probably won't merge…"</small></td><td>01.09.2026<br>Lyraedan</td><td>Ready-State über OxySync statt Paketen. 11 Files +363/−184 (neu: <code>ReadyStateSyncer.cs</code>, Umbau <code>ReadyManager</code>). Diff vs main: 347 Files.</td><td><span class="badge warn">NICHT ANFASSEN</span> Reines Experiment, per Message nicht merge-reif. Idee ggf. übernehmen.</td></tr>
+<tr><td><code>testing/network-backend-upgrades</code> ⭐<br><small>68491597 „deterministic behaviour ids"</small></td><td>30.08.2026<br>Lyraedan (ausgecheckt)</td><td>Haupt-Entwicklung: OxySync-Neubau, LAN-Auswahl, LiteNetLib-Fix, Cursor-Namen, 64-bit Dirty-Tracking, Tests (+1555 Zeilen), Fixes von Renfrew/Liang Chen/Zeming.</td><td><span class="badge ok">HIER WEITERARBEITEN</span> Größter, aber einziger getesteter Strang. Basis für alle PRs.</td></tr>
+<tr><td><code>feature/oxysync-all-tools</code><br><small>8a38ef07 (dein Branch)</small></td><td>29.08.2026<br>Malionaro</td><td>Alle Tools auf OxySync (Dig/Build/Attack/Capture/…/Sandbox), 9 neue Syncer, 20+ Patches verschlankt. +1314/−565, 0 neue Felder. 2 Commits hinter testing.</td><td><span class="badge open">REBASE + PR</span> Reviewbarste Arbeit. Auf <code>testing</code> rebasen, dann dorthin mergen, nicht parallel divergieren lassen.</td></tr>
+</table>
+<p><small>main lokal (067fc8f1, 31.07.) ist 3 Commits hinter origin/main (Prioritizable-Fix). Untracked: Deep_Scan_Code_Report.html, Project_Status_Report.html – generiert, nicht committen.</small></p>
+</div>
+
+<h2>3. Was muss gemacht werden? (Priorisierter Plan)</h2>
+<div class="card">
+<ol class="plan">
+<li class="do"><b>P0 – Crash-Fixes mergen (Stabilität): #195, #198, #194</b><br>#195: Operational-vor-Host-State (13 NREs → 0, sonst deaktiviert ONI alle Mods). #198: CursorManager 31k NREs/Frame bei fehlgeschlagenem Load. #194: Log-Lock killte Mod beim Start. Alle klein, CLEAN, sofort reviewbar.</li>
+<li class="do"><b>P1 – younatics-Batch #170–#178 als Stapel (je 1–3 Files, vermessen):</b> #173 SpawnPrefab-Ctor (Spawns kamen nie an → fixt #154), #175 Storage löscht Anzüge/Critter, #174 falsche NetIds, #171 356 Pipe-Cells nie sync, #177 Automation-Keyframes, #170 Mod-Version-Handshake, #172 Battery-NRE, #178 Census-Detektor, #179 Doku.</li>
+<li class="do"><b>P1 – Gameplay-Trio: #185 (Work, fixt #184) + #182 (Priority, −67 Zeilen Paket-Sturm) + #187 (StatusItem-Lag).</b> #186 MoveTo ist schon gemergt, braucht #185 für korrekte Dauer.</li>
+<li class="do"><b>P2 – Animation-Kette: #191 → #201 (Renfrew).</b> Je −1400 Zeilen, #191 zuletzt 01.09. aktiv. Zuerst #191, dann #201. Kritisch: <code>[ClientRpc] ohne IncludeHost=true</code> in ToolSyncern (Host führt nie aus – Deep-Scan-Fund).</li>
+<li class="do"><b>P2 – Eigene Beiträge: #189 (Worker-Bar, +103/−12, CLEAN) + #180 de-Translation (+2623, #181 pl ist gemergt) + <code>feature/oxysync-all-tools</code> rebasen & PR auf testing öffnen.</b></li>
+<li class="do"><b>P3 – Test-Infra: #199 (Dupe-Pos-Test), #196 (UnitTest-Logging). Closed als Referenz: #192/#193/#197.</b></li>
+<li class="do"><b>P3 – Epic #145 (OxySync + Fixes, +20k, 336 Files) als Release-Basis.</b> Erst nach P0–P2 mergen. Offen laut Epic: Dupe-Vitals, StatusItems, StateMachines, Chatbox, Animation.</li>
+<li class="do"><b>P4 – Runtime-QA 2-PC-LAN (Steam + LiteNetLib):</b> Join/Ready/HardSync, Bauen, Rohre off-screen, Strom, Drucker, Save-Transfer, 3x-Speed. Offene Issues verifizieren: #159 (via #161?), #155 (via #157?), #121 (via #147?).</li>
+</ol>
+</div>
+
+<h2>4. Was muss NICHT gemacht werden?</h2>
+<div class="card">
+<ol class="plan">
+<li class="dont"><b><code>experimental/oxysync-ready-tracking</code> ignorieren</b> – explizit Experiment, nicht mergen.</li>
+<li class="dont"><b>Nicht auf <code>main / 0.7.4</code> committen</b> – veraltet (31.07.), alle PRs zielen auf <code>testing/network-backend-upgrades</code>.</li>
+<li class="dont"><b>Keine neuen Legacy-IPackets</b> – alles Neue als OxySync <code>NetworkBehaviour</code>.</li>
+<li class="dont"><b>Dedicated Server + EOS auslassen (benched)</b> – nur Relay-Konzept, Master-Migration TODO. Erst nach v0.8.</li>
+<li class="dont"><b>Blueprint-Sync, Relocate-Tool, Granular-HardSync, Auto-Reconnect nicht jetzt</b> – Trello-ToDo, aber kein Blocker für v0.8.</li>
+<li class="dont"><b>Geschlossene Issues nicht wieder aufmachen ohne Repro:</b> #143 Chat-LAN, #132/#133 Chatbox, #56 LAN-Hosting, #48 Dekonstr-Sync ist noch offen (nicht schließen).</li>
+</ol>
+</div>
+
+<h2>5. Offene PRs (Upstream, Auswahl)</h2>
+<div class="card">
+<table>
+<tr><th>#</th><th>Titel</th><th>Autor</th><th>Status</th><th>Prio</th></tr>
+<tr><td><a href="https://github.com/Lyraedan/Oxygen_Not_Included_Together/pull/145">145</a></td><td>OxySync + Numerous bug fixes (Epic, 336 Files)</td><td>Lyraedan</td><td><span class="badge open">OPEN</span></td><td>P3 Release-Basis</td></tr>
+<tr><td><a href="https://github.com/Lyraedan/Oxygen_Not_Included_Together/pull/191">191</a> → <a href="https://github.com/Lyraedan/Oxygen_Not_Included_Together/pull/201">201</a></td><td>Animation → OxySync / Animate SyncVar</td><td>Renfrew</td><td><span class="badge open">OPEN</span></td><td>P2</td></tr>
+<tr><td><a href="https://github.com/Lyraedan/Oxygen_Not_Included_Together/pull/185">185</a></td><td>Work sync (fixt #184)</td><td>Renfrew</td><td><span class="badge open">OPEN</span></td><td>P1</td></tr>
+<tr><td><a href="https://github.com/Lyraedan/Oxygen_Not_Included_Together/pull/195">195</a></td><td>Client-Operational-vor-Host-State (13→0 NREs)</td><td>Zeming</td><td><span class="badge critical">OPEN KRITISCH</span></td><td>P0</td></tr>
+<tr><td><a href="https://github.com/Lyraedan/Oxygen_Not_Included_Together/pull/198">198</a> / <a href="https://github.com/Lyraedan/Oxygen_Not_Included_Together/pull/194">194</a></td><td>Cursor-NRE / OnLoad-Trace-Lock</td><td>Zeming</td><td><span class="badge open">OPEN</span></td><td>P0</td></tr>
+<tr><td><a href="https://github.com/Lyraedan/Oxygen_Not_Included_Together/pull/170">170</a>–<a href="https://github.com/Lyraedan/Oxygen_Not_Included_Together/pull/178">178</a></td><td>younatics-Batch (Spawn/Storage/Pipes/Logic/Handshake…)</td><td>younatics</td><td><span class="badge open">OPEN</span></td><td>P1</td></tr>
+<tr><td><a href="https://github.com/Lyraedan/Oxygen_Not_Included_Together/pull/189">189</a></td><td>Worker-Bar smooth + Pause-Freeze (dein PR)</td><td>Malionaro</td><td><span class="badge open">OPEN</span></td><td>P2</td></tr>
+<tr><td><a href="https://github.com/Lyraedan/Oxygen_Not_Included_Together/pull/180">180</a> / 181</td><td>German (offen) / Polish (gemergt)</td><td>Malionaro</td><td><span class="badge open">OPEN</span> / <span class="badge merged">MERGED</span></td><td>P2</td></tr>
+<tr><td><a href="https://github.com/Lyraedan/Oxygen_Not_Included_Together/pull/147">147</a></td><td>Circuits unpowered (fixt #121, → main)</td><td>vxern</td><td><span class="badge open">OPEN</span></td><td>P4 verifizieren</td></tr>
+</table>
+<small>Vollständig: 21 offen (u.a. #182 Priority, #187 StatusLag, #196/#199 Tests, #164 Plants, #179 Field-Notes). Gemergt u.a.: #190/#186/#168/#166/#163/#162/#161/#160/#157/#156/#153/#152/#151/#150/#149/#148/#146. Closed: #200/#193/#192/#197/#188/#167.</small>
+</div>
+
+<h2>6. Offene Issues (Upstream, Auswahl)</h2>
+<div class="card">
+<table>
+<tr><th>#</th><th>Titel</th><th>Status</th><th>Bezug</th></tr>
+<tr><td><a href="https://github.com/Lyraedan/Oxygen_Not_Included_Together/issues/184">184</a> / <a href="https://github.com/Lyraedan/Oxygen_Not_Included_Together/issues/183">183</a></td><td>Task-Icon bleibt / Pickup nicht sync</td><td><span class="badge open">OPEN</span></td><td>#185 adressiert</td></tr>
+<tr><td><a href="https://github.com/Lyraedan/Oxygen_Not_Included_Together/issues/165">165</a></td><td>Dupes unselectable (Client, häufig)</td><td><span class="badge critical">OPEN</span></td><td>unadressiert – QA nötig</td></tr>
+<tr><td><a href="https://github.com/Lyraedan/Oxygen_Not_Included_Together/issues/169">169</a></td><td>Storage-Bin-Fullness 0/20000</td><td><span class="badge open">OPEN</span></td><td>„OxySync fixes" – prüfen</td></tr>
+<tr><td><a href="https://github.com/Lyraedan/Oxygen_Not_Included_Together/issues/159">159</a> / <a href="https://github.com/Lyraedan/Oxygen_Not_Included_Together/issues/155">155</a> / <a href="https://github.com/Lyraedan/Oxygen_Not_Included_Together/issues/121">121</a></td><td>Quit 2. Versuch / Laser-Anim / kein Strom</td><td><span class="badge warn">PRÜFEN → SCHLIESSEN?</span></td><td>#161 / #157 / #147 bereits gemergt/offen</td></tr>
+<tr><td><a href="https://github.com/Lyraedan/Oxygen_Not_Included_Together/issues/126">126</a> / <a href="https://github.com/Lyraedan/Oxygen_Not_Included_Together/issues/120">120</a></td><td>Steam-Host-Crash / Scroll-Crash Client</td><td><span class="badge open">OPEN</span></td><td>unadressiert</td></tr>
+<tr><td><a href="https://github.com/Lyraedan/Oxygen_Not_Included_Together/issues/154">154</a></td><td>Hatch auf Client unsichtbar auf Host</td><td><span class="badge open">OPEN</span></td><td>#173 adressiert</td></tr>
+</table>
+</div>
+
+<h2>7. Konkrete nächste Schritte (für dich)</h2>
+<div class="card">
+<pre style="white-space:pre-wrap;background:#0f172a;padding:12px;border-radius:8px">git checkout testing/network-backend-upgrades && git pull
+git checkout feature/oxysync-all-tools && git rebase testing/network-backend-upgrades
+# Konflikte lösen (erwartet: Behaviour-IDs deterministisch 68491597), dann:
+# PR feature/oxysync-all-tools → testing/network-backend-upgrades öffnen
+# Danach: #195, #198, #194 reviewen/testen, younatics-Batch #173/#175/#171 zuerst
+dotnet build ONI_Together.sln  # 0 Fehler erwartet
+# 2-PC-LAN-Test: Host + Client, Save-Transfer, Ready, Bauen, Pipes, Strom</pre>
+</div>
+
+<h2>8. Tipps</h2>
+<div class="card"><ul>
+<li><b>IncludeHost-Bug:</b> <code>[ClientRpc]</code> ohne <code>IncludeHost=true</code> in ToolSyncern → Host führt nie aus. Fix: Flag setzen oder direkt im <code>[Command]</code> ausführen.</li>
+<li><b>Storage-Guard:</b> <code>BuildingUtils.ClearStorage</code> nicht auf <code>Assignable/Creature</code> anwenden (PR #175).</li>
+<li><b>Ready-Deadlock:</b> <code>ReadyManager:193 ConnectedPlayers.Count</code> ohne Host → <code>others&gt;0</code> (PR #125).</li>
+<li><b>Offscreen-Pipes:</b> Viewport-Guard auch bei ForceRefresh aufheben (<code>ConduitFlowSyncer:180</code>, PR #171).</li>
+<li><b>LAN-ID:</b> <code>peer.Id+2</code>-Mapping bricht Reconnect – stabil mappen.</li>
+<li><b>Reports ignorieren:</b> <code>Deep_Scan_Code_Report.html</code> + <code>Project_Status_Report.html</code> zu <code>.gitignore</code> oder löschen.</li>
+<li><b>Contributing:</b> MIT, AI als Tool ok, keine reinen AI-PRs (README). Conventional Commits, kleine PRs pro Fix.</li>
+</ul></div>
+<p><small>Erstellt mit 3 Subagenten (Codebase-Explorer, Git-Analyst, GitHub-Rechercheur). Daten: git for-each-ref/log/diff + gh pr/issue list/view, Stand 03.09.2026.</small></p>
+</div>
+</body>
+</html>

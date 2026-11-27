@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oxygen Not Included Together – Codebase Deep Scan Report</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-main: #0c0e14;
+      --bg-card: #131722;
+      --bg-card-hover: #181e2c;
+      --border: #232a3b;
+      --accent: #00d2ff;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --purple: #8b5cf6;
+      --text-main: #e2e8f0;
+      --text-muted: #94a3b8;
+      --code-bg: #090b10;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-main);
+      color: var(--text-main);
+      line-height: 1.6;
+      padding: 30px 20px;
+    }
+
+    .container { max-width: 1400px; margin: 0 auto; }
+
+    header {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px;
+      margin-bottom: 24px;
+      position: relative;
+      overflow: hidden;
+    }
+    header::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, var(--danger), var(--warning), var(--accent));
+    }
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 800;
+      color: #fff;
+      margin-bottom: 6px;
+    }
+    .subtitle { color: var(--text-muted); font-size: 0.95rem; }
+
+    .meta-bar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+    }
+
+    .pill {
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .pill-red { color: var(--danger); border-color: rgba(239, 68, 68, 0.3); background: rgba(239, 68, 68, 0.08); }
+    .pill-amber { color: var(--warning); border-color: rgba(245, 158, 11, 0.3); background: rgba(245, 158, 11, 0.08); }
+    .pill-cyan { color: var(--accent); border-color: rgba(0, 210, 255, 0.3); background: rgba(0, 210, 255, 0.08); }
+    .pill-green { color: var(--success); border-color: rgba(16, 185, 129, 0.3); background: rgba(16, 185, 129, 0.08); }
+
+    /* Filter Toolbar */
+    .filter-toolbar {
+      display: flex;
+      gap: 10px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .filter-btn {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 8px 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+    .filter-btn:hover, .filter-btn.active {
+      color: #fff;
+      background: var(--bg-card-hover);
+      border-color: var(--accent);
+    }
+
+    /* Bug Cards */
+    .bug-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 22px;
+      margin-bottom: 20px;
+      transition: transform 0.15s ease;
+    }
+    .bug-card:hover { border-color: #3b455d; }
+
+    .bug-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .bug-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .bug-location {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.82rem;
+      color: #38bdf8;
+      background: var(--code-bg);
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .bug-section {
+      margin-top: 14px;
+    }
+    .bug-section-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      overflow-x: auto;
+      font-family: 'Fira Code', monospace;
+      font-size: 0.85rem;
+      color: #e2e8f0;
+      margin-top: 6px;
+    }
+
+    code {
+      font-family: 'Fira Code', monospace;
+      font-size: 0.85em;
+      background: var(--code-bg);
+      padding: 2px 5px;
+      border-radius: 4px;
+      color: #38bdf8;
+    }
+
+    .fix-box {
+      background: rgba(16, 185, 129, 0.05);
+      border: 1px solid rgba(16, 185, 129, 0.25);
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-top: 10px;
+      font-size: 0.9rem;
+    }
+    .fix-title { font-weight: 700; color: var(--success); margin-bottom: 4px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🔍 Codebase Deep Scan Report</h1>
+      <div class="subtitle">Systematischer Scan aller Subsysteme, Branches und Patches auf Fehler, Desync-Ursachen, Absturzrisiken und Speicherlecks.</div>
+      <div class="meta-bar">
+        <span class="pill pill-red">3 Kritische Fehler (Sofort handeln)</span>
+        <span class="pill pill-amber">3 Hohe Risiken (Gameplay Desyncs)</span>
+        <span class="pill pill-cyan">4 Mittlere Risiken (Memory & Crash)</span>
+        <span class="pill pill-green">Build: 0 Compiler-Fehler</span>
+      </div>
+    </header>
+
+    <div class="filter-toolbar">
+      <button class="filter-btn active" onclick="filterBugs('all')">Alle anzeigen (10)</button>
+      <button class="filter-btn" onclick="filterBugs('critical')">Kritisch (3)</button>
+      <button class="filter-btn" onclick="filterBugs('high')">Hohes Risiko (3)</button>
+      <button class="filter-btn" onclick="filterBugs('medium')">Mittleres Risiko (4)</button>
+    </div>
+
+    <!-- Finding 1 -->
+    <div class="bug-card" data-severity="critical">
+      <div class="bug-header">
+        <div class="bug-title">
+          <span class="pill pill-red">Kritisch</span>
+          [ClientRpc] ohne IncludeHost in allen Tool-Syncern verhindert Host-Ausführung
+        </div>
+        <div class="bug-location">ONI_Together/Networking/OxySync/Components/Tools/*ToolSyncer.cs</div>
+      </div>
+      <p>
+        In <code>feature/oxysync-all-tools</code> verwenden alle Tool-Klassen (Dig, Build, Deconstruct, Attack, Capture, Sandbox etc.) 
+        das Muster <code>[Command] -> CallClientRpc(nameof(RpcXxx))</code>. 
+        In <code>NetworkBehaviour.cs</code> schließt <code>CallClientRpc</code> den Host standardmäßig aus, solange <code>IncludeHost = true</code> nicht gesetzt ist.
+      </p>
+      <div class="bug-section">
+        <div class="bug-section-title">Fehlerhafter Code-Ablauf</div>
+        <pre><code>// Client ruft Graben auf -> Command an Host
+[Command]
+private void CmdDig(int cell, int animationDelay, int priority_class, int priority_value)
+{
+    // Sendet via PacketSender.SendToAllClients an Clients.
+    // Host führt RpcDig NICHT aus, weil IncludeHost = false (Default)!
+    CallClientRpc(nameof(RpcDig), cell, animationDelay, priority_class, priority_value);
+}
+
+[ClientRpc] // FEHLT: (IncludeHost = true)
+private void RpcDig(int cell, int animationDelay, int priority_class, int priority_value)
+{
+    DigTool.PlaceDig(cell, animationDelay); // Läuft nur auf Clients, NIE auf dem Host!
+}</code></pre>
+      </div>
+      <div class="fix-box">
+        <div class="fix-title">Lösung</div>
+        Entweder <code>[ClientRpc(IncludeHost = true)]</code> deklarieren ODER im <code>CmdXxx</code> die Aktion direkt auf dem Host ausführen (wie in <code>MoveToLocation.cs</code>). Außerdem muss in <code>RpcXxx</code> der auslösende Client die Aktion ignorieren, da er sie lokal schon ausgeführt hat.
+      </div>
+    </div>
+
+    <!-- Finding 2 -->
+    <div class="bug-card" data-severity="critical">
+      <div class="bug-header">
+        <div class="bug-title">
+          <span class="pill pill-red">Kritisch</span>
+          Storage-Sync löscht Atmo-Anzüge und tötet lebende Tiere in Fallen
+        </div>
+        <div class="bug-location">ONI_Together/Misc/BuildingUtils.cs:140-145</div>
+      </div>
+      <p>
+        In <code>BuildingUtils.ClearStorage</code> wird vor dem Wiederaufbau aus dem Byte-Blob jedes Element im Container mit <code>DeleteObject()</code> zerstört. 
+        Danach wird das Prefab anhand des Tags neu instanziiert.
+      </p>
+      <div class="bug-section">
+        <div class="bug-section-title">Fehlerhafter Code</div>
+        <pre><code>private static void ClearStorage(Storage storage)
+{
+    for (int i = storage.items.Count - 1; i >= 0; i--)
+        storage.items[i].DeleteObject(); // Zerstört echte Anzüge & Tiere!
+    storage.items.Clear();
+}</code></pre>
+      </div>
+      <div class="fix-box">
+        <div class="fix-title">Lösung (Siehe PR #175)</div>
+        Entitäten mit <code>Assignable</code> (Anzüge) und <code>GameTags.Creature</code> (Tiere) dürfen weder in den Blob codiert noch in <code>ClearStorage</code> gelöscht werden.
+      </div>
+    </div>
+
+    <!-- Finding 3 -->
+    <div class="bug-card" data-severity="critical">
+      <div class="bug-header">
+        <div class="bug-title">
+          <span class="pill pill-red">Kritisch</span>
+          Steamworks 2-Spieler Ready-Screen Deadlock
+        </div>
+        <div class="bug-location">ONI_Together/Networking/ReadyManager.cs:193-197</div>
+      </div>
+      <p>
+        In <code>ReadyManager.RefreshReadyState()</code> prüft die Methode <code>ConnectedPlayers.Count <= 1</code>, um den Broadcast zu überspringen, wenn nur noch der Host im Spiel ist.
+        Bei Steamworks ist der Host jedoch nicht in seiner eigenen <code>ConnectedPlayers</code>-Liste (Roster = 1 bei 2 Spielern).
+      </p>
+      <div class="bug-section">
+        <div class="bug-section-title">Fehlerhafter Code</div>
+        <pre><code>if (MultiplayerSession.ConnectedPlayers.Count <= 1)
+{
+    AllClientsReadyPacket.ProcessAllReady(); // Feuert nur lokal beim Host!
+    return; // Client erhält NIE das AllReady-Signal und bleibt ewig im Screen stecken!
+}</code></pre>
+      </div>
+      <div class="fix-box">
+        <div class="fix-title">Lösung (Siehe PR #125)</div>
+        Die Prüfung muss Spieler zählen, die ungleich der eigenen ID sind (<code>others > 0</code>), statt der rohen Roster-Größe.
+      </div>
+    </div>
+
+    <!-- Finding 4 -->
+    <div class="bug-card" data-severity="high">
+      <div class="bug-header">
+        <div class="bug-title">
+          <span class="pill pill-amber">Hohes Risiko</span>
+          LAN Reconnect ändert Client-ID (Session-Desync nach Weltexport)
+        </div>
+        <div class="bug-location">ONI_Together/Networking/Transport/Lan/LiteNetLibServer.cs:153</div>
+      </div>
+      <p>
+        In <code>OnConnectionRequest</code> wird die ID aus <code>peer.Id + 2</code> generiert. LiteNetLib vergibt nach dem Socket-Schließen beim Welt-Laden eine inkrementierte <code>peer.Id</code> (z.B. von 0 auf 1).
+        Der wiederkehrende Spieler wird zu ID 3 statt 2. Cursors und Besitzrechte gehen verloren.
+      </p>
+      <div class="fix-box">
+        <div class="fix-title">Lösung</div>
+        Den persistenten <code>CLIENT_ID</code>-Handshake aus Commit <code>7fda4151</code> wiederherstellen oder Reconnect-Mapping via IP/Token führen.
+      </div>
+    </div>
+
+    <!-- Finding 5 -->
+    <div class="bug-card" data-severity="high">
+      <div class="bug-header">
+        <div class="bug-title">
+          <span class="pill pill-amber">Hohes Risiko</span>
+          Off-Screen Rohre und Leitungen synchronisieren niemals (Trockenlaufen)
+        </div>
+        <div class="bug-location">ONI_Together/Networking/Components/ConduitFlowSyncer.cs:180-182</div>
+      </div>
+      <p>
+        Rohrzellen werden verworfen, wenn kein Spieler die Zelle im Viewport hat (<code>if (_recipientScratch.Count == 0) continue;</code>). 
+        Selbst beim periodischen <code>forceRefresh</code> wird dieser Check nicht aufgehoben. Rohre außerhalb der Kamera divergieren dauerhaft zwischen Host und Client.
+      </p>
+      <div class="fix-box">
+        <div class="fix-title">Lösung (Siehe PR #171)</div>
+        Beim periodischen <code>forceRefresh</code>-Tick den Viewport-Check aufheben, damit mindestens alle paar Sekunden der gesamte Leitungszustand abgeglichen wird.
+      </div>
+    </div>
+
+    <!-- Finding 6 -->
+    <div class="bug-card" data-severity="high">
+      <div class="bug-header">
+        <div class="bug-title">
+          <span class="pill pill-amber">Hohes Risiko</span>
+          Memory Leak in MultiplayerSession.Clear() (Zerstörte GameObject-Referenzen)
+        </div>
+        <div class="bug-location">ONI_Together/Networking/MultiplayerSession.cs:92-105</div>
+      </div>
+      <p>
+        <code>MultiplayerSession.Clear()</code> leert das Wörterbuch <code>PlayerCursors</code> nicht und zerstört die Remote-Cursor-GameObjects nicht. 
+        Wird nach einer Session ein neues Spiel geladen, verweisen alte Cursors auf zerstörte Unity-Objekte, was zu NREs im Render-Loop führt.
+      </p>
+      <div class="fix-box">
+        <div class="fix-title">Lösung</div>
+        <code>foreach (var c in PlayerCursors.Values) if (c != null) Object.Destroy(c.gameObject); PlayerCursors.Clear(); InActiveSession = false;</code> in <code>Clear()</code> einfügen.
+      </div>
+    </div>
+
+    <!-- Finding 7 -->
+    <div class="bug-card" data-severity="medium">
+      <div class="bug-header">
+        <div class="bug-title">
+          <span class="pill pill-cyan">Mittleres Risiko</span>
+          Unbegrenzte Puffergröße in RpcSerializer führt zu OutOfMemory-Crash
+        </div>
+        <div class="bug-location">Shared/OxySync/RpcSerializer.cs:418 & 270</div>
+      </div>
+      <p>
+        In <code>DecompressString</code> liest <code>BitConverter.ToInt32(gZipBuffer, 0)</code> die ungepackte Länge und allokiert sofort <code>new byte[dataLength]</code> ohne Obergrenzen-Check. 
+        Bei fehlerhaften oder manipulierten Paketen stürzt der Spielprozess sofort mit <code>OutOfMemoryException</code> ab.
+      </p>
+      <div class="fix-box">
+        <div class="fix-title">Lösung</div>
+        Schutz einbauen: <code>if (dataLength < 0 || dataLength > 10 * 1024 * 1024) return string.Empty;</code>.
+      </div>
+    </div>
+
+    <!-- Finding 8 -->
+    <div class="bug-card" data-severity="medium">
+      <div class="bug-header">
+        <div class="bug-title">
+          <span class="pill pill-cyan">Mittleres Risiko</span>
+          GZip-Overhead & String-Null-Konvertierung in RpcSerializer
+        </div>
+        <div class="bug-location">Shared/OxySync/RpcSerializer.cs:386-406</div>
+      </div>
+      <p>
+        Kurze Strings wie "Tile" oder "DEFAULT_FACADE" werden mit GZip komprimiert und Base64-codiert. Das bläht kurze Texte auf das Neunfache auf und allokiert pro Parameter 5 Müllobjekte im GC.
+        Zudem wird <code>null</code> zu <code>string.Empty</code>, was Facade-Lookups brechen kann.
+      </p>
+      <div class="fix-box">
+        <div class="fix-title">Lösung</div>
+        GZip nur bei Strings > 256 Bytes aktivieren; darunter normale UTF-8 BinaryWriter-Bytes schreiben.
+      </div>
+    </div>
+
+    <!-- Finding 9 -->
+    <div class="bug-card" data-severity="medium">
+      <div class="bug-header">
+        <div class="bug-title">
+          <span class="pill pill-cyan">Mittleres Risiko</span>
+          Mögliche NullReferenceException in StandardWorker_Patches.cs
+        </div>
+        <div class="bug-location">ONI_Together/Patches/DuplicantActions/StandardWorker_Patches.cs:52</div>
+      </div>
+      <p>
+        In <code>StandardWorker_StartWork_Patch.Postfix</code> auf dem Branch <code>backup/worker-progress-bar-pause-2026-08-28</code> wird <code>start_work_info.workable.GetType()</code> aufgerufen. 
+        Ist <code>start_work_info.workable == null</code>, crasht der Patch mit einer NRE.
+      </p>
+      <div class="fix-box">
+        <div class="fix-title">Lösung</div>
+        Vor der Schleife einbauen: <code>if (start_work_info.workable == null) return;</code>.
+      </div>
+    </div>
+
+    <!-- Finding 10 -->
+    <div class="bug-card" data-severity="medium">
+      <div class="bug-header">
+        <div class="bug-title">
+          <span class="pill pill-cyan">Mittleres Risiko</span>
+          Ghost-NetIdentities durch GetNetIdentity()-Lookup
+        </div>
+        <div class="bug-location">ONI_Together/Networking/Extensions.cs:42-44</div>
+      </div>
+      <p>
+        <code>GameObject.GetNetIdentity()</code> hängt automatisch eine <code>NetworkIdentity</code> an, wenn keine existiert. 
+        Lookups gegen UI-Elemente oder temporäre Partikel erzeugen tausende Geister-Identities in der Registry (beschrieben in PR #176).
+      </p>
+      <div class="fix-box">
+        <div class="fix-title">Lösung</div>
+        Eine strikte Trennung einführen: <code>TryGetNetIdentity</code> hängt keine Komponente an, nur explizite Registrierungen dürfen <code>AddComponent</code> rufen.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function filterBugs(severity) {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      event.target.classList.add('active');
+      document.querySelectorAll('.bug-card').forEach(card => {
+        if (severity === 'all' || card.getAttribute('data-severity') === severity) {
+          card.style.display = 'block';
+        } else {
+          card.style.display = 'none';
+        }
+      });
+    }
+  </script>
+</body>
+</html>

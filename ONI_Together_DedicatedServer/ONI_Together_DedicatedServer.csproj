@@ -2,20 +2,16 @@
 
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-	  <TargetFramework>net8.0</TargetFramework>
-	  <ImplicitUsings>enable</ImplicitUsings>
-	  <Nullable>enable</Nullable>
-	  <DoNotBuildAsMod>true</DoNotBuildAsMod>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <DoNotBuildAsMod>true</DoNotBuildAsMod>
+    <ExcludeGameLibs>true</ExcludeGameLibs>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="LiteNetLib" Version="1.3.1" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
-	<PackageReference Include="RiptideNetworking.Riptide" Version="2.2.1" />
   </ItemGroup>
 
-  <ItemGroup>
-	  <ProjectReference Include="..\ONI_Together\ONI_Together.csproj" ReferenceOutputAssembly="false" ExcludeAssets="All" />
-	  <ProjectReference Include="..\Shared\Shared.csproj" />
-  </ItemGroup>
-	
 </Project>

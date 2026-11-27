@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Deep Scan — testing/network-backend-upgrades</title>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-main: #0c0e14;
+      --bg-card: #131722;
+      --bg-card-hover: #181e2c;
+      --border: #232a3b;
+      --accent: #00d2ff;
+      --success: #10b981;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --purple: #8b5cf6;
+      --text-main: #e2e8f0;
+      --text-muted: #94a3b8;
+      --code-bg: #090b10;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg-main);
+      color: var(--text-main);
+      line-height: 1.6;
+      padding: 30px 20px;
+    }
+    .container { max-width: 1400px; margin: 0 auto; }
+    header {
+      background: var(--bg-card);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 28px;
+      margin-bottom: 24px;
+      position: relative;
+      overflow: hidden;
+    }
+    header::before {
+      content: '';
+      position: absolute; top: 0; left: 0; right: 0; height: 3px;
+      background: linear-gradient(90deg, var(--danger), var(--warning), var(--accent));
+    }
+    h1 { font-size: 2rem; font-weight: 800; color: #fff; margin-bottom: 6px; }
+    .subtitle { color: var(--text-muted); font-size: 0.95rem; }
+    .meta-bar { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+    .pill {
+      display: inline-block; padding: 4px 12px; border-radius: 20px;
+      font-size: 0.75rem; font-weight: 600; letter-spacing: 0.02em;
+    }
+    .pill-red { background: rgba(239,68,68,0.15); color: var(--danger); border: 1px solid rgba(239,68,68,0.3); }
+    .pill-amber { background: rgba(245,158,11,0.15); color: var(--warning); border: 1px solid rgba(245,158,11,0.3); }
+    .pill-cyan { background: rgba(0,210,255,0.12); color: var(--accent); border: 1px solid rgba(0,210,255,0.28); }
+    .pill-green { background: rgba(16,185,129,0.12); color: var(--success); border: 1px solid rgba(16,185,129,0.3); }
+    .pill-purple { background: rgba(139,92,246,0.14); color: var(--purple); border: 1px solid rgba(139,92,246,0.3); }
+    .filter-toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 22px; }
+    .filter-btn {
+      background: var(--bg-card); color: var(--text-muted);
+      border: 1px solid var(--border); border-radius: 8px;
+      padding: 8px 16px; font-size: 0.85rem; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: all 0.15s;
+    }
+    .filter-btn:hover { border-color: var(--accent); color: var(--text-main); }
+    .filter-btn.active { background: var(--accent); color: #04121a; border-color: var(--accent); }
+    h2.section {
+      font-size: 1.15rem; font-weight: 700; color: #fff;
+      margin: 34px 0 14px; padding-bottom: 8px; border-bottom: 1px solid var(--border);
+    }
+    .bug-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-left: 3px solid var(--border); border-radius: 12px;
+      padding: 20px 22px; margin-bottom: 16px; transition: background 0.15s;
+    }
+    .bug-card:hover { background: var(--bg-card-hover); }
+    .bug-card[data-severity="critical"] { border-left-color: var(--danger); }
+    .bug-card[data-severity="high"] { border-left-color: var(--warning); }
+    .bug-card[data-severity="medium"] { border-left-color: var(--accent); }
+    .bug-card[data-severity="low"] { border-left-color: var(--purple); }
+    .bug-card.hidden { display: none; }
+    .bug-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 10px; }
+    .bug-title { font-weight: 700; font-size: 1rem; color: #fff; }
+    .bug-id { color: var(--text-muted); font-weight: 700; margin-right: 8px; font-family: 'Fira Code', monospace; }
+    .bug-location {
+      font-family: 'Fira Code', monospace; font-size: 0.75rem; color: var(--accent);
+      background: rgba(0,210,255,0.07); padding: 3px 9px; border-radius: 5px;
+      white-space: nowrap; border: 1px solid rgba(0,210,255,0.16);
+    }
+    .bug-card p { font-size: 0.9rem; color: var(--text-main); margin-bottom: 12px; }
+    .bug-section-title {
+      font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 7px;
+    }
+    pre {
+      background: var(--code-bg); border: 1px solid var(--border); border-radius: 8px;
+      padding: 13px 15px; overflow-x: auto; margin-bottom: 12px;
+      font-family: 'Fira Code', monospace; font-size: 0.78rem; line-height: 1.55; color: #cbd5e1;
+    }
+    code { font-family: 'Fira Code', monospace; font-size: 0.85em; background: var(--code-bg); padding: 1px 5px; border-radius: 4px; color: var(--accent); }
+    pre code { background: none; padding: 0; color: inherit; }
+    .fix-box {
+      background: rgba(16,185,129,0.05); border: 1px solid rgba(16,185,129,0.22);
+      border-radius: 8px; padding: 12px 15px;
+    }
+    .fix-title { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; color: var(--success); margin-bottom: 5px; }
+    .fix-box p { font-size: 0.88rem; margin: 0; color: #cbd5e1; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 18px; font-size: 0.88rem; }
+    th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); }
+    th { color: var(--text-muted); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 700; }
+    td code { font-size: 0.8rem; }
+    .ok-list { list-style: none; }
+    .ok-list li {
+      background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px;
+      padding: 11px 16px; margin-bottom: 8px; font-size: 0.88rem;
+      display: flex; gap: 11px; align-items: flex-start;
+    }
+    .ok-list li::before { content: '✓'; color: var(--success); font-weight: 800; flex-shrink: 0; }
+    .ok-list code { flex-shrink: 0; }
+    footer { text-align: center; color: var(--text-muted); font-size: 0.78rem; margin-top: 44px; padding-top: 18px; border-top: 1px solid var(--border); }
+    @media (max-width: 780px) {
+      .bug-header { flex-direction: column; gap: 8px; }
+      .bug-location { white-space: normal; word-break: break-all; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>Deep Scan — <span style="color:var(--accent)">testing/network-backend-upgrades</span></h1>
+    <div class="subtitle">
+      Stand <code>9eb0b4f1</code> (= <code>upstream/testing/network-backend-upgrades</code>, 2026-10-10) &middot;
+      Muster abgeleitet aus den bereits gefixten Issues der Historie &middot;
+      592 C#-Dateien, 4 Subsysteme, Build: 0 Fehler
+    </div>
+    <div class="meta-bar">
+      <span class="pill pill-red">3 Kritisch</span>
+      <span class="pill pill-amber">7 Hoch</span>
+      <span class="pill pill-cyan">8 Mittel</span>
+      <span class="pill pill-purple">6 Niedrig</span>
+      <span class="pill pill-green">Build: 0 Compiler-Fehler</span>
+      <span class="pill pill-amber">8 Fixes fehlen auf dem Branch</span>
+    </div>
+  </header>
+
+  <div class="filter-toolbar">
+    <button class="filter-btn active" onclick="filterBugs('all')">Alle (24)</button>
+    <button class="filter-btn" onclick="filterBugs('critical')">Kritisch (3)</button>
+    <button class="filter-btn" onclick="filterBugs('high')">Hoch (7)</button>
+    <button class="filter-btn" onclick="filterBugs('medium')">Mittel (8)</button>
+    <button class="filter-btn" onclick="filterBugs('low')">Niedrig (6)</button>
+  </div>
+
+  <h2 class="section">Kritisch</h2>
+
+  <div class="bug-card" data-severity="critical">
+    <div class="bug-header">
+      <div class="bug-title"><span class="bug-id">K1</span>[TargetRpc] wird nie ausgeführt — der Ziel-RPC-Kanal ist tot</div>
+      <div class="bug-location">OxySync/Packets/ClientRpcPacket.cs:45-58</div>
+    </div>
+    <p>
+      <code>SendTargetRpcToPlayer</code> packt einen <code>[TargetRpc]</code> in eine <code>ClientRpcPacket</code> mit gesetztem
+      <code>TargetPlayerId</code>. Beim Empfang geht die Nachricht <em>immer</em> über <code>InvokeClientRpc</code>, das nur
+      <code>_clientRpcMethods</code> durchsucht. <code>[TargetRpc]</code>-Methoden liegen in <code>_targetRpcMethods</code>
+      (<code>NetworkBehaviour.cs:213</code>) — der Hash wird nie gefunden, der Aufruf still verworfen.
+      <code>InvokeTargetRpc</code> existiert in beiden Adaptern, hat aber <strong>null Aufrufstellen</strong> im ganzen Repo.
+      Das ist eine Regression: der frühere <code>OxySyncDispatchResolver</code> verzweigte anhand von
+      <code>TargetPlayerId == ulong.MaxValue</code>.
+    </p>
+    <div class="bug-section"><div class="bug-section-title">Fehlerhafter Ablauf</div>
+      <pre><code>public void OnDispatched()
+{
+    if (MultiplayerSession.IsHost) return;
+    if (TargetPlayerId != ulong.MaxValue &amp;&amp; TargetPlayerId != MultiplayerSession.LocalUserID)
+        return;                                    // Ziel-Filter ok
+    if (!SyncBehaviourResolver.TryResolve(NetId, BehaviourId, out var behaviour))
+        return;
+    behaviour.InvokeClientRpc(MethodHash, Args);     // TargetRpc lebt in _targetRpcMethods
+}</code></pre>
+    </div>
+    <div class="fix-box"><div class="fix-title">Fix</div>
+      <p>In <code>OnDispatched</code> verzweigen: <code>TargetPlayerId != ulong.MaxValue</code> → <code>InvokeTargetRpc</code>,
+      sonst <code>InvokeClientRpc</code>. Betroffen ist konkret die Positions-Recovery
+      (<code>OnServerPositionRequest</code> → <code>TargetRpcReceiveFullState</code>, der Margin wurde in <code>ebaa5ba5</code>
+      auf 2 Chunks vergrößert) sowie <code>NetworkTransform.TargetReceivePosition</code> und <code>OxySyncChat.TargetRpcReceiveHistory</code>.</p>
+    </div>
+  </div>
+
+  <div class="bug-card" data-severity="critical">
+    <div class="bug-header">
+      <div class="bug-title"><span class="bug-id">K2</span>Bulk-Batches gehen leer raus, sobald die Paket-Queue aktiviert ist</div>
+      <div class="bug-location">PacketSender.cs:122-124 &middot; BulkSenderPacket.cs:24</div>
+    </div>
+    <p>
+      <code>DispatchPendingBulkPacketOfType</code> übergibt die <em>lebende Liste</em> an den <code>BulkSenderPacket</code>
+      und leert sie direkt danach. Ist <code>Configuration.EnablePacketQueue</code> aktiv, serialisiert der Transport aber
+      <em>nicht</em> inline — er reiht das Paket-Objekt ein und serialisiert später in <code>Flush()</code>.
+      <code>BulkSenderPacket</code> ist nicht <code>ILatencySensitivePacket</code>, also wird es gequeued.
+    </p>
+    <div class="bug-section"><div class="bug-section-title">Fehlerhafter Ablauf</div>
+      <pre><code>SendToConnection(conn, new BulkSenderPacket(packetId, pendingPackets), ReliableImmediate);
+pendingPackets.Clear();   // BulkSenderPacket.SerializedInnerPackets zeigt auf DIESE Liste
+
+// TransportPacketSender.SendToConnection
+if (!Configuration.Instance.EnablePacketQueue || IsLatencySensitive(sendType)
+    || packet is ILatencySensitivePacket)
+    return SendPacket(...);        // verlassen
+queue.Enqueue((packet, sendType));  // BulkSenderPacket landet hier -> Flush() serialisiert leer</code></pre>
+    </div>
+    <div class="fix-box"><div class="fix-title">Fix</div>
+      <p>Snapshot vor dem Senden: <code>var snapshot = new List&lt;byte[]&gt;(pendingPackets);</code> und
+      <code>new BulkSenderPacket(packetId, snapshot)</code> — oder <code>BulkSenderPacket</code> als
+      <code>ILatencySensitivePacket</code> markieren. Betrifft alle batchbaren Typen
+      (<code>DragToolPacket</code>, <code>StorageItemPacket</code>, <code>PickupItemPacket</code>, …).
+      Default der Option ist <code>false</code>, aber sie ist persistiert und im Config sichtbar.</p>
+    </div>
+  </div>
+
+  <div class="bug-card" data-severity="critical">
+    <div class="bug-header">
+      <div class="bug-title"><span class="bug-id">K3</span>Fragment-Reassembly ist nur über die SequenceId geschlüsselt, nicht über den Sender</div>
+      <div class="bug-location">Packets/Core/ChunkedPacket.cs:14, 39-45, 74</div>
+    </div>
+    <p>
+      <code>_pendingChunks</code> ist ein statisches Dictionary über <code>SequenceId</code> allein, und <code>_nextSequenceId</code>
+      ist ein prozesslokaler Zähler ab 0. Auf dem <strong>Host</strong> ist jeder Client ein eigener Prozess mit eigenem Zähler —
+      zwei Clients erzeugen also dieselben Sequence-Ids. Zusätzlich fehlt die Bounds-Prüfung
+      <code>chunks[ChunkIndex]</code> gegen <code>TotalChunks</code>, und unvollständige Einträge werden nie entfernt.
+    </p>
+    <div class="bug-section"><div class="bug-section-title">Fehlerhafter Code</div>
+      <pre><code>private static Dictionary&lt;int, byte[][]&gt; _pendingChunks = new();
+private static int _nextSequenceId = 0;
+
+public void OnDispatched()
+{
+    if (!_pendingChunks.TryGetValue(SequenceId, out var chunks))
+    { chunks = new byte[TotalChunks][]; _pendingChunks[SequenceId] = chunks; }
+    chunks[ChunkIndex] = ChunkData;      // kein Bounds-Check, kein Sender im Key</code></pre>
+    </div>
+    <div class="fix-box"><div class="fix-title">Fix</div>
+      <p>Key auf <code>(SenderConnectionId, SequenceId)</code> umstellen — der Transport kennt den Sender in
+      <code>OnNetworkReceive</code> bereits. Zusätzlich <code>ChunkIndex</code>/<code>TotalChunks</code> validieren und
+      verwaiste Einträge nach Timeout aufräumen.</p>
+    </div>
+  </div>
+
+  <h2 class="section">Hoch</h2>
+
+  <div class="bug-card" data-severity="high">
+    <div class="bug-header">
+      <div class="bug-title"><span class="bug-id">H1</span>Shadow-Arrays einmalig auf Grid.CellCount allokiert → Zell-Sync stirbt nach jedem Weltwechsel</div>
+      <div class="bug-location">ConduitFlowSyncer.cs:141-156 &middot; WorldStateSyncer.cs:704-719</div>
+    </div>
+    <p>
+      Beide Syncer hängen am <code>DontDestroyOnLoad</code>-Objekt <code>Multiplayer_Modules</code>
+      (<code>MultiplayerMod.cs:73-74, 84, 86</code>). Ihre Shadow-Arrays werden genau einmal auf
+      <code>Grid.CellCount</code> der <em>damaligen</em> Welt dimensioniert, der <code>== null</code>-Guard greift nie wieder.
+      Die Scan-Schleife läuft danach über das <em>neue</em> <code>Grid.CellCount</code> und indiziert die alten Arrays.
+      <code>WorldStateSyncer</code> schluckt das mit einem leeren <code>catch (System.Exception) { /* Silently ignore */ }</code>,
+      <code>ConduitFlowSyncer</code> loggt alle 1,5 s denselben Fehler.
+    </p>
+    <div class="bug-section"><div class="bug-section-title">Fehlerhafter Code</div>
+      <pre><code>if (_shadowGasElement == null)          // nur beim ersten Mal
+{
+    _shadowGasElement = new int[Grid.CellCount];
+    ...                                     // 9 Arrays, alte Weltgröße
+    return;
+}
+for (int cell = 0; cell &lt; Grid.CellCount; cell++)   // neue Weltgröße
+    ... _shadowGasElement[cell] ...       // -&gt; IndexOutOfRange</code></pre>
+    </div>
+    <div class="fix-box"><div class="fix-title">Fix</div>
+      <p>Größe je Sync prüfen und bei Abweichung neu allokieren + prime(n):
+      <code>if (_shadowElements == null || _shadowElements.Length != Grid.CellCount) { ReallocateAndPrime(); return; }</code>.
+      Das Muster existiert im Repo bereits in <code>NetworkingOverlayMode.cs:279</code>.</p>
+    </div>
+  </div>
+
+  <div class="bug-card" data-severity="high">
+    <div class="bug-header">
+      <div class="bug-title"><span class="bug-id">H2</span>MultiplayerSession.Clear() lässt PlayerCursors stehen — tote Cursor blockieren jede Neuanlage</div>
+      <div class="bug-location">MultiplayerSession.cs:92-105, 132-139</div>
+    </div>
+    <p>
+      <code>Clear()</code> leert <code>ConnectedPlayers</code>, <code>KnownPlayerNames</code>, <code>HostUserID</code> und die
+      Progress-Tracker — aber nicht <code>PlayerCursors</code>. <code>CreateNewPlayerCursor</code> steigt bei
+      <code>ContainsKey</code> sofort aus. Nach einem Session-Ende zeigen <code>TryGetCursorObject</code> (Unity-==-Overload,
+      also <em>false</em> für zerstörte Objekte) und der else-Zweig in <code>PlayerCursorPacket.cs:164</code> zusammen:
+      Für diesen Spieler wird <em>nie wieder</em> ein Cursor erzeugt. Zusätzlich dereferenziert Zeile 139
+      <code>GameScreenManager.Instance</code> ungeschützt.
+    </p>
+    <div class="fix-box"><div class="fix-title">Fix</div>
+      <p><code>PlayerCursors.Clear()</code> (bzw. <code>RemoveAllPlayerCursors()</code>) in <code>Clear()</code> aufnehmen und
+      in <code>CreateNewPlayerCursor</code> einen zerstörten Eintrag als "nicht vorhanden" behandeln:
+      <code>if (PlayerCursors.TryGetValue(id, out var e) &amp;&amp; e != null) return; PlayerCursors.Remove(id);</code></p>
+    </div>
+  </div>
+
+  <div class="bug-card" data-severity="high">
+    <div class="bug-header">
+      <div class="bug-title"><span class="bug-id">H3</span>ShouldDispatchWithoutWorld prüft nur den Szenennamen — das Lade-Fenster ist offen</div>
+      <div class="bug-location">PacketHandler.cs:22-27 &middot; Utils.cs:306-311</div>
+    </div>
+    <p>
+      <code>Utils.IsInMenu()</code> ist <code>App.GetCurrentSceneName() == "frontend"</code>. Sobald <code>LoadScreen.DoLoad</code>
+      auf <code>"backend"</code> wechselt, ist <code>IsInMenu()</code> <em>false</em> und <strong>jedes</strong> Paket wird
+      zugestellt — während <code>Grid</code> 0×0 ist und <code>GameScreenManager.Instance</code> / <code>ssCameraCanvas</code>
+      noch gar nicht existieren. Genau das war die Absturz-Klasse, die <code>734f7730</code> + <code>3b8ff4da</code> einführen.
+    </p>
+    <div class="bug-section"><div class="bug-section-title">Fehlerhafter Code</div>
+      <pre><code>public static bool ShouldDispatchWithoutWorld(IPacket packet)
+{
+    if (MultiplayerSession.IsHost) return true;
+    if (!Utils.IsInMenu()) return true;   // "backend" gilt auch mitten im Ladevorgang
+    return packet is IAllowedWithoutWorldPacket || packet is IModApiPacket;
+}</code></pre>
+    </div>
+    <div class="fix-box"><div class="fix-title">Fix</div>
+      <p>Statt Szenennamen eine <em>geladene Welt</em> prüfen, z. B.
+      <code>if (Game.Instance != null &amp;&amp; PlayerController.Instance != null &amp;&amp; Grid.WidthInCells &gt; 0) return true;</code>
+      vor der <code>IsInMenu</code>-Verzweigung. Landestellen in diesem Fenster:
+      <code>MultiplayerSession.cs:139</code> (10 Hz pro Cursor-Paket), <code>PingManager.cs:234/267</code>.</p>
+    </div>
+  </div>
+
+  <div class="bug-card" data-severity="high">
+    <div class="bug-header">
+      <div class="bug-title"><span class="bug-id">H4</span>InterestGroup-Reindex wird übersprungen, sobald ein Behaviour diesen Tick unverändert ist</div>
+      <div class="bug-location">OxySync/Components/OxySyncManager.cs:338 vs. 394-399</div>
+    </div>
+    <p>
+      Das <code>continue</code> bei <code>_changedByGroup.Count == 0</code> steht <em>vor</em> dem Block, der
+      <code>InterestGroup</code> bei Chunk-Wechsel neu vergibt. Ein Behaviour, das über eine 16×16-Chunk-Grenze wandert,
+      ohne seinen SyncVar zu ändern, reindiziert sich erst beim nächsten Wertwechsel — für ruhige Behaviours kann das Minuten dauern.
+      Bis dahin publiziert es in die alte Gruppe: <code>SendFullStateToPlayerForGroup</code> liefert für den neuen Chunk nichts,
+      und der Client bekommt nie einen Snapshot.
+    </p>
+    <div class="bug-section"><div class="bug-section-title">Fehlerhafte Reihenfolge</div>
+      <pre><code>_changedByGroup.Clear();
+CollectChanges(behaviour, manualDirty, _changedByGroup);
+if (_changedByGroup.Count == 0) continue;   // &lt;- überspringt den Reindex
+
+...
+if (!_explicitGroupTypes.Contains(behaviour.UnderlyingType))
+{
+    int newGroup = WorldChunkHelper.GetGroupId(currentWorld, Grid.PosToCell(...));</code></pre>
+    </div>
+    <div class="fix-box"><div class="fix-title">Fix</div>
+      <p>Den Reindex-Block <em>über</em> das <code>continue</code> ziehen — er ist positions-, nicht wertegetrieben.</p>
+    </div>
+  </div>
+
+  <div class="bug-card" data-severity="high">
+    <div class="bug-header">
+      <div class="bug-title"><span class="bug-id">H5</span>Container-Sync vernichtet Anzüge und lebende Tiere</div>
+      <div class="bug-location">Misc/BuildingUtils.cs:41-50, 140-145</div>
+    </div>
+    <p>
+      <code>EncodeStorageToBytes</code> encodet alles mit <code>PrimaryElement</code>, Masse &gt; 0 und <code>KPrefabID</code> —
+      dazu zählen ein Atmo-Anzug in einem StorageLocker und ein Critter in einer CreatureGroundTrap.
+      <code>ClearStorage</code> löscht anschließend <em>bedingungslos</em> jeden Inhalt und instanziiert neu.
+      Der Fix <code>6827f101</code> („stop the container sync destroying suits and live animals") ist <strong>kein</strong> Ancestor
+      dieses Branches — <code>IsEntityNotContents</code> existiert im Baum nicht.
+    </p>
+    <div class="bug-section"><div class="bug-section-title">Fehlerhafter Code</div>
+      <pre><code>private static void ClearStorage(Storage storage)
+{
+    for (int i = storage.items.Count - 1; i &gt;= 0; i--)
+        storage.items[i].DeleteObject();   // zerstört auch Anzüge und Tiere
+    storage.items.Clear();
+}</code></pre>
+    </div>
+    <div class="fix-box"><div class="fix-title">Fix</div>
+      <p><code>6827f101</code> cherry-picken, oder im Encode-Filter <code>if (IsEntityNotContents(go)) continue;</code> und in
+      <code>ClearStorage</code> überspringen + <code>RemoveAll</code> statt <code>Clear</code>.</p>
+    </div>
+  </div>
+
+  <div class="bug-card" data-severity="high">
+    <div class="bug-header">
+      <div class="bug-title"><span class="bug-id">H6</span>RiptideServer.Stop() lässt _server stehen → LAN-Hosten geht nie wieder</div>
+      <div class="bug-location">Transport/Riptide/RiptideServer.cs:58-63, 263-271</div>
+    </div>
+    <p>
+      <code>Start()</code> verweigert den Dienst, sobald <code>_server != null</code>. <code>Stop()</code> kehrt aber zurück,
+      <em>bevor</em> <code>_server</code> genullt wird, wenn der Server gar nicht läuft — also genau dann, wenn der Port belegt war
+      oder der Bind fehlschlug. Ab da blockiert jedes weitere „Host LAN game" ohne jede Logzeile.
+      <code>_client = null</code> liegt zudem innerhalb von <code>if (!_client.IsNotConnected)</code>.
+    </p>
+    <div class="fix-box"><div class="fix-title">Fix</div>
+      <p><code>_server</code>/<code>_client</code>/<code>_tcpTransfer</code> auch im <code>!IsRunning</code>-Zweig aufräumen,
+      idealerweise in einem <code>finally</code>.</p>
+    </div>
+  </div>
+
+  <div class="bug-card" data-severity="high">
+    <div class="bug-header">
+      <div class="bug-title"><span class="bug-id">H7</span>BatteryTrackerPatch läuft ohne World-Loading-Guard (Fix fehlt auf dem Branch)</div>
+      <div class="bug-location">Patches/World/BatteryTrackerPatch.cs:26-38</div>
+    </div>
+    <p>
+      Der Prefix prüft nur <code>IsHardSyncInProgress</code>. Der Kommentar im File behauptet, es gebe zusätzlich einen
+      World-Loading-/Reconnect-Guard — den gibt es nicht. Der Fix <code>13046016</code>
+      („battery_tracker: do not run against a world that is still loading") ist kein Ancestor dieses Branches.
+      Eine Exception aus <code>UpdateData</code> lässt Batterien im lokalen <code>CircuitManager</code> unregistered —
+      genau der „alle strombetriebenen Gebäude zeigen keinen Strom"-Zustand, den der Patch verhindern soll.
+    </p>
+    <div class="fix-box"><div class="fix-title">Fix</div>
+      <p><code>13046016</code> übernehmen: <code>if (Game.Instance == null || Grid.WidthInCells == 0) return false;</code>
+      plus den Reconnect-Zustand prüfen.</p>
+    </div>
+  </div>
+
+  <h2 class="section">Mittel</h2>
+
+  <div class="bug-card" data-severity="medium">
+    <div class="bug-header">
+      <div class="bug-title"><span class="bug-id">M1</span>ResourceSyncer: ein Tag, den der Host nicht gemeldet hat, liest als harte 0</div>
+      <div class="bug-location">Synchronization/ResourceSyncer.cs:196, 211</div>
+    </div>
+    <p>
+      Der Host sendet nur die Tags aus <code>GetAccessibleAmounts()</code>. Der Client-Prefix behandelt „nicht im Report"
+      als <code>0f</code> statt als „unbekannt", und <code>GetAccessibleAmounts</code> ersetzt <code>__result</code> komplett.
+      Der Doc-Kommentar darüber verspricht das Gegenteil — er meint aber nur einen <em>nicht gemeldeten World</em>, nicht einen
+      fehlenden Tag. Das ist dasselbe „Client hat 0 von einem Material, das der Host tonnenweise hat"-Symptom, das PR #262
+      beseitigen wollte, nur mit anderem Auslöser.
+    </p>
+    <div class="bug-section"><div class="bug-section-title">Code / Kommentar-Widerspruch</div>
+      <pre><code>/// A world the host has not reported yet falls through to the local count.
+__result = counts.TryGetValue(tag.GetHashCode(), out var amounts) ? amounts.Available : 0f;
+// -&gt; nicht gemeldeter Tag: 0f, KEIN Fallback auf den lokalen Wert</code></pre>
+    </div>
+    <div class="fix-box"><div class="fix-title">Fix</div>
+      <p>Bei fehlendem Tag durchfallen lassen (<code>counts.TryGetValue(...) ? … : return true;</code>) und im
+      <code>GetAccessibleAmounts</code>-Postfix mergen statt ersetzen.</p>
+    </div>
+  </div>
+
+  <div class="bug-card" data-severity="medium">
+    <div class="bug-header">
+      <div class="bug-title"><span class="bug-id">M2</span>InterestGroupManager.ClearPlayer ist toter Code — Abgemeldete behalten alle Chunk-Mitgliedschaften</div>
+      <div class="bug-location">OxySync/InterestGroupManager.cs:31</div>
+    </div>
+    <p>
+      Eine repo-weite Suche findet <code>ClearPlayer</code> nur in der Definition selbst, keine Aufrufstelle.
+      Die Disconnect-Pfade (<code>RiptideServer.ServerOnClientDisconnected</code>, <code>SteamLobby.OnLobbyChatUpdate</code>,
+      <code>RiptideClient.OnDisconnectedFromServer</code>) leeren nur <code>ConnectedPlayers</code>.
+      Folge: der Sichtbarkeits-Gate in <code>StatusItemsSyncer</code> bleibt für die Chunks des Abgemeldeten dauerhaft „belegt",
+      der Host encodet Status-Strings für Regionen, die niemand ansieht, und <code>GetPlayersInGroup</code> — pro Behaviour
+      alle 0,5 s aufgerufen — wird mit der Sitzungsdauer teurer.
+    </p>
+    <div class="fix-box"><div class="fix-title">Fix</div>
+      <p><code>InterestGroupManager.ClearPlayer(id)</code> in jeden Disconnect-Handler hängen.</p>
+    </div>
+  </div>
+
+  <div class="bug-card" data-severity="medium">
+    <div class="bug-header">
+      <div class="bug-title"><span class="bug-id">M3</span>NetIds werden aus Float-Hashes und einem registry-abhängigen Breakoff abgeleitet</div>
+      <div class="bug-location">Networking/NetIdHelper.cs:63-76</div>
+    </div>
+    <p>
+      <code>Mass</code> und <code>Temperature</code> sind Floats und werden direkt gehasht — für dieselbe nominelle Ressource
+      liefern Host und Client unterschiedliche Hashes. Der anschließende <code>breakoff</code>-Loop löst Kollisionen über den
+      <em>aktuellen</em> Registry-Inhalt auf, also über die Spawn-Reihenfolge, die zwischen den Seiten nicht garantiert übereinstimmt.
+      Jede Entity auf diesem Pfad ist damit auf beiden Seiten unter unterschiedlichen NetIds adressierbar — alle
+      SyncVar-/Rpc-Pakete scheitern an <code>SyncBehaviourResolver.TryResolve</code>.
+    </p>
+    <div class="fix-box"><div class="fix-title">Fix</div>
+      <p>Quantisierte Werte hashen (<code>(int)Mathf.RoundToInt(mass * 1000f)</code>,
+      <code>(int)(temperature * 100f)</code>) und den Breakoff deterministisch machen.</p>
+    </div>
+  </div>
+
+  <div class="bug-card" data-severity="medium">
+    <div class="bug-header">
+      <div class="bug-title"><span class="bug-id">M4</span>[SyncVar] ist per Default Unreliable, aber LastSent wird sofort advanced</div>
+      <div class="bug-location">Shared/OxySync/Attributes/SyncVarAttribute.cs:11 &middot; OxySyncManager.cs:392</div>
+    </div>
+    <p>
+      <code>SendMode { get; set; } = 0</code> ist <code>Unreliable</code>, und <code>OxySyncManager</code> ruft danach
+      <code>SyncLastSentValues()</code> auf. Ein verlorenes Paket für ein diskretes Feld wird damit <em>nie</em> nachgesendet.
+      Betroffen sind <code>GameTimeSyncer._cycle</code> (600 s Zyklus), <code>NuclearReactorSyncer._melded/_meltingDown</code>
+      (One-Shot-Latches — ein verlorenes Meltdown-Paket heißt: der Client zeigt den Meltdown nie),
+      <code>ToiletStructureSyncer._flushesUsed</code>, <code>GraveStateSyncer._epitaphIdx</code>.
+      <code>StateMachineSyncer._currentStateId</code> und <code>StatusItemsSyncer._statusBlob</code> machen es korrekt über
+      <code>ReliableImmediate</code> — die Inkonsistenz ist also unbeabsichtigt.
+    </p>
+    <div class="fix-box"><div class="fix-title">Fix</div>
+      <p>Default auf <code>ReliableImmediate</code> umstellen (kontinuierliche Felder wie
+      <code>NetworkTransform._netPosition</code> setzen Unreliable explizit) und/oder periodisch den Vollezustand resenden.</p>
+    </div>
+  </div>
+
+  <div class="bug-card" data-severity="medium">
+    <div class="bug-header">
+      <div class="bug-title"><span class="bug-id">M5</span>StatusBroadcaster wird nie attached — zwei statische HashSets wachsen unbegrenzt</div>
+      <div class="bug-location">Components/StatusBroadcaster.cs:10 &middot; Packets/World/StatusItemsSubscribePacket.cs:33-39</div>
+    </div>
+    <p>
+      Eine repo-weite Suche findet <code>StatusBroadcaster</code> nur in der eigenen Datei und in
+      <code>StatusItemsSubscribePacket</code> — es gibt kein <code>AddOrGet</code>/<code>AddComponent</code>.
+      <code>Render200ms</code>, das <code>PendingImmediate</code> leeren würde, läuft also nie. Ein Client, der ein
+      Duplicant-Detailfenster öffnet, trägt NetIds in beide statischen Sets ein; niemand konsumiert oder leert sie,
+      und sie werden nie TTL-begrenzt.
+    </p>
+    <div class="fix-box"><div class="fix-title">Fix</div>
+      <p>Entweder den Broadcaster anhängen und die Sets mit TTL-Begrenzung versehen — oder
+      <code>StatusBroadcaster</code>/<code>StatusItemsPacket</code>/<code>ClientReceiver_StatusItems</code>/
+      <code>StatusItemsSubscribePacket</code> ersatzlos löschen.</p>
+    </div>
+  </div>
+
+  <div class="bug-card" data-severity="medium">
+    <div class="bug-header">
+      <div class="bug-title"><span class="bug-id">M6</span>SaveChunkAssembler rät die Chunkgröße und kopiert unbegrenzt</div>
+      <div class="bug-location">Misc/World/SaveChunkAssembler.cs:97, 115-124</div>
+    </div>
+    <p>
+      <code>ChunkSize</code> wird aus der Länge des <em>ersten</em> empfangenen Chunks geraten. Kommt zuletzt der kurze
+      Abschluss-Chunk zuerst (<code>Math.Min(chunkSize, totalSize - offset)</code>), ist die Chunkgröße zu klein,
+      <code>TotalChunks</code> wird zu groß, und <code>chunkIndex = chunk.Offset / save.ChunkSize</code> landet in falschen
+      Slots. <code>Buffer.BlockCopy</code> prüft <code>Offset + Length &lt;= Data.Length</code> <strong>nicht</strong>.
+      Dazu greift der Retransmit nur, wenn <em>mehr als die Hälfte</em> der Chunks fehlt — ein zu 51 % fertiger Save hängt
+      für immer auf dem Overlay.
+    </p>
+    <div class="fix-box"><div class="fix-title">Fix</div>
+      <p>Chunkgröße explizit im <code>SaveFileChunkPacket</code> mitschicken, <code>Offset</code>/<code>Length</code> validieren,
+      die &gt;50 %-Schwelle streichen und einen absoluten Abbruchpfad (z. B. 120 s) einbauen.</p>
+    </div>
+  </div>
+
+  <div class="bug-card" data-severity="medium">
+    <div class="bug-header">
+      <div class="bug-title"><span class="bug-id">M7</span>LiteNetLib: MarkClientLoading / ConsumeReconnectFromLoad sind Leer-Stubs</div>
+      <div class="bug-location">Transport/LiteNetLib/LiteNetLibServer.cs:39-40</div>
+    </div>
+    <p>
+      <code>ClientReadyStatusPacket.cs:93-118</code> verlässt sich auf diese Methode, um den Join-Chat beim Save-Reload zu
+      unterdrücken. Riptide implementiert beide korrekt (<code>RiptideServer.cs:341-349</code>), LiteNetLib nicht:
+      <code>public void MarkClientLoading(ulong clientId) { }</code> / <code>public bool ConsumeReconnectFromLoad(ulong clientId) { return false; }</code>.
+      Da LiteNetLib-Peer-Ids bei jedem Connect neu vergeben werden, wird ein reloadender Client als „verlassen + neu
+      beigetreten" gemeldet und sein alter Zustand (Cursor, bekannter Name, Chunk-Subscriptions) bleibt unter der toten Id zurück.
+    </p>
+    <div class="fix-box"><div class="fix-title">Fix</div>
+      <p>Riptides <code>_loadingClients</code>/<code>_reconnectedFromLoad</code>-Logik portieren und in <code>Update()</code> expiren.</p>
+    </div>
+  </div>
+
+  <div class="bug-card" data-severity="medium">
+    <div class="bug-header">
+      <div class="bug-title"><span class="bug-id">M8</span>DedicatedServerMessagePacket umgeht das No-World-Gate, das BulkSenderPacket explizit einhält</div>
+      <div class="bug-location">Packets/Core/DedicatedServerMessagePacket.cs:51-59</div>
+    </div>
+    <p>
+      <code>BulkSenderPacket</code> prüft seit <code>3b8ff4da</code> mit dem Kommentar „Inner packets bypass HandleIncoming"
+      jedes Innenpaket gegen <code>PacketHandler.ShouldDispatchWithoutWorld</code>. Der Dedicated-Server-Wrapper tut das nicht:
+      er ruft direkt <code>packet.OnDispatched()</code>. Ein Slave im Frontend (Grid 0×0) führt damit Weltpakete aus —
+      genau die Klasse Abstürze, die das Marker-Interface einführen sollte.
+    </p>
+    <div class="fix-box"><div class="fix-title">Fix</div>
+      <p><code>if (PacketHandler.ShouldDispatchWithoutWorld(packet)) packet.OnDispatched();</code> — analog
+      <code>BulkSenderPacket.cs:78</code>.</p>
+    </div>
+  </div>
+
+  <h2 class="section">Niedrig</h2>
+
+  <div class="bug-card" data-severity="low">
+    <div class="bug-header">
+      <div class="bug-title"><span class="bug-id">L1</span>Der Positionstest vergleicht keine Positionen</div>
+      <div class="bug-location">DebugTools/UnitTests/SyncTests.cs:21, 47-49</div>
+    </div>
+    <p>
+      <code>MaxCellDelta</code> wird deklariert, die eigentliche Distanzprüfung ist auskommentiert. Der Test zählt nur,
+      ob eine <code>OxySyncEntityPositionHandler</code>-Komponente existiert, und gibt <code>Pass</code> zurück, wenn die
+      Simulation pausiert ist. Jeder Duplicant könnte 1000 Zellen daneben liegen und der Test wäre grün.
+    </p>
+    <div class="fix-box"><div class="fix-title">Fix</div>
+      <p>Den Vergleich gegen die hostseitig gemeldete Position (<code>OxySyncEntityPositionHandler._netPosition</code>) wiederherstellen.</p>
+    </div>
+  </div>
+
+  <div class="bug-card" data-severity="low">
+    <div class="bug-header">
+      <div class="bug-title"><span class="bug-id">L2</span>TransportTests kennt kein Riptide — der Pfad ist dauerhaft rot und damit ungetestet</div>
+      <div class="bug-location">DebugTools/UnitTests/TransportTests.cs:38-39, 49-56</div>
+    </div>
+    <p>
+      <code>TransportMatchesConfig</code> behandelt STEAMWORKS und LITENETLIB, alles andere landet in
+      <code>default: Fail("Unknown transport")</code>. <code>ConnectionStable</code> castet anschließend unter
+      <code>IsLanConfig()</code> (das gilt für Riptide ebenfalls) auf <code>LiteNetLibServer</code>. Auf Riptide-LAN ist
+      damit immer Rot.
+    </p>
+    <div class="fix-box"><div class="fix-title">Fix</div>
+      <p><code>case NetworkConfig.NetworkTransport.RIPTIDE</code> ergänzen und <code>ConnectionStable</code> auf den konkreten Servertyp verzweigen.</p>
+    </div>
+  </div>
+
+  <div class="bug-card" data-severity="low">
+    <div class="bug-header">
+      <div class="bug-title"><span class="bug-id">L3</span>WorldStateSyncer-Hintergrundscan deckt nie die ganze Karte ab</div>
+      <div class="bug-location">Networking/Components/WorldStateSyncer.cs:765-780</div>
+    </div>
+    <p>
+      Der Wrap-around rechnet mit <code>totalChunks = ceil(CellCount / 1024)</code>, das Chunk-Raster ist aber
+      <code>cols × rows</code> mit 32er-Kacheln. Für eine 200×200-Welt: <code>totalChunks = 40</code>, <code>cols = rows = 7</code>
+      → 49 Positionen. <code>_bgScanIndex</code> endet bei 39, <code>chunkY</code> damit bei 192 — die untersten Kachelreihen
+      werden nie durchsucht. Der Kommentar „covers entire map over ~30 seconds" trifft nicht zu.
+    </p>
+    <div class="fix-box"><div class="fix-title">Fix</div>
+      <p><code>totalChunks = cols * rows</code> mit denselben <code>cols</code>/<code>rows</code> wie in der Index-Zerlegung.</p>
+    </div>
+  </div>
+
+  <div class="bug-card" data-severity="low">
+    <div class="bug-header">
+      <div class="bug-title"><span class="bug-id">L4</span>LogicStateSyncer räumt auf dem Client nie auf</div>
+      <div class="bug-location">Networking/Components/LogicStateSyncer.cs:131-166</div>
+    </div>
+    <p>
+      Der Host pflegt eine <code>toRemove</code>-Liste, der Client <code>continue</code>t bei zerstörten Einträgen ohne
+      Entfernung. <code>_tracked</code> und <code>_lastPacketTime</code> wachsen über Weltneuladungen hinweg; zusätzlich lässt
+      der Host beim Evict <code>_lastPacketTime[netId]</code> zurück. <code>Unregister</code> steigt ebenfalls sofort aus,
+      wenn das GameObject schon zerstört ist.
+    </p>
+    <div class="fix-box"><div class="fix-title">Fix</div>
+      <p>Dieselbe Destroy-Prune im Client-Pfad und <code>_lastPacketTime</code> beim Host-Evict mitentfernen.</p>
+    </div>
+  </div>
+
+  <div class="bug-card" data-severity="low">
+    <div class="bug-header">
+      <div class="bug-title"><span class="bug-id">L5</span>Pro-Frame-Allokationen in Packet-, Cursor- und UI-Pfaden</div>
+      <div class="bug-location">PacketSender.cs &middot; PlayerCursorPacket.cs:183 &middot; TrailLine.cs:31</div>
+    </div>
+    <p>
+      <code>UpdateChunkSubscriptions</code> alloziert pro Cursor-Paket (10 Hz pro Spieler) einen neuen
+      <code>HashSet&lt;int&gt;</code> und ruft die Chunk-Berechnung erneut auf, obwohl <code>UpdateVisualizers</code> denselben
+      Aufruf bereits per <code>worldId != cursor.InterestGroup</code> guardet. <code>TrailLine.Update</code> ruft
+      <code>SetVerticesDirty()</code> bedingungslos auf — <code>OnPopulateMesh</code> läuft 60×/s pro Trail und alloziert
+      <code>new Vector2[points.Count]</code>. <code>LogicStateSyncer.SampleBuilding</code> erzeugt pro Gebäude pro Sekunde ein
+      frisches <code>Dictionary&lt;string, Variant&gt;</code> plus bis zu zwölf <code>GetComponent</code>-Aufrufe.
+    </p>
+    <div class="fix-box"><div class="fix-title">Fix</div>
+      <p>Denselben Guard auch hier anheben, Scratch-Container wiederverwenden, <code>TrailLine</code> nur bei echter Änderung invalidieren.</p>
+    </div>
+  </div>
+
+  <div class="bug-card" data-severity="low">
+    <div class="bug-header">
+      <div class="bug-title"><span class="bug-id">L6</span>Statische Zähler und Mengen wachsen über die Sitzung</div>
+      <div class="bug-location">PacketSender.cs:28 &middot; NetIdActivityTracker.cs:34 &middot; BuildingUtils.cs:396</div>
+    </div>
+    <p>
+      <code>PacketUpdateRunner._lastDispatchTime</code> ist ein <code>Dictionary&lt;object, float&gt;</code> über Connection-Objekte
+      und wird nie geprunt — bei LiteNetLib mit <code>AutoRecycle</code> erbt ein recycelter <code>NetPeer</code> den
+      Dispatch-Zeitstempel eines <em>anderen</em> Clients. <code>NetIdActivityTracker</code> multipliziert Einträge gegen 0, entfernt
+      sie aber nie, und alloziert pro Frame eine neue <code>List</code>. <code>BuildingUtils.AllLogicPortCells</code> ist ein
+      statisches <code>HashSet</code>, das Welt-Reloads überlebt und danach <code>RemoveVisElem</code> auf zerstörten Elementen aufruft.
+    </p>
+    <div class="fix-box"><div class="fix-title">Fix</div>
+      <p>Alle vier Statics in <code>NetworkConfig.Stop()</code> leeren, abgeschiedene Verbindungen aus den Dictionaries entfernen und
+      <code>AllLogicPortCells</code> bei Weltwechsel clearen.</p>
+    </div>
+  </div>
+
+  <h2 class="section">Fixes, die im Repo existieren, aber nicht auf diesem Branch liegen</h2>
+  <p style="color:var(--text-muted); font-size:0.9rem; margin-bottom:14px;">
+    Verifiziert mit <code>git merge-base --is-ancestor &lt;sha&gt; HEAD</code>. Diese Commits sind bewusst nicht Teil von
+    <code>testing/network-backend-upgrades</code> — sie stecken in <code>feature/pr-bundle-sinnvoll</code> bzw. Upstream-PR-Branches.
+  </p>
+  <table>
+    <thead><tr><th>Commit</th><th>Fix</th><th>Betrifft</th></tr></thead>
+    <tbody>
+      <tr><td><code>6827f101</code></td><td>storage: stop the container sync destroying suits and live animals</td><td>H5</td></tr>
+      <tr><td><code>e7b04342</code></td><td>conduit: replicate off-screen pipes on the refresh tick</td><td>Off-Screen-Rohre</td></tr>
+      <tr><td><code>37303602</code></td><td>logic: resend automation state on a timer, not only when it changes</td><td>Automationszustand</td></tr>
+      <tr><td><code>13046016</code></td><td>battery_tracker: do not run against a world that is still loading</td><td>H7</td></tr>
+      <tr><td><code>a28546c9</code></td><td>Add condition check to game pause on joining</td><td>PauseOnDisconnect</td></tr>
+      <tr><td><code>25838b2b</code></td><td>hardsync_watchdog: stop waiting for a client that does not report ready within 120 s</td><td>Hard-Sync-Hänger</td></tr>
+    </tbody>
+  </table>
+
+  <h2 class="section">Geprüft und korrekt behandelt</h2>
+  <ul class="ok-list">
+    <li><span><code>PacketHandler</code> + <code>IAllowedWithoutWorldPacket</code>:</span> alle Pakete der Verbindungs- und
+      Save-Kette sind markiert; <code>BulkSenderPacket</code> wendet das Gate auf Innenpakete an (Ausnahme: M8).</li>
+    <li><span><code>readyToProcess</code>-Force-Recovery</span> mit 60 s-Timeout in <code>PacketHandler.cs:47-58</code>.</li>
+    <li><span>LiteNetLib-Client, dessen <code>PeerConnectedEvent</code> ausbleibt</span> — Verbindung wird über
+      <code>WaitForConnectionSuccess</code> abgeschlossen (<code>a62392b7</code>).</li>
+    <li><span><code>NetworkIdentityRegistry.RebuildFromScene</code></span> sortiert nach InstanceID, first-wins bei Kollision,
+      läuft beim Serverstart in einer geladenen Welt (<code>c66c101b</code>, <code>0f6d300d</code>).</li>
+    <li><span>Lookup-Einträge werden entfernt statt zu verschieben</span> — tote Einträge evicten, nur lebende Kollisionen shiften
+      (<code>d589031a</code>).</li>
+    <li><span><code>SyncBehaviourResolver</code> löst den nativen Fallback über die BehaviourId auf</span>, nicht über
+      „erste Komponente"; Entity mit mehreren Behaviours behandelt (<code>fd838fb6</code>).</li>
+    <li><span>Host-only-Broadcasts sind mit <code>MultiplayerSession.IsHost</code> gegated</span> —
+      <code>SpawnUtils.BroadcastSpawn/BroadcastResourceSpawn</code>, <code>StatusItemsSyncer.Update</code>,
+      <code>StateMachineSyncer.Update</code>, <code>GameSpeedSyncer.Update</code>.</li>
+    <li><span>Spawn-Payloads tragen Masse/Temperatur/Krankheit und das Active-Flag</span> (<code>717a07e3</code>, <code>3eec6ed5</code>).</li>
+    <li><span>Dirty-Bit-Iteration ist bitbasiert</span> (de Bruijn, 64 Bit), kein Dictionary/HashSet-Enumerieren
+      (<code>77cb43b0</code>).</li>
+    <li><span>API-Lookups hängen keine Identity an</span> — <code>TryGet</code>/<code>TryGetComponent</code> routen zu den
+      nicht-mutierenden Varianten (<code>3b0ae60a</code>).</li>
+    <li><span>CursorManager meldet fehlenden PlayerController einmal statt jeden Frame</span> zu werfen
+      (<code>f8c23483</code>); UI-Auswahl und Overlay werden vor dem Save-Reload geschlossen (<code>10afb9f3</code>).</li>
+    <li><span><code>ResourceSyncer</code> v2</span> liest auf dem Host, cached auf dem Client, matcht die WorldId und hat einen
+      30-s-Keyframe plus Neuzugangs-Resend — bis auf M1 sauber.</li>
+  </ul>
+
+  <footer>
+    Deep Scan &middot; Branch <code>testing/network-backend-upgrades</code> @ <code>9eb0b4f1</code> &middot; 2026-10-10 &middot;
+    Jeder Befund am Code verifiziert (Datei/Zeile zitiert) &middot; Build: <code>dotnet build</code> 0 Fehler
+  </footer>
+</div>
+
+<script>
+function filterBugs(sev) {
+  document.querySelectorAll('.bug-card').forEach(c => {
+    c.classList.toggle('hidden', sev !== 'all' && c.dataset.severity !== sev);
+  });
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  event.target.classList.add('active');
+}
+</script>
+</body>
+</html>

@@ -1,9 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using Shared.Profiling;
+using System.IO;
 
 namespace ONI_Together_DedicatedServer.ONI
 {
@@ -14,24 +10,32 @@ namespace ONI_Together_DedicatedServer.ONI
 
         public SaveFile(string name, byte[] data)
         {
-            using var _ = Profiler.Scope();
-
             Name = name;
             Data = data;
         }
 
         public static SaveFile FromFile(string filePath)
         {
-            using var _ = Profiler.Scope();
+            if (string.IsNullOrWhiteSpace(filePath))
+                throw new ArgumentException("Save file path cannot be empty.", nameof(filePath));
 
             if (!File.Exists(filePath))
-                throw new FileNotFoundException($"Save file not found: {filePath}");
+                throw new FileNotFoundException($"Save file not found: {filePath}", filePath);
 
             string name = Path.GetFileName(filePath);
             byte[] data = File.ReadAllBytes(filePath);
 
-            Console.WriteLine($"Loaded save file: {name} @ {Utils.FormatBytes(data.Length)}");
+            Console.WriteLine($"[SaveFile] Loaded save file: {name} ({Utils.FormatBytes(data.Length)})");
             return new SaveFile(name, data);
+        }
+
+        public void SaveToFile(string filePath)
+        {
+            string? dir = Path.GetDirectoryName(filePath);
+            if (!string.IsNullOrEmpty(dir) && !Directory.Exists(dir))
+                Directory.CreateDirectory(dir);
+
+            File.WriteAllBytes(filePath, Data);
         }
     }
 }
