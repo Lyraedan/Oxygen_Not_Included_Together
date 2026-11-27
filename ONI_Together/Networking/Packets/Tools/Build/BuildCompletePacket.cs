@@ -108,16 +108,27 @@ namespace ONI_Together.Networking.Packets.Tools.Build
             // Destroy ghost/constructable if it still exists
             GameObject existing = Grid.Objects[Cell, layerIndex];
 
-            if(existing == null && isBridge)
-            {
-                bool vertical = Orientation == Orientation.R90 || Orientation == Orientation.R270;
-                //todo: account for other width bridges; get the offsets from bridge width instead
-                int firstToCheck = vertical ? Grid.CellAbove(Cell) : Grid.CellLeft(Cell);
-                int secondToCheck = vertical ? Grid.CellBelow(Cell) : Grid.CellRight(Cell);
+			if (existing == null && isBridge)
+			{
+				bool vertical = Orientation == Orientation.R90 || Orientation == Orientation.R270;
+				//todo: account for other width bridges; get the offsets from bridge width instead
+				int firstToCheck = vertical ? Grid.CellAbove(Cell) : Grid.CellLeft(Cell);
+				int secondToCheck = vertical ? Grid.CellBelow(Cell) : Grid.CellRight(Cell);
 
-				existing = Grid.Objects[firstToCheck, layerIndex];
-                if(existing == null)
-					existing = Grid.Objects[secondToCheck, layerIndex];
+				existing = FindMatchingBridgeConstructable(firstToCheck, layerIndex, PrefabID)
+					?? FindMatchingBridgeConstructable(secondToCheck, layerIndex, PrefabID);
+			}
+
+			// Also clean up any replacement Constructable ghost (e.g. WireBridgeHighWattage or Tile replacing an existing tile)
+			if (def.ReplacementLayer != ObjectLayer.NumLayers && def.ReplacementLayer != ObjectLayer)
+			{
+				int replLayer = (int)def.ReplacementLayer;
+				GameObject replExisting = Grid.Objects[Cell, replLayer];
+				if (replExisting != null && replExisting.TryGetComponent<Constructable>(out var replConstructable) && replConstructable != null)
+				{
+					replExisting.DeleteObject();
+					Grid.Objects[Cell, replLayer] = null;
+				}
 			}
 
             if (existing != null)
@@ -177,6 +188,26 @@ namespace ONI_Together.Networking.Packets.Tools.Build
             }
 
             DebugConsole.Log($"[BuildCompletePacket] Finalized {PrefabID} at cell {Cell}");
+        }
+
+        private static GameObject FindMatchingBridgeConstructable(int checkCell, int layerIndex, string expectedPrefabId)
+        {
+            if (!Grid.IsValidCell(checkCell))
+                return null;
+
+            GameObject candidate = Grid.Objects[checkCell, layerIndex];
+            if (candidate == null)
+                return null;
+
+            if (candidate.TryGetComponent<Constructable>(out _) &&
+                candidate.TryGetComponent<Building>(out var building) &&
+                building.Def != null &&
+                building.Def.PrefabID == expectedPrefabId)
+            {
+                return candidate;
+            }
+
+            return null;
         }
 
         private void ApplyUtilityConnections(GameObject go, BuildingDef def)

@@ -114,10 +114,16 @@ namespace ONI_Together.Networking.Packets.World
 					continue;
 				}
 
-				// Do not overwrite constructed tiles with solid natural elements via Replace;
-				// doing so clears the tile's SolidImpermeable sim properties and makes tiles
+				// Do not overwrite constructed tiles / joint plates with solid natural elements via Replace;
+				// doing so clears the tile's SolidImpermeable sim properties and makes tiles/joint plates
 				// appear as raw dirt/rock on clients.
-				if (Grid.Foundation[u.Cell] &&
+				bool hasSolidTileBuilding = Grid.Foundation[u.Cell] ||
+					(Grid.Objects[u.Cell, (int)ObjectLayer.FoundationTile] is UnityEngine.GameObject tileObj &&
+					 tileObj != null &&
+					 tileObj.TryGetComponent<SimCellOccupier>(out var occupier) &&
+					 occupier != null);
+
+				if (hasSolidTileBuilding &&
 					u.ElementIdx < ElementLoader.elements.Count &&
 					ElementLoader.elements[u.ElementIdx].IsSolid)
 				{
