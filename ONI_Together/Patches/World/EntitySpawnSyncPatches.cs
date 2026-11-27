@@ -59,7 +59,7 @@ namespace ONI_Together.Patches.World
 		{
 			static void Postfix(GameObject __result)
 			{
-				if (_capturingHostSpawns && __result != null && __result.GetComponent<KPrefabID>() != null)
+				if (_capturingHostSpawns && __result != null && __result.TryGetComponent<KPrefabID>(out var kpid) && kpid.PrefabTag.Name != "TargetLocator")
 					_capturedSpawns?.Add(__result);
 			}
 		}

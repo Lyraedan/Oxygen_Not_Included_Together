@@ -72,7 +72,7 @@ namespace ONI_Together.Networking.Packets.World
 						// Call OnActiveResearchChanged to update visuals
 						HarmonyLib.Traverse.Create(researchScreen)
 							.Method("OnActiveResearchChanged", new Type[] { typeof(object) })
-							.GetValue(null);
+							.GetValue(new object[] { null });
 					}
 				}
 				catch (Exception ex) { DebugConsole.LogError($"[ResearchCompletePacket] Error refreshing research screen: {ex}"); }

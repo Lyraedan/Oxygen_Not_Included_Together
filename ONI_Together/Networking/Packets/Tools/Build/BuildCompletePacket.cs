@@ -94,13 +94,29 @@ namespace ONI_Together.Networking.Packets.Tools.Build
                 return;
 			}
 
-			var tags = MaterialTags.Select(t => new Tag(t)).ToList();
+			var rawTags = MaterialTags.Select(t => new Tag(t)).ToList();
+			var defaultTags = def.DefaultElements();
+			int requiredCount = def.CraftRecipe?.Ingredients != null && def.CraftRecipe.Ingredients.Count > 0
+				? def.CraftRecipe.Ingredients.Count
+				: (defaultTags != null && defaultTags.Count > 0 ? defaultTags.Count : 1);
 
-            if (tags.Count == 0)
-            {
-                DebugConsole.LogWarning($"[BuildCompletePacket] No materials provided for {PrefabID} at cell {Cell}, using SandStone as fallback.");
-                tags.Add(SimHashes.SandStone.CreateTag());
-            }
+			var tags = new List<Tag>(requiredCount);
+			for (int i = 0; i < requiredCount; i++)
+			{
+				Tag candidate = i < rawTags.Count ? rawTags[i] : Tag.Invalid;
+				bool valid = candidate.IsValid &&
+					(ElementLoader.GetElement(candidate) != null || Assets.TryGetPrefab(candidate) != null);
+
+				if (!valid)
+				{
+					Tag fallback = (defaultTags != null && i < defaultTags.Count && defaultTags[i].IsValid)
+						? defaultTags[i]
+						: (defaultTags != null && defaultTags.Count > 0 ? defaultTags[0] : SimHashes.SandStone.CreateTag());
+					DebugConsole.LogWarning($"[BuildCompletePacket] Invalid or missing material tag '{candidate}' (index {i}) for {PrefabID} at cell {Cell}, using {fallback} as fallback.");
+					candidate = fallback;
+				}
+				tags.Add(candidate);
+			}
 
 
 			bool isBridge = def.BuildingComplete.GetComponent<ConduitBridgeBase>() || def.BuildingComplete.GetComponent<WireUtilityNetworkLink>() || def.BuildingComplete.GetComponent<LogicUtilityNetworkLink>() || PrefabID == ContactConductivePipeBridgeConfig.ID;
