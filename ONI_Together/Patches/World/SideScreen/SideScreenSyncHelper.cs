@@ -158,6 +158,29 @@ namespace ONI_Together.Patches.World.SideScreen
 			else PacketSender.SendToHost(packet);
 		}
 
+		public static void SyncDoorStateComplete(GameObject target, Door.ControlState state)
+		{
+			using var _ = Profiler.Scope();
+
+			if (!MultiplayerSession.IsHostInSession) return;
+			if (target == null) return;
+
+			var identity = target.GetNetIdentity();
+			if (identity == null || identity.NetId == 0)
+				return;
+
+			var packet = new BuildingConfigPacket
+			{
+				NetId = identity.NetId,
+				Cell = Grid.PosToCell(target),
+				ConfigHash = "DoorStateComplete".GetHashCode(),
+				Value = (float)(int)state,
+				ConfigType = BuildingConfigType.Float
+			};
+
+			PacketSender.SendToAllClients(packet);
+		}
+
         public static void SyncQueueToggleable(GameObject target, bool expectedQueue)
         {
 	        using var _ = Profiler.Scope();

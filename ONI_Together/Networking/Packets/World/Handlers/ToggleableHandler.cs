@@ -71,9 +71,10 @@ namespace ONI_Together.Networking.Packets.World.Handlers
                 // Check if we are already in our target state
                 if (targetState != handler.IsHandlerOn())
                 {
+                    targets[targetIndex].Value?.Cancel("Host completed toggle");
                     targets[targetIndex] = new KeyValuePair<IToggleHandler, Chore>(handler, null);
                     handler.HandleToggle();
-                    toggleable.GetComponent<KSelectable>().RemoveStatusItem(Db.Get().BuildingStatusItems.PendingSwitchToggle);
+                    toggleable.GetComponent<KSelectable>()?.RemoveStatusItem(Db.Get().BuildingStatusItems.PendingSwitchToggle);
                 }
                 return true;
             }

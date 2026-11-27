@@ -21,6 +21,7 @@ namespace ONI_Together.Patches
 	            using var _ = Profiler.Scope();
 
                 Door_QueueStateChange_Patch.ExecutePatch();
+                Door_OnCompleteWork_Patch.ExecutePatch();
                 Door_Sim200ms_Patch.ExecutePatch();
                 Door_OnCleanUp_Patch.ExecutePatch();
                 FixRoomConstrains();

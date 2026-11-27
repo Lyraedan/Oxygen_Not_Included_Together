@@ -29,8 +29,23 @@ namespace ONI_Together.Patches
 
 			MultiplayerSession.IsQuitting = true;
 
-			NetworkConfig.Stop();
-			MultiplayerSession.Clear();
+			try
+			{
+				NetworkConfig.Stop();
+			}
+			catch (System.Exception ex)
+			{
+				DebugTools.DebugConsole.LogWarning($"[PauseScreenPatch] Error stopping network during quit: {ex}");
+			}
+
+			try
+			{
+				MultiplayerSession.Clear();
+			}
+			catch (System.Exception ex)
+			{
+				DebugTools.DebugConsole.LogWarning($"[PauseScreenPatch] Error clearing session during quit: {ex}");
+			}
 		}
 
 		// This prevents the game from pausing when the PauseScreen opens in multiplayer

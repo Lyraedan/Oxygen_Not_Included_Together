@@ -270,11 +270,17 @@ namespace ONI_Together.Networking.Transport.Lan
             if (!_server.IsRunning)
                 return;
 
-            OxySyncChat.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_SERVER_STOPPED, "LAN"));
-
-            if (!_client.IsNotConnected)
+            if (!MultiplayerSession.IsQuitting)
             {
-                _client.Disconnect();
+                OxySyncChat.AddSystemMessage(string.Format(STRINGS.UI.MP_CHATWINDOW.CHAT_SERVER_STOPPED, "LAN"));
+            }
+
+            if (_client != null)
+            {
+                if (!_client.IsNotConnected)
+                {
+                    _client.Disconnect();
+                }
                 _client = null;
             }
 
@@ -283,6 +289,10 @@ namespace ONI_Together.Networking.Transport.Lan
 
             _server.Stop();
             _server = null;
+
+            CLIENT_ID = Utils.NilUlong();
+            MultiplayerSession.HostUserID = Utils.NilUlong();
+            MultiplayerSession.InActiveSession = false;
         }
 
         // The server is shutting down so disconnect everyone
