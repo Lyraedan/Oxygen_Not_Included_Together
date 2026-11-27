@@ -220,8 +220,8 @@ namespace ONI_Together.Networking
 					STRINGS.UI.MP_OVERLAY.SYNC.MODSYNC.DENY_SYNC,
 					ContinueConnectionFlow);
 					DebugConsole.Log("mods not synced!");
+					return;
 				}
-				return;
 			}
 
 			ContinueConnectionFlow();
@@ -414,6 +414,7 @@ namespace ONI_Together.Networking
 			// Reset on final failure
 			_reconnectAttempt = 0;
 			_autoReconnecting = false;
+			MultiplayerSession.InActiveSession = false;
 
 			string displayText;
 			if (string.IsNullOrEmpty(reason) && string.IsNullOrEmpty(message))
