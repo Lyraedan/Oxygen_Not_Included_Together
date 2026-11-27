@@ -36,8 +36,17 @@ namespace ONI_Together.Networking
 			if (!go.TryGetComponent<Workable>(out var workable))
 				return 0;
 
-			int hash = GetDeterministicEntityId(go,false,false) ^ workable.GetType().Name.GetHashCode() ^ ((int)workable.workTime).GetHashCode()
-				^ workable.multitoolHitEffectTag.GetHashCode() ^ workable.multitoolContext.GetHashCode();
+			// Include cell and PrefabID directly so Workables without PrimaryElement
+			// (such as Diggable) still get a cell-deterministic NetId that matches
+			// between host and clients regardless of creation order.
+			int entityHash = GetDeterministicEntityId(go, false, false);
+			int hash = cell.GetHashCode()
+				^ go.PrefabID().GetHashCode()
+				^ entityHash
+				^ workable.GetType().Name.GetHashCode()
+				^ ((int)workable.workTime).GetHashCode()
+				^ workable.multitoolHitEffectTag.GetHashCode()
+				^ workable.multitoolContext.GetHashCode();
 			int breakoff = 0;
 			while (NetworkIdentityRegistry.Exists(hash + breakoff))
 			{

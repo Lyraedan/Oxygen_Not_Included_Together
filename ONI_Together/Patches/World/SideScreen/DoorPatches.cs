@@ -37,6 +37,35 @@ namespace ONI_Together.Patches.World.SideScreen
 	}
 
 	/// <summary>
+	/// Syncs door state completion from host to clients so pending task icons and
+	/// local chores on clients are cleared when a duplicant finishes toggling the door.
+	/// </summary>
+	public static class Door_OnCompleteWork_Patch
+	{
+		public static void Postfix(Door __instance)
+		{
+			using var _ = Profiler.Scope();
+
+			if (!MultiplayerSession.IsHostInSession)
+				return;
+			if (__instance == null || __instance.IsNullOrDestroyed())
+				return;
+
+			SideScreenSyncHelper.SyncDoorStateComplete(__instance.gameObject, __instance.CurrentState);
+		}
+
+		public static void ExecutePatch()
+		{
+			using var _ = Profiler.Scope();
+
+			var m_TargetMethod = AccessTools.Method("Door, Assembly-CSharp:OnCompleteWork");
+			var m_Postfix = AccessTools.Method(typeof(Door_OnCompleteWork_Patch), "Postfix");
+			if (m_TargetMethod != null && m_Postfix != null)
+				MultiplayerMod.Harmony.Patch(m_TargetMethod, null, new HarmonyMethod(m_Postfix));
+		}
+	}
+
+	/// <summary>
 	/// Prevents the door melt check from destroying doors on clients.
 	/// In singleplayer, Door.Sim200ms checks if the door's cells are still solid
 	/// and destroys the door if they're not (e.g., melted by extreme heat).

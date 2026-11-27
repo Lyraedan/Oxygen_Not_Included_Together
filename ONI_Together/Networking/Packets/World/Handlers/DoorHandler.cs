@@ -12,6 +12,7 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 		private static readonly int[] _hashes = new int[]
 		{
 			"DoorState".GetHashCode(),
+			"DoorStateComplete".GetHashCode(),
 		};
 
 		public int[] SupportedConfigHashes => _hashes;
@@ -20,12 +21,35 @@ namespace ONI_Together.Networking.Packets.World.Handlers
 		{
 			using var _ = Profiler.Scope();
 
-			if (packet.ConfigHash != "DoorState".GetHashCode()) return false;
+			bool isStateChange = packet.ConfigHash == "DoorState".GetHashCode();
+			bool isStateComplete = packet.ConfigHash == "DoorStateComplete".GetHashCode();
+			if (!isStateChange && !isStateComplete) return false;
 
 			var door = go.GetComponent<Door>();
 			if (door == null) return false;
 
 			Door.ControlState state = (Door.ControlState)(int)packet.Value;
+
+			if (isStateComplete)
+			{
+				// Host finished the door work chore: cancel any lingering client chore,
+				// clear the pending status icon, and apply the final control state directly.
+				if (door.changeStateChore != null)
+				{
+					door.changeStateChore.Cancel("Host completed door state change");
+					door.changeStateChore = null;
+				}
+				door.requestedState = state;
+				door.controlState = state;
+				door.RefreshControlState();
+				door.OnOperationalChanged(null);
+				var selectable = door.GetComponent<KSelectable>();
+				if (selectable != null)
+				{
+					selectable.RemoveStatusItem(Db.Get().BuildingStatusItems.ChangeDoorControlState);
+				}
+				return true;
+			}
 
 			// Skip if already transitioning to this state. Without this check,
 			// the host relay (which re-serializes the packet with the host's Sender ID)
