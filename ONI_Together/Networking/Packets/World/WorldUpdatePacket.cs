@@ -114,6 +114,16 @@ namespace ONI_Together.Networking.Packets.World
 					continue;
 				}
 
+				// Do not overwrite constructed tiles with solid natural elements via Replace;
+				// doing so clears the tile's SolidImpermeable sim properties and makes tiles
+				// appear as raw dirt/rock on clients.
+				if (Grid.Foundation[u.Cell] &&
+					u.ElementIdx < ElementLoader.elements.Count &&
+					ElementLoader.elements[u.ElementIdx].IsSolid)
+				{
+					continue;
+				}
+
 				SimMessages.ModifyCell(
 						u.Cell, u.ElementIdx,
 						temperature, mass,

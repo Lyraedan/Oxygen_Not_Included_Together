@@ -69,6 +69,9 @@ namespace ONI_Together.Patches.World
 
             try
             {
+                if (__instance == null || __instance.gameObject == null)
+                    return;
+
                 LogicStateSyncer.Instance?.Unregister(__instance.gameObject);
             }
             catch (Exception ex)

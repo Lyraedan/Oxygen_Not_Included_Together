@@ -164,6 +164,12 @@ namespace ONI_Together.Networking.Packets.Tools.Build
                 {
                     ApplyUtilityConnections(builtObj, def);
                 }
+
+                // Ensure tile visuals refresh immediately on clients after def.Build
+                if (def.TileLayer != ObjectLayer.NumLayers)
+                {
+                    TileVisualizer.RefreshCell(Cell, def.TileLayer, def.ReplacementLayer);
+                }
             }
             catch (System.Exception ex)
             {
