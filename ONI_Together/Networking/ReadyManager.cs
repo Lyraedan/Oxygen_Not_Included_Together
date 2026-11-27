@@ -1,8 +1,9 @@
-﻿using ONI_Together.DebugTools;
+using ONI_Together.DebugTools;
 using ONI_Together.Menus;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Packets.Core;
 using ONI_Together.Networking.States;
+using ONI_Together.Networking.Transport.Lan;
 using ONI_Together.Networking.Transport.Steamworks;
 using Steamworks;
 using Shared.Profiling;
@@ -108,14 +109,35 @@ namespace ONI_Together.Networking
 		{
 			using var _ = Profiler.Scope();
 
-			int readyCount = GetReadyCount();
-			int maxPlayers = MultiplayerSession.ConnectedPlayers.Values.Count;
+			var pendingLanNames = GetPendingLanLoadingNames();
+			bool includeImplicitHost = MultiplayerSession.IsHost && !MultiplayerSession.ConnectedPlayers.ContainsKey(MultiplayerSession.HostUserID);
+			int readyCount = GetReadyCount() + (includeImplicitHost ? 1 : 0);
+			int maxPlayers = MultiplayerSession.ConnectedPlayers.Values.Count + pendingLanNames.Count + (includeImplicitHost ? 1 : 0);
 			string message = string.Format(STRINGS.UI.MP_OVERLAY.SYNC.WAITING_FOR_PLAYERS_SYNC, readyCount, maxPlayers);
+			if (includeImplicitHost)
+			{
+				message += $"{Utils.GetLocalPlayerName()}: {GetReadyText(ClientReadyState.Ready)}\n";
+			}
 			foreach (MultiplayerPlayer player in MultiplayerSession.ConnectedPlayers.Values)
 			{
 				message += $"{player.PlayerName}: {GetReadyText(player.readyState)}\n";
 			}
+			foreach (string loadingName in pendingLanNames)
+			{
+				message += $"{loadingName}: {GetReadyText(ClientReadyState.Loading)}\n";
+			}
 			return message;
+		}
+
+		private static System.Collections.Generic.List<string> GetPendingLanLoadingNames()
+		{
+			return NetworkConfig.TransportServer?.GetPendingLoadingClientNames()
+				?? new System.Collections.Generic.List<string>();
+		}
+
+		private static bool HasPendingLanLoadingClients()
+		{
+			return NetworkConfig.TransportServer != null && NetworkConfig.TransportServer.HasPendingLoadingClients();
 		}
 
 		private static int GetReadyCount()
@@ -142,6 +164,7 @@ namespace ONI_Together.Networking
 				case ClientReadyState.Ready:
 					return STRINGS.UI.MP_OVERLAY.SYNC.READYSTATE.READY;
 				case ClientReadyState.Unready:
+				case ClientReadyState.Loading:
 					return STRINGS.UI.MP_OVERLAY.SYNC.READYSTATE.UNREADY;
 			}
 			return STRINGS.UI.MP_OVERLAY.SYNC.READYSTATE.UNKNOWN;
@@ -166,10 +189,13 @@ namespace ONI_Together.Networking
 		{
 			using var _ = Profiler.Scope();
 
+			if (HasPendingLanLoadingClients())
+				return false;
+
 			bool result = true;
 			foreach (MultiplayerPlayer player in MultiplayerSession.ConnectedPlayers.Values)
 			{
-				if (player.readyState == ClientReadyState.Unready)
+				if (player.readyState != ClientReadyState.Ready)
 				{
 					result = false;
 
@@ -177,6 +203,16 @@ namespace ONI_Together.Networking
 				}
 			}
 			return result;
+		}
+
+		private static bool HasAnyRemotePlayers()
+		{
+			foreach (MultiplayerPlayer player in MultiplayerSession.ConnectedPlayers.Values)
+			{
+				if (player.PlayerId != MultiplayerSession.HostUserID)
+					return true;
+			}
+			return false;
 		}
 
 		internal static void RefreshReadyState()
@@ -190,7 +226,7 @@ namespace ONI_Together.Networking
 				return;
 
 			DebugConsole.Log("Refreshing ready state...");
-			if (MultiplayerSession.ConnectedPlayers.Count <= 1)
+			if (!HasAnyRemotePlayers() && !HasPendingLanLoadingClients())
 			{
 				AllClientsReadyPacket.ProcessAllReady();//bypass sending packet if its just the host left
 				return;
@@ -203,6 +239,9 @@ namespace ONI_Together.Networking
 			}
 			else
 			{
+				if (MultiplayerSession.IsHost && MultiplayerOverlay.IsOpen)
+					ReadyManager.RefreshScreen();
+
 				// Broadcast updated overlay message to all clients
 				ReadyManager.SendStatusUpdatePacketToClients();
 			}

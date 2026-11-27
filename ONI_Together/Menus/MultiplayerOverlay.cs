@@ -41,7 +41,7 @@ namespace ONI_Together.Menus
 			}
 		}
 
-		public static bool IsOpen => overlay != null;
+		public static bool IsOpen => overlay != null && instance != null;
 
 		public MultiplayerOverlay()
 		{
@@ -118,8 +118,17 @@ namespace ONI_Together.Menus
 		{
 			using var _ = Profiler.Scope();
 
-			if (overlay == null)
+			// LoadingOverlay is destroyed on scene transitions (e.g. LoadScreen.DoLoad),
+			// leaving the static wrapper pointing at a dead component. Recreate it if stale.
+			if (overlay == null || instance == null || overlay.textComponent == null)
 			{
+				if (overlay != null)
+				{
+					SceneManager.sceneLoaded -= overlay.OnPostLoadScene;
+					if (ScreenResize.Instance != null)
+						ScreenResize.Instance.OnResize -= overlay.OnResize;
+					overlay = null;
+				}
 				overlay = new MultiplayerOverlay();
 			}
 			Text = text;

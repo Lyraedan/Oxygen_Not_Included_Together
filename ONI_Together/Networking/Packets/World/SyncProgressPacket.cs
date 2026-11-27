@@ -171,14 +171,14 @@ namespace ONI_Together.Networking.Packets.World
         }
 
         /// <summary>
-        /// Remove client from progress tracking (when client disconnects)
+        /// Remove client from progress tracking (when client disconnects or finishes loading)
         /// </summary>
-        public static void RemoveClientProgress(ulong clientId)
+        public static void RemoveClientProgress(ulong clientId, bool closeOverlay = true)
         {
             using var _ = Profiler.Scope();
 
             ClientProgress.Remove(clientId);
-            if (ClientProgress.Count == 0)
+            if (closeOverlay && ClientProgress.Count == 0 && ReadyManager.IsEveryoneReady())
             {
                 MultiplayerOverlay.Close();
             }

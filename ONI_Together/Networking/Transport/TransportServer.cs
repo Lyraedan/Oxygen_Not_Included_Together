@@ -29,5 +29,12 @@ namespace ONI_Together.Networking.Transport
         public virtual float OutgoingBandwidth => 0f;
         public virtual int IncomingPps => 0;
         public virtual int OutgoingPps => 0;
+
+        // Tracks clients that intentionally disconnected to load a received save file
+        // (needed for transports like LiteNetLib / Riptide that remove the player on disconnect).
+        public virtual void MarkClientLoading(ulong clientId, string playerName = null) { }
+        public virtual bool ConsumeReconnectFromLoad(ulong clientId, string playerName = null) => false;
+        public virtual bool HasPendingLoadingClients() => false;
+        public virtual List<string> GetPendingLoadingClientNames() => new List<string>();
     }
 }

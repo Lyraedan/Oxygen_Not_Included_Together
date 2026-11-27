@@ -51,6 +51,12 @@ namespace ONI_Together.Networking.Packets.World
 			if (!MultiplayerSession.IsHost)
 				return;
 
+			if (MultiplayerSession.ConnectedPlayers.TryGetValue(requester, out var player))
+			{
+				ReadyManager.SetPlayerReadyState(player, Networking.States.ClientReadyState.Loading);
+				NetworkConfig.TransportServer?.MarkClientLoading(requester, player.PlayerName);
+			}
+
 			try
 			{
 				string name = SaveHelper.WorldName;

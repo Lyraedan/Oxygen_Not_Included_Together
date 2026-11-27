@@ -64,7 +64,6 @@ namespace ONI_Together.Patches.GamePatches
       {
         DebugConsole.Log("[GamePatch] World fully loaded, reconnecting to host from cache...");
         GameClient.ReconnectFromCache();
-        MultiplayerOverlay.Close();
       }
 
       Game.Instance.gameObject.AddComponent<LogicPortManager>();

@@ -1,4 +1,4 @@
-﻿using ONI_Together.DebugTools;
+using ONI_Together.DebugTools;
 using ONI_Together.Menus;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Components;
@@ -243,7 +243,7 @@ namespace ONI_Together.Networking.Transport.Steamworks
         {
 	        using var _ = Profiler.Scope();
 
-            yield return new WaitForSeconds(0.5f);
+            yield return new WaitForSecondsRealtime(0.5f);
 
             // Check if lobby requires password
             string hasPassword = SteamMatchmaking.GetLobbyData(lobbyId, "has_password");
