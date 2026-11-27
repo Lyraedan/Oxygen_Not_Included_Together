@@ -24,7 +24,7 @@
 - Save persistence: `ONI/SaveStore` atomic `current.sav` + rotated `backups/`; `SaveFile.SaveToFile` atomic; server-owned persistence; autosave; `save`/`saves`/`backup` console; `MaxSaveBytes`.
 - DLC: `DlcCheckMode` Off/Declared/Required + `RequiredDlcIds`/`ForbiddenDlcIds`/`ServerActiveDlcIds` + `RequireDlcDeclaration`; optional backwards-compatible client DLC declaration in handshake. **Not Klei-verified** (see §5).
 - Operational: `NonInteractive`, `PauseWhenEmpty` (no packet processing while empty; persist server-owned state; resume on join; **no ONI sim to pause**), `LogToFile`/`LogLevel` + `Logging/ServerLogger` (console + `logs/server.log`, `ONI_LOG_TO_FILE`/`ONI_LOG_LEVEL`; key events + transport; console commands/save still `Console.WriteLine`), `DiscoveryEnabled`, `--health-check`, `--version`, extra env overrides, `reloadconfig`, `status`.
-- Packaging: self-contained `win-x64` + `linux-x64` artifacts; `.bat`/`.sh`/`.command`; mac `.app` script; Linux `make-appimage.sh`; `publish-*` scripts; `Dockerfile`; `docker-compose.yml`; `.dockerignore`; CI `.github/workflows/dedicated-server.yml`.
+- Packaging: self-contained `win-x64` + `linux-x64` artifacts; `.bat`/`.sh`/`.command`; mac `.app` script; Linux `make-appimage.sh`; `publish-*` scripts; `Dockerfile`; `docker-compose.yml`; `.dockerignore`; **GitHub Actions workflows disabled in PR** (no active `.github/workflows/dedicated-server.yml`).
 - Docs: `ONI_Together_DedicatedServer/README.md`, `docs/SETUP.md`, `docs/WINDOWS.md`, `docs/LINUX.md`, `docs/MACOS.md`, `docs/DOCKER.md`, `docs/SECURITY.md`.
 - Tests: 56 xUnit tests.
 
@@ -35,8 +35,8 @@
 - **macOS artifact** not built/tested (needs Mac; ItsLuke offered). Scripts provided. `.app`/`.command` not run.
 - **AppImage** not built (needs `appimagetool` + Linux). Script provided.
 - **Docker image not built/tested** (no Docker daemon in this environment). `Dockerfile`/compose provided.
-- **CI not executed** (no GitHub runner here); workflow provided.
-- No actual GitHub Release publishing; no PR opened; no ItsLuke progress update (collaboration tasks are for you).
+- **GitHub Actions workflows disabled in PR**; no active dedicated-server workflow added.
+- No actual GitHub Release publishing; **Draft PR #277 opened upstream `0.8.1`**; no ItsLuke progress update.
 - `Logging/ServerLogger` added (console + `logs/server.log`); `ONI_LOG_TO_FILE`/`ONI_LOG_LEVEL`. Key events + `DedicatedLiteNetLibServer` transport logged; console commands + `SaveFile`/`SaveStore` still `Console.WriteLine`.
 - `PauseWhenEmpty` now pauses **packet processing** while empty + persists server-owned state + resumes on join; **no ONI simulation to pause** in current relay.
 - No save data received from ONI master relayed into server-owned `current.sav` automatically; server persists server-held loaded bytes + manual/autosave; **not authoritative ONI snapshot**.
@@ -53,7 +53,7 @@
 - **Shipping:** short term the dedicated server app is shipped next to the mods DLL; long-term prefer separate downloadable server applications from **GitHub Releases** (`.exe`, `.app`, `.AppImage`; ItsLuke will host downloads) so mod updates cannot remove the app. The earlier launcher-script idea remains useful: `.bat`, `.sh`, `.command`. Standalone `.NET 8`; does not require building inside the mod.
 - Keep configuration and save data outside the mod installation directory, because **mod updates nuke the mod directory**. Add any server-specific config there too. (Implemented.)
 - Docker support accounts for **ZimaOS**: persistent storage + configurable networking. (Dockerfile/compose provided; not tested here.)
-- **PR + review:** open a PR for ItsLuke's implementation feedback + code reviews; send progress updates. (CI added; PR not opened.)
+- **PR + review:** **Draft PR #277 opened** upstream `0.8.1`; **GitHub Actions workflows disabled in PR**; send progress updates.
 - Keep dedicated-server work isolated. **Writing the setup guide is harder than implementation.** (`docs/SETUP.md`.)
 
 ---
@@ -126,7 +126,7 @@ Relay model: first client **master**; server relays; LAN discovery; handshake `O
 ---
 
 ## 4. Release and collaboration
-- [x] CI workflow `dedicated-server.yml`.
+- [x] **GitHub Actions workflows disabled in PR**; no active `.github/workflows/dedicated-server.yml`.
 - [ ] Publish GitHub Release artifacts. (not run)
 - [ ] PR. (not opened)
 - [ ] Progress updates. (for you)
