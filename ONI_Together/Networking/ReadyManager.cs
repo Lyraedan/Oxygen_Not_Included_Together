@@ -1,4 +1,4 @@
-﻿using ONI_Together.DebugTools;
+using ONI_Together.DebugTools;
 using ONI_Together.Menus;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Packets.Core;
@@ -200,6 +200,16 @@ namespace ONI_Together.Networking
 			return result;
 		}
 
+		private static bool HasAnyRemotePlayers()
+		{
+			foreach (MultiplayerPlayer player in MultiplayerSession.ConnectedPlayers.Values)
+			{
+				if (player.PlayerId != MultiplayerSession.HostUserID)
+					return true;
+			}
+			return false;
+		}
+
 		internal static void RefreshReadyState()
 		{
 			using var _ = Profiler.Scope();
@@ -211,7 +221,7 @@ namespace ONI_Together.Networking
 				return;
 
 			DebugConsole.Log("Refreshing ready state...");
-			if (MultiplayerSession.ConnectedPlayers.Count <= 1 && !HasPendingLanLoadingClients())
+			if (!HasAnyRemotePlayers() && !HasPendingLanLoadingClients())
 			{
 				AllClientsReadyPacket.ProcessAllReady();//bypass sending packet if its just the host left
 				return;
