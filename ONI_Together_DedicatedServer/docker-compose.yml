@@ -1,0 +1,52 @@
+# docker-compose for ONI Together Dedicated Server (ZimaOS-friendly).
+# Build from repo root: docker compose -f ONI_Together_DedicatedServer/docker-compose.yml up -d
+# Or set `image:` to a prebuilt GitHub Release image instead of `build:`.
+
+name: oni-together-dedicated
+
+services:
+  dedicated-server:
+    build:
+      context: ..
+      dockerfile: ONI_Together_DedicatedServer/Dockerfile
+    # image: ghcr.io/lyraedan/oni-together-dedicated-server:latest
+    container_name: oni-together-dedicated
+    restart: unless-stopped
+    # Non-root (image uses app user). Ensure /data volume is writable.
+    user: app
+    ports:
+      - "7777:7777/udp"      # LiteNetLib relay (UDP)
+      # - "7777:7777/tcp"     # Only if your protocol needs TCP; current relay is UDP.
+    volumes:
+      - oni-data:/data        # persistent config + saves (survives image updates)
+      # Or bind-mount host dirs (ensure ownership/write for container user):
+      # - ./data:/data
+    environment:
+      ONI_NON_INTERACTIVE: "true"
+      ONI_DATA_DIR: "/data"
+      ONI_SERVER_CONFIG_DIR: "/data/config"
+      ONI_SERVER_SAVE_DIR: "/data/saves"
+      ONI_PORT: "${ONI_PORT:-7777}"
+      ONI_IP: "${ONI_IP:-0.0.0.0}"
+      ONI_MAX_PLAYERS: "${ONI_MAX_PLAYERS:-4}"
+      ONI_TICK_RATE: "${ONI_TICK_RATE:-60}"
+      ONI_TIMEOUT_SECONDS: "${ONI_TIMEOUT_SECONDS:-30}"
+      ONI_SERVER_NAME: "${ONI_SERVER_NAME:-ONI Together Dedicated Server}"
+      ONI_SAVE_FILE: "${ONI_SAVE_FILE:-}"
+      ONI_VERBOSE_PACKETS: "${ONI_VERBOSE_PACKETS:-false}"
+      ONI_MAX_PACKET_SIZE: "${ONI_MAX_PACKET_SIZE:-262144}"
+      ONI_RATE_LIMIT_MESSAGES_PER_SECOND: "${ONI_RATE_LIMIT_MESSAGES_PER_SECOND:-600}"
+      ONI_DLC_CHECK_MODE: "${ONI_DLC_CHECK_MODE:-Off}"
+      # ONI_REQUIRED_DLC_IDS: "expansion1"
+      # ONI_FORBIDDEN_DLC_IDS: ""
+    # Stop gracefully (SIGTERM handled by app).
+    stop_grace_period: 10s
+    healthcheck:
+      test: ["CMD", "dotnet", "/app/ONI_Together_DedicatedServer.dll", "--health-check"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  oni-data:

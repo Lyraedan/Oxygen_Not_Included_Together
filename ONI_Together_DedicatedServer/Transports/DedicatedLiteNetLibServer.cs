@@ -5,12 +5,15 @@ using System.Net;
 using System.Net.Sockets;
 using LiteNetLib;
 using LiteNetLib.Utils;
+using ONI_Together_DedicatedServer.Logging;
 using ONI_Together_DedicatedServer.ONI;
+using ONI_Together_DedicatedServer.Security;
 
 namespace ONI_Together_DedicatedServer.Transports
 {
     /// <summary>
     /// LiteNetLib-based relay server aligned with ONI_Together's 0.8.1 LiteNetLib client/server transport.
+    /// Security: handshake key, lobby cap, packet-size caps, per-peer rate limiting, optional DLC checks.
     /// </summary>
     public class DedicatedLiteNetLibServer : DedicatedTransportServer
     {
@@ -20,11 +23,15 @@ namespace ONI_Together_DedicatedServer.Transports
 
         private NetManager? _server;
         private EventBasedNetListener? _listener;
-        private readonly Dictionary<ulong, ONI.Player> _connectedPlayers = new();
+        private readonly Dictionary<ulong, Player> _connectedPlayers = new();
         private readonly Dictionary<int, ulong> _clientIdByPeerId = new();
 
         private string _worldName = "Dedicated World";
         private int _cycle = 1;
+
+        private RateLimiter _rateLimiter = new(600, 600);
+        private int _messagesThisPoll;
+        private volatile bool _paused;
 
         public override void SetWorldInfo(string worldName, int cycle = 1)
         {
@@ -40,6 +47,8 @@ namespace ONI_Together_DedicatedServer.Transports
                 return true;
 
             var config = ServerConfiguration.Instance.Config;
+            config.Sanitize();
+
             string ip = config.Ip?.Trim() ?? "0.0.0.0";
             int port = config.Port;
             int timeoutMs = Math.Max(5, config.TimeoutSeconds) * 1000;
@@ -58,21 +67,25 @@ namespace ONI_Together_DedicatedServer.Transports
                 DisconnectTimeout = timeoutMs,
                 UnsyncedEvents = false,
                 ChannelsCount = 4,
-                BroadcastReceiveEnabled = true,
-                UnconnectedMessagesEnabled = true,
+                BroadcastReceiveEnabled = config.DiscoveryEnabled,
+                UnconnectedMessagesEnabled = config.DiscoveryEnabled,
                 EnableStatistics = true
             };
+
+            _rateLimiter = new RateLimiter(
+                capacity: Math.Max(1, config.RateLimitMessagesPerSecond),
+                refillPerSecond: config.RateLimitMessagesPerSecond);
 
             bool started = StartBoundSocket(_server, ip, port);
             if (!started)
             {
-                Console.WriteLine($"[DedicatedServer] Failed to start LiteNetLib server on {ip}:{port}");
+                ServerLogger.Current.Warn($"[DedicatedServer] Failed to start LiteNetLib server on {ip}:{port}");
                 _server = null;
                 _listener = null;
                 return false;
             }
 
-            Console.WriteLine($"[DedicatedServer] LiteNetLib server listening on {ip}:{port} (MaxPlayers={config.MaxLobbySize}, Timeout={config.TimeoutSeconds}s)");
+            ServerLogger.Current.Info($"[DedicatedServer] LiteNetLib server listening on {ip}:{port} (MaxPlayers={config.MaxLobbySize}, Timeout={config.TimeoutSeconds}s, MaxPacketSize={config.MaxPacketSize}, RateLimit={config.RateLimitMessagesPerSecond}/s)");
             return true;
         }
 
@@ -103,31 +116,101 @@ namespace ONI_Together_DedicatedServer.Transports
 
             try
             {
-                string key = request.Data.GetString();
-                if (key == HandshakeKey)
+                // Reject absurdly large connection payloads.
+                if (request.Data == null || request.Data.AvailableBytes < 0 || request.Data.AvailableBytes > config.MaxPacketSize)
                 {
-                    ulong clientNetId = 0;
-                    if (request.Data.AvailableBytes >= sizeof(ulong))
-                        clientNetId = request.Data.GetULong();
-
-                    var peer = request.Accept();
-                    if (peer != null)
-                    {
-                        ulong assignedId = clientNetId > 1 ? clientNetId : ((ulong)peer.Id + 2);
-                        while (_connectedPlayers.ContainsKey(assignedId))
-                            assignedId++;
-
-                        _clientIdByPeerId[peer.Id] = assignedId;
-                    }
+                    request.Reject();
                     return;
                 }
+
+                string key = request.Data.GetString();
+                if (key != HandshakeKey)
+                {
+                    request.Reject();
+                    return;
+                }
+
+                ulong clientNetId = 0;
+                if (request.Data.AvailableBytes >= sizeof(ulong))
+                    clientNetId = request.Data.GetULong();
+
+                // Optional DLC declaration appended after key + clientNetId (backwards compatible).
+                var dlc = TryReadDlcInfo(request.Data);
+
+                var verifier = new DeclaredDlcOwnershipVerifier(new DlcPolicy
+                {
+                    Mode = config.RequireDlcDeclaration && config.DlcCheckMode == DlcCheckMode.Off
+                        ? DlcCheckMode.Required
+                        : config.DlcCheckMode,
+                    RequiredDlcIds = config.RequiredDlcIds,
+                    ForbiddenDlcIds = config.ForbiddenDlcIds,
+                    ServerActiveDlcIds = config.ServerActiveDlcIds
+                });
+
+                var dlcResult = verifier.Verify(dlc);
+                if (!dlcResult.Allowed)
+                {
+                    ServerLogger.Current.Warn($"[DedicatedServer] Connection rejected (DLC): {dlcResult.Reason}");
+                    request.Reject();
+                    return;
+                }
+
+                var peer = request.Accept();
+                if (peer != null)
+                {
+                    ulong assignedId = clientNetId > 1 ? clientNetId : ((ulong)peer.Id + 2);
+                    while (_connectedPlayers.ContainsKey(assignedId))
+                        assignedId++;
+
+                    _clientIdByPeerId[peer.Id] = assignedId;
+                }
+                return;
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[DedicatedServer] Invalid connection request: {ex.Message}");
+                ServerLogger.Current.Warn($"[DedicatedServer] Invalid connection request: {ex.Message}");
             }
 
             request.Reject();
+        }
+
+        private static ClientDlcInfo TryReadDlcInfo(NetDataReader data)
+        {
+            var info = new ClientDlcInfo();
+            try
+            {
+                if (data == null || data.AvailableBytes < sizeof(int))
+                    return info;
+
+                info.Declared = true;
+                int activeCount = data.GetInt();
+                if (activeCount < 0 || activeCount > 4096) { info.Declared = false; return info; }
+                var active = new List<string>(activeCount);
+                for (int i = 0; i < activeCount; i++) active.Add(SafeGetString(data));
+                int ownedCount = data.AvailableBytes >= sizeof(int) ? data.GetInt() : 0;
+                if (ownedCount < 0 || ownedCount > 4096) { info.Declared = false; return info; }
+                var owned = new List<string>(ownedCount);
+                for (int i = 0; i < ownedCount; i++) owned.Add(SafeGetString(data));
+                info.ActiveDlcIds = active;
+                info.OwnedDlcIds = owned;
+            }
+            catch
+            {
+                // Malformed optional DLC block -> treat as undeclared.
+                info = new ClientDlcInfo();
+            }
+            return info;
+        }
+
+        private static string SafeGetString(NetDataReader data)
+        {
+            try
+            {
+                var s = data.GetString();
+                if (s == null) return "";
+                return s.Length > 128 ? s.Substring(0, 128) : s;
+            }
+            catch { return ""; }
         }
 
         private void OnPeerConnected(NetPeer peer)
@@ -141,10 +224,12 @@ namespace ONI_Together_DedicatedServer.Transports
             }
 
             bool isMaster = _connectedPlayers.Count == 0;
-            var player = new ONI.Player(peer, isMaster, clientId);
+            var player = new Player(peer, isMaster, clientId);
             _connectedPlayers[clientId] = player;
+            // Resume immediately on join so packets in the same PollEvents aren't dropped.
+            _paused = false;
 
-            Console.WriteLine($"[DedicatedServer] Player joined: ClientID={clientId}, Master={isMaster}, Endpoint={peer.Address}:{peer.Port}");
+            ServerLogger.Current.Info($"[DedicatedServer] Player joined: ClientID={clientId}, Master={isMaster}, Endpoint={peer.Address}:{peer.Port}");
         }
 
         private void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
@@ -153,6 +238,7 @@ namespace ONI_Together_DedicatedServer.Transports
                 return;
 
             _clientIdByPeerId.Remove(peer.Id);
+            _rateLimiter.Reset(peer.Id.ToString());
 
             bool wasMaster = false;
             if (_connectedPlayers.TryGetValue(clientId, out var player))
@@ -161,12 +247,13 @@ namespace ONI_Together_DedicatedServer.Transports
                 _connectedPlayers.Remove(clientId);
             }
 
-            Console.WriteLine($"[DedicatedServer] Player left: ClientID={clientId}, Reason={disconnectInfo.Reason}");
+            ServerLogger.Current.Info($"[DedicatedServer] Player left: ClientID={clientId}, Reason={disconnectInfo.Reason}");
 
             if (!wasMaster)
                 return;
 
-            Console.WriteLine("[DedicatedServer] Master disconnected! Attempting master migration...");
+            // NOTE: In current relay mode this does NOT transfer simulation state (see TODO.md final milestone).
+            ServerLogger.Current.Info("[DedicatedServer] Master disconnected! Attempting master migration...");
             if (_connectedPlayers.Count > 0)
             {
                 var newMaster = _connectedPlayers.Values
@@ -177,12 +264,12 @@ namespace ONI_Together_DedicatedServer.Transports
                 if (newMaster != null)
                 {
                     newMaster.UpdateMasterState(true);
-                    Console.WriteLine($"[DedicatedServer] New master assigned: ClientID={newMaster.ClientID} (Ping={newMaster.PingMs}ms)");
+                    ServerLogger.Current.Info($"[DedicatedServer] New master assigned: ClientID={newMaster.ClientID} (Ping={newMaster.PingMs}ms)");
                 }
             }
             else
             {
-                Console.WriteLine("[DedicatedServer] No clients remaining. Server idle.");
+                ServerLogger.Current.Info("[DedicatedServer] No clients remaining. Server idle.");
             }
         }
 
@@ -194,14 +281,39 @@ namespace ONI_Together_DedicatedServer.Transports
                 return;
             }
 
+            var config = ServerConfiguration.Instance.Config;
+
+            // PauseWhenEmpty: no packet processing while empty; connections still accepted. Resume on join.
+            // Do NOT drop packets once a player is connected (e.g. GameStateRequestPacket in same PollEvents as join).
+            if (_connectedPlayers.Count == 0)
+                return;
+            if (ComputePaused(config.PauseWhenEmpty, _connectedPlayers.Count))
+                return;
+
             byte[] rawData = reader.GetRemainingBytes();
             if (rawData.Length == 0)
                 return;
 
-            if (ServerConfiguration.Instance.Config.VerbosePacketLogging)
+            // Packet size cap.
+            if (rawData.Length > config.MaxPacketSize || rawData.Length > config.MaxMessageSize)
+            {
+                ServerLogger.Current.Warn($"[DedicatedServer] Dropping oversized packet from {senderId}: {rawData.Length}B");
+                return;
+            }
+
+            // Per-peer rate limiting.
+            if (!_rateLimiter.TryAcquire(peer.Id.ToString()))
+                return;
+
+            // MaxMessagesPerPoll (global per PollEvents).
+            if (_messagesThisPoll >= Math.Max(1, config.MaxMessagesPerPoll))
+                return;
+            _messagesThisPoll++;
+
+            if (config.VerbosePacketLogging)
             {
                 int packetType = rawData.Length >= 4 ? BitConverter.ToInt32(rawData, 0) : 0;
-                Console.WriteLine($"[DedicatedServer] Packet from {senderId} (Master={sender.IsMaster}): Type={packetType}, Size={rawData.Length}B, Channel={channelNumber}, Method={deliveryMethod}");
+                ServerLogger.Current.Info($"[DedicatedServer] Packet from {senderId} (Master={sender.IsMaster}): Type={packetType}, Size={rawData.Length}B, Channel={channelNumber}, Method={deliveryMethod}");
             }
 
             if (sender.IsMaster)
@@ -222,15 +334,24 @@ namespace ONI_Together_DedicatedServer.Transports
 
         private void OnNetworkReceiveUnconnected(IPEndPoint remoteEndPoint, NetPacketReader reader, UnconnectedMessageType messageType)
         {
-            if (_server == null)
-                return;
+            if (_server == null) return;
+            var config = ServerConfiguration.Instance.Config;
+            if (!config.DiscoveryEnabled) return;
 
             try
             {
+                if (reader.AvailableBytes > config.MaxPacketSize) return;
                 string req = reader.GetString();
                 if (req == DiscoveryRequestKey)
                 {
-                    var config = ServerConfiguration.Instance.Config;
+                    // Optional discovery token.
+                    if (!string.IsNullOrEmpty(config.DiscoveryToken))
+                    {
+                        if (reader.AvailableBytes <= 0) return;
+                        string token = reader.GetString();
+                        if (token != config.DiscoveryToken) return;
+                    }
+
                     var writer = new NetDataWriter();
                     writer.Put(DiscoveryResponseKey);
                     writer.Put(config.ServerName);
@@ -250,11 +371,12 @@ namespace ONI_Together_DedicatedServer.Transports
 
         private void OnNetworkError(IPEndPoint endPoint, SocketError socketError)
         {
-            Console.WriteLine($"[DedicatedServer] Network error from {endPoint}: {socketError}");
+            ServerLogger.Current.Warn($"[DedicatedServer] Network error from {endPoint}: {socketError}");
         }
 
         public override void Update()
         {
+            _messagesThisPoll = 0;
             _server?.PollEvents();
         }
 
@@ -269,7 +391,7 @@ namespace ONI_Together_DedicatedServer.Transports
             _listener = null;
             _connectedPlayers.Clear();
             _clientIdByPeerId.Clear();
-            Console.WriteLine("[DedicatedServer] LiteNetLib server stopped.");
+            ServerLogger.Current.Info("[DedicatedServer] LiteNetLib server stopped.");
         }
 
         public override bool IsRunning()
@@ -277,7 +399,36 @@ namespace ONI_Together_DedicatedServer.Transports
             return _server != null && _server.IsRunning;
         }
 
-        public override Dictionary<ulong, ONI.Player> GetPlayers()
+        public override bool IsPaused => _paused;
+
+        /// <summary>Packet processing disabled while paused. Internal for tests.</summary>
+        internal bool RelayAllowed => !_paused;
+
+        /// <summary>Pause packet processing while empty. Still poll events so a join can resume.</summary>
+        public override void SetPaused(bool paused) => _paused = paused;
+
+        /// <summary>PauseWhenEmpty && no players => paused. Internal for tests.</summary>
+        internal static bool ComputePaused(bool pauseWhenEmpty, int playerCount) => pauseWhenEmpty && playerCount <= 0;
+
+        /// <summary>Re-read live config without restarting socket or dropping players.</summary>
+        public override void ReloadConfiguration()
+        {
+            if (_server == null) return;
+            var config = ServerConfiguration.Instance.Config;
+            config.Sanitize();
+
+            int timeoutMs = Math.Max(5, config.TimeoutSeconds) * 1000;
+            _server.DisconnectTimeout = timeoutMs;
+            _server.BroadcastReceiveEnabled = config.DiscoveryEnabled;
+            _server.UnconnectedMessagesEnabled = config.DiscoveryEnabled;
+            _rateLimiter = new RateLimiter(
+                capacity: Math.Max(1, config.RateLimitMessagesPerSecond),
+                refillPerSecond: config.RateLimitMessagesPerSecond);
+            // MaxLobbySize, MaxPacketSize, MaxMessageSize, MaxMessagesPerPoll read per-event.
+            // Ip/Port/Transport require Stop+Start (not preserving players) — not applied here.
+        }
+
+        public override Dictionary<ulong, Player> GetPlayers()
         {
             return _connectedPlayers;
         }

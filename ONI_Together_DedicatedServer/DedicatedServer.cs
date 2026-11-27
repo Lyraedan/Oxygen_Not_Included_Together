@@ -4,6 +4,8 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using ONI_Together_DedicatedServer;
+using ONI_Together_DedicatedServer.Logging;
+using ONI_Together_DedicatedServer.Oni;
 using ONI_Together_DedicatedServer.ONI;
 using ONI_Together_DedicatedServer.Transports;
 
@@ -11,6 +13,8 @@ namespace ONI_Together.DedicatedServer
 {
     public class DedicatedServer
     {
+        public const string Version = "1.0.0";
+
         public enum Transports
         {
             LiteNetLib = 0
@@ -23,7 +27,7 @@ namespace ONI_Together.DedicatedServer
             public Action<string[]> Execute;
         }
 
-        private sealed class LaunchOptions
+        internal sealed class LaunchOptions
         {
             public string? ConfigDir;
             public string? SaveDir;
@@ -36,12 +40,16 @@ namespace ONI_Together.DedicatedServer
             public bool? VerbosePackets;
             public bool NonInteractive;
             public bool ShowHelp;
+            public bool ShowVersion;
+            public bool HealthCheck;
         }
 
         private static Transports _transport = Transports.LiteNetLib;
-        private static DedicatedTransportServer? _server;
-        private static SaveFile? _saveFile;
-        private static volatile bool _stopRequested;
+        private static ServerLogger _logger = new();
+        internal static DedicatedTransportServer? _server;
+        internal static SaveFile? _saveFile;
+        internal static SaveStore? _saveStore;
+        internal static volatile bool _stopRequested;
         private static readonly ManualResetEventSlim _shutdownCompleted = new(false);
 
         private static readonly Dictionary<string, Command> _commands = new();
@@ -55,28 +63,61 @@ namespace ONI_Together.DedicatedServer
         static int Main(string[] args)
         {
             var options = ParseArgs(args);
+
             if (options.ShowHelp)
             {
                 PrintUsage();
                 return 0;
             }
 
-            ServerConfiguration.InitializePaths(options.ConfigDir, options.SaveDir);
-            var config = ServerConfiguration.Instance.Config;
-            ApplyCliOverrides(config, options);
+            if (options.ShowVersion)
+            {
+                Console.WriteLine($"ONI Together Dedicated Server {Version} (.NET 8, LiteNetLib 1.3.1)");
+                return 0;
+            }
 
-            bool nonInteractive = options.NonInteractive
-                                  || IsEnvTrue("ONI_NON_INTERACTIVE");
-
-            Console.WriteLine("ONI Together: Dedicated Server starting (LiteNetLib)...");
-            Console.WriteLine($"[Config] Directory: {ServerConfiguration.ConfigDirectory}");
-            Console.WriteLine($"[Config] Saves:     {ServerConfiguration.SavesDirectory}");
-
-            RegisterCommands();
-            RegisterShutdownHooks();
+            // Health check for containers/orchestrators. Does not start the server.
+            if (options.HealthCheck)
+            {
+                Console.WriteLine("ok");
+                return 0;
+            }
 
             try
             {
+                ServerConfiguration.InitializePaths(options.ConfigDir, options.SaveDir);
+                var config = ServerConfiguration.Instance.Config;
+                ApplyCliOverrides(config, options);
+                config.Sanitize();
+
+                bool nonInteractive = options.NonInteractive
+                                      || config.NonInteractive
+                                      || IsEnvTrue("ONI_NON_INTERACTIVE");
+
+                // Structured console + optional file logging. Never crash on logging.
+                _logger = new ServerLogger(
+                    config.LogToFile ? Path.Combine(ServerConfiguration.ConfigDirectory, "logs", "server.log") : null,
+                    ServerLogger.ParseLevel(config.LogLevel));
+                ServerLogger.Current = _logger;
+
+                // Save store rooted at persistent saves dir.
+                _saveStore = new SaveStore(
+                    ServerConfiguration.SavesDirectory,
+                    config.SaveBackupCount,
+                    config.MaxSaveBytes);
+
+                _logger.Info($"ONI Together: Dedicated Server {Version} starting (LiteNetLib)...");
+                _logger.Info($"[Config] Directory: {ServerConfiguration.ConfigDirectory}");
+                _logger.Info($"[Config] Saves:     {ServerConfiguration.SavesDirectory}");
+                _logger.Info($"[Config] Port: {config.Port} UDP, MaxPlayers={config.MaxLobbySize}, TickRate={config.TickRate}Hz, MaxPacketSize={config.MaxPacketSize}");
+                _logger.Info($"[Config] DLC check: {config.DlcCheckMode}, Discovery={(config.DiscoveryEnabled ? "on" : "off")}, PauseWhenEmpty={config.PauseWhenEmpty}");
+                _logger.Info($"[Config] LogToFile={config.LogToFile}, LogLevel={config.LogLevel}");
+                // Final milestone investigation: honest ONI runtime detection. NOT headless-authoritative; NOT Klei-verified.
+                _logger.Info($"[ONI] {OniRuntimeDetector.Detect().Report()}");
+
+                RegisterCommands();
+                RegisterShutdownHooks();
+
                 LoadConfiguredSave(config.SaveFile);
 
                 _transport = (Transports)config.Transport;
@@ -87,8 +128,22 @@ namespace ONI_Together.DedicatedServer
 
                 if (!_server.Start())
                 {
-                    Console.WriteLine("[DedicatedServer] Server failed to start.");
+                    _logger.Error("[DedicatedServer] Server failed to start.");
                     return 1;
+                }
+
+                // Persist initially loaded save into server-owned store.
+                if (_saveFile != null && _saveStore != null)
+                {
+                    try
+                    {
+                        string path = _saveStore.SaveCurrent(_saveFile.Data, config.SaveFileName);
+                        Console.WriteLine($"[SaveFile] Persisted server-owned save: {path}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[SaveFile] Failed to persist initial save: {ex.Message}");
+                    }
                 }
 
                 if (!nonInteractive)
@@ -121,21 +176,64 @@ namespace ONI_Together.DedicatedServer
             }
         }
 
-        private static void RunTickLoop()
+        internal static void RunTickLoop()
         {
             var stopwatch = Stopwatch.StartNew();
+            long lastAutosaveMs = 0;
+            bool wasPaused = false;
             while (!_stopRequested && _server != null && _server.IsRunning())
             {
                 long tickStartMs = stopwatch.ElapsedMilliseconds;
 
+                var cfg = ServerConfiguration.Instance.Config;
+                int playerCount = _server.GetPlayers().Count;
+                bool paused = DedicatedLiteNetLibServer.ComputePaused(cfg.PauseWhenEmpty, playerCount);
+
+                // PauseWhenEmpty: no packet processing while empty; still poll for joins. Resume on join.
+                _server.SetPaused(paused);
                 _server.Update();
 
-                int tickRate = Math.Clamp(ServerConfiguration.Instance.Config.TickRate, 10, 240);
+                int tickRate = Math.Clamp(cfg.TickRate, 10, 240);
                 int targetFrameMs = Math.Max(1, 1000 / tickRate);
+
+                if (paused)
+                {
+                    if (!wasPaused)
+                    {
+                        wasPaused = true;
+                        ServerLogger.Current.Info("[DedicatedServer] No players connected; paused (PauseWhenEmpty). Persisting server-owned state.");
+                        TrySaveCurrent("paused-empty");
+                    }
+                    // no autosave / no relay processing while paused
+                    int elapsedPausedMs = (int)(stopwatch.ElapsedMilliseconds - tickStartMs);
+                    int sleepPausedMs = targetFrameMs - elapsedPausedMs;
+                    if (sleepPausedMs > 0) Thread.Sleep(sleepPausedMs);
+                    continue;
+                }
+
+                if (wasPaused)
+                {
+                    wasPaused = false;
+                    ServerLogger.Current.Info("[DedicatedServer] Player joined; resumed (PauseWhenEmpty).");
+                    TrySaveCurrent("resume");
+                }
+
                 int elapsedMs = (int)(stopwatch.ElapsedMilliseconds - tickStartMs);
                 int sleepMs = targetFrameMs - elapsedMs;
                 if (sleepMs > 0)
                     Thread.Sleep(sleepMs);
+
+                // Server-owned autosave (only persists server-held bytes; not authoritative ONI sim).
+                int autosaveSeconds = cfg.SaveAutosaveSeconds;
+                if (autosaveSeconds > 0 && _saveFile != null && _saveStore != null)
+                {
+                    long now = stopwatch.ElapsedMilliseconds;
+                    if (now - lastAutosaveMs >= autosaveSeconds * 1000L)
+                    {
+                        lastAutosaveMs = now;
+                        TrySaveCurrent("[autosave]");
+                    }
+                }
             }
         }
 
@@ -181,7 +279,30 @@ namespace ONI_Together.DedicatedServer
                 return;
             }
 
-            _saveFile = SaveFile.FromFile(resolvedPath);
+            try
+            {
+                _saveFile = SaveFile.FromFile(resolvedPath);
+            }
+            catch (Exception ex)
+            {
+                _saveFile = null;
+                Console.WriteLine($"[SaveFile] Failed to load save '{resolvedPath}': {ex.Message}; starting without initial save.");
+            }
+        }
+
+        internal static void TrySaveCurrent(string reason)
+        {
+            if (_saveFile == null || _saveStore == null) return;
+            try
+            {
+                string cfgName = ServerConfiguration.Instance.Config.SaveFileName;
+                string path = _saveStore.SaveCurrent(_saveFile.Data, cfgName);
+                Console.WriteLine($"[SaveFile] Saved {reason}: {path}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[SaveFile] Save failed {reason}: {ex.Message}");
+            }
         }
 
         private static void ReadConsole()
@@ -194,6 +315,10 @@ namespace ONI_Together.DedicatedServer
 
                 if (string.IsNullOrWhiteSpace(line))
                     continue;
+
+                // Cap console line length to avoid abuse.
+                if (line.Length > 8192)
+                    line = line.Substring(0, 8192);
 
                 var parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
                 string cmdName = parts[0].ToLowerInvariant();
@@ -278,6 +403,9 @@ namespace ONI_Together.DedicatedServer
                     Console.WriteLine($"Players:  {count}/{cfg.MaxLobbySize}");
                     Console.WriteLine($"TickRate: {cfg.TickRate} Hz");
                     Console.WriteLine($"Save:     {_saveFile?.Name ?? "(none)"}");
+                    Console.WriteLine($"Server-owned saves: {_saveStore?.SavesDirectory ?? "(none)"}");
+                    Console.WriteLine($"PauseWhenEmpty: {cfg.PauseWhenEmpty}; DlcCheckMode: {cfg.DlcCheckMode}");
+                    Console.WriteLine($"MaxPacketSize: {cfg.MaxPacketSize}; MaxMessagesPerPoll: {cfg.MaxMessagesPerPoll}; RateLimit: {cfg.RateLimitMessagesPerSecond}/s");
                 }
             });
 
@@ -321,27 +449,60 @@ namespace ONI_Together.DedicatedServer
                     {
                         ServerConfiguration.Instance.Reload();
                         var cfg = ServerConfiguration.Instance.Config;
-                        Console.WriteLine("Configuration reloaded successfully.");
+                        cfg.Sanitize();
+                        ServerLogger.Current.Info("Configuration reloaded successfully.");
 
                         LoadConfiguredSave(cfg.SaveFile);
 
+                        // Re-read live config WITHOUT restarting transport or dropping connected players.
+                        // Ip/Port/Transport changes require a manual restart (not applied here).
+                        _transport = (Transports)cfg.Transport;
                         if (_server != null && _server.IsRunning())
                         {
-                            Console.WriteLine("Stopping current transport server for hot-reload...");
-                            _server.Stop();
-                            Thread.Sleep(250);
+                            _server.ReloadConfiguration();
+                            if (_saveFile != null)
+                                _server.SetWorldInfo(Path.GetFileNameWithoutExtension(_saveFile.Name));
+                            ServerLogger.Current.Info("Live configuration applied; connected players preserved.");
                         }
-
-                        _transport = (Transports)cfg.Transport;
-                        _server = SetupTransport();
-                        if (_saveFile != null)
-                            _server.SetWorldInfo(Path.GetFileNameWithoutExtension(_saveFile.Name));
-                        _server.Start();
                     }
                     catch (Exception ex)
                     {
                         Console.WriteLine($"Failed to reload configuration: {ex.Message}");
                     }
+                }
+            });
+
+            // Server-owned save persistence commands.
+            RegisterCommand(new Command
+            {
+                Name = "save",
+                Description = "Persist server-owned save to saves/current.sav (atomic, rotates backups)",
+                Execute = _ => TrySaveCurrent("manual")
+            });
+
+            RegisterCommand(new Command
+            {
+                Name = "saves",
+                Description = "List saves in the server-owned saves directory",
+                Execute = _ =>
+                {
+                    if (_saveStore == null) { Console.WriteLine("No save store."); return; }
+                    var list = _saveStore.ListSaves();
+                    if (list.Count == 0) { Console.WriteLine("No saves."); return; }
+                    Console.WriteLine($"Saves in {_saveStore.SavesDirectory}:");
+                    foreach (var s in list) Console.WriteLine($" - {s}");
+                }
+            });
+
+            RegisterCommand(new Command
+            {
+                Name = "backup",
+                Description = "Create a rotated backup of the current server-owned save",
+                Execute = _ =>
+                {
+                    if (_saveStore == null || _saveFile == null) { Console.WriteLine("No save."); return; }
+                    try { TrySaveCurrent("backup"); Console.WriteLine("Backup created."); }
+                    catch (Exception ex) { Console.WriteLine($"Backup failed: {ex.Message}"); }
                 }
             });
         }
@@ -376,7 +537,7 @@ namespace ONI_Together.DedicatedServer
             };
         }
 
-        private static LaunchOptions ParseArgs(string[] args)
+        internal static LaunchOptions ParseArgs(string[] args)
         {
             var opts = new LaunchOptions();
             for (int i = 0; i < args.Length; i++)
@@ -388,6 +549,13 @@ namespace ONI_Together.DedicatedServer
                     case "-h":
                         opts.ShowHelp = true;
                         break;
+                    case "--version":
+                    case "-v":
+                        opts.ShowVersion = true;
+                        break;
+                    case "--health-check":
+                        opts.HealthCheck = true;
+                        break;
                     case "--non-interactive":
                     case "--headless":
                         opts.NonInteractive = true;
@@ -397,13 +565,13 @@ namespace ONI_Together.DedicatedServer
                         break;
                     case "--config-dir":
                     case "--data-dir":
-                        if (i + 1 < args.Length) opts.ConfigDir = args[++i];
+                        if (i + 1 < args.Length) opts.ConfigDir = SafeArg(args[++i]);
                         break;
                     case "--save-dir":
-                        if (i + 1 < args.Length) opts.SaveDir = args[++i];
+                        if (i + 1 < args.Length) opts.SaveDir = SafeArg(args[++i]);
                         break;
                     case "--ip":
-                        if (i + 1 < args.Length) opts.Ip = args[++i];
+                        if (i + 1 < args.Length) opts.Ip = SafeArg(args[++i]);
                         break;
                     case "--port":
                         if (i + 1 < args.Length && int.TryParse(args[++i], out int port)) opts.Port = port;
@@ -415,18 +583,26 @@ namespace ONI_Together.DedicatedServer
                         if (i + 1 < args.Length && int.TryParse(args[++i], out int tickRate)) opts.TickRate = tickRate;
                         break;
                     case "--save":
-                        if (i + 1 < args.Length) opts.SaveFile = args[++i];
+                        if (i + 1 < args.Length) opts.SaveFile = SafeArg(args[++i]);
                         break;
                     case "--name":
                     case "--server-name":
-                        if (i + 1 < args.Length) opts.ServerName = args[++i];
+                        if (i + 1 < args.Length) opts.ServerName = SafeArg(args[++i]);
                         break;
                 }
             }
             return opts;
         }
 
-        private static void ApplyCliOverrides(DedicatedConfig config, LaunchOptions opts)
+        private static string? SafeArg(string? value)
+        {
+            if (value == null) return null;
+            // Cap length; strip NUL. Keep content otherwise.
+            value = value.Replace("\0", "");
+            return value.Length > 4096 ? value.Substring(0, 4096) : value;
+        }
+
+        internal static void ApplyCliOverrides(DedicatedConfig config, LaunchOptions opts)
         {
             if (!string.IsNullOrWhiteSpace(opts.Ip)) config.Ip = opts.Ip;
             if (opts.Port.HasValue) config.Port = opts.Port.Value;
@@ -445,7 +621,7 @@ namespace ONI_Together.DedicatedServer
 
         private static void PrintUsage()
         {
-            Console.WriteLine("ONI Together Dedicated Server");
+            Console.WriteLine($"ONI Together Dedicated Server {Version}");
             Console.WriteLine("Options:");
             Console.WriteLine("  --config-dir <path>   Override persistent config/data directory");
             Console.WriteLine("  --save-dir <path>     Override save files directory");
@@ -454,10 +630,15 @@ namespace ONI_Together.DedicatedServer
             Console.WriteLine("  --max-players <n>     Max connected players (default: 4)");
             Console.WriteLine("  --tick-rate <hz>      Server poll rate in Hz, 10-240 (default: 60)");
             Console.WriteLine("  --server-name <name>  Server name shown in LAN discovery");
-            Console.WriteLine("  --save <filename>     Initial .sav file name or path");
+            Console.WriteLine("  --save <filename>     Initial .sav file name or path (sandboxed unless allowed)");
             Console.WriteLine("  --non-interactive     Disable interactive stdin console");
+            Console.WriteLine("  --headless            Alias for --non-interactive");
             Console.WriteLine("  --verbose             Log relayed packets");
+            Console.WriteLine("  --health-check        Print 'ok' and exit 0 (for containers)");
+            Console.WriteLine("  --version, -v         Show version");
             Console.WriteLine("  -h, --help            Show this help");
+            Console.WriteLine();
+            Console.WriteLine("Environment overrides are documented in TODO.md / README.md.");
         }
     }
 }
