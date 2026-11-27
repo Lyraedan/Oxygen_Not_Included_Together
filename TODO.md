@@ -28,17 +28,7 @@
 
 ---
 
-## 2. Architecture decisions to resolve
-
-- [ ] Determine whether the server can run an independent headless colony simulation or needs ONI installed on the server machine. ItsLuke expects a headless simulation may require the game installation; this is an open question, not a settled requirement.
-- [ ] Define who owns the authoritative simulation and save state throughout a session.
-- [ ] Revisit the first-client-master / master-migration design. The earlier attempt was unsatisfactory, and migrating authority mid-session conflicts with the fact that the host runs the simulation.
-- [ ] Decide what should happen when no players are connected, including whether the simulation can or should remain paused.
-- [ ] Document the supported save loading, persistence, and recovery behavior before release.
-
----
-
-## 3. Platform roadmap
+## 2. Platform roadmap
 
 ### Phase 1 — Windows
 
@@ -69,10 +59,23 @@
 
 ---
 
-## 4. Release and collaboration
+## 3. Release and collaboration
 
 - [ ] Publish platform artifacts as separate GitHub Release downloads rather than relying on files inside the mod directory.
 - [ ] Keep configuration and save data in persistent user-selected or OS-appropriate directories.
 - [ ] Open a PR for ItsLuke's implementation feedback and code reviews.
 - [ ] Send ItsLuke progress updates as milestones are completed.
 - [ ] Keep dedicated-server work isolated from the normal multiplayer work ItsLuke is prioritizing.
+
+---
+
+## Final milestone — Headless, server-authoritative ONI
+
+> Start this only after the current dedicated server is complete, stable, and working for players. This is the long-term follow-up, not a prerequisite for finishing the current server.
+
+- [ ] Test whether ONI can load and simulate a colony headlessly on the server machine.
+- [ ] Find a supported way for the server to obtain the ONI runtime and required game files, with the goal that the server operator does not need a normal ONI installation.
+- [ ] Move world simulation and save ownership to the dedicated process so no player has to act as master.
+- [ ] Make player clients send actions to the server and receive authoritative world state; each client continues to render its own game.
+- [ ] Define server behavior when nobody is connected, including pause/resume and save persistence.
+- [ ] Remove player-master election and migration from the dedicated-server flow once the server itself is authoritative.
