@@ -3,7 +3,6 @@ using ONI_Together.DebugTools;
 using ONI_Together.Networking;
 using ONI_Together.Networking.OxySync.Components;
 using System;
-using System.Collections;
 using Shared.Profiling;
 using UnityEngine;
 
@@ -23,6 +22,7 @@ namespace ONI_Together.Patches.GamePatches
 		{
 			_lastSentTime = __instance.GetTime();
 			_lastCycle = __instance.GetCycle();
+			GameServerHardSync.ResetCycleCounter();
 
 			// Attach OxySync time sync component directly to GameClock
 			if (!__instance.TryGetComponent<GameTimeSyncer>(out var gtsc))
@@ -36,6 +36,7 @@ namespace ONI_Together.Patches.GamePatches
             // Save loaded
             _lastSentTime = __instance.GetTime();
             _lastCycle = __instance.GetCycle();
+            GameServerHardSync.ResetCycleCounter();
         }
 
 		// Allow clients to advance time smoothly locally; host sync will correct drift
@@ -81,31 +82,23 @@ namespace ONI_Together.Patches.GamePatches
 					}
 				}
 
-				// 2. Trigger HardSync at the start of a new cycle
+				// 2. Trigger HardSync at the configured cycle interval
 				if (cycleChanged)
 				{
 					_lastCycle = currentCycle;
 
 					GameServerHardSync.hardSyncDoneThisCycle = false;
 
-					DebugConsole.Log($"[HardSync] New cycle detected ({currentCycle}) — Hard Sync disabled.");
+					int interval = Configuration.Instance.Host.Server.GetHardSyncCycleInterval();
+					DebugConsole.Log($"[HardSync] New cycle detected ({currentCycle}) — auto hard sync interval: {interval} cycle(s).");
 
-                    if (Configuration.Instance.HardSyncOnCycleStart)
-                        CoroutineRunner.RunOne(DelayedHardSync());
+					GameServerHardSync.NotifyCycleStarted();
 				}
 			}
 			catch (Exception ex)
 			{
 				DebugConsole.LogError($"[GameClockPatch.AddTime_Postfix] {ex}");
 			}
-		}
-
-		private static IEnumerator DelayedHardSync()
-		{
-			using var _ = Profiler.Scope();
-
-			yield return new WaitForSecondsRealtime(5f); // wait to ensure ONI's autosave completes (generous wait time)
-			GameServerHardSync.PerformHardSync(false);
 		}
 	}
 }

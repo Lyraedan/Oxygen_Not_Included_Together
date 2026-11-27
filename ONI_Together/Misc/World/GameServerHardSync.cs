@@ -13,6 +13,7 @@ namespace ONI_Together.Networking
 		public static bool hardSyncDoneThisCycle = false;
 		private static bool hardSyncInProgress = false;
 		private static int numberOfClientsAtTimeOfSync = 0;
+		private static int cyclesSinceLastHardSync = 0;
 
 		public static bool IsHardSyncInProgress
 		{
@@ -27,6 +28,38 @@ namespace ONI_Together.Networking
 			}
 		}
 
+		public static void ResetCycleCounter()
+		{
+			cyclesSinceLastHardSync = 0;
+		}
+
+		public static void NotifyCycleStarted()
+		{
+			int interval = Configuration.Instance.Host.Server.GetHardSyncCycleInterval();
+
+			if (interval <= 0)
+			{
+				ResetCycleCounter();
+				return;
+			}
+
+			cyclesSinceLastHardSync++;
+			if (cyclesSinceLastHardSync < interval)
+				return;
+
+			ResetCycleCounter();
+			DebugConsole.Log($"[HardSync] Automatic hard sync due after {interval} cycle(s).");
+			CoroutineRunner.RunOne(DelayedHardSync());
+		}
+
+		private static IEnumerator DelayedHardSync()
+		{
+			using var _ = Profiler.Scope();
+
+			yield return new WaitForSecondsRealtime(5f); // wait to ensure ONI's autosave completes (generous wait time)
+			PerformHardSync(false);
+		}
+
 		public static void PerformHardSync(bool consumeDailyUse = false)
 		{
 			using var _ = Profiler.Scope();
@@ -36,6 +69,8 @@ namespace ONI_Together.Networking
 				DebugConsole.Log("[HardSync] A hard sync is already in progress.");
 				return;
 			}
+
+			ResetCycleCounter();
 
 			SpeedControlScreen.Instance?.Pause(false); // Pause the game
 			MultiplayerOverlay.Show(STRINGS.UI.MP_OVERLAY.SYNC.HARDSYNC_INPROGRESS);

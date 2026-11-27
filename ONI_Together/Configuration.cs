@@ -46,12 +46,12 @@ namespace ONI_Together
             set => Host.TimeoutSeconds = Mathf.Max(value, 30);
         }
 
-        [Option("STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.HARD_SYNC_AT_CYCLE_START", "STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.SERVER_SETTINGS.HARD_SYNC_AT_CYCLE_START", "STRINGS.UI.CONFIGURATION.HEADERS.A_HOST_SETTINGS")]
+        [Option("STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.HARD_SYNC_CYCLE_INTERVAL", "STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.SERVER_SETTINGS.HARD_SYNC_CYCLE_INTERVAL", "STRINGS.UI.CONFIGURATION.HEADERS.A_HOST_SETTINGS")]
         [JsonIgnore]
-        public bool HardSyncOnCycleStart
+        public int HardSyncCycleInterval
         {
-            get => Host.Server.HardSyncAtCycleStart;
-            set => Host.Server.HardSyncAtCycleStart = value;
+            get => Host.Server.GetHardSyncCycleInterval();
+            set => Host.Server.SetHardSyncCycleInterval(value);
         }
 
         [Option("STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.PAUSE_SIM_ON_PLAYER_DISCONNECT", "STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.SERVER_SETTINGS.PAUSE_SIM_ON_PLAYER_DISCONNECT", "STRINGS.UI.CONFIGURATION.HEADERS.A_HOST_SETTINGS")]
@@ -294,9 +294,26 @@ namespace ONI_Together
     [Serializable]
     public class ServerSettings
     {
-        [JsonProperty] public bool HardSyncAtCycleStart { get; set; } = false;
+        // Legacy setting from before the interval option. Only read to migrate old configs.
+        [JsonProperty("HardSyncAtCycleStart")] public bool LegacyHardSyncAtCycleStart { get; set; } = false;
+        [JsonProperty] public int HardSyncCycleInterval { get; set; } = 0;
         [JsonProperty] public bool PauseSimOnPlayerDisconnect { get; set; } = false;
         [JsonProperty] public ServerTickRate TickRate { get; set; } = ServerTickRate.TPS_60;
+
+        public int GetHardSyncCycleInterval()
+        {
+            int value = HardSyncCycleInterval > 0
+                ? HardSyncCycleInterval
+                : (LegacyHardSyncAtCycleStart ? 1 : 0);
+
+            return Mathf.Max(value, 0);
+        }
+
+        public void SetHardSyncCycleInterval(int value)
+        {
+            HardSyncCycleInterval = Mathf.Max(value, 0);
+            LegacyHardSyncAtCycleStart = false;
+        }
     }
 
     public enum ServerTickRate

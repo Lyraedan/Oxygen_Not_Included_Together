@@ -675,10 +675,11 @@ namespace ONI_Together.UI
 
 		void ShowLobbySettings()
 		{
-			AddOrGetLobbySettingsEntry_Toggle("HardSyncToggle", ToggleHardSyncSetting,
-				STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.HARD_SYNC_AT_CYCLE_START,
-				STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.SERVER_SETTINGS.HARD_SYNC_AT_CYCLE_START)
-				.SetOnFromCode(Configuration.Instance.Host.Server.HardSyncAtCycleStart);
+			AddOrGetLobbySettingsEntry_NumInput("HardSyncInterval", OnHardSyncIntervalChanged,
+				STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.HARD_SYNC_CYCLE_INTERVAL,
+				STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.SERVER_SETTINGS.HARD_SYNC_CYCLE_INTERVAL,
+				placeholder: "0",
+				defaultValue: Configuration.Instance.Host.Server.GetHardSyncCycleInterval());
 
 			AddOrGetLobbySettingsEntry_Toggle("PauseSimOnPlayerLeft", TogglePauseSimOnPlayerLeftSetting,
 				STRINGS.UI.CONFIGURATION.TITLES.HOST_SETTINGS.SERVER_SETTINGS.PAUSE_SIM_ON_PLAYER_DISCONNECT,
@@ -721,10 +722,15 @@ namespace ONI_Together.UI
 			lanDisplayNameInput.transform.parent.gameObject.SetActive(CurrentHostMode == HostMode.LAN);
 		}
 
-		void ToggleHardSyncSetting(bool hardSyncEnabled)
+		void OnHardSyncIntervalChanged(int value)
 		{
+			int clampedValue = Mathf.Max(value, 0);
+
+			if (SettingsNumberInputs.TryGetValue("HardSyncInterval", out var input))
+				input.SetTextFromData(clampedValue.ToString());
+
 			var config = Configuration.Instance;
-			config.Host.Server.HardSyncAtCycleStart = hardSyncEnabled;
+			config.Host.Server.SetHardSyncCycleInterval(clampedValue);
 			config.Save();
 		}
 

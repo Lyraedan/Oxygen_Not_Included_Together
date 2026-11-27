@@ -30,7 +30,7 @@ namespace ONI_Together
 
 						public class SERVER_SETTINGS
 						{
-							public static LocString HARD_SYNC_AT_CYCLE_START = "Hard Sync On Cycle Start";
+							public static LocString HARD_SYNC_CYCLE_INTERVAL = "Hard Sync Interval (Cycles)";
 							public static LocString TIMEOUT_SECONDS = "Connection Timeout (seconds)";
 							public static LocString PAUSE_SIM_ON_PLAYER_DISCONNECT = "Pause Simulation On Player Disconnect";
 							public static LocString SERVER_TICK_RATE = "Server Tick Rate";
@@ -80,7 +80,7 @@ namespace ONI_Together
 
                         public class SERVER_SETTINGS
                         {
-                            public static LocString HARD_SYNC_AT_CYCLE_START = "Perform a hard sync at the start of every new cycle\n\nDoes not use up your one hard sync per cycle";
+                            public static LocString HARD_SYNC_CYCLE_INTERVAL = "How often the host automatically performs a hard sync, measured in cycles.\n0 disables automatic hard syncs, 1 means every cycle, and 3 means every third cycle.\n\nAny hard sync, including a manual one, resets the countdown.\nAutomatic hard syncs do not use up your one manual hard sync per cycle.";
                             public static LocString TIMEOUT_SECONDS = "How long the server waits (in seconds) for a response from a connecting or loading client before timing out.\nIncrease this if your friends take a long time to load into the game.\n\nMinimum: 30. (default: 30)";
                             public static LocString PAUSE_SIM_ON_PLAYER_DISCONNECT = "Automatically pauses the simulation when a player disconnects from the server.";
                             public static LocString SERVER_TICK_RATE = "How many times per second the server processes incoming network messages.\nHigher values reduce latency but increase CPU and bandwidth usage.\n\nRange: 20–128 TPS (default: 60)";
