@@ -54,7 +54,7 @@ namespace ONI_Together.Networking.OxySync.Components
             CallCommand(nameof(CmdSetSpeed), speed);
         }
 
-        [Command]
+        [Command(SendMode = (int)PacketSendMode.ReliableImmediatePriority)]
         private void CmdSetSpeed(int speed)
         {
             ApplyAndBroadcast((SpeedState)speed);
@@ -88,7 +88,9 @@ namespace ONI_Together.Networking.OxySync.Components
             }
         }
 
-        [ClientRpc]
+        // Priority lane: a pause or speed change that queues behind the world stream reaches
+        // the client minutes late, and the client keeps simulating while the host stands still.
+        [ClientRpc(SendMode = (int)PacketSendMode.ReliableImmediatePriority)]
         private void RpcApplySpeed(int state)
         {
             SpeedControlScreen_SendSpeedPacketPatch.IsSyncing = true;
