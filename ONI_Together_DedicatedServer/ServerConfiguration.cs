@@ -213,8 +213,7 @@ namespace ONI_Together_DedicatedServer
             if (candidate.Contains("..", StringComparison.Ordinal))
                 return null;
 
-            string combined = Path.Combine(SavesDirectory, candidate);
-            return PathSandbox.ResolveInsideRoot(SavesDirectory, combined) ?? combined;
+            return PathSandbox.ResolveInsideRoot(SavesDirectory, Path.Combine(SavesDirectory, candidate));
         }
 
         public static string[] SplitCsv(string? value)
@@ -323,7 +322,7 @@ namespace ONI_Together_DedicatedServer
             RequiredDlcIds = System.Linq.Enumerable.ToArray(System.Linq.Enumerable.Where(RequiredDlcIds, r => !forb.Contains(r)));
         }
 
-        private static int Clamp(int v, int min, int max, int fallback) => v < min || v > max ? Math.Clamp(v, min, max) : v;
+        private static int Clamp(int v, int min, int max, int fallback) => v < min ? fallback : Math.Min(v, max);
 
         private static string SanitizeString(string? value, string fallback, int maxLength)
         {

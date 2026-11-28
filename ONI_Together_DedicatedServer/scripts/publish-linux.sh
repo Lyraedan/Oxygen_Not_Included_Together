@@ -20,6 +20,7 @@ dotnet publish "$PROJ" \
     -o "$OUT"
 
 cp "$PKGDIR/linux/ONI_Together_DedicatedServer.sh" "$OUT/"
-cp "$PKGDIR/linux/make-appimage.sh" "$OUT/" 2>/dev/null || true
+cp "$PKGDIR/linux/make-appimage.sh" "$OUT/"
+cp "$PKGDIR/../Assets/dedi-icon.png" "$OUT/"
 chmod +x "$OUT/ONI_Together_DedicatedServer" "$OUT/ONI_Together_DedicatedServer.sh" "$OUT/make-appimage.sh" 2>/dev/null || true
 echo "linux-x64 published to $OUT"

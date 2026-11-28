@@ -16,7 +16,6 @@ services:
     user: app
     ports:
       - "7777:7777/udp"      # LiteNetLib relay (UDP)
-      # - "7777:7777/tcp"     # Only if your protocol needs TCP; current relay is UDP.
     volumes:
       - oni-data:/data        # persistent config + saves (survives image updates)
       # Or bind-mount host dirs (ensure ownership/write for container user):

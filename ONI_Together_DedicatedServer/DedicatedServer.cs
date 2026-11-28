@@ -44,6 +44,10 @@ namespace ONI_Together.DedicatedServer
             public bool HealthCheck;
         }
 
+        private static readonly TimeSpan HeartbeatInterval = TimeSpan.FromSeconds(5);
+        internal static readonly TimeSpan HeartbeatMaxAge = TimeSpan.FromSeconds(30);
+        internal static string HeartbeatPath => Path.Combine(ServerConfiguration.ConfigDirectory, "heartbeat");
+
         private static Transports _transport = Transports.LiteNetLib;
         private static ServerLogger _logger = new();
         internal static DedicatedTransportServer? _server;
@@ -55,7 +59,7 @@ namespace ONI_Together.DedicatedServer
         private static readonly Dictionary<string, Command> _commands = new();
         private static readonly Dictionary<string, string> _whatisDictionary = new(StringComparer.OrdinalIgnoreCase)
         {
-            { "master", "The master is the primary client controlling the game simulation state." },
+            { "master", "The master is the first player to connect. Their game hosts and simulates the colony; when they leave, the session ends and the next player hosts from the stored save." },
             { "player", "A player is any connected client." },
             { "savefile", "The save file contains the current state of the game world." }
         };
@@ -76,11 +80,12 @@ namespace ONI_Together.DedicatedServer
                 return 0;
             }
 
-            // Health check for containers/orchestrators. Does not start the server.
             if (options.HealthCheck)
             {
-                Console.WriteLine("ok");
-                return 0;
+                ServerConfiguration.InitializePaths(options.ConfigDir, options.SaveDir);
+                var (healthy, message) = CheckHeartbeat(HeartbeatPath, DateTime.UtcNow, HeartbeatMaxAge);
+                Console.WriteLine(message);
+                return healthy ? 0 : 1;
             }
 
             try
@@ -118,10 +123,23 @@ namespace ONI_Together.DedicatedServer
                 RegisterCommands();
                 RegisterShutdownHooks();
 
-                LoadConfiguredSave(config.SaveFile);
+                _saveFile = _saveStore.TryLoadColony(config.SaveFileName);
+                if (_saveFile == null)
+                    LoadConfiguredSave(config.SaveFile);
+                else
+                    _logger.Info($"[SaveFile] Continuing stored colony '{_saveFile.Name}'.");
 
                 _transport = (Transports)config.Transport;
                 _server = SetupTransport();
+                if (_server is DedicatedLiteNetLibServer relay)
+                {
+                    relay.ColonyProvider = () => _saveFile;
+                    relay.ColonyReceived += colony =>
+                    {
+                        _saveFile = colony;
+                        TrySaveCurrent("upload from host");
+                    };
+                }
 
                 if (_saveFile != null)
                     _server.SetWorldInfo(Path.GetFileNameWithoutExtension(_saveFile.Name));
@@ -133,18 +151,7 @@ namespace ONI_Together.DedicatedServer
                 }
 
                 // Persist initially loaded save into server-owned store.
-                if (_saveFile != null && _saveStore != null)
-                {
-                    try
-                    {
-                        string path = _saveStore.SaveCurrent(_saveFile.Data, config.SaveFileName);
-                        Console.WriteLine($"[SaveFile] Persisted server-owned save: {path}");
-                    }
-                    catch (Exception ex)
-                    {
-                        Console.WriteLine($"[SaveFile] Failed to persist initial save: {ex.Message}");
-                    }
-                }
+                TrySaveCurrent("initial");
 
                 if (!nonInteractive)
                 {
@@ -166,12 +173,13 @@ namespace ONI_Together.DedicatedServer
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[DedicatedServer] Fatal error: {ex.Message}");
+                ServerLogger.Current.Error($"[DedicatedServer] Fatal error: {ex}");
                 return 1;
             }
             finally
             {
                 _server?.Stop();
+                TryDelete(HeartbeatPath);
                 _shutdownCompleted.Set();
             }
         }
@@ -180,10 +188,17 @@ namespace ONI_Together.DedicatedServer
         {
             var stopwatch = Stopwatch.StartNew();
             long lastAutosaveMs = 0;
+            long lastHeartbeatMs = -(long)HeartbeatInterval.TotalMilliseconds;
             bool wasPaused = false;
             while (!_stopRequested && _server != null && _server.IsRunning())
             {
                 long tickStartMs = stopwatch.ElapsedMilliseconds;
+
+                if (tickStartMs - lastHeartbeatMs >= HeartbeatInterval.TotalMilliseconds)
+                {
+                    lastHeartbeatMs = tickStartMs;
+                    WriteHeartbeat();
+                }
 
                 var cfg = ServerConfiguration.Instance.Config;
                 int playerCount = _server.GetPlayers().Count;
@@ -201,7 +216,7 @@ namespace ONI_Together.DedicatedServer
                     if (!wasPaused)
                     {
                         wasPaused = true;
-                        ServerLogger.Current.Info("[DedicatedServer] No players connected; paused (PauseWhenEmpty). Persisting server-owned state.");
+                        ServerLogger.Current.Info("[DedicatedServer] No players connected; paused (PauseWhenEmpty).");
                         TrySaveCurrent("paused-empty");
                     }
                     // no autosave / no relay processing while paused
@@ -215,7 +230,6 @@ namespace ONI_Together.DedicatedServer
                 {
                     wasPaused = false;
                     ServerLogger.Current.Info("[DedicatedServer] Player joined; resumed (PauseWhenEmpty).");
-                    TrySaveCurrent("resume");
                 }
 
                 int elapsedMs = (int)(stopwatch.ElapsedMilliseconds - tickStartMs);
@@ -235,6 +249,45 @@ namespace ONI_Together.DedicatedServer
                     }
                 }
             }
+        }
+
+        private static void WriteHeartbeat()
+        {
+            try
+            {
+                File.WriteAllText(HeartbeatPath, DateTime.UtcNow.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            }
+            catch (Exception ex)
+            {
+                ServerLogger.Current.Debug($"[DedicatedServer] Could not write heartbeat: {ex.Message}");
+            }
+        }
+
+        internal static (bool healthy, string message) CheckHeartbeat(string path, DateTime nowUtc, TimeSpan maxAge)
+        {
+            try
+            {
+                if (!File.Exists(path))
+                    return (false, "unhealthy: no server is running (no heartbeat)");
+
+                string text = File.ReadAllText(path).Trim();
+                if (!long.TryParse(text, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out long ticks))
+                    return (false, "unhealthy: heartbeat unreadable");
+
+                TimeSpan age = nowUtc - new DateTime(ticks, DateTimeKind.Utc);
+                return age <= maxAge
+                    ? (true, "ok")
+                    : (false, $"unhealthy: last heartbeat {age.TotalSeconds:0}s ago");
+            }
+            catch (Exception ex)
+            {
+                return (false, $"unhealthy: {ex.Message}");
+            }
+        }
+
+        private static void TryDelete(string path)
+        {
+            try { if (File.Exists(path)) File.Delete(path); } catch { }
         }
 
         private static void RegisterShutdownHooks()
@@ -268,25 +321,25 @@ namespace ONI_Together.DedicatedServer
             if (resolvedPath == null)
             {
                 _saveFile = null;
-                Console.WriteLine("[SaveFile] No initial save configured; waiting for master client state.");
+                ServerLogger.Current.Warn("[SaveFile] No colony stored and no initial save configured. Pass --save <file.sav> once.");
                 return;
             }
 
             if (!File.Exists(resolvedPath))
             {
                 _saveFile = null;
-                Console.WriteLine($"[SaveFile] Configured save not found at '{resolvedPath}'; starting without initial save.");
+                ServerLogger.Current.Warn($"[SaveFile] Configured save not found at '{resolvedPath}'; starting without initial save.");
                 return;
             }
 
             try
             {
-                _saveFile = SaveFile.FromFile(resolvedPath);
+                _saveFile = SaveFile.FromFile(resolvedPath, ServerConfiguration.Instance.Config.MaxSaveBytes);
             }
             catch (Exception ex)
             {
                 _saveFile = null;
-                Console.WriteLine($"[SaveFile] Failed to load save '{resolvedPath}': {ex.Message}; starting without initial save.");
+                ServerLogger.Current.Error($"[SaveFile] Failed to load save '{resolvedPath}': {ex.Message}; starting without initial save.");
             }
         }
 
@@ -297,11 +350,15 @@ namespace ONI_Together.DedicatedServer
             {
                 string cfgName = ServerConfiguration.Instance.Config.SaveFileName;
                 string path = _saveStore.SaveCurrent(_saveFile.Data, cfgName);
-                Console.WriteLine($"[SaveFile] Saved {reason}: {path}");
+                _saveStore.WriteColonyName(cfgName, Path.GetFileNameWithoutExtension(_saveFile.Name));
+                if (_saveStore.LastSaveUnchanged)
+                    ServerLogger.Current.Debug($"[SaveFile] Unchanged, nothing written ({reason}).");
+                else
+                    ServerLogger.Current.Info($"[SaveFile] Saved ({reason}): {path}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"[SaveFile] Save failed {reason}: {ex.Message}");
+                ServerLogger.Current.Error($"[SaveFile] Save failed ({reason}): {ex.Message}");
             }
         }
 
@@ -401,11 +458,13 @@ namespace ONI_Together.DedicatedServer
                     Console.WriteLine($"Server:   {cfg.ServerName}");
                     Console.WriteLine($"Address:  {cfg.Ip}:{cfg.Port}");
                     Console.WriteLine($"Players:  {count}/{cfg.MaxLobbySize}");
+                    if (_server is DedicatedLiteNetLibServer relay)
+                        Console.WriteLine($"Host:     {relay.HostStatus}");
                     Console.WriteLine($"TickRate: {cfg.TickRate} Hz");
                     Console.WriteLine($"Save:     {_saveFile?.Name ?? "(none)"}");
                     Console.WriteLine($"Server-owned saves: {_saveStore?.SavesDirectory ?? "(none)"}");
                     Console.WriteLine($"PauseWhenEmpty: {cfg.PauseWhenEmpty}; DlcCheckMode: {cfg.DlcCheckMode}");
-                    Console.WriteLine($"MaxPacketSize: {cfg.MaxPacketSize}; MaxMessagesPerPoll: {cfg.MaxMessagesPerPoll}; RateLimit: {cfg.RateLimitMessagesPerSecond}/s");
+                    Console.WriteLine($"MaxPacketSize: {cfg.MaxPacketSize}; RateLimit: {cfg.RateLimitMessagesPerSecond}/s");
                 }
             });
 
@@ -452,7 +511,8 @@ namespace ONI_Together.DedicatedServer
                         cfg.Sanitize();
                         ServerLogger.Current.Info("Configuration reloaded successfully.");
 
-                        LoadConfiguredSave(cfg.SaveFile);
+                        if (_saveFile == null)
+                            LoadConfiguredSave(cfg.SaveFile);
 
                         // Re-read live config WITHOUT restarting transport or dropping connected players.
                         // Ip/Port/Transport changes require a manual restart (not applied here).
@@ -501,7 +561,12 @@ namespace ONI_Together.DedicatedServer
                 Execute = _ =>
                 {
                     if (_saveStore == null || _saveFile == null) { Console.WriteLine("No save."); return; }
-                    try { TrySaveCurrent("backup"); Console.WriteLine("Backup created."); }
+                    try
+                    {
+                        TrySaveCurrent("backup");
+                        _saveStore.RotateBackups(_saveStore.CurrentSavePath);
+                        Console.WriteLine("Backup created.");
+                    }
                     catch (Exception ex) { Console.WriteLine($"Backup failed: {ex.Message}"); }
                 }
             });

@@ -4,7 +4,7 @@ This guide is intentionally thorough; in practice writing docs is harder than th
 
 ## What this is
 
-A standalone .NET 8 process. **Current relay model:** it does NOT simulate ONI. A connected **master** client must run the colony and send state; other clients are slaves. (Headless authoritative server is a separate future milestone.) You still need ONI + the ONI Together mod on at least one client that will be master.
+A standalone .NET 8 process. **Current relay model:** it does NOT simulate ONI. The first player to connect (the **master**) runs the colony; the others join it through the server. See `docs/RELAY.md`, including how to give the server its first colony. (Headless authoritative server is a separate future milestone.) You still need ONI + the ONI Together mod on at least one client that will be master.
 
 ## Requirements
 
@@ -36,7 +36,7 @@ Never store these inside the mod directory.
 - `ONI_SAVE_FILE` / `--save`: initial `.sav`. Relative names resolve inside saves dir; absolute paths rejected unless `ONI_ALLOW_EXTERNAL_SAVE_PATHS=true`.
 - Server-owned `current.sav` + `backups/`; atomic writes; `ONI_SAVE_BACKUP_COUNT`, `ONI_SAVE_AUTOSAVE_SECONDS`, `ONI_MAX_SAVE_BYTES`, `ONI_SAVE_FILE_NAME`.
 - Console: `save`, `saves`, `backup`.
-- **Note:** in current relay mode, full world state is held by the master client; server persists server-held bytes, not a full authoritative ONI snapshot.
+- The master uploads each of its game saves, which replaces `current.sav`. The stored colony wins over `--save` after the first start. Progress since the last game save is only on the master's machine.
 
 ## 5. Configuration
 
@@ -46,7 +46,7 @@ Never store these inside the mod directory.
 
 - Console output. `ONI_VERBOSE_PACKETS=true` logs packet types/sizes. `ONI_LOG_TO_FILE`, `ONI_LOG_LEVEL`.
 - `status`, `players`, `health-check`.
-- Common issues: port already in use; firewall blocking UDP; config path not writable; mod version/DLC mismatch on master; master disconnect (migration doesn't transfer sim state — restart cleanly).
+- Common issues: port already in use; firewall blocking UDP; config path not writable; server has no colony yet; mod version or DLC mismatch (see the server log); the master leaving ends the session for everyone.
 
 ## 7. Security
 

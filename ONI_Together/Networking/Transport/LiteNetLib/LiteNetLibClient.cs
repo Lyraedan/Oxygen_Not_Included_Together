@@ -6,6 +6,8 @@ using ONI_Together.Misc;
 using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.States;
+using ONI_Together.Networking.Transport.Relay;
+using Shared.Networking.Dedicated;
 using Shared;
 using Shared.Profiling;
 using System;
@@ -186,7 +188,8 @@ namespace ONI_Together.Networking.Transport.Lan
             DebugConsole.Log("[LiteNetLibClient] Connecting to " + ip + ":" + port + "...");
 
             var writer = new NetDataWriter();
-            writer.Put("ONI_TOGETHER");
+            writer.Put(RelayProtocol.ConnectionKey);
+            writer.Put(RelaySession.BuildHello());
             _connectedEventDelivered = false;
             _serverPeer = _client.Connect(ip, port, writer);
 
@@ -245,6 +248,16 @@ namespace ONI_Together.Networking.Transport.Lan
             _connectedEventDelivered = true;
 
             _serverPeer = peer;
+
+            if (!Utils.IsInGame())
+            {
+                RelaySession.ForgetPendingHost();
+            }
+            else if (RelaySession.HostAfterLoad)
+            {
+                DebugConsole.Log("[LiteNetLibClient] Reconnected to the dedicated server to host the loaded colony.");
+                return;
+            }
             CLIENT_ID = (ulong)peer.RemoteId + 2;
 
             OnClientConnected?.Invoke();
@@ -266,6 +279,7 @@ namespace ONI_Together.Networking.Transport.Lan
             using var _ = Profiler.Scope();
 
             _serverPeer = null;
+            RelaySession.OnConnectionLost();
 
             OnClientDisconnected?.Invoke();
             MultiplayerSession.ConnectedPlayers.Clear();
@@ -330,6 +344,7 @@ namespace ONI_Together.Networking.Transport.Lan
         {
             using var _ = Profiler.Scope();
 
+            RelaySession.Reset();
             _serverPeer?.Disconnect();
             _client?.Stop();
             _serverPeer = null;
@@ -369,7 +384,10 @@ namespace ONI_Together.Networking.Transport.Lan
             {
                 try
                 {
-                    PacketHandler.HandleIncoming(data);
+                    if (RelayProtocol.IsFrame(data))
+                        RelaySession.HandleFrame(data);
+                    else
+                        PacketHandler.HandleIncoming(data);
                 }
                 catch (Exception ex)
                 {

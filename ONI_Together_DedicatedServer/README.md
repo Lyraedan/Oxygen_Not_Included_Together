@@ -1,6 +1,6 @@
 # ONI Together Dedicated Server
 
-.NET 8 standalone **LiteNetLib 1.3.1 relay** server for ONI Together. It is **not yet a headless, server-authoritative ONI simulation**; the current relay model still requires a connected **master** client to run the game simulation. See `TODO.md` at repo root (final milestone) and `docs/SECURITY.md`.
+.NET 8 standalone **LiteNetLib 1.3.1 relay** server for ONI Together. It is **not yet a headless, server-authoritative ONI simulation**; the first player to connect (the **master**) runs the game simulation. How it works and how to start: `docs/RELAY.md`. See also `TODO.md` at repo root (final milestone) and `docs/SECURITY.md`.
 
 ## Build
 

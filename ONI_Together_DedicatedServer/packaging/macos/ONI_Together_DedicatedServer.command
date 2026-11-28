@@ -12,24 +12,10 @@ if [[ ! -x "$ONI_SERVER_EXE" && ! -f "$ONI_SERVER_EXE" ]]; then
   exit 1
 fi
 
-ONI_DATA_DIR="${ONI_DATA_DIR:-$SCRIPT_DIR/data}"
-ONI_SERVER_CONFIG_DIR="${ONI_SERVER_CONFIG_DIR:-$ONI_DATA_DIR/config}"
-ONI_SERVER_SAVE_DIR="${ONI_SERVER_SAVE_DIR:-$ONI_DATA_DIR/saves}"
-ONI_PORT="${ONI_PORT:-7777}"
-ONI_NON_INTERACTIVE="${ONI_NON_INTERACTIVE:-false}"
-
-mkdir -p "$ONI_SERVER_CONFIG_DIR" "$ONI_SERVER_SAVE_DIR"
-
 echo "Starting ONI Together Dedicated Server..."
-echo "  exe:    $ONI_SERVER_EXE"
-echo "  data:   $ONI_DATA_DIR"
-echo "  port:   $ONI_PORT (UDP)"
-echo "  config: $ONI_SERVER_CONFIG_DIR"
-echo "  saves:  $ONI_SERVER_SAVE_DIR"
+echo "  exe:  $ONI_SERVER_EXE"
+[ -n "${ONI_DATA_DIR:-}" ] && echo "  data: $ONI_DATA_DIR"
 
 [[ -x "$ONI_SERVER_EXE" ]] || chmod +x "$ONI_SERVER_EXE" 2>/dev/null || true
 
-exec "$ONI_SERVER_EXE" \
-  --config-dir "$ONI_SERVER_CONFIG_DIR" \
-  --save-dir "$ONI_SERVER_SAVE_DIR" \
-  "$@"
+exec "$ONI_SERVER_EXE" "$@"

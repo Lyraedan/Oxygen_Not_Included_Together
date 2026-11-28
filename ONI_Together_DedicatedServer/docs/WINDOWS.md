@@ -1,7 +1,7 @@
 # Windows
 
 ## Run self-contained `.exe`
-Download/`publish-windows.ps1` → `ONI_Together_DedicatedServer.exe`. Use `ONI_Together_DedicatedServer.bat` launcher next to it. Data defaults `%AppData%\ONI_Together_DedicatedServer`; launcher uses `.\data` next to app. Override `ONI_DATA_DIR`, `ONI_SERVER_CONFIG_DIR`, `ONI_SERVER_SAVE_DIR`. Open UDP 7777 in Windows Firewall. `Ctrl+C` (SIGINT) / console `quit` graceful. Logs to console.
+Download/`publish-windows.ps1` → `ONI_Together_DedicatedServer.exe`. Use the `ONI_Together_DedicatedServer.bat` launcher next to it. Config and saves live in `%AppData%\ONI_Together_DedicatedServer`, never next to the app, because the app may be shipped inside the mod folder that mod updates replace. Override with `ONI_DATA_DIR`, `ONI_SERVER_CONFIG_DIR`, `ONI_SERVER_SAVE_DIR` or `--config-dir`/`--save-dir`. Open UDP 7777 in Windows Firewall. `Ctrl+C` or console `quit` stops it cleanly. First start: see `RELAY.md`.
 
 ## Publish
 ```powershell

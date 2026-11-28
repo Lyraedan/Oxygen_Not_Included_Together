@@ -10,4 +10,4 @@ bash ./scripts/publish-macos.command osx-arm64 Release   # or osx-x64
 ```bash
 bash ./packaging/macos/make-app.sh <publish-dir> <out>   # creates ONI_Together_DedicatedServer.app
 ```
-`.command` launcher. Data `~/Library/Application Support/ONI_Together_DedicatedServer`. UDP 7777. Codesigning/notarization not handled.
+`.command` launcher: data in `~/.config/ONI_Together_DedicatedServer` (the .NET default). The `.app` bundle uses `~/Library/Application Support/ONI_Together_DedicatedServer`. UDP 7777. Codesigning/notarization not handled.

@@ -369,6 +369,13 @@ namespace ONI_Together
 					public static LocString MENU_LOST_CONNECTION = "Connection to the host was lost!";
                     public static LocString LOST_CONNECTION = "Connection to the host was lost: {0}\n{1}";
 
+					public class RELAY
+					{
+						public static LocString LOADING_COLONY = "You are hosting for the dedicated server.\nDownloading its colony...";
+						public static LocString NO_COLONY = "The dedicated server has no colony yet.\nStart the server once with --save <file.sav>.";
+						public static LocString VERSION_MISMATCH = "The dedicated server uses relay protocol {0}, this mod uses {1}.\nUpdate the older one.";
+					}
+
 					public class STEAMWORKS
 					{
 						public static LocString HOST_DISCONNECTED = "Host disconnected";

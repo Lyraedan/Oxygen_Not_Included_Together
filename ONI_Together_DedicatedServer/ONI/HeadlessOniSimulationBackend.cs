@@ -53,7 +53,6 @@ namespace ONI_Together_DedicatedServer.Oni
             psi.ArgumentList.Add("-nographics");
             psi.ArgumentList.Add("-logFile");
             psi.ArgumentList.Add(log);
-            psi.ArgumentList.Add("-nolog"); // some builds; harmless if unknown? Unity may ignore unknown args
             if (extraArgs != null)
                 foreach (var a in extraArgs) if (!string.IsNullOrWhiteSpace(a)) psi.ArgumentList.Add(a);
 

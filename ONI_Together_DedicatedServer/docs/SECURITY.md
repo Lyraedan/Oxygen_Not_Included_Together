@@ -1,14 +1,14 @@
 # Security
 
 ## Trust boundaries
-- Only connected clients with handshake key `ONI_TOGETHER` + lobby cap accepted. Current relay model still trusts **master** client for simulation; not authoritative. Master migration does **not** transfer sim state.
+- Only clients with handshake key `ONI_TOGETHER`, a matching relay hello and a free lobby slot are accepted. The server trusts the **master** (the first to connect) with the simulation and the stored colony: **whoever connects first while no master is present can replace the stored save** (backups are kept). There is no live host migration.
 - User-controlled paths are sandboxed. `SaveStore` writes only inside saves dir; atomic temp+move; backups. `ResolveSaveFilePath` confines; external absolute save reads require `ONI_ALLOW_EXTERNAL_SAVE_PATHS=true`. `PathSandbox` rejects `..`, rooted escapes, control chars, unsafe filenames.
 - Config saved atomically. `Sanitize()` clamps ports/tick/rate/size, caps string lengths, strips control chars, de-dupes/cleans DLC ids, removes required∩forbidden.
 - Save loading caps `MaxSaveBytes`; no execution of save content.
 
 ## Network hardening
 - Handshake key + max lobby. Optional `ONI_DISCOVERY_TOKEN`. `ONI_DISCOVERY_ENABLED`.
-- Packet size caps `ONI_MAX_PACKET_SIZE` / `MaxMessageSize`. Connection payload cap. Per-peer `RateLimiter`. `ONI_MAX_MESSAGES_PER_POLL` + `ONI_RATE_LIMIT_MESSAGES_PER_SECOND`. `MaxMessagesPerPoll` enforced.
+- Packet size caps `ONI_MAX_PACKET_SIZE` / `MaxMessageSize` and a connection payload cap. Per-peer rate limit (`ONI_RATE_LIMIT_MESSAGES_PER_SECOND`): excess unreliable packets are dropped; a reliable flood or an oversized packet disconnects the peer, because silently dropping reliable game traffic would desync. `MaxMessagesPerPoll` is no longer applied.
 - Malformed packets caught; no crash. Console line length capped; CLI arg length capped. No command injection (no shell invocation). No secrets logged. `VerbosePacketLogging` logs type/size not payload.
 - SIGINT/SIGTERM graceful; `--non-interactive` for containers. `reloadconfig` re-reads live config without restarting transport or dropping players; `Ip`/`Port`/`Transport` require manual restart; not a security boundary.
 

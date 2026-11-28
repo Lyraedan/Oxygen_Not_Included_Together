@@ -32,6 +32,8 @@ namespace ONI_Together.Networking.Transport.Lan
         public static NetManager ServerInstance => _server;
         public static ulong CLIENT_ID { get; private set; } = 1;
 
+        protected static void UseHostId() => CLIENT_ID = 1;
+
         public bool IsRunning => _server != null && _server.IsRunning;
         public int ConnectedClientCount => _server != null ? _server.ConnectedPeersCount : 0;
         public TcpFileTransferServer TcpTransfer => _tcpTransfer;

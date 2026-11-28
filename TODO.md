@@ -13,38 +13,51 @@
 
 **Verified by commands (evidence in conversation):**
 - `dotnet build ONI_Together_DedicatedServer/ONI_Together_DedicatedServer.csproj -c Release` → **0 warnings / 0 errors**.
-- `dotnet test ONI_Together_DedicatedServer.Tests/ONI_Together_DedicatedServer.Tests.csproj` → **56 passed / 0 failed**. (xUnit project added; `InternalsVisibleTo`.)
-- Headless smoke test on built self-contained `win-x64` exe: starts, `PauseWhenEmpty`, UDP listen, `multiplayer_settings.json` created; `--version` → `1.0.0`; `--health-check` → `ok`.
-- `dotnet publish -r win-x64 --self-contained -p:PublishSingleFile=true` → `artifacts/win-x64/ONI_Together_DedicatedServer.exe` (~68 MB) + `.bat`.
-- `dotnet publish -r linux-x64 --self-contained -p:PublishSingleFile=true` → `artifacts/linux-x64/ONI_Together_DedicatedServer` (~68 MB) + `.sh`.
+- `dotnet test ONI_Together_DedicatedServer.Tests/ONI_Together_DedicatedServer.Tests.csproj` → **79 passed / 0 failed**. Includes end-to-end tests of the real relay over loopback UDP with stand-in peers; **no run with real game instances yet**.
+- `dotnet build ONI_Together/ONI_Together.csproj` → **0 errors**.
+- Earlier headless smoke test on the self-contained `win-x64` exe (before the relay rework). The `artifacts/` builds predate the rework and need republishing.
 - Knowledge graph: `graphify-out/` (gitignored).
 
 **Implemented (code):**
-- Security: `Security/PathSandbox`, `Security/RateLimiter`, `Security/Dlc`; sandboxed saves; atomic writes; `Sanitize()` clamps; packet size caps; per-peer rate limiting; `MaxMessagesPerPoll` enforced; `MaxPacketSize`; optional discovery token; connection payload cap; malformed-packet safety; no shell; capped strings.
+- Security: `Security/PathSandbox`, `Security/RateLimiter`, `Security/Dlc`; sandboxed saves; atomic writes; `Sanitize()` clamps; packet size caps; per-peer rate limiting (reliable floods disconnect instead of dropping packets); `MaxPacketSize`; optional discovery token; connection payload cap; malformed-packet safety; no shell; capped strings.
 - Save persistence: `ONI/SaveStore` atomic `current.sav` + rotated `backups/`; `SaveFile.SaveToFile` atomic; server-owned persistence; autosave; `save`/`saves`/`backup` console; `MaxSaveBytes`.
 - DLC: `DlcCheckMode` Off/Declared/Required + `RequiredDlcIds`/`ForbiddenDlcIds`/`ServerActiveDlcIds` + `RequireDlcDeclaration`; optional backwards-compatible client DLC declaration in handshake. **Not Klei-verified** (see §5).
-- Operational: `NonInteractive`, `PauseWhenEmpty` (no packet processing while empty; persist server-owned state; resume on join; **no ONI sim to pause**), `LogToFile`/`LogLevel` + `Logging/ServerLogger` (console + `logs/server.log`, `ONI_LOG_TO_FILE`/`ONI_LOG_LEVEL`; key events + transport; console commands/save still `Console.WriteLine`), `DiscoveryEnabled`, `--health-check`, `--version`, extra env overrides, `reloadconfig`, `status`.
+- Operational: `NonInteractive`, `PauseWhenEmpty` (no ONI sim to pause), `LogToFile`/`LogLevel` + `Logging/ServerLogger`, `DiscoveryEnabled`, `--health-check`, `--version`, extra env overrides, `reloadconfig`, `status`.
+- Relay rework (see `ONI_Together_DedicatedServer/docs/RELAY.md`): the mod can now host through the relay (`Networking/Transport/Relay/`); joining players use the unchanged direct-LAN flow; the mod sends its DLC lists; the host's game saves are uploaded to the server; reliable packets are no longer dropped by limits; unchanged saves no longer rotate away backups. Live master migration was removed: when the host leaves, the session ends and the next player hosts from the stored colony.
 - Packaging: self-contained `win-x64` + `linux-x64` artifacts; `.bat`/`.sh`/`.command`; mac `.app` script; Linux `make-appimage.sh`; `publish-*` scripts; `Dockerfile`; `docker-compose.yml`; `.dockerignore`; **GitHub Actions workflows disabled in PR** (no active `.github/workflows/dedicated-server.yml`).
 - Docs: `ONI_Together_DedicatedServer/README.md`, `docs/SETUP.md`, `docs/WINDOWS.md`, `docs/LINUX.md`, `docs/MACOS.md`, `docs/DOCKER.md`, `docs/SECURITY.md`.
-- Tests: 56 xUnit tests.
+- Tests: 79 xUnit tests.
 
 **Not complete / blocked (honest):**
-- **Final milestone headless authoritative ONI is NOT done.** No ONI runtime on server; `ExcludeGameLibs=true`; no headless sim; master still required; **master migration still present** in relay and does NOT transfer sim state. Needs ONI game files + mod integration + Klei/DLC + design; not safely implementable offline here. See §Final.
+- **Relay is not yet tested with real game instances.** Test steps: `docs/RELAY.md`.
+- Loading another save while hosting through the relay falls back to a direct host.
+- **Final milestone headless authoritative ONI is NOT done.** No ONI runtime on the server; a player's game is the host. See §Final.
 - **DLC ownership cannot be cryptographically verified** without Klei/Steam integration; implemented declared checks only. Klei requirement noted; needs ItsLuke/Klei. See §5.
 - **Modding + ONI_Together API** not integrated. See §6. (ItsLuke said he can handle API; base game first.)
 - **macOS artifact** not built/tested (needs Mac; ItsLuke offered). Scripts provided. `.app`/`.command` not run.
 - **AppImage** not built (needs `appimagetool` + Linux). Script provided.
 - **Docker image not built/tested** (no Docker daemon in this environment). `Dockerfile`/compose provided.
 - **GitHub Actions workflows disabled in PR**; no active dedicated-server workflow added.
-- No actual GitHub Release publishing; **Draft PR #277 opened upstream `0.8.1`**; no ItsLuke progress update.
+- No GitHub Release publishing yet. **Draft PR #277** is open against upstream `0.8.1`; the relay rework is not pushed to it yet. No progress update sent to ItsLuke.
 - `Logging/ServerLogger` added (console + `logs/server.log`); `ONI_LOG_TO_FILE`/`ONI_LOG_LEVEL`. Key events + `DedicatedLiteNetLibServer` transport logged; console commands + `SaveFile`/`SaveStore` still `Console.WriteLine`.
-- `PauseWhenEmpty` now pauses **packet processing** while empty + persists server-owned state + resumes on join; **no ONI simulation to pause** in current relay.
-- No save data received from ONI master relayed into server-owned `current.sav` automatically; server persists server-held loaded bytes + manual/autosave; **not authoritative ONI snapshot**.
-- `reloadconfig` preserves connected players + master; re-reads live config without transport restart. `Ip`/`Port`/`Transport` require manual restart.
+- `PauseWhenEmpty` only affects relay processing; there is **no ONI simulation to pause**.
+- `reloadconfig` preserves connected players + master and never replaces the colony in play. `Ip`/`Port`/`Transport` require a manual restart.
 - No TLS/auth beyond key + optional DLC; not safe on untrusted networks.
 - `TRELLO_PROGRESS_STATUS.md` still says `EXPERIMENTAL: Dedicated Servers [Benched]`; not updated (scope = this TODO).
 
 ---
+
+## Review of the first implementation (Gemini, 2026-11-27) — fixed 2026-11-28
+
+- Relay could not host with the current mod; master migration moved authority into a non-authoritative world; limits silently dropped reliable packets. → Relay rework (`docs/RELAY.md`).
+- `Sanitize()` clamped 0 up to the minimum: `RateLimitMessagesPerSecond=0` became 1/s, `Port=0` became 1. → Too low now falls back to the default.
+- `.bat`/`.sh`/`.command` launchers put config and saves into `data/` next to the app, i.e. inside the mod folder when shipped with the mod. → Launchers no longer override the per-user default.
+- `.dockerignore` sat next to the Dockerfile while the build context is the repo root, so Docker ignored it and copied Windows `bin/`/`obj/`. → `Dockerfile.dockerignore`. The image also needs `Shared/Networking/Dedicated/` now.
+- `--health-check` always printed `ok`. → Checks a heartbeat the running server writes.
+- AppImage: `AppRun` was a copy of the 68 MB binary; the icon path broke after `publish-linux.sh` copied the script. → Launcher script; icon shipped with the publish output.
+- `SaveFile.FromFile` ignored `MaxSaveBytes`; headless scaffold passed `-nolog` next to `-logFile`; save messages bypassed the log file; `ResolveSaveFilePath` could fall back to an unchecked path. → Fixed.
+- Added: `status` shows the host state; unchanged saves no longer rotate backups away.
+- Still untested: Docker build, Linux/AppImage, macOS, and everything with real game instances.
 
 ## Direction agreed with ItsLuke
 
@@ -66,23 +79,24 @@
 - [x] Non-interactive, graceful shutdown, configurable tick rate (10-240).
 - [x] Runtime smoke test + clean build.
 - [x] Save persistence: server-owned atomic `current.sav`, rotated backups, autosave, manual `save`/`backup`, `SaveFile.SaveToFile`.
-- [x] `MaxMessagesPerPoll` enforced.
+- [x] `MaxMessagesPerPoll` limit removed: it dropped reliable game packets (the config field is unused).
 - [x] `MaxPacketSize`, `MaxMessageSize`, `RateLimitMessagesPerSecond`, `MaxSaveBytes`.
 - [x] `--health-check`, `--version`, `PauseWhenEmpty`, `ONI_PAUSE_WHEN_EMPTY`, `ONI_NON_INTERACTIVE`, `ONI_MAX_MESSAGES_PER_POLL`, `ONI_MAX_PACKET_SIZE`, `ONI_MAX_MESSAGE_SIZE`, `ONI_RATE_LIMIT_MESSAGES_PER_SECOND`, `ONI_SAVE_AUTOSAVE_SECONDS`, `ONI_SAVE_BACKUP_COUNT`, `ONI_MAX_SAVE_BYTES`, `ONI_ALLOW_EXTERNAL_SAVE_PATHS`, `ONI_DISCOVERY_*`, `ONI_DLC_*`, `ONI_LOG_*`.
 - [ ] **Self-contained Windows `.exe` built locally; not published to GitHub Releases.**
-- [ ] **Not headless/server-authoritative.** Relay; master client simulates; master migration present but flawed.
+- [ ] **Not headless/server-authoritative.** Relay; the master client simulates; the session ends when it leaves.
 - [ ] **No DLC Klei ownership verification.**
 - [ ] **No modding / ONI_Together API.**
 - [x] `LogToFile`/`LogLevel` + `ServerLogger` sink (key events + transport; console commands/save not fully file-routed).
 - [x] `PauseWhenEmpty`: no packet processing while empty; persist server-owned state; resume on join. **No ONI sim to pause.** Integration test `PauseWhenEmptyIntegrationTests` proves `saves/current.sav`, no relay while empty, resume relay on join.
 
-Relay model: first client **master**; server relays; LAN discovery; handshake `ONI_TOGETHER`; UDP **7777**; optional DLC handshake extension. Master migration not removed. Config `multiplayer_settings.json`; `MaxMessagesPerPoll=128`; `MaxPacketSize=262144`; `RateLimitMessagesPerSecond=600`; etc.
+Relay model: the first client is the **master** and hosts; the relay gives joining players the ids a direct host would and frames only the master link (`Shared/Networking/Dedicated/RelayProtocol.cs`). UDP **7777**. No live master migration. Config `multiplayer_settings.json`; `MaxPacketSize=262144`; `RateLimitMessagesPerSecond=600`.
 
 ---
 
 ## 2. Known gaps / correctness notes
 
-- [ ] Master migration does not transfer sim state; must be removed once server-authoritative.
+- [x] Live master migration removed; the session ends with the host.
+- [ ] Test the relay with two real game instances.
 - [x] `reloadconfig` preserves players/master; no transport restart. (`Ip`/`Port`/`Transport` need manual restart.)
 - [x] `PauseWhenEmpty` applied to relay packet processing; **not applied to any ONI simulation** (none).
 - [x] `ServerLogger` structured console+file sink; transport routed; console commands/save not fully file-routed.
@@ -101,7 +115,8 @@ Relay model: first client **master**; server relays; LAN discovery; handshake `O
 - [x] `.bat` launcher.
 - [x] Config/save paths survive app replacement (outside app; verified logic; not update-tested).
 - [x] Windows setup guide (`docs/WINDOWS.md`, `docs/SETUP.md`).
-- [ ] Share progress + open PR. (not done)
+- [x] Draft PR #277 opened.
+- [ ] Send ItsLuke a progress update.
 - [ ] Publish to GitHub Releases. (not done)
 
 ### Phase 2 — Linux
@@ -128,7 +143,7 @@ Relay model: first client **master**; server relays; LAN discovery; handshake `O
 ## 4. Release and collaboration
 - [x] **GitHub Actions workflows disabled in PR**; no active `.github/workflows/dedicated-server.yml`.
 - [ ] Publish GitHub Release artifacts. (not run)
-- [ ] PR. (not opened)
+- [x] Draft PR #277 opened (upstream `0.8.1`).
 - [ ] Progress updates. (for you)
 - [x] Setup guide.
 
@@ -158,11 +173,11 @@ Relay model: first client **master**; server relays; LAN discovery; handshake `O
 
 - [ ] ONI headless colony sim on server. (`OniRuntimeDetector` + `HeadlessOniSimulationBackend` scaffold launches `OxygenNotIncluded.exe -batchmode -nographics`; **NOT server-authoritative**; blocked on ONI_Together headless mod/server-authoritative bridge)
 - [ ] Obtain ONI runtime/game files w/o normal install. (blocked; currently `ExcludeGameLibs`; `OniRuntimeDetector` can honestly detect `Assembly-CSharp.dll` + executable under `ONI_PATH`/`ONI_GAME_DIR` + common installs; does NOT verify Klei ownership or headless sim)
-- [ ] Server holds save + world state. (partial: server-owned bytes; not authoritative ONI)
-- [ ] Server-authoritative sim; no player master. (not; relay + master)
+- [ ] Server holds save + world state. (partial: stores the host's latest game save; not an authoritative live state)
+- [ ] Server-authoritative sim; no player master. (not; relay + player host)
 - [ ] Clients send actions; authoritative state; render own. (not)
 - [x] Nobody connected (relay): `PauseWhenEmpty` pauses packet processing + persists server-owned state. **Not authoritative ONI pause; no sim.**
-- [ ] Remove player-master election + migration. (not; currently implemented)
+- [ ] Remove the player master. (live migration removed; the first player still hosts)
 - [ ] DLC re-eval no-game server. (noted)
 - [ ] Modding/API re-eval. (deferred)
 

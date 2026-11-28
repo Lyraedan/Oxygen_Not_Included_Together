@@ -102,6 +102,9 @@ namespace ONI_Together.Networking
 			NetworkConfig.TransportClient.OnReturnToMenu = (reason, message) => CoroutineRunner.RunOne(ShowMessageAndReturnToTitle(reason, message));
 			NetworkConfig.TransportClient.OnRequestStateOrReturn = () =>
 			{
+				if (Transport.Relay.RelaySession.IsMaster)
+					return;
+
                 PacketSender.SendToHost(GameStateRequestPacket.CreateClientRequest(MultiplayerSession.LocalUserID));
                 MP_Timer.Instance.StartDelayedAction(10, () => CoroutineRunner.RunOne(ShowMessageAndReturnToTitle()));
             };

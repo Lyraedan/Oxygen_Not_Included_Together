@@ -2,7 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using ONI_Together_DedicatedServer.Security;
+using Shared.Networking.Dedicated;
 
 namespace ONI_Together_DedicatedServer.ONI
 {
@@ -27,6 +29,8 @@ namespace ONI_Together_DedicatedServer.ONI
         }
 
         public string CurrentSavePath => Path.Combine(SavesDirectory, "current.sav");
+
+        public bool LastSaveUnchanged { get; private set; }
         public string BackupsDirectory => Path.Combine(SavesDirectory, "backups");
 
         /// <summary>Atomically write <paramref name="data"/> to <paramref name="path"/> (must be inside SavesDirectory).</summary>
@@ -79,9 +83,35 @@ namespace ONI_Together_DedicatedServer.ONI
             string safeTarget = PathSandbox.ResolveInsideRoot(SavesDirectory, target)
                                 ?? throw new InvalidOperationException("Unsafe save target.");
 
+            LastSaveUnchanged = data != null && File.Exists(safeTarget) && File.ReadAllBytes(safeTarget).AsSpan().SequenceEqual(data);
+            if (LastSaveUnchanged)
+                return safeTarget;
+
             RotateBackups(safeTarget);
-            AtomicWrite(safeTarget, data);
+            AtomicWrite(safeTarget, data!);
             return safeTarget;
+        }
+
+        public void WriteColonyName(string baseName, string colonyName)
+        {
+            AtomicWrite(ColonyNamePath(baseName), Encoding.UTF8.GetBytes(colonyName));
+        }
+
+        public SaveFile? TryLoadColony(string baseName)
+        {
+            string fileName = PathSandbox.IsSafeFileName(baseName) ? baseName : "current";
+            byte[]? data = TryReadSave(fileName);
+            if (data == null || data.Length == 0) return null;
+
+            string namePath = ColonyNamePath(fileName);
+            string colonyName = File.Exists(namePath) ? File.ReadAllText(namePath, Encoding.UTF8) : fileName;
+            return new SaveFile(RelayProtocol.SanitizeColonyName(colonyName) + ".sav", data);
+        }
+
+        private string ColonyNamePath(string baseName)
+        {
+            string fileName = PathSandbox.IsSafeFileName(baseName) ? baseName : "current";
+            return Path.Combine(SavesDirectory, fileName + ".colony");
         }
 
         public void RotateBackups(string targetPath)

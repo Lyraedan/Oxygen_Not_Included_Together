@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Sockets;
@@ -8,16 +9,20 @@ using LiteNetLib.Utils;
 using ONI_Together_DedicatedServer.Logging;
 using ONI_Together_DedicatedServer.ONI;
 using ONI_Together_DedicatedServer.Security;
+using Shared.Networking.Dedicated;
 
 namespace ONI_Together_DedicatedServer.Transports
 {
     /// <summary>
-    /// LiteNetLib-based relay server aligned with ONI_Together's 0.8.1 LiteNetLib client/server transport.
-    /// Security: handshake key, lobby cap, packet-size caps, per-peer rate limiting, optional DLC checks.
     /// </summary>
     public class DedicatedLiteNetLibServer : DedicatedTransportServer
     {
-        private const string HandshakeKey = "ONI_TOGETHER";
+        internal const ulong MasterClientId = 1;
+
+        private static readonly TimeSpan ReservationTime = TimeSpan.FromMinutes(10);
+
+        private const int MaxMasterMessageBytes = 1024 * 1024;
+        private const int ReliableBurstFactor = 10;
         private const string DiscoveryRequestKey = "ONI_DISCOVERY_REQ";
         private const string DiscoveryResponseKey = "ONI_DISCOVERY_RESP";
 
@@ -29,9 +34,28 @@ namespace ONI_Together_DedicatedServer.Transports
         private string _worldName = "Dedicated World";
         private int _cycle = 1;
 
-        private RateLimiter _rateLimiter = new(600, 600);
-        private int _messagesThisPoll;
+        private RateLimiter _unreliableLimiter = new(600, 600);
+        private RateLimiter _floodLimiter = new(6000, 1200);
         private volatile bool _paused;
+
+        private NetPeer? _masterPeer;
+        private ulong _masterToken;
+        private bool _hostReady;
+        private bool _masterFetchedColony;
+        private ulong _reservedToken;
+        private DateTime _reservedUntilUtc;
+        private RelaySaveAssembler _upload = new(1);
+
+        public Func<SaveFile?>? ColonyProvider { get; set; }
+
+        public event Action<SaveFile>? ColonyReceived;
+
+        internal bool HostReady => _hostReady;
+
+        public string HostStatus =>
+            _masterPeer == null
+                ? (_reservedToken != 0 && DateTime.UtcNow < _reservedUntilUtc ? "loading the colony (slot reserved)" : "none - the next player to join hosts")
+                : (_hostReady ? "ready" : "connected, loading");
 
         public override void SetWorldInfo(string worldName, int cycle = 1)
         {
@@ -72,9 +96,7 @@ namespace ONI_Together_DedicatedServer.Transports
                 EnableStatistics = true
             };
 
-            _rateLimiter = new RateLimiter(
-                capacity: Math.Max(1, config.RateLimitMessagesPerSecond),
-                refillPerSecond: config.RateLimitMessagesPerSecond);
+            CreateLimiters(config.RateLimitMessagesPerSecond);
 
             bool started = StartBoundSocket(_server, ip, port);
             if (!started)
@@ -117,25 +139,25 @@ namespace ONI_Together_DedicatedServer.Transports
             try
             {
                 // Reject absurdly large connection payloads.
-                if (request.Data == null || request.Data.AvailableBytes < 0 || request.Data.AvailableBytes > config.MaxPacketSize)
+                if (request.Data == null || request.Data.AvailableBytes > config.MaxPacketSize)
                 {
                     request.Reject();
                     return;
                 }
 
-                string key = request.Data.GetString();
-                if (key != HandshakeKey)
+                if (request.Data.GetString() != RelayProtocol.ConnectionKey)
                 {
                     request.Reject();
                     return;
                 }
 
-                ulong clientNetId = 0;
-                if (request.Data.AvailableBytes >= sizeof(ulong))
-                    clientNetId = request.Data.GetULong();
-
-                // Optional DLC declaration appended after key + clientNetId (backwards compatible).
-                var dlc = TryReadDlcInfo(request.Data);
+                if (!RelayProtocol.Hello.TryParse(request.Data.GetRemainingBytes(), out var hello)
+                    || hello.ProtocolVersion != RelayProtocol.Version)
+                {
+                    ServerLogger.Current.Warn($"[DedicatedServer] Connection rejected: {request.RemoteEndPoint} sent no matching relay hello (mod version too old or too new).");
+                    request.Reject();
+                    return;
+                }
 
                 var verifier = new DeclaredDlcOwnershipVerifier(new DlcPolicy
                 {
@@ -147,7 +169,12 @@ namespace ONI_Together_DedicatedServer.Transports
                     ServerActiveDlcIds = config.ServerActiveDlcIds
                 });
 
-                var dlcResult = verifier.Verify(dlc);
+                var dlcResult = verifier.Verify(new ClientDlcInfo
+                {
+                    Declared = true,
+                    ActiveDlcIds = hello.ActiveDlcIds,
+                    OwnedDlcIds = hello.OwnedDlcIds
+                });
                 if (!dlcResult.Allowed)
                 {
                     ServerLogger.Current.Warn($"[DedicatedServer] Connection rejected (DLC): {dlcResult.Reason}");
@@ -155,15 +182,36 @@ namespace ONI_Together_DedicatedServer.Transports
                     return;
                 }
 
-                var peer = request.Accept();
-                if (peer != null)
+                bool becomesMaster = _masterPeer == null;
+                if (becomesMaster && IsReservedForSomeoneElse(hello.InstanceToken))
                 {
-                    ulong assignedId = clientNetId > 1 ? clientNetId : ((ulong)peer.Id + 2);
-                    while (_connectedPlayers.ContainsKey(assignedId))
-                        assignedId++;
-
-                    _clientIdByPeerId[peer.Id] = assignedId;
+                    ServerLogger.Current.Info("[DedicatedServer] Connection rejected: the host is still loading the colony.");
+                    request.Reject();
+                    return;
                 }
+
+                if (!becomesMaster && !_hostReady)
+                {
+                    ServerLogger.Current.Info("[DedicatedServer] Connection rejected: the host has not loaded the colony yet.");
+                    request.Reject();
+                    return;
+                }
+
+                var peer = request.Accept();
+                if (peer == null)
+                    return;
+
+                if (becomesMaster)
+                {
+                    _masterPeer = peer;
+                    _masterToken = hello.InstanceToken;
+                    _hostReady = false;
+                    _masterFetchedColony = false;
+                    _reservedToken = 0;
+                    _upload = new RelaySaveAssembler((int)Math.Min(config.MaxSaveBytes, int.MaxValue / 2));
+                }
+
+                _clientIdByPeerId[peer.Id] = becomesMaster ? MasterClientId : (ulong)peer.Id + 2;
                 return;
             }
             catch (Exception ex)
@@ -174,162 +222,226 @@ namespace ONI_Together_DedicatedServer.Transports
             request.Reject();
         }
 
-        private static ClientDlcInfo TryReadDlcInfo(NetDataReader data)
+        private bool IsReservedForSomeoneElse(ulong token)
         {
-            var info = new ClientDlcInfo();
-            try
-            {
-                if (data == null || data.AvailableBytes < sizeof(int))
-                    return info;
-
-                info.Declared = true;
-                int activeCount = data.GetInt();
-                if (activeCount < 0 || activeCount > 4096) { info.Declared = false; return info; }
-                var active = new List<string>(activeCount);
-                for (int i = 0; i < activeCount; i++) active.Add(SafeGetString(data));
-                int ownedCount = data.AvailableBytes >= sizeof(int) ? data.GetInt() : 0;
-                if (ownedCount < 0 || ownedCount > 4096) { info.Declared = false; return info; }
-                var owned = new List<string>(ownedCount);
-                for (int i = 0; i < ownedCount; i++) owned.Add(SafeGetString(data));
-                info.ActiveDlcIds = active;
-                info.OwnedDlcIds = owned;
-            }
-            catch
-            {
-                // Malformed optional DLC block -> treat as undeclared.
-                info = new ClientDlcInfo();
-            }
-            return info;
-        }
-
-        private static string SafeGetString(NetDataReader data)
-        {
-            try
-            {
-                var s = data.GetString();
-                if (s == null) return "";
-                return s.Length > 128 ? s.Substring(0, 128) : s;
-            }
-            catch { return ""; }
+            return _reservedToken != 0 && _reservedToken != token && DateTime.UtcNow < _reservedUntilUtc;
         }
 
         private void OnPeerConnected(NetPeer peer)
         {
             if (!_clientIdByPeerId.TryGetValue(peer.Id, out ulong clientId))
             {
-                clientId = (ulong)peer.Id + 2;
-                while (_connectedPlayers.ContainsKey(clientId))
-                    clientId++;
-                _clientIdByPeerId[peer.Id] = clientId;
+                peer.Disconnect();
+                return;
             }
 
-            bool isMaster = _connectedPlayers.Count == 0;
-            var player = new Player(peer, isMaster, clientId);
-            _connectedPlayers[clientId] = player;
+            bool isMaster = clientId == MasterClientId;
+            _connectedPlayers[clientId] = new Player(peer, isMaster, clientId);
             // Resume immediately on join so packets in the same PollEvents aren't dropped.
             _paused = false;
 
             ServerLogger.Current.Info($"[DedicatedServer] Player joined: ClientID={clientId}, Master={isMaster}, Endpoint={peer.Address}:{peer.Port}");
+
+            if (!isMaster)
+            {
+                SendToMaster(RelayProtocol.PeerEvent(RelayFrameType.PeerJoined, clientId));
+                return;
+            }
+
+            var colony = ColonyProvider?.Invoke();
+            SendToMaster(RelayProtocol.MasterAssigned(
+                colony != null,
+                colony == null ? string.Empty : Path.GetFileNameWithoutExtension(colony.Name),
+                colony?.Data.Length ?? 0));
+
+            if (colony == null)
+                ServerLogger.Current.Warn("[DedicatedServer] The server holds no colony. Start it once with --save <file.sav>.");
         }
 
         private void OnPeerDisconnected(NetPeer peer, DisconnectInfo disconnectInfo)
         {
             if (!_clientIdByPeerId.TryGetValue(peer.Id, out ulong clientId))
                 return;
+            if (_connectedPlayers.TryGetValue(clientId, out var known) && known.Connection != peer)
+                return;
 
             _clientIdByPeerId.Remove(peer.Id);
-            _rateLimiter.Reset(peer.Id.ToString());
-
-            bool wasMaster = false;
-            if (_connectedPlayers.TryGetValue(clientId, out var player))
-            {
-                wasMaster = player.IsMaster;
-                _connectedPlayers.Remove(clientId);
-            }
+            _unreliableLimiter.Reset(peer.Id.ToString());
+            _floodLimiter.Reset(peer.Id.ToString());
+            _connectedPlayers.Remove(clientId);
 
             ServerLogger.Current.Info($"[DedicatedServer] Player left: ClientID={clientId}, Reason={disconnectInfo.Reason}");
 
-            if (!wasMaster)
+            if (clientId != MasterClientId)
+            {
+                SendToMaster(RelayProtocol.PeerEvent(RelayFrameType.PeerLeft, clientId));
                 return;
-
-            // NOTE: In current relay mode this does NOT transfer simulation state (see TODO.md final milestone).
-            ServerLogger.Current.Info("[DedicatedServer] Master disconnected! Attempting master migration...");
-            if (_connectedPlayers.Count > 0)
-            {
-                var newMaster = _connectedPlayers.Values
-                    .Where(p => p.Connection.ConnectionState == ConnectionState.Connected)
-                    .OrderBy(p => p.Connection.Ping)
-                    .FirstOrDefault();
-
-                if (newMaster != null)
-                {
-                    newMaster.UpdateMasterState(true);
-                    ServerLogger.Current.Info($"[DedicatedServer] New master assigned: ClientID={newMaster.ClientID} (Ping={newMaster.PingMs}ms)");
-                }
             }
-            else
+
+            ReleaseMaster();
+        }
+
+        private void ReleaseMaster()
+        {
+            if (!_hostReady && _masterFetchedColony)
             {
-                ServerLogger.Current.Info("[DedicatedServer] No clients remaining. Server idle.");
+                _reservedToken = _masterToken;
+                _reservedUntilUtc = DateTime.UtcNow + ReservationTime;
+                ServerLogger.Current.Info("[DedicatedServer] Host is loading the colony; its slot is reserved.");
+            }
+
+            _masterPeer = null;
+            _hostReady = false;
+            _upload.Reset();
+
+            foreach (var player in _connectedPlayers.Values.ToList())
+            {
+                _connectedPlayers.Remove(player.ClientID);
+                _clientIdByPeerId.Remove(player.Connection.Id);
+                player.Connection.Disconnect();
             }
         }
 
         private void OnNetworkReceive(NetPeer peer, NetPacketReader reader, byte channelNumber, DeliveryMethod deliveryMethod)
         {
             if (!_clientIdByPeerId.TryGetValue(peer.Id, out ulong senderId) ||
-                !_connectedPlayers.TryGetValue(senderId, out var sender))
+                !_connectedPlayers.ContainsKey(senderId) ||
+                !RelayAllowed)
             {
                 return;
             }
 
             var config = ServerConfiguration.Instance.Config;
-
-            // PauseWhenEmpty: no packet processing while empty; connections still accepted. Resume on join.
-            // Do NOT drop packets once a player is connected (e.g. GameStateRequestPacket in same PollEvents as join).
-            if (_connectedPlayers.Count == 0)
-                return;
-            if (ComputePaused(config.PauseWhenEmpty, _connectedPlayers.Count))
-                return;
+            bool fromMaster = senderId == MasterClientId;
 
             byte[] rawData = reader.GetRemainingBytes();
             if (rawData.Length == 0)
                 return;
 
-            // Packet size cap.
-            if (rawData.Length > config.MaxPacketSize || rawData.Length > config.MaxMessageSize)
+            int sizeCap = fromMaster
+                ? MaxMasterMessageBytes
+                : Math.Min(config.MaxPacketSize, config.MaxMessageSize);
+            if (rawData.Length > sizeCap)
             {
-                ServerLogger.Current.Warn($"[DedicatedServer] Dropping oversized packet from {senderId}: {rawData.Length}B");
+                ServerLogger.Current.Warn($"[DedicatedServer] Disconnecting {senderId}: oversized packet ({rawData.Length}B).");
+                peer.Disconnect();
                 return;
             }
-
-            // Per-peer rate limiting.
-            if (!_rateLimiter.TryAcquire(peer.Id.ToString()))
-                return;
-
-            // MaxMessagesPerPoll (global per PollEvents).
-            if (_messagesThisPoll >= Math.Max(1, config.MaxMessagesPerPoll))
-                return;
-            _messagesThisPoll++;
 
             if (config.VerbosePacketLogging)
+                ServerLogger.Current.Info($"[DedicatedServer] Packet from {senderId}: Size={rawData.Length}B, Channel={channelNumber}, Method={deliveryMethod}");
+
+            if (fromMaster)
             {
-                int packetType = rawData.Length >= 4 ? BitConverter.ToInt32(rawData, 0) : 0;
-                ServerLogger.Current.Info($"[DedicatedServer] Packet from {senderId} (Master={sender.IsMaster}): Type={packetType}, Size={rawData.Length}B, Channel={channelNumber}, Method={deliveryMethod}");
+                HandleMasterMessage(rawData, channelNumber, deliveryMethod);
+                return;
             }
 
-            if (sender.IsMaster)
+            if (deliveryMethod == DeliveryMethod.Unreliable)
             {
-                foreach (var player in _connectedPlayers.Values)
-                {
-                    if (!player.IsMaster && player.Connection.ConnectionState == ConnectionState.Connected)
-                        player.Connection.Send(rawData, channelNumber, deliveryMethod);
-                }
+                if (!_unreliableLimiter.TryAcquire(peer.Id.ToString()))
+                    return;
             }
-            else
+            else if (!_floodLimiter.TryAcquire(peer.Id.ToString()))
             {
-                var master = _connectedPlayers.Values.FirstOrDefault(p => p.IsMaster);
-                if (master != null && master.Connection.ConnectionState == ConnectionState.Connected)
-                    master.Connection.Send(rawData, channelNumber, deliveryMethod);
+                ServerLogger.Current.Warn($"[DedicatedServer] Disconnecting {senderId}: reliable packet flood.");
+                peer.Disconnect();
+                return;
             }
+
+            if (_masterPeer == null || !_hostReady)
+                return;
+
+            Forward(_masterPeer, RelayProtocol.PeerData(RelayFrameType.FromPeer, senderId, rawData), channelNumber, deliveryMethod);
+        }
+
+        private void HandleMasterMessage(byte[] data, byte channelNumber, DeliveryMethod deliveryMethod)
+        {
+            if (!RelayProtocol.IsFrame(data))
+                return;
+
+            switch (RelayProtocol.TypeOf(data))
+            {
+                case RelayFrameType.ToPeer:
+                    if (RelayProtocol.TryReadPeerData(data, out ulong target, out byte[] payload)
+                        && target != MasterClientId
+                        && _connectedPlayers.TryGetValue(target, out var player))
+                    {
+                        Forward(player.Connection, payload, channelNumber, deliveryMethod);
+                    }
+                    break;
+
+                case RelayFrameType.KickPeer:
+                    if (data.Length >= RelayProtocol.PeerHeaderSize)
+                    {
+                        ulong kicked = BitConverter.ToUInt64(data, RelayProtocol.HeaderSize);
+                        if (kicked != MasterClientId && _connectedPlayers.TryGetValue(kicked, out var victim))
+                            victim.Connection.Disconnect();
+                    }
+                    break;
+
+                case RelayFrameType.HostReady:
+                    _hostReady = true;
+                    _reservedToken = 0;
+                    ServerLogger.Current.Info("[DedicatedServer] Host is ready; players can join.");
+                    break;
+
+                case RelayFrameType.SaveRequest:
+                    SendColonyToMaster();
+                    break;
+
+                case RelayFrameType.SaveBegin:
+                case RelayFrameType.SaveData:
+                    if (_upload.Accept(data, out string name, out byte[] save))
+                    {
+                        ServerLogger.Current.Info($"[DedicatedServer] Received colony '{name}' from the host ({save.Length} bytes).");
+                        SetWorldInfo(name);
+                        ColonyReceived?.Invoke(new SaveFile(name + ".sav", save));
+                    }
+                    break;
+
+                default:
+                    ServerLogger.Current.Warn($"[DedicatedServer] Unknown frame from the host: {RelayProtocol.TypeOf(data)}");
+                    break;
+            }
+        }
+
+        private void SendColonyToMaster()
+        {
+            var colony = ColonyProvider?.Invoke();
+            if (colony == null || _masterPeer == null)
+                return;
+
+            _masterFetchedColony = true;
+            ServerLogger.Current.Info($"[DedicatedServer] Sending colony '{colony.Name}' to the host.");
+
+            string name = Path.GetFileNameWithoutExtension(colony.Name);
+            foreach (byte[] frame in RelayProtocol.SaveFrames(name, colony.Data))
+                _masterPeer.Send(frame, RelayProtocol.SaveChannel, DeliveryMethod.ReliableOrdered);
+        }
+
+        private void SendToMaster(byte[] frame)
+        {
+            if (_masterPeer != null)
+                Forward(_masterPeer, frame, 0, DeliveryMethod.ReliableOrdered);
+        }
+
+        private static void Forward(NetPeer to, byte[] data, byte channelNumber, DeliveryMethod deliveryMethod)
+        {
+            if (to.ConnectionState != ConnectionState.Connected)
+                return;
+
+            if (deliveryMethod == DeliveryMethod.Unreliable && data.Length > to.GetMaxSinglePacketSize(DeliveryMethod.Unreliable))
+                deliveryMethod = DeliveryMethod.ReliableUnordered;
+
+            to.Send(data, channelNumber, deliveryMethod);
+        }
+
+        private void CreateLimiters(int perSecond)
+        {
+            int rate = Math.Max(1, perSecond);
+            _unreliableLimiter = new RateLimiter(capacity: rate, refillPerSecond: rate);
+            _floodLimiter = new RateLimiter(capacity: rate * ReliableBurstFactor, refillPerSecond: rate * 2);
         }
 
         private void OnNetworkReceiveUnconnected(IPEndPoint remoteEndPoint, NetPacketReader reader, UnconnectedMessageType messageType)
@@ -376,7 +488,6 @@ namespace ONI_Together_DedicatedServer.Transports
 
         public override void Update()
         {
-            _messagesThisPoll = 0;
             _server?.PollEvents();
         }
 
@@ -391,6 +502,9 @@ namespace ONI_Together_DedicatedServer.Transports
             _listener = null;
             _connectedPlayers.Clear();
             _clientIdByPeerId.Clear();
+            _masterPeer = null;
+            _hostReady = false;
+            _reservedToken = 0;
             ServerLogger.Current.Info("[DedicatedServer] LiteNetLib server stopped.");
         }
 
@@ -421,10 +535,7 @@ namespace ONI_Together_DedicatedServer.Transports
             _server.DisconnectTimeout = timeoutMs;
             _server.BroadcastReceiveEnabled = config.DiscoveryEnabled;
             _server.UnconnectedMessagesEnabled = config.DiscoveryEnabled;
-            _rateLimiter = new RateLimiter(
-                capacity: Math.Max(1, config.RateLimitMessagesPerSecond),
-                refillPerSecond: config.RateLimitMessagesPerSecond);
-            // MaxLobbySize, MaxPacketSize, MaxMessageSize, MaxMessagesPerPoll read per-event.
+            CreateLimiters(config.RateLimitMessagesPerSecond);
             // Ip/Port/Transport require Stop+Start (not preserving players) — not applied here.
         }
 

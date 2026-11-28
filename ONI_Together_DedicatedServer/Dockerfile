@@ -10,6 +10,7 @@ WORKDIR /src
 # Copy build props + project. (Repo-root context.)
 COPY Directory.Build.props Directory.Build.targets Directory.Build.props.default ./
 COPY ONI_Together_DedicatedServer/ ./ONI_Together_DedicatedServer/
+COPY Shared/Networking/Dedicated/ ./Shared/Networking/Dedicated/
 
 RUN dotnet restore ./ONI_Together_DedicatedServer/ONI_Together_DedicatedServer.csproj
 RUN dotnet publish ./ONI_Together_DedicatedServer/ONI_Together_DedicatedServer.csproj \
@@ -42,7 +43,6 @@ VOLUME ["/data"]
 # LiteNetLib uses UDP. (No TCP port is required for the current relay protocol.)
 EXPOSE 7777/udp
 
-# Container health check: app-provided `--health-check` exits 0.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
     CMD dotnet /app/ONI_Together_DedicatedServer.dll --health-check || exit 1
 

@@ -16,25 +16,12 @@ if not exist "%ONI_SERVER_EXE%" (
     exit /b 1
 )
 
-rem Persistent data outside the app folder (mod updates cannot wipe it).
-if not defined ONI_DATA_DIR set "ONI_DATA_DIR=%SCRIPT_DIR%data"
-if not defined ONI_SERVER_CONFIG_DIR set "ONI_SERVER_CONFIG_DIR=%ONI_DATA_DIR%\config"
-if not defined ONI_SERVER_SAVE_DIR set "ONI_SERVER_SAVE_DIR=%ONI_DATA_DIR%\saves"
-if not defined ONI_PORT set "ONI_PORT=7777"
-if not defined ONI_NON_INTERACTIVE set "ONI_NON_INTERACTIVE=false"
-
-if not exist "%ONI_SERVER_CONFIG_DIR%" mkdir "%ONI_SERVER_CONFIG_DIR%"
-if not exist "%ONI_SERVER_SAVE_DIR%" mkdir "%ONI_SERVER_SAVE_DIR%"
-
 echo Starting ONI Together Dedicated Server...
-echo   exe:    %ONI_SERVER_EXE%
-echo   data:   %ONI_DATA_DIR%
-echo   port:   %ONI_PORT% (UDP)
-echo   config: %ONI_SERVER_CONFIG_DIR%
-echo   saves:  %ONI_SERVER_SAVE_DIR%
+echo   exe:  %ONI_SERVER_EXE%
+if defined ONI_DATA_DIR echo   data: %ONI_DATA_DIR%
 echo.
 
-"%ONI_SERVER_EXE%" --config-dir "%ONI_SERVER_CONFIG_DIR%" --save-dir "%ONI_SERVER_SAVE_DIR%" %*
+"%ONI_SERVER_EXE%" %*
 set "EXITCODE=%ERRORLEVEL%"
 
 if not "%EXITCODE%"=="0" (

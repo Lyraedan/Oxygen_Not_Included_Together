@@ -17,7 +17,7 @@ namespace ONI_Together_DedicatedServer.ONI
             Data = data;
         }
 
-        public static SaveFile FromFile(string filePath)
+        public static SaveFile FromFile(string filePath, long maxBytes = MaxSaveBytes)
         {
             if (string.IsNullOrWhiteSpace(filePath))
                 throw new ArgumentException("Save file path cannot be empty.", nameof(filePath));
@@ -26,13 +26,13 @@ namespace ONI_Together_DedicatedServer.ONI
                 throw new FileNotFoundException($"Save file not found: {filePath}", filePath);
 
             var info = new FileInfo(filePath);
-            if (info.Length > MaxSaveBytes)
-                throw new InvalidOperationException($"Save file exceeds maximum size of {MaxSaveBytes} bytes: {filePath}");
+            if (info.Length > maxBytes)
+                throw new InvalidOperationException($"Save file exceeds maximum size of {maxBytes} bytes: {filePath}");
 
             string name = Path.GetFileName(filePath);
             byte[] data = File.ReadAllBytes(filePath);
 
-            Console.WriteLine($"[SaveFile] Loaded save file: {name} ({Utils.FormatBytes(data.Length)})");
+            Logging.ServerLogger.Current.Info($"[SaveFile] Loaded save file: {name} ({Utils.FormatBytes(data.Length)})");
             return new SaveFile(name, data);
         }
 
