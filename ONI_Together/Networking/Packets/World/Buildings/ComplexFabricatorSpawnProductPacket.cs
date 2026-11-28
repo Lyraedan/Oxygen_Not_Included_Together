@@ -48,9 +48,9 @@ namespace ONI_Together.Networking.Packets.World.Buildings
 				return;
 			}
 
-			ComplexRecipe complexRecipe = fab.recipe_list[CompletedRecipeIdx];
-			DebugConsole.Log($"[ComplexFabricatorSpawnProductPacket] spawning product {complexRecipe.id} for {fab.name} with netId {NetId}");
-			fab.SpawnOrderProduct(complexRecipe);
+			// The host announces every product it spawns (PickupableOnSpawnPatch), so the client only
+			// clears the progress bar. Spawning the product here as well doubled the client's output,
+			// and recipes that read their input from storage (suit repair) threw on the client.
 			RemoteProgressRegistry.Clear(NetId, RemoteProgressKind.ComplexFabricatorOrder);
 		}
 	}
