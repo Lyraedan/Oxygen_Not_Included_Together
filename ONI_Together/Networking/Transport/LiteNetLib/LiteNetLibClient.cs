@@ -341,7 +341,12 @@ namespace ONI_Together.Networking.Transport.Lan
                     return false;
                 if (!data.TryGetString(out string key) || key != RelayProtocol.RejectKey)
                     return false;
-                return data.TryGetString(out reason) && !string.IsNullOrEmpty(reason);
+                if (!data.TryGetInt(out int code) || !data.TryGetString(out string english))
+                    return false;
+                string[] args = data.TryGetStringArray(out string[] values) ? values : Array.Empty<string>();
+
+                reason = RelaySession.DescribeRejection((RelayRejectCode)code, english, args);
+                return !string.IsNullOrEmpty(reason);
             }
             catch (Exception)
             {

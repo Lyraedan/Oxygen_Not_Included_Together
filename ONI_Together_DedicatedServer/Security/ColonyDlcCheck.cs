@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Shared.Networking.Dedicated;
 
 namespace ONI_Together_DedicatedServer.Security
 {
@@ -33,15 +34,15 @@ namespace ONI_Together_DedicatedServer.Security
 
             bool spacedOutColony = colony.Contains(SpacedOut);
             if (spacedOutColony && !active.Contains(SpacedOut))
-                return DlcCheckResult.Deny(available.Contains(SpacedOut)
-                    ? "This server's colony is a Spaced Out! colony. Enable Spaced Out! in the game's DLC settings, then join again."
-                    : "This server's colony needs Spaced Out!, which your game does not own.");
+                return available.Contains(SpacedOut)
+                    ? DlcCheckResult.Deny(RelayRejectCode.EnableSpacedOut, "This server's colony is a Spaced Out! colony. Enable Spaced Out! in the game's DLC settings, then join again.")
+                    : DlcCheckResult.Deny(RelayRejectCode.NeedsSpacedOut, "This server's colony needs Spaced Out!, which your game does not own.");
             if (!spacedOutColony && active.Contains(SpacedOut))
-                return DlcCheckResult.Deny("This server's colony is a base game colony. Disable Spaced Out! in the game's DLC settings, then join again.");
+                return DlcCheckResult.Deny(RelayRejectCode.DisableSpacedOut, "This server's colony is a base game colony. Disable Spaced Out! in the game's DLC settings, then join again.");
 
-            var missing = colony.Where(id => id != SpacedOut && !available.Contains(id)).ToList();
-            if (missing.Count > 0)
-                return DlcCheckResult.Deny($"This server's colony needs DLC your game does not own: {Describe(missing)}.");
+            var missing = colony.Where(id => id != SpacedOut && !available.Contains(id)).ToArray();
+            if (missing.Length > 0)
+                return DlcCheckResult.Deny(RelayRejectCode.MissingDlc, $"This server's colony needs DLC your game does not own: {Describe(missing)}.", missing);
 
             return DlcCheckResult.Ok();
         }

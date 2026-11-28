@@ -132,7 +132,7 @@ namespace ONI_Together_DedicatedServer.Transports
             var config = ServerConfiguration.Instance.Config;
             if (_server == null || _server.ConnectedPeersCount >= config.MaxLobbySize)
             {
-                Refuse(request, "The server is full.");
+                Refuse(request, RelayRejectCode.ServerFull, "The server is full.");
                 return;
             }
 
@@ -178,7 +178,7 @@ namespace ONI_Together_DedicatedServer.Transports
                 if (!dlcResult.Allowed)
                 {
                     ServerLogger.Current.Warn($"[DedicatedServer] Connection rejected (DLC): {dlcResult.Reason}");
-                    Refuse(request, dlcResult.Reason);
+                    Refuse(request, RelayRejectCode.DlcPolicy, dlcResult.Reason);
                     return;
                 }
 
@@ -188,7 +188,7 @@ namespace ONI_Together_DedicatedServer.Transports
                     if (!colonyResult.Allowed)
                     {
                         ServerLogger.Current.Warn($"[DedicatedServer] Connection rejected (colony DLC): {colonyResult.Reason}");
-                        Refuse(request, colonyResult.Reason);
+                        Refuse(request, colonyResult.Code, colonyResult.Reason, colonyResult.Args);
                         return;
                     }
                 }
@@ -197,14 +197,14 @@ namespace ONI_Together_DedicatedServer.Transports
                 if (becomesMaster && IsReservedForSomeoneElse(hello.InstanceToken))
                 {
                     ServerLogger.Current.Info("[DedicatedServer] Connection rejected: the host is still loading the colony.");
-                    Refuse(request, "The host is loading the colony. Try again in a minute.");
+                    Refuse(request, RelayRejectCode.HostLoading, "The host is loading the colony. Try again in a minute.");
                     return;
                 }
 
                 if (!becomesMaster && !_hostReady)
                 {
                     ServerLogger.Current.Info("[DedicatedServer] Connection rejected: the host has not loaded the colony yet.");
-                    Refuse(request, "The host is loading the colony. Try again in a minute.");
+                    Refuse(request, RelayRejectCode.HostLoading, "The host is loading the colony. Try again in a minute.");
                     return;
                 }
 
@@ -233,11 +233,13 @@ namespace ONI_Together_DedicatedServer.Transports
             request.Reject();
         }
 
-        private static void Refuse(ConnectionRequest request, string reason)
+        private static void Refuse(ConnectionRequest request, RelayRejectCode code, string englishReason, IReadOnlyList<string>? args = null)
         {
             var writer = new NetDataWriter();
             writer.Put(RelayProtocol.RejectKey);
-            writer.Put(reason);
+            writer.Put((int)code);
+            writer.Put(englishReason);
+            writer.PutArray((args ?? Array.Empty<string>()).ToArray());
             request.Reject(writer);
         }
 

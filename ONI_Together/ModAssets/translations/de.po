@@ -129,3 +129,53 @@ msgstr "Server Starten"
 msgctxt "ONI_Together.MP_STRINGS.UI.PAUSESCREEN.INVITE.LABEL"
 msgid "Invite"
 msgstr "Mitspieler einladen"
+
+#. ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.LITENETLIB.CONNECTION_REJECTED
+msgctxt "ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.LITENETLIB.CONNECTION_REJECTED"
+msgid "Connection rejected"
+msgstr "Verbindung abgelehnt"
+
+#. ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.RELAY.LOADING_COLONY
+msgctxt "ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.RELAY.LOADING_COLONY"
+msgid "You are hosting for the dedicated server.\nDownloading its colony..."
+msgstr "Du bist Host für den Dedicated Server.\nSeine Kolonie wird heruntergeladen..."
+
+#. ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.RELAY.NO_COLONY
+msgctxt "ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.RELAY.NO_COLONY"
+msgid "The dedicated server has no colony yet.\nStart the server once with --save <file.sav>."
+msgstr "Der Dedicated Server hat noch keine Kolonie.\nStarte den Server einmal mit --save <datei.sav>."
+
+#. ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.RELAY.VERSION_MISMATCH
+msgctxt "ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.RELAY.VERSION_MISMATCH"
+msgid "The dedicated server uses relay protocol {0}, this mod uses {1}.\nUpdate the older one."
+msgstr "Der Dedicated Server nutzt Relay-Protokoll {0}, dieser Mod nutzt {1}.\nAktualisiere die ältere Version."
+
+#. ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.RELAY.REJECT.SERVER_FULL
+msgctxt "ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.RELAY.REJECT.SERVER_FULL"
+msgid "The server is full."
+msgstr "Der Server ist voll."
+
+#. ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.RELAY.REJECT.HOST_LOADING
+msgctxt "ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.RELAY.REJECT.HOST_LOADING"
+msgid "The host is loading the colony.\nTry again in a minute."
+msgstr "Der Host lädt gerade die Kolonie.\nVersuche es in einer Minute erneut."
+
+#. ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.RELAY.REJECT.ENABLE_SPACED_OUT
+msgctxt "ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.RELAY.REJECT.ENABLE_SPACED_OUT"
+msgid "This server's colony is a Spaced Out! colony.\nEnable Spaced Out! in the game's DLC settings, then join again."
+msgstr "Die Kolonie dieses Servers ist eine Spaced-Out!-Kolonie.\nAktiviere Spaced Out! in den DLC-Einstellungen des Spiels und tritt dann erneut bei."
+
+#. ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.RELAY.REJECT.NEEDS_SPACED_OUT
+msgctxt "ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.RELAY.REJECT.NEEDS_SPACED_OUT"
+msgid "This server's colony needs Spaced Out!, which your game does not own."
+msgstr "Die Kolonie dieses Servers braucht Spaced Out!, das dein Spiel nicht besitzt."
+
+#. ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.RELAY.REJECT.DISABLE_SPACED_OUT
+msgctxt "ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.RELAY.REJECT.DISABLE_SPACED_OUT"
+msgid "This server's colony is a base game colony.\nDisable Spaced Out! in the game's DLC settings, then join again."
+msgstr "Die Kolonie dieses Servers ist eine Kolonie des Grundspiels.\nDeaktiviere Spaced Out! in den DLC-Einstellungen des Spiels und tritt dann erneut bei."
+
+#. ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.RELAY.REJECT.MISSING_DLC
+msgctxt "ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.RELAY.REJECT.MISSING_DLC"
+msgid "This server's colony needs DLC your game does not own:\n{0}"
+msgstr "Die Kolonie dieses Servers braucht DLCs, die dein Spiel nicht besitzt:\n{0}"

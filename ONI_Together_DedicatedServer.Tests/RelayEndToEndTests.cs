@@ -209,6 +209,7 @@ public sealed class RelayEndToEndTests : IDisposable
 
         var baseGame = Connect(token: 1);
         AssertRefused(baseGame);
+        Assert.Equal(RelayRejectCode.NeedsSpacedOut, baseGame.RejectCode);
         Assert.Contains("Spaced Out!", baseGame.RejectReason);
 
         var owner = Connect(token: 2, "EXPANSION1_ID");
@@ -224,7 +225,19 @@ public sealed class RelayEndToEndTests : IDisposable
 
         var late = Connect(token: 2);
         AssertRefused(late);
+        Assert.Equal(RelayRejectCode.ServerFull, late.RejectCode);
         Assert.Contains("full", late.RejectReason);
+    }
+
+    [Fact]
+    public void Missing_content_packs_are_sent_as_ids_the_mod_can_name()
+    {
+        _colony = new SaveFile("Frozen.sav", ColonyDlcTests.FakeSave("[\"\",\"DLC2_ID\",\"DLC3_ID\"]"));
+
+        var player = Connect(token: 1, "DLC2_ID");
+        AssertRefused(player);
+        Assert.Equal(RelayRejectCode.MissingDlc, player.RejectCode);
+        Assert.Equal(new[] { "DLC3_ID" }, player.RejectArgs);
     }
 
     [Fact]
@@ -386,6 +399,8 @@ public sealed class RelayEndToEndTests : IDisposable
         public bool Connected;
         public bool Disconnected;
         public string RejectReason = string.Empty;
+        public RelayRejectCode RejectCode;
+        public string[] RejectArgs = Array.Empty<string>();
 
         public FakePeer()
         {
@@ -394,8 +409,14 @@ public sealed class RelayEndToEndTests : IDisposable
             listener.PeerDisconnectedEvent += (_, info) =>
             {
                 Disconnected = true;
-                if (info.AdditionalData != null && info.AdditionalData.TryGetString(out var key) && key == RelayProtocol.RejectKey)
-                    info.AdditionalData.TryGetString(out RejectReason);
+                var data = info.AdditionalData;
+                if (data != null && data.TryGetString(out var key) && key == RelayProtocol.RejectKey
+                    && data.TryGetInt(out int code) && data.TryGetString(out RejectReason))
+                {
+                    RejectCode = (RelayRejectCode)code;
+                    if (data.TryGetStringArray(out string[] args))
+                        RejectArgs = args;
+                }
             };
             listener.NetworkReceiveEvent += (_, reader, _, _) => Received.Enqueue(reader.GetRemainingBytes());
             Net = new NetManager(listener) { AutoRecycle = true, ChannelsCount = 4 };

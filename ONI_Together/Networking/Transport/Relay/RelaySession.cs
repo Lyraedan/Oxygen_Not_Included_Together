@@ -15,6 +15,8 @@ using Shared.Networking.Dedicated;
 using Shared.Profiling;
 using UnityEngine;
 
+using RejectText = ONI_Together.STRINGS.UI.MP_OVERLAY.CLIENT.RELAY.REJECT;
+
 namespace ONI_Together.Networking.Transport.Relay
 {
 	public static class RelaySession
@@ -39,6 +41,36 @@ namespace ONI_Together.Networking.Transport.Relay
 		{
 			byte[] bytes = Guid.NewGuid().ToByteArray();
 			return BitConverter.ToUInt64(bytes, 0) | 1UL;
+		}
+
+		public static string DescribeRejection(RelayRejectCode code, string english, string[] args)
+		{
+			switch (code)
+			{
+				case RelayRejectCode.ServerFull: return RejectText.SERVER_FULL;
+				case RelayRejectCode.HostLoading: return RejectText.HOST_LOADING;
+				case RelayRejectCode.EnableSpacedOut: return RejectText.ENABLE_SPACED_OUT;
+				case RelayRejectCode.NeedsSpacedOut: return RejectText.NEEDS_SPACED_OUT;
+				case RelayRejectCode.DisableSpacedOut: return RejectText.DISABLE_SPACED_OUT;
+				case RelayRejectCode.MissingDlc:
+					string names = string.Join(", ", Array.ConvertAll(args ?? Array.Empty<string>(), DlcName));
+					return string.Format(RejectText.MISSING_DLC, names);
+				default:
+					return english;
+			}
+		}
+
+		private static string DlcName(string dlcId)
+		{
+			try
+			{
+				string name = DlcManager.GetDlcTitleNoFormatting(dlcId);
+				return string.IsNullOrEmpty(name) ? dlcId : name;
+			}
+			catch (Exception)
+			{
+				return dlcId;
+			}
 		}
 
 		public static byte[] BuildHello()

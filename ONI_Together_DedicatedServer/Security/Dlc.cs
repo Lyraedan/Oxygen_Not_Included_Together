@@ -30,8 +30,13 @@ namespace ONI_Together_DedicatedServer.Security
     {
         public bool Allowed { get; init; }
         public string Reason { get; init; } = "";
+        public Shared.Networking.Dedicated.RelayRejectCode Code { get; init; } = Shared.Networking.Dedicated.RelayRejectCode.DlcPolicy;
+        public IReadOnlyList<string> Args { get; init; } = Array.Empty<string>();
+
         public static DlcCheckResult Ok() => new() { Allowed = true, Reason = "" };
         public static DlcCheckResult Deny(string reason) => new() { Allowed = false, Reason = reason };
+        public static DlcCheckResult Deny(Shared.Networking.Dedicated.RelayRejectCode code, string reason, params string[] args) =>
+            new() { Allowed = false, Reason = reason, Code = code, Args = args };
     }
 
     public interface IDlcOwnershipVerifier

@@ -184,6 +184,18 @@ namespace Shared.Networking.Dedicated
 		}
 	}
 
+	public enum RelayRejectCode
+	{
+		Other = 0,
+		ServerFull = 1,
+		HostLoading = 2,
+		EnableSpacedOut = 3,
+		NeedsSpacedOut = 4,
+		DisableSpacedOut = 5,
+		MissingDlc = 6,
+		DlcPolicy = 7,
+	}
+
 	public enum RelayFrameType : byte
 	{
 		MasterAssigned = 1,
