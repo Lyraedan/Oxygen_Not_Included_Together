@@ -12,6 +12,42 @@ namespace ONI_Together.Patches.World.SideScreen
 	/// Patches for Suit Locker (atmo suit, jet suit lockers) synchronization.
 	/// </summary>
 
+	// A dupe takes its suit from a locker or returns it through the checkpoint reactables, which only
+	// run on the host. Tell the clients, who replay the call; nothing inside it is sent on its own.
+	[HarmonyPatch(typeof(SuitLocker), nameof(SuitLocker.EquipTo))]
+	public static class SuitLocker_EquipTo_Patch
+	{
+		public static void Prefix(SuitLocker __instance, out bool __state)
+		{
+			__state = __instance.GetStoredOutfit() != null;
+			SuitLockerEquipPacket.BeginHostCall();
+		}
+
+		public static void Postfix(SuitLocker __instance, Equipment equipment, bool __state)
+		{
+			if (__state) SuitLockerEquipPacket.Send(__instance, equipment, true);
+		}
+
+		public static void Finalizer() => SuitLockerEquipPacket.EndHostCall();
+	}
+
+	[HarmonyPatch(typeof(SuitLocker), nameof(SuitLocker.UnequipFrom))]
+	public static class SuitLocker_UnequipFrom_Patch
+	{
+		public static void Prefix(Equipment equipment, out bool __state)
+		{
+			__state = equipment != null && equipment.GetAssignable(Db.Get().AssignableSlots.Suit) != null;
+			SuitLockerEquipPacket.BeginHostCall();
+		}
+
+		public static void Postfix(SuitLocker __instance, Equipment equipment, bool __state)
+		{
+			if (__state) SuitLockerEquipPacket.Send(__instance, equipment, false);
+		}
+
+		public static void Finalizer() => SuitLockerEquipPacket.EndHostCall();
+	}
+
 	[HarmonyPatch(typeof(SuitLocker), nameof(SuitLocker.ConfigRequestSuit))]
 	public static class SuitLocker_ConfigRequestSuit_Patch
 	{
