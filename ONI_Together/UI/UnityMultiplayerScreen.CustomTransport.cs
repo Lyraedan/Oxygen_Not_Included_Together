@@ -5,6 +5,7 @@ using ONI_Together.Misc;
 using ONI_Together.Networking;
 using ONI_Together.Networking.Transport;
 using ONI_Together.Networking.Transport.External;
+using Shared.Helpers;
 using Shared.Profiling;
 using System;
 using System.Collections.Generic;
@@ -43,6 +44,14 @@ namespace ONI_Together.UI
         private string SelectedCustomJoinProviderId = string.Empty;
         private Dictionary<string, string> ActiveHostSettings = new();
         private Dictionary<string, string> ActiveJoinSettings = new();
+
+        private GameObject HostLoginStatusRow;
+        private GameObject JoinLoginStatusRow;
+        private LocText HostLoginStatusLabel;
+        private LocText JoinLoginStatusLabel;
+        private FButton HostLoginButton;
+        private FButton JoinLoginButton;
+        private FButton JoinCustomButton;
 
         private void InitializeCustomTransportTabs()
         {
@@ -231,13 +240,32 @@ namespace ONI_Together.UI
             if (TransportRegistry.GetAllExternalProviders().Count == 0)
                 return false;
 
-            return !string.IsNullOrEmpty(SelectedCustomHostProviderId)
-                && TransportRegistry.GetExternalProvider(SelectedCustomHostProviderId) != null;
+            var provider = TransportRegistry.GetExternalProvider(SelectedCustomHostProviderId);
+            if (provider == null)
+                return false;
+
+            return !provider.RequiresLogin
+                || provider.LoginState == ExternalTransportLoginState.Ready;
+        }
+
+        private bool CanJoinCustom()
+        {
+            var provider = TransportRegistry.GetExternalProvider(SelectedCustomJoinProviderId);
+            if (provider == null)
+                return false;
+
+            return !provider.RequiresLogin
+                || provider.LoginState == ExternalTransportLoginState.Ready;
         }
 
         private void UpdateStartHostingInteractable()
         {
             StartHosting?.SetInteractable(CanStartHosting());
+        }
+
+        private void UpdateJoinInteractable()
+        {
+            JoinCustomButton?.SetInteractable(CanJoinCustom());
         }
 
         private void RefreshCustomHostTab()
@@ -276,10 +304,12 @@ namespace ONI_Together.UI
                 .ToList();
 
             CreateProviderCycle(HostCustomContent, "HostTransport", options, selected, OnHostProviderChanged);
+            CreateLoginStatusUi(HostCustomContent, true);
             HostCustomSettingsRoot = CreateSettingsRoot(HostCustomContent);
             BuildSettingsForProvider(true, SelectedCustomHostProviderId);
             ResizeCustomTab(HostCustomTab, HostCustomContent);
             ResizeMenuPanel(StartHostingSegment);
+            RefreshCustomLoginStatus(true);
             UpdateStartHostingInteractable();
         }
 
@@ -318,12 +348,14 @@ namespace ONI_Together.UI
                 .ToList();
 
             CreateProviderCycle(JoinCustomContent, "JoinTransport", options, selected, OnJoinProviderChanged);
+            CreateLoginStatusUi(JoinCustomContent, false);
             JoinCustomSettingsRoot = CreateSettingsRoot(JoinCustomContent);
             BuildSettingsForProvider(false, SelectedCustomJoinProviderId);
             CreateSpacer(JoinCustomContent, 10f);
             CreateJoinButton(JoinCustomContent);
             ResizeCustomTab(JoinCustomTab, JoinCustomContent);
             ResizeMenuPanel(MainMenuSegment);
+            RefreshCustomLoginStatus(false);
         }
 
         private Transform CreateCustomContent(GameObject tab, string name)
@@ -548,6 +580,198 @@ namespace ONI_Together.UI
             var button = go.GetComponent<FButton>();
             if (button != null)
                 button.OnClick += JoinCustomGame;
+
+            JoinCustomButton = button;
+        }
+
+        private void CreateLoginStatusUi(Transform parent, bool host)
+        {
+            var row = Util.KInstantiateUI(NumberInputPrefab, parent.gameObject, true);
+            row.name = host ? "HostEosLoginStatus" : "JoinEosLoginStatus";
+
+            var label = row.transform.Find("Label")?.gameObject.GetComponent<LocText>();
+            if (label != null)
+            {
+                label.SetText("EOS login...");
+                label.textWrappingMode = TextWrappingModes.Normal;
+            }
+
+            var input = row.transform.Find("Input");
+            input?.gameObject.SetActive(false);
+
+            var rowLayout = row.AddOrGet<LayoutElement>();
+            rowLayout.minHeight = 60f;
+            rowLayout.preferredHeight = 70f;
+            rowLayout.flexibleHeight = 0f;
+            row.SetActive(false);
+
+            FButton button = null;
+            if (JoinViaLan != null)
+            {
+                var buttonGo = Instantiate(JoinViaLan.gameObject, parent);
+                buttonGo.name = host ? "HostEosLoginButton" : "JoinEosLoginButton";
+                buttonGo.SetActive(false);
+
+                var rect = buttonGo.GetComponent<RectTransform>();
+                if (rect != null)
+                {
+                    rect.anchorMin = new Vector2(0f, 0.5f);
+                    rect.anchorMax = new Vector2(1f, 0.5f);
+                    rect.pivot = new Vector2(0.5f, 0.5f);
+                    rect.sizeDelta = new Vector2(0f, 50f);
+                }
+
+                var layout = buttonGo.AddOrGet<LayoutElement>();
+                layout.minHeight = 50f;
+                layout.preferredHeight = 50f;
+                layout.flexibleHeight = 0f;
+
+                var buttonLabel = buttonGo.GetComponentInChildren<LocText>(true);
+                buttonLabel?.SetText("Log In to EOS");
+
+                button = buttonGo.GetComponent<FButton>();
+                if (button != null)
+                    button.OnClick += () => BeginLoginFor(host);
+            }
+
+            if (host)
+            {
+                HostLoginStatusRow = row;
+                HostLoginStatusLabel = label;
+                HostLoginButton = button;
+            }
+            else
+            {
+                JoinLoginStatusRow = row;
+                JoinLoginStatusLabel = label;
+                JoinLoginButton = button;
+            }
+        }
+
+        private void BeginLoginFor(bool host)
+        {
+            var provider = TransportRegistry.GetExternalProvider(
+                host ? SelectedCustomHostProviderId : SelectedCustomJoinProviderId);
+            if (provider == null || !provider.RequiresLogin)
+                return;
+
+            provider.BeginLogin();
+            RefreshCustomLoginStatus(host);
+        }
+
+        private void RefreshCustomLoginStatus(bool host)
+        {
+            if (host ? CurrentHostMode != HostMode.Custom : CurrentJoinMode != JoinMode.Custom)
+                return;
+
+            var provider = TransportRegistry.GetExternalProvider(
+                host ? SelectedCustomHostProviderId : SelectedCustomJoinProviderId);
+            var row = host ? HostLoginStatusRow : JoinLoginStatusRow;
+            var label = host ? HostLoginStatusLabel : JoinLoginStatusLabel;
+            var button = host ? HostLoginButton : JoinLoginButton;
+
+            if (row == null)
+                return;
+
+            bool requires = provider != null && provider.RequiresLogin;
+            bool visibilityChanged = false;
+
+            if (!requires)
+            {
+                if (row.activeSelf)
+                {
+                    row.SetActive(false);
+                    visibilityChanged = true;
+                }
+
+                if (button != null && button.gameObject.activeSelf)
+                {
+                    button.gameObject.SetActive(false);
+                    visibilityChanged = true;
+                }
+
+                if (host)
+                    UpdateStartHostingInteractable();
+                else
+                    UpdateJoinInteractable();
+
+                if (visibilityChanged)
+                    ResizeCustomTabFor(host);
+
+                return;
+            }
+
+            if (!row.activeSelf)
+            {
+                row.SetActive(true);
+                visibilityChanged = true;
+            }
+
+            var state = provider.LoginState;
+            if (state == ExternalTransportLoginState.NotStarted)
+            {
+                provider.BeginLogin();
+                state = provider.LoginState;
+            }
+
+            string text = provider.LoginMessage;
+            if (string.IsNullOrWhiteSpace(text))
+            {
+                switch (state)
+                {
+                    case ExternalTransportLoginState.NotStarted:
+                        text = "EOS login required.";
+                        break;
+                    case ExternalTransportLoginState.LoggingIn:
+                        text = "Logging in to EOS...";
+                        break;
+                    case ExternalTransportLoginState.Ready:
+                        text = "Logged in to EOS.";
+                        break;
+                    default:
+                        text = "EOS login failed.";
+                        break;
+                }
+            }
+
+            label?.SetText(text);
+
+            if (button != null)
+            {
+                bool showButton = state != ExternalTransportLoginState.Ready;
+                if (button.gameObject.activeSelf != showButton)
+                {
+                    button.gameObject.SetActive(showButton);
+                    visibilityChanged = true;
+                }
+
+                if (showButton)
+                {
+                    var buttonLabel = button.GetComponentInChildren<LocText>(true);
+                    buttonLabel?.SetText(
+                        state == ExternalTransportLoginState.Failed ? "Retry EOS Login"
+                        : state == ExternalTransportLoginState.LoggingIn ? "Logging in..."
+                        : "Log In to EOS");
+
+                    button.SetInteractable(state != ExternalTransportLoginState.LoggingIn);
+                }
+            }
+
+            if (host)
+                UpdateStartHostingInteractable();
+            else
+                UpdateJoinInteractable();
+
+            if (visibilityChanged)
+                ResizeCustomTabFor(host);
+        }
+
+        private void ResizeCustomTabFor(bool host)
+        {
+            ResizeCustomTab(
+                host ? HostCustomTab : JoinCustomTab,
+                host ? HostCustomContent : JoinCustomContent);
+            ResizeMenuPanel(host ? StartHostingSegment : MainMenuSegment);
         }
 
         private void OnHostProviderChanged(FCycle.Option option)
@@ -556,6 +780,7 @@ namespace ONI_Together.UI
             Configuration.Instance.Host.CustomTransportId = option.id;
             Configuration.Instance.Save();
             BuildSettingsForProvider(true, option.id);
+            RefreshCustomLoginStatus(true);
             UpdateStartHostingInteractable();
         }
 
@@ -565,6 +790,7 @@ namespace ONI_Together.UI
             Configuration.Instance.Client.CustomTransportId = option.id;
             Configuration.Instance.Save();
             BuildSettingsForProvider(false, option.id);
+            RefreshCustomLoginStatus(false);
         }
 
         private void BuildSettingsForProvider(bool host, string providerId)
@@ -629,8 +855,9 @@ namespace ONI_Together.UI
             // Custom tab still fits the LAN tab's height.
             var address = settings.FirstOrDefault(setting => setting.Key == "address");
             var port = settings.FirstOrDefault(setting => setting.Key == "port");
+            bool hasAddressPortRow = address != null && port != null;
 
-            if (address != null && port != null)
+            if (hasAddressPortRow)
             {
                 var row = CreateHorizontalRow(root);
                 CreateSettingControl(row, address, GetValue(address),
@@ -641,7 +868,10 @@ namespace ONI_Together.UI
 
             foreach (var setting in settings)
             {
-                if (setting == address || setting == port)
+                // Only skip the pair when it was actually rendered as one row. On the
+                // host side "address" (client-only) is filtered out, so "port" must
+                // still be drawn as its own field.
+                if (hasAddressPortRow && (setting == address || setting == port))
                     continue;
 
                 CreateSettingControl(root, setting, GetValue(setting),
@@ -800,7 +1030,15 @@ namespace ONI_Together.UI
             var provider = TransportRegistry.GetExternalProvider(SelectedCustomHostProviderId);
             if (provider == null)
             {
-                MultiplayerOverlay.Show("No custom transport selected.");
+                ShowCustomTransportError("No custom transport selected.");
+                return;
+            }
+
+            if (!CanStartHosting())
+            {
+                ShowCustomTransportError(string.IsNullOrWhiteSpace(provider.LoginMessage)
+                    ? "The custom transport is not ready yet."
+                    : provider.LoginMessage);
                 return;
             }
 
@@ -821,7 +1059,7 @@ namespace ONI_Together.UI
             SaveCustomSettings(true);
             if (!NetworkConfig.PrepareCustomServer(provider.Id, settings))
             {
-                MultiplayerOverlay.Show("Failed to prepare the custom transport.");
+                ShowCustomTransportError("Failed to prepare the custom transport.");
                 return;
             }
 
@@ -860,7 +1098,15 @@ namespace ONI_Together.UI
             var provider = TransportRegistry.GetExternalProvider(SelectedCustomJoinProviderId);
             if (provider == null)
             {
-                MultiplayerOverlay.Show("No custom transport selected.");
+                ShowCustomTransportError("No custom transport selected.");
+                return;
+            }
+
+            if (!CanJoinCustom())
+            {
+                ShowCustomTransportError(string.IsNullOrWhiteSpace(provider.LoginMessage)
+                    ? "The custom transport is not ready yet."
+                    : provider.LoginMessage);
                 return;
             }
 
@@ -880,7 +1126,7 @@ namespace ONI_Together.UI
             SaveCustomSettings(false);
             if (!NetworkConfig.ConnectCustom(provider.Id, settings))
             {
-                MultiplayerOverlay.Show("Failed to start the custom transport.");
+                ShowCustomTransportError("Failed to start the custom transport.");
                 return;
             }
             Show(false);
@@ -897,7 +1143,7 @@ namespace ONI_Together.UI
 
                 if (setting.Required && string.IsNullOrWhiteSpace(value))
                 {
-                    MultiplayerOverlay.Show($"Please fill in '{setting.Label}'.");
+                    ShowCustomTransportError($"Please fill in '{setting.Label}'.");
                     return false;
                 }
 
@@ -905,12 +1151,19 @@ namespace ONI_Together.UI
                     && !string.IsNullOrWhiteSpace(value)
                     && !int.TryParse(value, out _))
                 {
-                    MultiplayerOverlay.Show($"'{setting.Label}' must be a number.");
+                    ShowCustomTransportError($"'{setting.Label}' must be a number.");
                     return false;
                 }
             }
 
             return true;
+        }
+
+        private static void ShowCustomTransportError(string message)
+        {
+            // Use a normal ONI dialog instead of MultiplayerOverlay, which replaces the
+            // whole screen with the loading overlay.
+            DialogUtil.CreateConfirmDialogFrontend("Custom Transport", message);
         }
     }
 }

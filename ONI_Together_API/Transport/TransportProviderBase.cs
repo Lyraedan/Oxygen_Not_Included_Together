@@ -17,6 +17,21 @@ namespace ONI_Together_API.Transport
 
         public virtual TransportCapabilities Capabilities => TransportCapabilities.None;
 
+        /// <summary>
+        /// True when the transport needs a user login before it can host or join.
+        /// Existing providers default to false.
+        /// </summary>
+        public virtual bool RequiresLogin => false;
+
+        /// <summary>Current login state for providers that require a login.</summary>
+        public virtual TransportLoginState LoginState => TransportLoginState.Ready;
+
+        /// <summary>Human-readable login status shown in the Custom tab.</summary>
+        public virtual string LoginMessage => string.Empty;
+
+        /// <summary>Starts or retries the login flow. Safe to call repeatedly.</summary>
+        public virtual void BeginLogin() { }
+
         public virtual TransportSetting[] GetSettings() => Array.Empty<TransportSetting>();
 
         public abstract ITransportServer CreateServer();

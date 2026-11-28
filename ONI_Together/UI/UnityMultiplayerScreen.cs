@@ -127,6 +127,7 @@ namespace ONI_Together.UI
 		bool init = false;
 		static string lastScene = string.Empty;
 		Coroutine LobbyRefresh;
+		Coroutine CustomLoginPoll;
 		ulong _pendingLobbyId = Utils.NilUlong();
 
 		public void Init()
@@ -455,9 +456,34 @@ namespace ONI_Together.UI
 			{
 				ApplyLocalization();
 				LobbyRefresh = StartCoroutine(RefreshLobbiesEnumerator());
+
+				if (CustomLoginPoll != null)
+					StopCoroutine(CustomLoginPoll);
+
+				CustomLoginPoll = StartCoroutine(PollCustomLoginStatus());
 			}
 			else
+			{
 				StopCoroutine(LobbyRefresh);
+
+				if (CustomLoginPoll != null)
+				{
+					StopCoroutine(CustomLoginPoll);
+					CustomLoginPoll = null;
+				}
+			}
+		}
+
+		private IEnumerator PollCustomLoginStatus()
+		{
+			var wait = new WaitForSecondsRealtime(0.5f);
+
+			while (true)
+			{
+				RefreshCustomLoginStatus(true);
+				RefreshCustomLoginStatus(false);
+				yield return wait;
+			}
 		}
 
 		private void ApplyLocalization()

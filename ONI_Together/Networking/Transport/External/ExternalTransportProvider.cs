@@ -22,13 +22,18 @@ namespace ONI_Together.Networking.Transport.External
         private readonly MethodInfo _createServer;
         private readonly MethodInfo _createClient;
         private readonly MethodInfo _getSettings;
+        private readonly Func<bool> _requiresLogin;
+        private readonly Func<string> _loginMessage;
+        private readonly MethodInfo _beginLogin;
+        private readonly PropertyInfo _loginState;
 
         public bool IsDirect => (Capabilities & ExternalTransportCapabilities.DirectConnect) != 0;
         public bool IsSteam => (Capabilities & ExternalTransportCapabilities.Steam) != 0;
 
         private ExternalTransportProvider(object provider, string id, string displayName, int apiVersion,
             ExternalTransportCapabilities capabilities, MethodInfo createServer, MethodInfo createClient,
-            MethodInfo getSettings)
+            MethodInfo getSettings, Func<bool> requiresLogin, Func<string> loginMessage,
+            MethodInfo beginLogin, PropertyInfo loginState)
         {
             ProviderObject = provider;
             Id = id;
@@ -38,6 +43,10 @@ namespace ONI_Together.Networking.Transport.External
             _createServer = createServer;
             _createClient = createClient;
             _getSettings = getSettings;
+            _requiresLogin = requiresLogin;
+            _loginMessage = loginMessage;
+            _beginLogin = beginLogin;
+            _loginState = loginState;
         }
 
         public static bool TryCreate(object provider, out ExternalTransportProvider result, out string error)
@@ -94,8 +103,13 @@ namespace ONI_Together.Networking.Transport.External
 
                 ExternalApiBinder.TryGetMethod(provider, "GetSettings", Type.EmptyTypes, out var getSettings);
 
+                ExternalApiBinder.TryGetPropertyGetter(provider, "RequiresLogin", out Func<bool> requiresLogin);
+                ExternalApiBinder.TryGetPropertyGetter(provider, "LoginMessage", out Func<string> loginMessage);
+                ExternalApiBinder.TryGetMethod(provider, "BeginLogin", Type.EmptyTypes, out MethodInfo beginLogin);
+                ExternalApiBinder.TryGetProperty(provider, "LoginState", out PropertyInfo loginState);
+
                 result = new ExternalTransportProvider(provider, id, displayName, apiVersion, capabilities,
-                    createServer, createClient, getSettings);
+                    createServer, createClient, getSettings, requiresLogin, loginMessage, beginLogin, loginState);
                 return true;
             }
             catch (Exception ex)
@@ -142,6 +156,67 @@ namespace ONI_Together.Networking.Transport.External
             {
                 DebugConsole.LogError($"[Transport-API] Provider '{Id}' failed to create client: {ex}");
                 return null;
+            }
+        }
+
+        public bool RequiresLogin
+        {
+            get
+            {
+                try
+                {
+                    return _requiresLogin != null && _requiresLogin();
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+        }
+
+        public ExternalTransportLoginState LoginState
+        {
+            get
+            {
+                if (_loginState == null)
+                    return ExternalTransportLoginState.Ready;
+
+                try
+                {
+                    object value = _loginState.GetValue(ProviderObject, null);
+                    return (ExternalTransportLoginState)Convert.ToInt32(value);
+                }
+                catch
+                {
+                    return ExternalTransportLoginState.Failed;
+                }
+            }
+        }
+
+        public string LoginMessage
+        {
+            get
+            {
+                try
+                {
+                    return _loginMessage?.Invoke() ?? string.Empty;
+                }
+                catch
+                {
+                    return string.Empty;
+                }
+            }
+        }
+
+        public void BeginLogin()
+        {
+            try
+            {
+                _beginLogin?.Invoke(ProviderObject, null);
+            }
+            catch (Exception ex)
+            {
+                DebugConsole.LogError($"[Transport-API] Provider '{Id}' BeginLogin failed: {ex.Message}");
             }
         }
 

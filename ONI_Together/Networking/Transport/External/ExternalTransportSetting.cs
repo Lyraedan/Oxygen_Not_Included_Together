@@ -29,6 +29,14 @@ namespace ONI_Together.Networking.Transport.External
         Custom = 16
     }
 
+    public enum ExternalTransportLoginState
+    {
+        NotStarted = 0,
+        LoggingIn = 1,
+        Ready = 2,
+        Failed = 3
+    }
+
     public sealed class ExternalTransportSetting
     {
         public string Key = string.Empty;
