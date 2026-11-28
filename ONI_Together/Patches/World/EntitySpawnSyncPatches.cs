@@ -262,5 +262,26 @@ namespace ONI_Together.Patches.World
 					SpawnUtils.BroadcastSpawn(__result, __result.activeSelf);
 			}
 		}
+
+		// ProduceSeed returns null on clients, but both callers Trigger an event on the seed it
+		// returns, which throws on null. The host's seed arrives through the spawn broadcast, so
+		// clients skip the seed roll on harvest and the seed drop on uproot.
+		[HarmonyPatch(typeof(SeedProducer), nameof(SeedProducer.CropPickedInternal), typeof(WorkerBase), typeof(bool))]
+		internal static class SeedProducer_CropPickedInternal_Patch
+		{
+			static bool Prefix() => !(MultiplayerSession.InActiveSession && MultiplayerSession.IsClient);
+		}
+
+		[HarmonyPatch(typeof(SeedProducer), nameof(SeedProducer.DropSeed))]
+		internal static class SeedProducer_DropSeed_Patch
+		{
+			static bool Prefix(SeedProducer __instance)
+			{
+				if (!(MultiplayerSession.InActiveSession && MultiplayerSession.IsClient))
+					return true;
+				__instance.droppedSeedAlready = true;
+				return false;
+			}
+		}
 	}
 }
