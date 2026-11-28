@@ -84,6 +84,19 @@ namespace ONI_Together.Patches.World.SideScreen
 		}
 	}
 
+    // Assignable.OnCleanUp unassigns the object it destroys. That is not a player's choice: on a
+    // client it fires when the host's packets remove an item, and the host would then unassign
+    // its own, living copy.
+    [HarmonyPatch(typeof(Assignable), "OnCleanUp")]
+    public static class Assignable_OnCleanUp_Patch
+    {
+        [System.ThreadStatic] internal static bool Active;
+
+        public static void Prefix() => Active = true;
+
+        public static void Finalizer() => Active = false;
+    }
+
     [HarmonyPatch(typeof(Assignable), nameof(Assignable.Unassign))]
 	public static class Assignable_Unassign_Patch
 	{
@@ -92,6 +105,7 @@ namespace ONI_Together.Patches.World.SideScreen
 			using var _ = Profiler.Scope();
 
 			if (AssignmentPacket.IsApplying) return;
+			if (Assignable_OnCleanUp_Patch.Active) return;
 			if (!MultiplayerSession.InActiveSession) return;
 			if (__instance.IsNullOrDestroyed()) return;
 

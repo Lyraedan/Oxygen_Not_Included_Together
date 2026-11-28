@@ -55,7 +55,12 @@ namespace ONI_Together.Networking.Packets.World
 				if (Grid.IsValidCell(Cell))
 				{
 					GameObject buildingGO = Grid.Objects[Cell, (int)ObjectLayer.Building];
-					if (buildingGO != null)
+					// Only adopt a building that can be assigned and has no other NetId yet. The packet
+					// may name an equippable (a suit) whose cell holds its locker; renumbering the
+					// locker would break every later packet for it.
+					var existing = buildingGO != null ? buildingGO.GetComponent<NetworkIdentity>() : null;
+					if (buildingGO != null && buildingGO.GetComponent<Assignable>() != null
+						&& (existing == null || existing.NetId == 0 || existing.NetId == BuildingNetId))
 					{
 						buildingIdentity = buildingGO.AddOrGet<NetworkIdentity>();
 						buildingIdentity.NetId = BuildingNetId;
