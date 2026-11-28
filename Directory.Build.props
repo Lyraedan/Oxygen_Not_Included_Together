@@ -71,7 +71,7 @@
 		<AssemblyFirstpassPublicized>$(SolutionDir)/PublicisedAssembly/Assembly-CSharp-firstpass_public.dll</AssemblyFirstpassPublicized>
 	</PropertyGroup>
 
-	<ItemGroup>
+	<ItemGroup Condition="'$(ExcludeGameLibs)' != 'true'">
 		<Reference Include="Assembly-CSharp">
 			<HintPath>$(AssemblyPublicized)</HintPath>
 			<Private>False</Private>

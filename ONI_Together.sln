@@ -19,6 +19,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Shared", "Shared\Shared.csp
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ONI_Together_DedicatedServer", "ONI_Together_DedicatedServer\ONI_Together_DedicatedServer.csproj", "{79BC744A-074F-464C-AD54-C6DB4447AFC4}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ONI_Together_DedicatedServer.Tests", "ONI_Together_DedicatedServer.Tests\ONI_Together_DedicatedServer.Tests.csproj", "{731499DF-11FA-479D-AF6C-BBBF67C02155}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -77,6 +79,18 @@ Global
 		{79BC744A-074F-464C-AD54-C6DB4447AFC4}.Release|x64.Build.0 = Release|Any CPU
 		{79BC744A-074F-464C-AD54-C6DB4447AFC4}.Release|x86.ActiveCfg = Release|Any CPU
 		{79BC744A-074F-464C-AD54-C6DB4447AFC4}.Release|x86.Build.0 = Release|Any CPU
+		{731499DF-11FA-479D-AF6C-BBBF67C02155}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{731499DF-11FA-479D-AF6C-BBBF67C02155}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{731499DF-11FA-479D-AF6C-BBBF67C02155}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{731499DF-11FA-479D-AF6C-BBBF67C02155}.Debug|x64.Build.0 = Debug|Any CPU
+		{731499DF-11FA-479D-AF6C-BBBF67C02155}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{731499DF-11FA-479D-AF6C-BBBF67C02155}.Debug|x86.Build.0 = Debug|Any CPU
+		{731499DF-11FA-479D-AF6C-BBBF67C02155}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{731499DF-11FA-479D-AF6C-BBBF67C02155}.Release|Any CPU.Build.0 = Release|Any CPU
+		{731499DF-11FA-479D-AF6C-BBBF67C02155}.Release|x64.ActiveCfg = Release|Any CPU
+		{731499DF-11FA-479D-AF6C-BBBF67C02155}.Release|x64.Build.0 = Release|Any CPU
+		{731499DF-11FA-479D-AF6C-BBBF67C02155}.Release|x86.ActiveCfg = Release|Any CPU
+		{731499DF-11FA-479D-AF6C-BBBF67C02155}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

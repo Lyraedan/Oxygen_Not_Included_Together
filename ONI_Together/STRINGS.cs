@@ -369,6 +369,23 @@ namespace ONI_Together
 					public static LocString MENU_LOST_CONNECTION = "Connection to the host was lost!";
                     public static LocString LOST_CONNECTION = "Connection to the host was lost: {0}\n{1}";
 
+					public class RELAY
+					{
+						public static LocString LOADING_COLONY = "You are hosting for the dedicated server.\nDownloading its colony...";
+						public static LocString NO_COLONY = "The dedicated server has no colony yet.\nStart the server once with --save <file.sav>.";
+						public static LocString VERSION_MISMATCH = "The dedicated server uses relay protocol {0}, this mod uses {1}.\nUpdate the older one.";
+
+						public class REJECT
+						{
+							public static LocString SERVER_FULL = "The server is full.";
+							public static LocString HOST_LOADING = "The host is loading the colony.\nTry again in a minute.";
+							public static LocString ENABLE_SPACED_OUT = "This server's colony is a Spaced Out! colony.\nEnable Spaced Out! in the game's DLC settings, then join again.";
+							public static LocString NEEDS_SPACED_OUT = "This server's colony needs Spaced Out!, which your game does not own.";
+							public static LocString DISABLE_SPACED_OUT = "This server's colony is a base game colony.\nDisable Spaced Out! in the game's DLC settings, then join again.";
+							public static LocString MISSING_DLC = "This server's colony needs DLC your game does not own:\n{0}";
+						}
+					}
+
 					public class STEAMWORKS
 					{
 						public static LocString HOST_DISCONNECTED = "Host disconnected";

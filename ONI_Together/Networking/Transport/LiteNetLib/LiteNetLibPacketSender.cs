@@ -67,15 +67,15 @@ namespace ONI_Together.Networking.Transport.Lan
         /// Unreliable sends ignore the channel number; they never queue behind reliable
         /// traffic anyway.
         /// </summary>
-        private const byte DefaultChannel = 0;
-        private const byte PriorityChannel = 1;
+        protected const byte DefaultChannel = 0;
+        protected const byte PriorityChannel = 1;
 
-        private static bool IsPriority(PacketSendMode sendType, IPacket packet)
+        protected static bool IsPriority(PacketSendMode sendType, IPacket packet)
         {
             return (sendType & PacketSendMode.Priority) != 0 || packet is IPriorityPacket;
         }
 
-        private static DeliveryMethod ConvertSendType(PacketSendMode sendType, IPacket packet)
+        protected static DeliveryMethod ConvertSendType(PacketSendMode sendType, IPacket packet)
         {
             if (packet is ILatencySensitivePacket || (sendType & PacketSendMode.NoDelay) != 0)
                 return DeliveryMethod.Unreliable;

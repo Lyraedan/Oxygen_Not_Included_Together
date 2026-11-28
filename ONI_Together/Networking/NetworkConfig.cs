@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Transport;
 using ONI_Together.Networking.Transport.Lan;
+using ONI_Together.Networking.Transport.Relay;
 using ONI_Together.Networking.Transport.Steam;
 using Steamworks;
 using SteamServer = ONI_Together.Networking.Transport.Steam.SteamworksServer;
@@ -145,6 +146,18 @@ namespace ONI_Together.Networking
             TransportClient = GetTransportClient();
             TransportPacketSender = GetTransportPacketSender();
             DebugConsole.Log($"Updated network transport to: {newTransport.ToString()}");
+        }
+
+        public static void UseRelayHost(TransportClient link)
+        {
+            TransportServer = new RelayHostTransport(link);
+            TransportPacketSender = new RelayPacketSender();
+        }
+
+        public static void RestoreDirectLanHost()
+        {
+            TransportServer = GetTransportServer();
+            TransportPacketSender = GetTransportPacketSender();
         }
 
         public static void UpdateLanTransport()
