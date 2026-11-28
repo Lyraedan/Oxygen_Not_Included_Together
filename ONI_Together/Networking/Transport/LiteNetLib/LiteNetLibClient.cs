@@ -307,6 +307,8 @@ namespace ONI_Together.Networking.Transport.Lan
                     );
 
                 case DisconnectReason.ConnectionRejected:
+                    if (TryReadRejectReason(info, out string why))
+                        return (STRINGS.UI.MP_OVERLAY.CLIENT.LITENETLIB.CONNECTION_REJECTED, why);
                     return (
                         STRINGS.UI.MP_OVERLAY.CLIENT.LITENETLIB.CONNECTION_REJECTED,
                         STRINGS.UI.MP_OVERLAY.CLIENT.LITENETLIB.CONNECTION_REJECTED_DESC
@@ -326,6 +328,24 @@ namespace ONI_Together.Networking.Transport.Lan
                         STRINGS.UI.MP_OVERLAY.CLIENT.LITENETLIB.UNKNOWN,
                         STRINGS.UI.MP_OVERLAY.CLIENT.LITENETLIB.UNKNOWN_DESC
                     );
+            }
+        }
+
+        private static bool TryReadRejectReason(DisconnectInfo info, out string reason)
+        {
+            reason = string.Empty;
+            try
+            {
+                var data = info.AdditionalData;
+                if (data == null || data.AvailableBytes <= 0)
+                    return false;
+                if (!data.TryGetString(out string key) || key != RelayProtocol.RejectKey)
+                    return false;
+                return data.TryGetString(out reason) && !string.IsNullOrEmpty(reason);
+            }
+            catch (Exception)
+            {
+                return false;
             }
         }
 

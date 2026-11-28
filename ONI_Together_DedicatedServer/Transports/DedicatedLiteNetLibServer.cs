@@ -132,7 +132,7 @@ namespace ONI_Together_DedicatedServer.Transports
             var config = ServerConfiguration.Instance.Config;
             if (_server == null || _server.ConnectedPeersCount >= config.MaxLobbySize)
             {
-                request.Reject();
+                Refuse(request, "The server is full.");
                 return;
             }
 
@@ -178,22 +178,33 @@ namespace ONI_Together_DedicatedServer.Transports
                 if (!dlcResult.Allowed)
                 {
                     ServerLogger.Current.Warn($"[DedicatedServer] Connection rejected (DLC): {dlcResult.Reason}");
-                    request.Reject();
+                    Refuse(request, dlcResult.Reason);
                     return;
+                }
+
+                if (config.MatchColonyDlc && ColonyDlcIds() is { } colonyDlc)
+                {
+                    var colonyResult = ColonyDlcCheck.Check(colonyDlc, hello.ActiveDlcIds, hello.OwnedDlcIds);
+                    if (!colonyResult.Allowed)
+                    {
+                        ServerLogger.Current.Warn($"[DedicatedServer] Connection rejected (colony DLC): {colonyResult.Reason}");
+                        Refuse(request, colonyResult.Reason);
+                        return;
+                    }
                 }
 
                 bool becomesMaster = _masterPeer == null;
                 if (becomesMaster && IsReservedForSomeoneElse(hello.InstanceToken))
                 {
                     ServerLogger.Current.Info("[DedicatedServer] Connection rejected: the host is still loading the colony.");
-                    request.Reject();
+                    Refuse(request, "The host is loading the colony. Try again in a minute.");
                     return;
                 }
 
                 if (!becomesMaster && !_hostReady)
                 {
                     ServerLogger.Current.Info("[DedicatedServer] Connection rejected: the host has not loaded the colony yet.");
-                    request.Reject();
+                    Refuse(request, "The host is loading the colony. Try again in a minute.");
                     return;
                 }
 
@@ -220,6 +231,20 @@ namespace ONI_Together_DedicatedServer.Transports
             }
 
             request.Reject();
+        }
+
+        private static void Refuse(ConnectionRequest request, string reason)
+        {
+            var writer = new NetDataWriter();
+            writer.Put(RelayProtocol.RejectKey);
+            writer.Put(reason);
+            request.Reject(writer);
+        }
+
+        internal IReadOnlyList<string>? ColonyDlcIds()
+        {
+            var colony = ColonyProvider?.Invoke();
+            return colony == null ? null : SaveHeader.TryRead(colony.Data)?.DlcIds;
         }
 
         private bool IsReservedForSomeoneElse(ulong token)
@@ -276,6 +301,13 @@ namespace ONI_Together_DedicatedServer.Transports
             {
                 SendToMaster(RelayProtocol.PeerEvent(RelayFrameType.PeerLeft, clientId));
                 return;
+            }
+
+            byte[]? farewell = disconnectInfo.AdditionalData?.AvailableBytes > 0 ? disconnectInfo.AdditionalData.GetRemainingBytes() : null;
+            if (RelayProtocol.IsFrame(farewell) && RelayProtocol.TypeOf(farewell!) == RelayFrameType.HostAborted)
+            {
+                ServerLogger.Current.Info("[DedicatedServer] The host could not load the colony; the slot is free again.");
+                _masterFetchedColony = false;
             }
 
             ReleaseMaster();
@@ -395,7 +427,6 @@ namespace ONI_Together_DedicatedServer.Transports
                     if (_upload.Accept(data, out string name, out byte[] save))
                     {
                         ServerLogger.Current.Info($"[DedicatedServer] Received colony '{name}' from the host ({save.Length} bytes).");
-                        SetWorldInfo(name);
                         ColonyReceived?.Invoke(new SaveFile(name + ".sav", save));
                     }
                     break;

@@ -9,6 +9,8 @@ namespace Shared.Networking.Dedicated
 	public static class RelayProtocol
 	{
 		public const string ConnectionKey = "ONI_TOGETHER";
+
+		public const string RejectKey = "ONI_RELAY_REJECT";
 		public const int Version = 1;
 
 		public const int Magic = 0x52594C52;
@@ -194,6 +196,7 @@ namespace Shared.Networking.Dedicated
 		SaveRequest = 8,
 		SaveBegin = 9,
 		SaveData = 10,
+		HostAborted = 11,
 	}
 
 	public sealed class RelaySaveAssembler

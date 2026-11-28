@@ -182,6 +182,8 @@ namespace ONI_Together_DedicatedServer
                 Config.ServerActiveDlcIds = SplitCsv(serverDlc);
             if (TryGetEnvBool("ONI_REQUIRE_DLC_DECLARATION", out bool requireDlc))
                 Config.RequireDlcDeclaration = requireDlc;
+            if (TryGetEnvBool("ONI_MATCH_COLONY_DLC", out bool matchColonyDlc))
+                Config.MatchColonyDlc = matchColonyDlc;
             if (TryGetEnvBool("ONI_LOG_TO_FILE", out bool logToFile))
                 Config.LogToFile = logToFile;
             if (TryGetEnv("ONI_LOG_LEVEL", out string? logLevel))
@@ -287,6 +289,8 @@ namespace ONI_Together_DedicatedServer
         public string[] ForbiddenDlcIds { get; set; } = Array.Empty<string>();
         public string[] ServerActiveDlcIds { get; set; } = Array.Empty<string>();
         public bool RequireDlcDeclaration { get; set; } = false;
+
+        public bool MatchColonyDlc { get; set; } = true;
 
         /// <summary>Clamp/validate values into safe ranges. Call after load + env overrides.</summary>
         public void Sanitize()

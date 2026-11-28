@@ -15,8 +15,9 @@ The connect request is the key `ONI_TOGETHER` followed by an instance token, the
 
 ## Session flow
 
-1. The master connects. The relay tells it whether it holds a colony.
+1. A player connects. The server reads the DLC list from its colony's save header and refuses a player whose declared DLC cannot load it (Spaced Out! must be on exactly for Spaced Out! colonies; content packs must be owned), with the reason shown in the game. The first accepted player is the master; the relay tells it whether it holds a colony.
 2. The master downloads that colony, loads it (which drops the connection) and reconnects. The relay keeps the slot for that game instance for 10 minutes. Until it hosts, the master has no active client session: duplicants, critters and buildings set themselves up as client or host once, when a session becomes active, so a client session here would leave the whole world in client mode. A world that was not loaded from the server's colony (for example a client's world after a reconnect) is never hosted; the master loads the server's colony instead.
+   If the master's game still refuses the colony (its own DLC check is the authoritative one), the mod tells the server in its disconnect message and the slot is free at once.
 3. The master sends `HostReady`. Other players are refused until then.
 4. Players join with the normal flow: state request, save from the master's live world, load, reconnect.
 5. Every game save by the master (autosave, manual, or the one made for a joining player) is uploaded and replaces the server's `current.sav`.
@@ -37,9 +38,9 @@ A reliable packet is never dropped silently, because the game would desync. A pl
 ## Known limitations
 
 - Not yet tested with real game instances.
-- Loading another save while hosting through the relay ends the relay session; the mod's existing "host again after load" step then hosts directly, not through the relay.
+- Loading another save while hosting through the relay ends the relay session; that world is then played alone, not hosted.
 - No TCP save transfer behind the relay; joining uses the chunked UDP transfer.
-- Refused connections (host not ready, DLC, old mod) show the mod's generic "connection rejected" message; the reason is in the server log.
+- Refusals show their reason in the game. A mod from before the relay rework shows its generic "connection rejected" message.
 - The master needs the LiteNetLib LAN transport.
 
 ## Testing with the real game

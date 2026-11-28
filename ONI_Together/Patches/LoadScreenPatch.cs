@@ -36,7 +36,7 @@ namespace ONI_Together.Patches
 			// destroy. Stop it first and recreate it after the save has loaded.
 			if (MultiplayerSession.IsHostInSession)
 			{
-				MultiplayerSession.ShouldHostAfterLoad = true;
+				MultiplayerSession.ShouldHostAfterLoad = !Networking.Transport.Relay.RelaySession.IsHosting;
 				NetworkConfig.Stop();
 			}
 		}

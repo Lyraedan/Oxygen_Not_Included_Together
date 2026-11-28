@@ -119,6 +119,15 @@ namespace ONI_Together.Networking.Transport.Relay
 						_download = null;
 						DebugConsole.Log($"[Relay] Received the server's colony '{name}' ({Utils.FormatBytes(data.Length)}). Loading it.");
 
+						if (!SaveHelper.SavegameDlcListValid(data, out string dlcError))
+						{
+							DebugConsole.LogWarning($"[Relay] This game cannot load the server's colony: {dlcError}");
+							IsMaster = false;
+							LiteNetLibClient.ServerPeer?.Disconnect(RelayProtocol.Signal(RelayFrameType.HostAborted));
+							LeaveWithMessage(dlcError);
+							break;
+						}
+
 						HostAfterLoad = true;
 						MultiplayerSession.InActiveSession = false;
 						SaveHelper.RequestWorldLoad(new WorldSave(HostedSaveName(name) + ".sav", data));

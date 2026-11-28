@@ -203,6 +203,47 @@ public sealed class RelayEndToEndTests : IDisposable
     }
 
     [Fact]
+    public void A_player_who_cannot_load_the_colony_is_refused_with_the_reason()
+    {
+        _colony = new SaveFile("Rocket Base.sav", ColonyDlcTests.FakeSave("[\"\",\"EXPANSION1_ID\"]"));
+
+        var baseGame = Connect(token: 1);
+        AssertRefused(baseGame);
+        Assert.Contains("Spaced Out!", baseGame.RejectReason);
+
+        var owner = Connect(token: 2, "EXPANSION1_ID");
+        Pump(() => owner.Connected);
+        owner.WaitFrame(this, RelayFrameType.MasterAssigned);
+    }
+
+    [Fact]
+    public void A_full_server_says_so()
+    {
+        _config.MaxLobbySize = 1;
+        Join(token: 1);
+
+        var late = Connect(token: 2);
+        AssertRefused(late);
+        Assert.Contains("full", late.RejectReason);
+    }
+
+    [Fact]
+    public void A_host_that_cannot_load_the_colony_frees_the_slot_at_once()
+    {
+        var master = Join(token: 1);
+        master.WaitFrame(this, RelayFrameType.MasterAssigned);
+        master.Send(RelayProtocol.Signal(RelayFrameType.SaveRequest));
+        ReceiveSave(master);
+
+        master.Server!.Disconnect(RelayProtocol.Signal(RelayFrameType.HostAborted));
+        master.Net.Stop();
+        Pump(() => _server.GetPlayers().Count == 0);
+
+        var next = Join(token: 2);
+        next.WaitFrame(this, RelayFrameType.MasterAssigned);
+    }
+
+    [Fact]
     public void A_mod_without_a_relay_hello_is_refused()
     {
         var old = NewPeer();
@@ -344,12 +385,18 @@ public sealed class RelayEndToEndTests : IDisposable
         public NetPeer? Server;
         public bool Connected;
         public bool Disconnected;
+        public string RejectReason = string.Empty;
 
         public FakePeer()
         {
             var listener = new EventBasedNetListener();
             listener.PeerConnectedEvent += _ => Connected = true;
-            listener.PeerDisconnectedEvent += (_, _) => Disconnected = true;
+            listener.PeerDisconnectedEvent += (_, info) =>
+            {
+                Disconnected = true;
+                if (info.AdditionalData != null && info.AdditionalData.TryGetString(out var key) && key == RelayProtocol.RejectKey)
+                    info.AdditionalData.TryGetString(out RejectReason);
+            };
             listener.NetworkReceiveEvent += (_, reader, _, _) => Received.Enqueue(reader.GetRemainingBytes());
             Net = new NetManager(listener) { AutoRecycle = true, ChannelsCount = 4 };
             Net.Start();

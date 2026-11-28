@@ -16,6 +16,7 @@
 - `DlcCheckMode` Off/Declared/Required; `ONI_REQUIRED_DLC_IDS`, `ONI_FORBIDDEN_DLC_IDS`, `ONI_SERVER_ACTIVE_DLC_IDS`, `ONI_REQUIRE_DLC_DECLARATION`, `ONI_DLC_CHECK_MODE`.
 - `DeclaredDlcOwnershipVerifier` enforces **client-declared** owned/active DLC + server match. **This cannot cryptographically verify Klei/Steam ownership.** Combine with existing ONI client-side ownership + `SaveHelper.SavegameDlcListValid` + `GameStateRequestPacket.ActiveDlcIds`. True ownership needs Klei/Steam integration (blocked).
 - Existing client-side DLC-mismatch checks help but server must still enforce.
+- `MatchColonyDlc` (default on, `ONI_MATCH_COLONY_DLC`): the server reads the stored colony's DLC list from the save header and refuses players whose declared DLC cannot load it, before they can take the host slot. The declaration can be faked; the game's own check on each player's copy is what enforces ownership. The server never runs or ships DLC content.
 
 ## Container
 Non-root `app`, no root, no package manager runtime, `/data` volume, `--health-check`. No secrets in image.

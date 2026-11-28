@@ -13,7 +13,8 @@
 
 **Verified by commands (evidence in conversation):**
 - `dotnet build ONI_Together_DedicatedServer/ONI_Together_DedicatedServer.csproj -c Release` → **0 warnings / 0 errors**.
-- `dotnet test ONI_Together_DedicatedServer.Tests/ONI_Together_DedicatedServer.Tests.csproj` → **79 passed / 0 failed**. Includes end-to-end tests of the real relay over loopback UDP with stand-in peers; **no run with real game instances yet**.
+- `dotnet test ONI_Together_DedicatedServer.Tests/ONI_Together_DedicatedServer.Tests.csproj` → **89 passed / 0 failed**. Includes the real relay over loopback UDP with stand-in peers.
+- **In the game (2026-11-28):** one instance hosting through the relay: colony download, load, hosting, upload, existing duplicants visible after the client-session fix. **Two players not tested yet.**
 - `dotnet build ONI_Together/ONI_Together.csproj` → **0 errors**.
 - Earlier headless smoke test on the self-contained `win-x64` exe (before the relay rework). The `artifacts/` builds predate the rework and need republishing.
 - Knowledge graph: `graphify-out/` (gitignored).
@@ -26,11 +27,11 @@
 - Relay rework (see `ONI_Together_DedicatedServer/docs/RELAY.md`): the mod can now host through the relay (`Networking/Transport/Relay/`); joining players use the unchanged direct-LAN flow; the mod sends its DLC lists; the host's game saves are uploaded to the server; reliable packets are no longer dropped by limits; unchanged saves no longer rotate away backups. Live master migration was removed: when the host leaves, the session ends and the next player hosts from the stored colony.
 - Packaging: self-contained `win-x64` + `linux-x64` artifacts; `.bat`/`.sh`/`.command`; mac `.app` script; Linux `make-appimage.sh`; `publish-*` scripts; `Dockerfile`; `docker-compose.yml`; `.dockerignore`; **GitHub Actions workflows disabled in PR** (no active `.github/workflows/dedicated-server.yml`).
 - Docs: `ONI_Together_DedicatedServer/README.md`, `docs/SETUP.md`, `docs/WINDOWS.md`, `docs/LINUX.md`, `docs/MACOS.md`, `docs/DOCKER.md`, `docs/SECURITY.md`.
-- Tests: 79 xUnit tests.
+- Tests: 89 xUnit tests.
 
 **Not complete / blocked (honest):**
 - **Relay is not yet tested with real game instances.** Test steps: `docs/RELAY.md`.
-- Loading another save while hosting through the relay falls back to a direct host.
+- Loading another save while hosting through the relay ends the relay session (that world is played alone; it no longer opens a second, direct server).
 - **Final milestone headless authoritative ONI is NOT done.** No ONI runtime on the server; a player's game is the host. See §Final.
 - **DLC ownership cannot be cryptographically verified** without Klei/Steam integration; implemented declared checks only. Klei requirement noted; needs ItsLuke/Klei. See §5.
 - **Modding + ONI_Together API** not integrated. See §6. (ItsLuke said he can handle API; base game first.)
@@ -156,7 +157,8 @@ Relay model: the first client is the **master** and hosts; the relay gives joini
 - [x] Backwards-compatible optional handshake DLC block.
 - [x] Existing client-side checks referenced (`SaveHelper.SavegameDlcListValid`, `GameStateRequestPacket.ActiveDlcIds`, `STRINGS...DLCSYNC`) in docs.
 - [ ] **Cryptographic Klei/Steam ownership verification.** (blocked; Klei requirement; needs game/Steam)
-- [ ] Confirm `requiredDlcIds`/`forbiddenDlcIds` interplay in production. (not tested vs real mod)
+- [x] Colony DLC match: server reads `dlcIds` from the save header (`ONI/SaveHeader.cs`) and applies the mod's load rule (`Security/ColonyDlcCheck.cs`); refusals carry a reason the mod shows; a host whose game refuses the colony frees the slot (`HostAborted`). Default on (`MatchColonyDlc`).
+- [ ] Confirm `requiredDlcIds`/`forbiddenDlcIds` interplay in production.
 - [ ] Server can't infer ownership without game. (noted)
 
 ---

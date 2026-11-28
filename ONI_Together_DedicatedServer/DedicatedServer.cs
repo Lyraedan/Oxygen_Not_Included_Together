@@ -7,6 +7,7 @@ using ONI_Together_DedicatedServer;
 using ONI_Together_DedicatedServer.Logging;
 using ONI_Together_DedicatedServer.Oni;
 using ONI_Together_DedicatedServer.ONI;
+using ONI_Together_DedicatedServer.Security;
 using ONI_Together_DedicatedServer.Transports;
 
 namespace ONI_Together.DedicatedServer
@@ -129,6 +130,14 @@ namespace ONI_Together.DedicatedServer
                 else
                     _logger.Info($"[SaveFile] Continuing stored colony '{_saveFile.Name}'.");
 
+                if (_saveFile != null)
+                {
+                    var header = SaveHeader.TryRead(_saveFile.Data);
+                    _logger.Info(header == null
+                        ? "[SaveFile] Could not read the colony's header; players are not matched against its DLC."
+                        : $"[SaveFile] Colony DLC: {ColonyDlcCheck.Describe(header.DlcIds)}.");
+                }
+
                 _transport = (Transports)config.Transport;
                 _server = SetupTransport();
                 if (_server is DedicatedLiteNetLibServer relay)
@@ -138,11 +147,11 @@ namespace ONI_Together.DedicatedServer
                     {
                         _saveFile = colony;
                         TrySaveCurrent("upload from host");
+                        AnnounceColony();
                     };
                 }
 
-                if (_saveFile != null)
-                    _server.SetWorldInfo(Path.GetFileNameWithoutExtension(_saveFile.Name));
+                AnnounceColony();
 
                 if (!_server.Start())
                 {
@@ -249,6 +258,14 @@ namespace ONI_Together.DedicatedServer
                     }
                 }
             }
+        }
+
+        private static void AnnounceColony()
+        {
+            if (_saveFile == null || _server == null)
+                return;
+            var header = SaveHeader.TryRead(_saveFile.Data);
+            _server.SetWorldInfo(Path.GetFileNameWithoutExtension(_saveFile.Name), header?.DisplayCycle ?? 1);
         }
 
         private static void WriteHeartbeat()
@@ -460,6 +477,9 @@ namespace ONI_Together.DedicatedServer
                     Console.WriteLine($"Players:  {count}/{cfg.MaxLobbySize}");
                     if (_server is DedicatedLiteNetLibServer relay)
                         Console.WriteLine($"Host:     {relay.HostStatus}");
+                    var header = _saveFile == null ? null : SaveHeader.TryRead(_saveFile.Data);
+                    if (header != null)
+                        Console.WriteLine($"Colony:   {header.BaseName}, cycle {header.DisplayCycle}, {header.Duplicants} duplicants, {ColonyDlcCheck.Describe(header.DlcIds)}{(cfg.MatchColonyDlc ? "" : " (DLC match off)")}");
                     Console.WriteLine($"TickRate: {cfg.TickRate} Hz");
                     Console.WriteLine($"Save:     {_saveFile?.Name ?? "(none)"}");
                     Console.WriteLine($"Server-owned saves: {_saveStore?.SavesDirectory ?? "(none)"}");
@@ -520,8 +540,7 @@ namespace ONI_Together.DedicatedServer
                         if (_server != null && _server.IsRunning())
                         {
                             _server.ReloadConfiguration();
-                            if (_saveFile != null)
-                                _server.SetWorldInfo(Path.GetFileNameWithoutExtension(_saveFile.Name));
+                            AnnounceColony();
                             ServerLogger.Current.Info("Live configuration applied; connected players preserved.");
                         }
                     }
