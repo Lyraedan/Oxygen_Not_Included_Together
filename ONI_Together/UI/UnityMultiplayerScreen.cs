@@ -6,6 +6,8 @@ using ONI_Together.DebugTools;
 using ONI_Together.Menus;
 using ONI_Together.Misc;
 using ONI_Together.Networking;
+using ONI_Together.Networking.Transport;
+using ONI_Together.Networking.Transport.External;
 using ONI_Together.Networking.Transport.Lan;
 using ONI_Together.Networking.Transport.Steamworks;
 using ONI_Together.Patches.ToolPatches;
@@ -69,6 +71,9 @@ namespace ONI_Together.UI
 		GameObject AdditionalHostSettingsSegment;
 		GameObject MiddleSpacer;
 		FButton CloseBtn;
+		string BrowserTransportId = "steamworks";
+		Coroutine CustomLobbyPoll;
+		string LastLobbyListSignature = string.Empty;
 
 
 		//MainMenuSegment:
@@ -165,7 +170,11 @@ namespace ONI_Together.UI
 			JoinViaSteam = transform.Find("MainMenu/SteamJoin/JoinViaSteam").gameObject.AddOrGet<FButton>();
 			JoinViaSteam.OnClick += () => SteamFriends.ActivateGameOverlay("friends");
 			OpenLobbyBrowser = transform.Find("MainMenu/SteamJoin/OpenLobbyListButton").gameObject.AddOrGet<FButton>();
-			OpenLobbyBrowser.OnClick += () => ShowLobbySegment(true);
+			OpenLobbyBrowser.OnClick += () =>
+			{
+				BrowserTransportId = "steamworks";
+				ShowLobbySegment(true);
+			};
 			///init Code Join controls, then fold them into the Steam tab
 			var lobbyCodeTab = transform.Find("MainMenu/LobbyCodeJoin").gameObject;
 			var lobbyCodeInputTransform = transform.Find("MainMenu/LobbyCodeJoin/Input");
@@ -682,6 +691,13 @@ namespace ONI_Together.UI
 			}
 			ShowLobbies = show;
 			LobbyBrowserSegment.SetActive(show);
+
+			if (!show && CustomLobbyPoll != null)
+			{
+				StopCoroutine(CustomLobbyPoll);
+				CustomLobbyPoll = null;
+			}
+
 			RefreshSpacer();
 			if (show)
 			{
@@ -730,21 +746,128 @@ namespace ONI_Together.UI
 			if (!ShowLobbies)
 				return;
 
-			if (SteamManager.Initialized)
+			if (string.IsNullOrEmpty(BrowserTransportId) || BrowserTransportId == "steamworks")
 			{
-				SteamLobby.RequestLobbyList(OnLobbyListReceived);
+				if (CustomLobbyPoll != null)
+				{
+					StopCoroutine(CustomLobbyPoll);
+					CustomLobbyPoll = null;
+				}
+
+				if (SteamManager.Initialized)
+					SteamLobby.RequestLobbyList(OnSteamLobbyListReceived);
+				else
+					ApplyLobbyList("steamworks", new List<LobbyListEntry>());
+
+				return;
 			}
 
-			LiteNetLibClient.StartLanDiscovery(Configuration.Instance.Host.LanSettings.Port);
+			var provider = TransportRegistry.GetExternalProvider(BrowserTransportId);
+			if (provider == null || !provider.SupportsLobbyBrowser)
+			{
+				if (CustomLobbyPoll != null)
+				{
+					StopCoroutine(CustomLobbyPoll);
+					CustomLobbyPoll = null;
+				}
+
+				ApplyLobbyList(BrowserTransportId, new List<LobbyListEntry>());
+				return;
+			}
+
+			provider.RefreshLobbyList();
+
+			if (CustomLobbyPoll != null)
+				StopCoroutine(CustomLobbyPoll);
+
+			CustomLobbyPoll = StartCoroutine(PollCustomLobbies(provider));
 		}
-		private void OnLobbyListReceived(List<LobbyListEntry> lobbies)
+
+		private void OnSteamLobbyListReceived(List<LobbyListEntry> lobbies)
 		{
 			using var _ = Profiler.Scope();
+
+			foreach (var lobby in lobbies)
+			{
+				lobby.TransportId = "steamworks";
+				if (string.IsNullOrEmpty(lobby.ExternalLobbyId))
+					lobby.ExternalLobbyId = lobby.LobbyId.ToString();
+			}
+
+			ApplyLobbyList("steamworks", lobbies);
+		}
+
+		private IEnumerator PollCustomLobbies(ExternalTransportProvider provider)
+		{
+			float deadline = Time.realtimeSinceStartup + 5f;
+
+			while (ShowLobbies && BrowserTransportId == provider.Id && Time.realtimeSinceStartup < deadline)
+			{
+				ApplyLobbyList(provider.Id, ToLobbyEntries(provider, provider.GetLobbyList()));
+				yield return new WaitForSeconds(0.5f);
+			}
+
+			if (ShowLobbies && BrowserTransportId == provider.Id)
+				ApplyLobbyList(provider.Id, ToLobbyEntries(provider, provider.GetLobbyList()));
+
+			CustomLobbyPoll = null;
+		}
+
+		private static List<LobbyListEntry> ToLobbyEntries(
+			ExternalTransportProvider provider, List<ExternalTransportLobbyInfo> infos)
+		{
+			var result = new List<LobbyListEntry>();
+			if (infos == null)
+				return result;
+
+			foreach (var info in infos)
+			{
+				result.Add(new LobbyListEntry
+				{
+					TransportId = provider.Id,
+					ExternalLobbyId = info.LobbyId ?? string.Empty,
+					LobbyName = string.IsNullOrEmpty(info.Name) ? "Custom Lobby" : info.Name,
+					HostName = string.IsNullOrEmpty(info.HostName) ? "---" : info.HostName,
+					PlayerCount = info.PlayerCount,
+					MaxPlayers = info.MaxPlayers,
+					PingMs = info.PingMs,
+					HasPassword = info.HasPassword,
+					Visibility = info.Visibility,
+					IsPrivate = info.Visibility != ExternalTransportLobbyVisibility.Public,
+					ColonyName = info.ColonyName,
+					Cycle = info.Cycle,
+					DuplicantAlive = info.DuplicantAlive,
+					DuplicantTotal = info.DuplicantTotal,
+					JoinSettings = info.JoinSettings ?? new Dictionary<string, string>()
+				});
+			}
+
+			return result;
+		}
+
+		private void ApplyLobbyList(string transportId, List<LobbyListEntry> lobbies)
+		{
+			using var _ = Profiler.Scope();
+
+			if (!ShowLobbies || BrowserTransportId != transportId)
+				return;
+
+			string signature = transportId + ":" + string.Join("|", lobbies.Select(lobby =>
+				$"{lobby.ExternalLobbyId}:{lobby.LobbyName}:{lobby.HostName}:{lobby.PlayerCount}:{lobby.MaxPlayers}:{lobby.HasPassword}:{lobby.Cycle}:{lobby.DuplicantAlive}:{lobby.DuplicantTotal}"));
+
+			if (signature == LastLobbyListSignature)
+				return;
+
+			LastLobbyListSignature = signature;
 
 			foreach (var existing in Lobbies.Values)
 			{
 				existing.Hide();
+				Destroy(existing.gameObject);
 			}
+
+			Lobbies.Clear();
+
 			foreach (var current in lobbies)
 			{
 				var entry = AddOrGetLobbyEntryUI(current);
@@ -950,15 +1073,57 @@ namespace ONI_Together.UI
 		{
 			using var _ = Profiler.Scope();
 
+			if (lobby.TransportId == "steamworks" || lobby.IsLan)
+			{
+				if (lobby.HasPassword)
+					OpenPasswordDialogue(lobby.LobbyId);
+				else
+					JoinSteamLobby(lobby.LobbyId);
+
+				return;
+			}
+
+			var provider = TransportRegistry.GetExternalProvider(lobby.TransportId);
+			if (provider == null)
+			{
+				ShowCustomTransportError("That transport is no longer available.");
+				return;
+			}
+
+			if (provider.RequiresLogin && provider.LoginState != ExternalTransportLoginState.Ready)
+			{
+				ShowCustomTransportError(string.IsNullOrWhiteSpace(provider.LoginMessage)
+					? "Provider login is not ready yet."
+					: provider.LoginMessage);
+				return;
+			}
+
 			if (lobby.HasPassword)
 			{
-				OpenPasswordDialogue(lobby.LobbyId);
+				ShowCustomTransportError("Password-protected custom lobbies are not supported yet.");
+				return;
 			}
-			else
+
+			string displayName = Configuration.Instance.Host.LanSettings.DisplayName;
+			if (string.IsNullOrWhiteSpace(displayName))
+				displayName = Utils.GetLocalPlayerName();
+			Configuration.Instance.Host.LanSettings.DisplayName = displayName;
+
+			var settings = new Dictionary<string, string>(lobby.JoinSettings ?? new Dictionary<string, string>());
+			settings["transportId"] = provider.Id;
+			settings["displayName"] = displayName;
+			settings["isHost"] = "0";
+
+			Configuration.Instance.Client.CustomTransportId = provider.Id;
+			Configuration.Instance.Save();
+
+			if (!NetworkConfig.ConnectCustom(provider.Id, settings))
 			{
-				// Direct join
-				JoinSteamLobby(lobby.LobbyId);
+				ShowCustomTransportError("Failed to start the custom transport.");
+				return;
 			}
+
+			Show(false);
 		}
 
 		void StoreHostConfigurationSettings()

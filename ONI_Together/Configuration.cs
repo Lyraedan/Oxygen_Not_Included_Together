@@ -339,9 +339,22 @@ namespace ONI_Together
     }
 
     [Serializable]
+    public enum LobbyVisibility
+    {
+        Public = 0,
+        FriendsOnly = 1,
+        Private = 2
+    }
+
     public class LobbySettings
     {
         [JsonProperty] public bool IsPrivate { get; set; } = false;
+        [JsonProperty] public LobbyVisibility Visibility { get; set; } = LobbyVisibility.Public;
+
+        public LobbyVisibility EffectiveVisibility =>
+            Visibility == LobbyVisibility.Public && IsPrivate
+                ? LobbyVisibility.FriendsOnly
+                : Visibility;
         [JsonProperty] public bool RequirePassword { get; set; } = false;
         [JsonProperty] public string PasswordHash { get; set; } = "";
         [JsonProperty] public string LobbyName { get; set; } = "";
@@ -350,10 +363,7 @@ namespace ONI_Together
 
     public enum LanTransportType
     {
-        LiteNetLib = 1,
-
-        /// <summary>Legacy serialized value. Riptide is now a separate custom transport mod.</summary>
-        Riptide = 2
+        LiteNetLib = 1
     }
 
     [Serializable]

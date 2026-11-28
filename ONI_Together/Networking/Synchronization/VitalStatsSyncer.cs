@@ -45,7 +45,7 @@ namespace ONI_Together.Networking.Synchronization
 
 				// Previously: foreach(var amountInstance in _amounts) ... — loop variable unused,
 				// sent the same full packet N times (N = 12 Amounts) per dupe per second, Reliable.
-				// That storm (12 * num_dupes Reliable packets/s) triggered Riptide pendingMessages
+				// That storm (12 * num_dupes Reliable packets/s) triggered transport pendingMessages
 				// key collisions and the ~20-cycle session crash. One Unreliable send is sufficient:
 				// VitalStatsPacket is idempotent set-last-value, next tick resyncs if dropped.
 				var sw = Stopwatch.StartNew();

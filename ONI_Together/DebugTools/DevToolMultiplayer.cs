@@ -123,7 +123,7 @@ namespace ONI_Together.DebugTools
             OnUninit += () => UnInit();
 
             selectedTransportType = Mathf.Clamp(Configuration.Instance.Host.NetworkTransport, 0, 1);
-            selectedLanType = 0; // Riptide is now a Custom-tab transport.
+            selectedLanType = 0; // Custom transports are selected from the Custom tab.
             hostIP = Configuration.Instance.Host.LanSettings.Ip;
             hostPort = Configuration.Instance.Host.LanSettings.Port;
             settings_host.Ip = hostIP;

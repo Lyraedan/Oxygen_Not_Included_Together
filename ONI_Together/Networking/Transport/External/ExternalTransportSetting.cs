@@ -37,6 +37,13 @@ namespace ONI_Together.Networking.Transport.External
         Failed = 3
     }
 
+    public enum ExternalTransportLobbyVisibility
+    {
+        Public = 0,
+        FriendsOnly = 1,
+        Private = 2
+    }
+
     public sealed class ExternalTransportSetting
     {
         public string Key = string.Empty;

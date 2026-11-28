@@ -49,8 +49,7 @@ namespace ONI_Together.UI.Components
 		{
 			using var _ = Profiler.Scope();
 
-			NetworkConfig.UpdateTransport(NetworkConfig.NetworkTransport.STEAMWORKS); // This is a steam lobby entry so force to steam
-            if (OnJoinClicked != null && Lobby != null)
+			if (OnJoinClicked != null && Lobby != null)
 				OnJoinClicked(Lobby);
 		}
 

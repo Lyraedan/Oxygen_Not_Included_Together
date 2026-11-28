@@ -52,6 +52,8 @@ namespace ONI_Together.UI
         private FButton HostLoginButton;
         private FButton JoinLoginButton;
         private FButton JoinCustomButton;
+        private FButton CustomOpenLobbyBrowser;
+        private FCycle CustomVisibilityCycle;
 
         private void InitializeCustomTransportTabs()
         {
@@ -305,8 +307,10 @@ namespace ONI_Together.UI
 
             CreateProviderCycle(HostCustomContent, "HostTransport", options, selected, OnHostProviderChanged);
             CreateLoginStatusUi(HostCustomContent, true);
+            CreateHostVisibilityCycle(HostCustomContent);
             HostCustomSettingsRoot = CreateSettingsRoot(HostCustomContent);
             BuildSettingsForProvider(true, SelectedCustomHostProviderId);
+            RefreshHostVisibility();
             ResizeCustomTab(HostCustomTab, HostCustomContent);
             ResizeMenuPanel(StartHostingSegment);
             RefreshCustomLoginStatus(true);
@@ -351,6 +355,8 @@ namespace ONI_Together.UI
             CreateLoginStatusUi(JoinCustomContent, false);
             JoinCustomSettingsRoot = CreateSettingsRoot(JoinCustomContent);
             BuildSettingsForProvider(false, SelectedCustomJoinProviderId);
+            CreateSpacer(JoinCustomContent, 10f);
+            CreateCustomLobbyBrowserButton(JoinCustomContent);
             CreateSpacer(JoinCustomContent, 10f);
             CreateJoinButton(JoinCustomContent);
             ResizeCustomTab(JoinCustomTab, JoinCustomContent);
@@ -587,12 +593,12 @@ namespace ONI_Together.UI
         private void CreateLoginStatusUi(Transform parent, bool host)
         {
             var row = Util.KInstantiateUI(NumberInputPrefab, parent.gameObject, true);
-            row.name = host ? "HostEosLoginStatus" : "JoinEosLoginStatus";
+            row.name = host ? "HostProviderLoginStatus" : "JoinProviderLoginStatus";
 
             var label = row.transform.Find("Label")?.gameObject.GetComponent<LocText>();
             if (label != null)
             {
-                label.SetText("EOS login...");
+                label.SetText("Login...");
                 label.textWrappingMode = TextWrappingModes.Normal;
             }
 
@@ -609,7 +615,7 @@ namespace ONI_Together.UI
             if (JoinViaLan != null)
             {
                 var buttonGo = Instantiate(JoinViaLan.gameObject, parent);
-                buttonGo.name = host ? "HostEosLoginButton" : "JoinEosLoginButton";
+                buttonGo.name = host ? "HostProviderLoginButton" : "JoinProviderLoginButton";
                 buttonGo.SetActive(false);
 
                 var rect = buttonGo.GetComponent<RectTransform>();
@@ -627,7 +633,7 @@ namespace ONI_Together.UI
                 layout.flexibleHeight = 0f;
 
                 var buttonLabel = buttonGo.GetComponentInChildren<LocText>(true);
-                buttonLabel?.SetText("Log In to EOS");
+                buttonLabel?.SetText("Log In");
 
                 button = buttonGo.GetComponent<FButton>();
                 if (button != null)
@@ -676,6 +682,20 @@ namespace ONI_Together.UI
             bool requires = provider != null && provider.RequiresLogin;
             bool visibilityChanged = false;
 
+            if (!host && CustomOpenLobbyBrowser != null)
+            {
+                bool supportsBrowser = provider != null && provider.SupportsLobbyBrowser;
+                if (CustomOpenLobbyBrowser.gameObject.activeSelf != supportsBrowser)
+                {
+                    CustomOpenLobbyBrowser.gameObject.SetActive(supportsBrowser);
+                    visibilityChanged = true;
+                }
+
+                if (supportsBrowser)
+                    CustomOpenLobbyBrowser.SetInteractable(
+                        !provider.RequiresLogin || provider.LoginState == ExternalTransportLoginState.Ready);
+            }
+
             if (!requires)
             {
                 if (row.activeSelf)
@@ -720,16 +740,16 @@ namespace ONI_Together.UI
                 switch (state)
                 {
                     case ExternalTransportLoginState.NotStarted:
-                        text = "EOS login required.";
+                        text = "Login required.";
                         break;
                     case ExternalTransportLoginState.LoggingIn:
-                        text = "Logging in to EOS...";
+                        text = "Logging in...";
                         break;
                     case ExternalTransportLoginState.Ready:
-                        text = "Logged in to EOS.";
+                        text = "Logged in.";
                         break;
                     default:
-                        text = "EOS login failed.";
+                        text = "Login failed.";
                         break;
                 }
             }
@@ -749,9 +769,9 @@ namespace ONI_Together.UI
                 {
                     var buttonLabel = button.GetComponentInChildren<LocText>(true);
                     buttonLabel?.SetText(
-                        state == ExternalTransportLoginState.Failed ? "Retry EOS Login"
+                        state == ExternalTransportLoginState.Failed ? "Retry Login"
                         : state == ExternalTransportLoginState.LoggingIn ? "Logging in..."
-                        : "Log In to EOS");
+                        : "Log In");
 
                     button.SetInteractable(state != ExternalTransportLoginState.LoggingIn);
                 }
@@ -774,6 +794,161 @@ namespace ONI_Together.UI
             ResizeMenuPanel(host ? StartHostingSegment : MainMenuSegment);
         }
 
+        private void CreateHostVisibilityCycle(Transform parent)
+        {
+            var cycle = Util.KInstantiateUI(CyclePrefab, parent.gameObject, true).AddOrGet<FCycle>();
+            cycle.SetDescriptionFormatter(desc => desc.Replace("\n\n", "\n"));
+
+            var layout = cycle.gameObject.AddOrGet<LayoutElement>();
+            layout.minHeight = 50f;
+            layout.preferredHeight = 50f;
+            layout.flexibleHeight = 0f;
+            cycle.GetComponent<RectTransform>().SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, 50f);
+
+            var label = cycle.transform.Find("Label")?.gameObject.GetComponent<LocText>();
+            label?.SetText("Visibility");
+
+            cycle.Initialize(
+                cycle.transform.Find("Left").gameObject.AddOrGet<FButton>(),
+                cycle.transform.Find("Right").gameObject.AddOrGet<FButton>(),
+                cycle.transform.Find("ChoiceLabel").gameObject.AddOrGet<LocText>(),
+                cycle.transform.Find("ChoiceLabel/Description").gameObject.AddOrGet<LocText>());
+
+            cycle.Options = new List<FCycle.Option>
+            {
+                new("public", "Public", ""),
+                new("friends", "Friends Only", ""),
+                new("private", "Private", "")
+            };
+            cycle.OnChange += OnVisibilityChanged;
+            cycle.SetValueById(ToOptionId(Configuration.Instance.Host.Lobby.EffectiveVisibility));
+            CustomVisibilityCycle = cycle;
+        }
+
+        private void RefreshHostVisibility()
+        {
+            var provider = TransportRegistry.GetExternalProvider(SelectedCustomHostProviderId);
+            bool show = provider != null && provider.SupportsLobbyVisibility;
+
+            if (CustomVisibilityCycle != null)
+            {
+                if (CustomVisibilityCycle.gameObject.activeSelf != show)
+                {
+                    CustomVisibilityCycle.gameObject.SetActive(show);
+                    ResizeCustomTabFor(true);
+                }
+
+                if (show)
+                    CustomVisibilityCycle.SetValueById(
+                        ToOptionId(Configuration.Instance.Host.Lobby.EffectiveVisibility));
+            }
+        }
+
+        private void OnVisibilityChanged(FCycle.Option option)
+        {
+            var visibility = FromOptionId(option.id);
+            Configuration.Instance.Host.Lobby.Visibility = visibility;
+            Configuration.Instance.Host.Lobby.IsPrivate = visibility == LobbyVisibility.FriendsOnly;
+            Configuration.Instance.Save();
+
+            if (MultiplayerSession.IsHost)
+            {
+                var provider = TransportRegistry.GetExternalProvider(SelectedCustomHostProviderId);
+                if (provider != null && provider.SupportsLobbyVisibility)
+                    provider.SetLobbyVisibility(ToExternalVisibility(visibility));
+            }
+        }
+
+        private static string ToOptionId(LobbyVisibility visibility)
+        {
+            switch (visibility)
+            {
+                case LobbyVisibility.FriendsOnly:
+                    return "friends";
+                case LobbyVisibility.Private:
+                    return "private";
+                default:
+                    return "public";
+            }
+        }
+
+        private static LobbyVisibility FromOptionId(string id)
+        {
+            switch (id)
+            {
+                case "friends":
+                    return LobbyVisibility.FriendsOnly;
+                case "private":
+                    return LobbyVisibility.Private;
+                default:
+                    return LobbyVisibility.Public;
+            }
+        }
+
+        private static ExternalTransportLobbyVisibility ToExternalVisibility(LobbyVisibility visibility)
+        {
+            switch (visibility)
+            {
+                case LobbyVisibility.FriendsOnly:
+                    return ExternalTransportLobbyVisibility.FriendsOnly;
+                case LobbyVisibility.Private:
+                    return ExternalTransportLobbyVisibility.Private;
+                default:
+                    return ExternalTransportLobbyVisibility.Public;
+            }
+        }
+
+        private void CreateCustomLobbyBrowserButton(Transform parent)
+        {
+            if (OpenLobbyBrowser == null)
+                return;
+
+            var go = Instantiate(OpenLobbyBrowser.gameObject, parent);
+            go.name = "CustomOpenLobbyBrowser";
+            go.SetActive(true);
+
+            var rect = go.GetComponent<RectTransform>();
+            if (rect != null)
+            {
+                rect.anchorMin = new Vector2(0f, 0.5f);
+                rect.anchorMax = new Vector2(1f, 0.5f);
+                rect.pivot = new Vector2(0.5f, 0.5f);
+                rect.sizeDelta = new Vector2(0f, 50f);
+            }
+
+            var layout = go.AddOrGet<LayoutElement>();
+            layout.minHeight = 50f;
+            layout.preferredHeight = 50f;
+            layout.flexibleHeight = 0f;
+
+            var label = go.GetComponentInChildren<LocText>(true);
+            label?.SetText("Open Lobby Browser");
+
+            var button = go.GetComponent<FButton>();
+            if (button != null)
+                button.OnClick += OpenCustomLobbyBrowser;
+
+            CustomOpenLobbyBrowser = button;
+        }
+
+        private void OpenCustomLobbyBrowser()
+        {
+            var provider = TransportRegistry.GetExternalProvider(SelectedCustomJoinProviderId);
+            if (provider == null || !provider.SupportsLobbyBrowser)
+                return;
+
+            if (provider.RequiresLogin && provider.LoginState != ExternalTransportLoginState.Ready)
+            {
+                ShowCustomTransportError(string.IsNullOrWhiteSpace(provider.LoginMessage)
+                    ? "Provider login is not ready yet."
+                    : provider.LoginMessage);
+                return;
+            }
+
+            BrowserTransportId = provider.Id;
+            ShowLobbySegment(true);
+        }
+
         private void OnHostProviderChanged(FCycle.Option option)
         {
             SelectedCustomHostProviderId = option.id;
@@ -781,6 +956,7 @@ namespace ONI_Together.UI
             Configuration.Instance.Save();
             BuildSettingsForProvider(true, option.id);
             RefreshCustomLoginStatus(true);
+            RefreshHostVisibility();
             UpdateStartHostingInteractable();
         }
 
@@ -1055,6 +1231,18 @@ namespace ONI_Together.UI
 
             if (!ValidateSettings(provider, settings, host: true))
                 return;
+
+            provider.SetLobbyAdvertisement(new ExternalTransportLobbyAdvertisement
+            {
+                Name = string.IsNullOrWhiteSpace(Configuration.Instance.Host.Lobby.LobbyName)
+                    ? $"{displayName}'s Lobby"
+                    : Configuration.Instance.Host.Lobby.LobbyName,
+                HostName = displayName,
+                Visibility = ToExternalVisibility(Configuration.Instance.Host.Lobby.EffectiveVisibility),
+                HasPassword = false,
+                PasswordHash = string.Empty,
+                MaxPlayers = Configuration.Instance.Host.MaxLobbySize
+            });
 
             SaveCustomSettings(true);
             if (!NetworkConfig.PrepareCustomServer(provider.Id, settings))

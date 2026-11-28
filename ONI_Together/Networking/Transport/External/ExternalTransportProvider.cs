@@ -1,6 +1,7 @@
 using ONI_Together.DebugTools;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 
 namespace ONI_Together.Networking.Transport.External
@@ -26,6 +27,12 @@ namespace ONI_Together.Networking.Transport.External
         private readonly Func<string> _loginMessage;
         private readonly MethodInfo _beginLogin;
         private readonly PropertyInfo _loginState;
+        private readonly Func<bool> _supportsLobbyBrowser;
+        private readonly Func<bool> _supportsLobbyVisibility;
+        private readonly MethodInfo _setLobbyAdvertisement;
+        private readonly MethodInfo _setLobbyVisibility;
+        private readonly MethodInfo _refreshLobbyList;
+        private readonly MethodInfo _getLobbyList;
 
         public bool IsDirect => (Capabilities & ExternalTransportCapabilities.DirectConnect) != 0;
         public bool IsSteam => (Capabilities & ExternalTransportCapabilities.Steam) != 0;
@@ -33,7 +40,9 @@ namespace ONI_Together.Networking.Transport.External
         private ExternalTransportProvider(object provider, string id, string displayName, int apiVersion,
             ExternalTransportCapabilities capabilities, MethodInfo createServer, MethodInfo createClient,
             MethodInfo getSettings, Func<bool> requiresLogin, Func<string> loginMessage,
-            MethodInfo beginLogin, PropertyInfo loginState)
+            MethodInfo beginLogin, PropertyInfo loginState, Func<bool> supportsLobbyBrowser,
+            Func<bool> supportsLobbyVisibility, MethodInfo setLobbyAdvertisement,
+            MethodInfo setLobbyVisibility, MethodInfo refreshLobbyList, MethodInfo getLobbyList)
         {
             ProviderObject = provider;
             Id = id;
@@ -47,6 +56,12 @@ namespace ONI_Together.Networking.Transport.External
             _loginMessage = loginMessage;
             _beginLogin = beginLogin;
             _loginState = loginState;
+            _supportsLobbyBrowser = supportsLobbyBrowser;
+            _supportsLobbyVisibility = supportsLobbyVisibility;
+            _setLobbyAdvertisement = setLobbyAdvertisement;
+            _setLobbyVisibility = setLobbyVisibility;
+            _refreshLobbyList = refreshLobbyList;
+            _getLobbyList = getLobbyList;
         }
 
         public static bool TryCreate(object provider, out ExternalTransportProvider result, out string error)
@@ -107,9 +122,17 @@ namespace ONI_Together.Networking.Transport.External
                 ExternalApiBinder.TryGetPropertyGetter(provider, "LoginMessage", out Func<string> loginMessage);
                 ExternalApiBinder.TryGetMethod(provider, "BeginLogin", Type.EmptyTypes, out MethodInfo beginLogin);
                 ExternalApiBinder.TryGetProperty(provider, "LoginState", out PropertyInfo loginState);
+                ExternalApiBinder.TryGetPropertyGetter(provider, "SupportsLobbyBrowser", out Func<bool> supportsLobbyBrowser);
+                ExternalApiBinder.TryGetPropertyGetter(provider, "SupportsLobbyVisibility", out Func<bool> supportsLobbyVisibility);
+                MethodInfo setLobbyAdvertisement = FindMethod(provider, "SetLobbyAdvertisement", 1);
+                MethodInfo setLobbyVisibility = FindMethod(provider, "SetLobbyVisibility", 1);
+                MethodInfo refreshLobbyList = FindMethod(provider, "RefreshLobbyList", 0);
+                MethodInfo getLobbyList = FindMethod(provider, "GetLobbyList", 0);
 
                 result = new ExternalTransportProvider(provider, id, displayName, apiVersion, capabilities,
-                    createServer, createClient, getSettings, requiresLogin, loginMessage, beginLogin, loginState);
+                    createServer, createClient, getSettings, requiresLogin, loginMessage, beginLogin, loginState,
+                    supportsLobbyBrowser, supportsLobbyVisibility, setLobbyAdvertisement, setLobbyVisibility,
+                    refreshLobbyList, getLobbyList);
                 return true;
             }
             catch (Exception ex)
@@ -218,6 +241,207 @@ namespace ONI_Together.Networking.Transport.External
             {
                 DebugConsole.LogError($"[Transport-API] Provider '{Id}' BeginLogin failed: {ex.Message}");
             }
+        }
+
+        public bool SupportsLobbyBrowser
+        {
+            get
+            {
+                try
+                {
+                    return _supportsLobbyBrowser != null && _supportsLobbyBrowser();
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+        }
+
+        public bool SupportsLobbyVisibility
+        {
+            get
+            {
+                try
+                {
+                    return _supportsLobbyVisibility != null && _supportsLobbyVisibility();
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+        }
+
+        public void SetLobbyAdvertisement(ExternalTransportLobbyAdvertisement advertisement)
+        {
+            if (_setLobbyAdvertisement == null || advertisement == null)
+                return;
+
+            try
+            {
+                ParameterInfo parameter = _setLobbyAdvertisement.GetParameters()[0];
+                object native = Activator.CreateInstance(parameter.ParameterType);
+                SetMember(native, "Name", advertisement.Name);
+                SetMember(native, "HostName", advertisement.HostName);
+                SetEnumMember(native, "Visibility", (int)advertisement.Visibility);
+                SetMember(native, "HasPassword", advertisement.HasPassword);
+                SetMember(native, "PasswordHash", advertisement.PasswordHash);
+                SetMember(native, "MaxPlayers", advertisement.MaxPlayers);
+                SetMember(native, "Data", new Dictionary<string, string>(advertisement.Data));
+                _setLobbyAdvertisement.Invoke(ProviderObject, new[] { native });
+            }
+            catch (Exception ex)
+            {
+                DebugConsole.LogError($"[Transport-API] Provider '{Id}' SetLobbyAdvertisement failed: {ex.Message}");
+            }
+        }
+
+        public void SetLobbyVisibility(ExternalTransportLobbyVisibility visibility)
+        {
+            if (_setLobbyVisibility == null)
+                return;
+
+            try
+            {
+                ParameterInfo parameter = _setLobbyVisibility.GetParameters()[0];
+                object value = Enum.ToObject(parameter.ParameterType, (int)visibility);
+                _setLobbyVisibility.Invoke(ProviderObject, new[] { value });
+            }
+            catch (Exception ex)
+            {
+                DebugConsole.LogError($"[Transport-API] Provider '{Id}' SetLobbyVisibility failed: {ex.Message}");
+            }
+        }
+
+        public void RefreshLobbyList()
+        {
+            try
+            {
+                _refreshLobbyList?.Invoke(ProviderObject, null);
+            }
+            catch (Exception ex)
+            {
+                DebugConsole.LogError($"[Transport-API] Provider '{Id}' RefreshLobbyList failed: {ex.Message}");
+            }
+        }
+
+        public List<ExternalTransportLobbyInfo> GetLobbyList()
+        {
+            var result = new List<ExternalTransportLobbyInfo>();
+            if (_getLobbyList == null)
+                return result;
+
+            try
+            {
+                object raw = _getLobbyList.Invoke(ProviderObject, null);
+                if (raw is not Array array)
+                    return result;
+
+                foreach (object item in array)
+                {
+                    if (item == null)
+                        continue;
+
+                    string transportId = GetString(item, "TransportId");
+                    result.Add(new ExternalTransportLobbyInfo
+                    {
+                        TransportId = string.IsNullOrEmpty(transportId) ? Id : transportId,
+                        LobbyId = GetString(item, "LobbyId"),
+                        Name = GetString(item, "Name"),
+                        HostName = GetString(item, "HostName"),
+                        ColonyName = GetString(item, "ColonyName"),
+                        PlayerCount = GetInt(item, "PlayerCount"),
+                        MaxPlayers = GetInt(item, "MaxPlayers"),
+                        PingMs = GetInt(item, "PingMs", -1),
+                        Cycle = GetInt(item, "Cycle"),
+                        DuplicantAlive = GetInt(item, "DuplicantAlive"),
+                        DuplicantTotal = GetInt(item, "DuplicantTotal"),
+                        HasPassword = GetBool(item, "HasPassword"),
+                        Visibility = (ExternalTransportLobbyVisibility)GetInt(item, "Visibility"),
+                        JoinSettings = GetMember(item, "JoinSettings") as Dictionary<string, string>
+                            ?? new Dictionary<string, string>()
+                    });
+                }
+            }
+            catch (Exception ex)
+            {
+                DebugConsole.LogError($"[Transport-API] Provider '{Id}' GetLobbyList failed: {ex.Message}");
+            }
+
+            return result;
+        }
+
+        private static MethodInfo FindMethod(object instance, string name, int parameterCount)
+        {
+            try
+            {
+                return instance.GetType()
+                    .GetMethods(BindingFlags.Instance | BindingFlags.Public)
+                    .FirstOrDefault(m => m.Name == name && m.GetParameters().Length == parameterCount);
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private static object GetMember(object instance, string name)
+        {
+            return ExternalApiBinder.GetMemberValue(instance, name);
+        }
+
+        private static string GetString(object instance, string name)
+        {
+            return GetMember(instance, name) as string ?? string.Empty;
+        }
+
+        private static int GetInt(object instance, string name, int fallback = 0)
+        {
+            object value = GetMember(instance, name);
+            return value == null ? fallback : Convert.ToInt32(value);
+        }
+
+        private static bool GetBool(object instance, string name)
+        {
+            object value = GetMember(instance, name);
+            return value != null && Convert.ToBoolean(value);
+        }
+
+        private static void SetMember(object instance, string name, object value)
+        {
+            if (instance == null)
+                return;
+
+            Type type = instance.GetType();
+            FieldInfo field = type.GetField(name, BindingFlags.Instance | BindingFlags.Public);
+            if (field != null)
+            {
+                field.SetValue(instance, value);
+                return;
+            }
+
+            PropertyInfo property = type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public);
+            if (property != null && property.CanWrite)
+                property.SetValue(instance, value, null);
+        }
+
+        private static void SetEnumMember(object instance, string name, int value)
+        {
+            if (instance == null)
+                return;
+
+            Type type = instance.GetType();
+            FieldInfo field = type.GetField(name, BindingFlags.Instance | BindingFlags.Public);
+            if (field != null)
+            {
+                field.SetValue(instance, Enum.ToObject(field.FieldType, value));
+                return;
+            }
+
+            PropertyInfo property = type.GetProperty(name, BindingFlags.Instance | BindingFlags.Public);
+            if (property != null && property.CanWrite)
+                property.SetValue(instance, Enum.ToObject(property.PropertyType, value), null);
         }
 
         public List<ExternalTransportSetting> GetSettings()

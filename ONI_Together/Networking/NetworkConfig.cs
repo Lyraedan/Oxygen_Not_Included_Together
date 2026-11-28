@@ -34,12 +34,11 @@ namespace ONI_Together.Networking
         {
             STEAMWORKS = 0,
             LITENETLIB = 1,
-            RIPTIDE = 2,
             CUSTOM = 3
         }
         public static NetworkTransport transport { get; private set; } = NetworkTransport.LITENETLIB;
 
-        /// <summary>Stable id of the active transport ("steamworks", "litenetlib", "riptide", or a custom id).</summary>
+        /// <summary>Stable id of the active transport ("steamworks", "litenetlib", or a custom id).</summary>
         public static string TransportId { get; private set; } = "litenetlib";
 
         /// <summary>The registered custom provider when <see cref="transport"/> is <see cref="NetworkTransport.CUSTOM"/>.</summary>
@@ -55,7 +54,7 @@ namespace ONI_Together.Networking
         {
             get
             {
-                if (transport == NetworkTransport.LITENETLIB || transport == NetworkTransport.RIPTIDE)
+                if (transport == NetworkTransport.LITENETLIB)
                     return true;
 
                 return transport == NetworkTransport.CUSTOM && ActiveExternalProvider?.IsDirect == true;
@@ -78,7 +77,6 @@ namespace ONI_Together.Networking
                     StartSteamServer();
                     break;
                 case NetworkTransport.LITENETLIB:
-                case NetworkTransport.RIPTIDE:
                     UpdateTransport(transport);
                     CoroutineRunner.RunOne(StartRawDelayed(0.5f));
                     break;
@@ -138,7 +136,6 @@ namespace ONI_Together.Networking
                     StopSteamworks();
                     break;
                 case NetworkTransport.LITENETLIB:
-                case NetworkTransport.RIPTIDE:
                 case NetworkTransport.CUSTOM:
                     StopRaw();
                     break;
@@ -173,14 +170,10 @@ namespace ONI_Together.Networking
                 return;
             }
 
-            if (newTransport == NetworkTransport.RIPTIDE)
+            if ((int)newTransport == 2)
             {
-                // Legacy enum/config value. Riptide is now a separate transport mod.
-                if (TransportRegistry.GetExternalProvider("riptide") != null && UpdateCustomTransport("riptide"))
-                    return;
-
                 DebugConsole.LogWarning(
-                    "[NetworkConfig] Riptide is now a separate transport mod. Falling back to LiteNetLib.");
+                    "[NetworkConfig] Legacy transport value is no longer supported. Falling back to LiteNetLib.");
                 newTransport = NetworkTransport.LITENETLIB;
             }
 
@@ -259,10 +252,10 @@ namespace ONI_Together.Networking
         public static void UpdateLanTransport()
         {
             var lanTransport = Configuration.Instance.Host.LanSettings.Transport;
-            if (lanTransport == LanTransportType.Riptide)
+            if ((int)lanTransport == 2)
             {
                 DebugConsole.LogWarning(
-                    "[NetworkConfig] Riptide is now a separate transport mod; select it from the Custom tab.");
+                    "[NetworkConfig] Legacy LAN transport value is no longer supported. Falling back to LiteNetLib.");
                 lanTransport = LanTransportType.LiteNetLib;
                 Configuration.Instance.Host.LanSettings.Transport = lanTransport;
             }
@@ -276,7 +269,6 @@ namespace ONI_Together.Networking
             {
                 NetworkTransport.STEAMWORKS => "steamworks",
                 NetworkTransport.LITENETLIB => "litenetlib",
-                NetworkTransport.RIPTIDE => "riptide",
                 _ => "custom"
             };
         }
@@ -348,7 +340,6 @@ namespace ONI_Together.Networking
                         return SteamMatchmaking.GetLobbyMemberLimit(SteamLobby.CurrentLobby);
                     break;
                 case NetworkTransport.LITENETLIB:
-                case NetworkTransport.RIPTIDE:
                 case NetworkTransport.CUSTOM:
                     return Configuration.Instance.Host.MaxLobbySize;
             }

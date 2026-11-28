@@ -1,5 +1,8 @@
+using ONI_Together.Networking.Transport.External;
 using Shared.Profiling;
 using Steamworks;
+using System;
+using System.Collections.Generic;
 
 namespace ONI_Together.Networking
 {
@@ -23,6 +26,12 @@ namespace ONI_Together.Networking
 		public string LanAddress { get; set; } = "127.0.0.1";
 
 		public bool IsPrivate { get; set; } = false;
+
+		// External transport data. Steam entries leave TransportId as "steamworks".
+		public string TransportId { get; set; } = "steamworks";
+		public string ExternalLobbyId { get; set; } = "";
+		public ExternalTransportLobbyVisibility Visibility { get; set; } = ExternalTransportLobbyVisibility.Public;
+		public Dictionary<string, string> JoinSettings { get; set; } = new Dictionary<string, string>();
 
 		// Game info
 		public string ColonyName { get; set; } = "";
@@ -87,17 +96,36 @@ namespace ONI_Together.Networking
 		{
 			using var _ = Profiler.Scope();
 
-			return other?.HostSteamId == this.HostSteamId && other?.LobbyId == this.LobbyId;
+			if (other == null)
+				return false;
+
+			if (!string.Equals(TransportId, other.TransportId, StringComparison.Ordinal))
+				return false;
+
+			if (!string.IsNullOrEmpty(ExternalLobbyId) || !string.IsNullOrEmpty(other.ExternalLobbyId))
+				return string.Equals(ExternalLobbyId, other.ExternalLobbyId, StringComparison.Ordinal);
+
+			return other.HostSteamId == HostSteamId && other.LobbyId == LobbyId;
 		}
 		public override bool Equals(object obj) => obj is LobbyListEntry other && Equals(other);
 
-		public static bool operator ==(LobbyListEntry a, LobbyListEntry b) => a?.LobbyId == b?.LobbyId && a?.HostSteamId == b?.HostSteamId;
+		public static bool operator ==(LobbyListEntry a, LobbyListEntry b)
+		{
+			if (ReferenceEquals(a, b))
+				return true;
+			if (ReferenceEquals(a, null) || ReferenceEquals(b, null))
+				return false;
+			return a.Equals(b);
+		}
 		public static bool operator !=(LobbyListEntry a, LobbyListEntry b) => !(a == b);
 		public override int GetHashCode()
 		{
 			using var _ = Profiler.Scope();
 
-			return LobbyId.GetHashCode() ^ HostSteamId.GetHashCode();
+			return (TransportId?.GetHashCode() ?? 0)
+				^ (ExternalLobbyId?.GetHashCode() ?? 0)
+				^ LobbyId.GetHashCode()
+				^ HostSteamId.GetHashCode();
 		}
 	}
 }

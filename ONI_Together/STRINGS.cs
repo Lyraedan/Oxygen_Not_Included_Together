@@ -117,7 +117,7 @@ namespace ONI_Together
 
                     public class LAN_SETTINGS
                     {
-                        public static LocString LAN_TRANSPORT = "Which network library is used for LAN games.\n\nLiteNetLib is the modern default transport. Riptide is available as a separate custom transport mod.";
+                        public static LocString LAN_TRANSPORT = "Which network library is used for LAN games.\n\nLiteNetLib is the modern default transport. Other transports can be installed as separate custom transport mods.";
                         public static LocString LAN_DISPLAY_NAME = "The name shown to other players when hosting a LAN or Custom transport.\nLeave empty to default to 'Player <id>'.";
                     }
                 }
@@ -379,33 +379,6 @@ namespace ONI_Together
 
                         public static LocString KICKED = "Kicked from server";
                         public static LocString KICKED_DESC = "You were removed from the session.";
-
-                        public static LocString UNKNOWN = "Disconnected";
-                        public static LocString UNKNOWN_DESC = "An unknown network error occurred.";
-                    }
-
-                    public class RIPTIDE
-					{
-                        public static LocString CONNECTION_FAILED = "Connection failed";
-                        public static LocString CONNECTION_FAILED_DESC = "Could not establish a connection to the server.";
-
-                        public static LocString CONNECTION_REJECTED = "Connection rejected";
-                        public static LocString CONNECTION_REJECTED_DESC = "The server refused the connection.";
-
-                        public static LocString NETWORK_ERROR = "Network error";
-                        public static LocString NETWORK_ERROR_DESC = "A network error occurred.";
-
-                        public static LocString CONNECTION_TIMED_OUT = "Connection timed out";
-                        public static LocString CONNECTION_TIMED_OUT_DESC = "The server did not respond in time.";
-
-                        public static LocString KICKED = "Kicked from server";
-                        public static LocString KICKED_DESC = "You were removed from the session.";
-
-                        public static LocString SERVER_CLOSED = "Server closed";
-                        public static LocString SERVER_CLOSED_DESC = "The host has stopped the server.";
-
-                        public static LocString CONNECTION_UNSTABLE = "Connection unstable";
-                        public static LocString CONNECTION_UNSTABLE_DESC = "The connection quality was too poor to continue.";
 
                         public static LocString UNKNOWN = "Disconnected";
                         public static LocString UNKNOWN_DESC = "An unknown network error occurred.";
