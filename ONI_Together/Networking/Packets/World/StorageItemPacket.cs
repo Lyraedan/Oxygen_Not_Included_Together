@@ -100,6 +100,15 @@ namespace ONI_Together.Networking.Packets.World
             }
 
             DisplayFX(pickupable.gameObject, storage);
+
+            // A suit locker keeps its suit on the client too: a dupe takes it out again later
+            // (SuitLockerEquipPacket), so it has to be there.
+            if (storage.GetComponent<SuitLocker>() != null && pickupable.GetComponent<Equippable>() != null)
+            {
+                storage.Store(pickupable.gameObject, true);
+                return;
+            }
+
             HandleDiseaseTransfer(pickupable.gameObject, storage);
             Util.KDestroyGameObject(pickupable.gameObject);
         }

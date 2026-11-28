@@ -99,6 +99,8 @@ namespace ONI_Together.Patches.World
                         return;
                     if (go == null)
                         return;
+                    if (SuitLockerEquipPacket.InHostCall > 0)
+                        return; // a suit moving between a locker and a dupe; SuitLockerEquipPacket covers it
 
                     var storageIdentity = __instance.GetNetIdentity();
                     if (storageIdentity == null || storageIdentity.NetId == 0)
