@@ -12,11 +12,11 @@ namespace ONI_Together.Networking.Transfer
 {
 	public static class TcpFileTransferClient
 	{
-		public static void Download(string hostIp, int tcpPort, ulong clientId, Action<string, byte[]> onComplete, Action<string> onError)
+		public static void Download(string hostIp, int tcpPort, ulong clientId, string token, Action<string, byte[]> onComplete, Action<string> onError)
 		{
 			using var _ = Profiler.Scope();
 
-			Thread thread = new Thread(() => DownloadThread(hostIp, tcpPort, clientId, onComplete, onError))
+			Thread thread = new Thread(() => DownloadThread(hostIp, tcpPort, clientId, token, onComplete, onError))
 			{
 				IsBackground = true,
 				Name = "TcpFileTransfer_Download"
@@ -24,7 +24,7 @@ namespace ONI_Together.Networking.Transfer
 			thread.Start();
 		}
 
-		private static void DownloadThread(string hostIp, int tcpPort, ulong clientId, Action<string, byte[]> onComplete, Action<string> onError)
+		private static void DownloadThread(string hostIp, int tcpPort, ulong clientId, string token, Action<string, byte[]> onComplete, Action<string> onError)
 		{
 			using var _ = Profiler.Scope();
 
@@ -45,6 +45,10 @@ namespace ONI_Together.Networking.Transfer
 
 					byte[] idBytes = BitConverter.GetBytes(clientId);
 					stream.Write(idBytes, 0, 8);
+
+					byte[] tokenBytes = Encoding.UTF8.GetBytes(token ?? string.Empty);
+					stream.Write(BitConverter.GetBytes(tokenBytes.Length), 0, 4);
+					stream.Write(tokenBytes, 0, tokenBytes.Length);
 					stream.Flush();
 
 					byte[] fileNameLenBuf = ReadExact(stream, 4);

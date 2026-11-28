@@ -18,6 +18,7 @@ namespace ONI_Together.Networking.Transport.External
         Both = Host | Client
     }
 
+    // Numeric values must match ONI_Together_API.Transport.TransportCapabilities.
     [Flags]
     public enum ExternalTransportCapabilities
     {
@@ -26,7 +27,8 @@ namespace ONI_Together.Networking.Transport.External
         NatTraversal = 2,
         DirectConnect = 4,
         Steam = 8,
-        Custom = 16
+        Custom = 16,
+        TcpFileTransfer = 32
     }
 
     public enum ExternalTransportLoginState

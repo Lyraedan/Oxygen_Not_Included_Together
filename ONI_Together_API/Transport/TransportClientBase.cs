@@ -37,5 +37,11 @@ namespace ONI_Together_API.Transport
         public virtual int GetLatencyState() => 0;
         public virtual int GetPacketLossState() => 0;
         public virtual int GetServerPerformanceState() => 0;
+
+        /// <summary>
+        /// Optional host address the client uses for the direct TCP save transfer.
+        /// Return an empty string to fall back to the LAN address setting.
+        /// </summary>
+        public virtual string GetFileTransferHost() => string.Empty;
     }
 }

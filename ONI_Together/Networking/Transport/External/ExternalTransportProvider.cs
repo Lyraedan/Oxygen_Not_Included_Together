@@ -36,6 +36,7 @@ namespace ONI_Together.Networking.Transport.External
 
         public bool IsDirect => (Capabilities & ExternalTransportCapabilities.DirectConnect) != 0;
         public bool IsSteam => (Capabilities & ExternalTransportCapabilities.Steam) != 0;
+        public bool SupportsFileTransfer => (Capabilities & ExternalTransportCapabilities.TcpFileTransfer) != 0;
 
         private ExternalTransportProvider(object provider, string id, string displayName, int apiVersion,
             ExternalTransportCapabilities capabilities, MethodInfo createServer, MethodInfo createClient,

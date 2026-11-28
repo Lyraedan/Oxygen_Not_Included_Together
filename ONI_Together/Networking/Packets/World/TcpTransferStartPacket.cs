@@ -4,6 +4,7 @@ using ONI_Together.Menus;
 using ONI_Together.Misc.World;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.Transfer;
+using ONI_Together.Networking.Transport.External;
 using Shared.Profiling;
 
 namespace ONI_Together.Networking.Packets.World
@@ -14,6 +15,7 @@ namespace ONI_Together.Networking.Packets.World
 		public string FileName;
 		public int FileSize;
 		public ulong ClientId;
+		public string Token;
 
 		public void Serialize(BinaryWriter writer)
 		{
@@ -23,6 +25,7 @@ namespace ONI_Together.Networking.Packets.World
 			writer.Write(FileName);
 			writer.Write(FileSize);
 			writer.Write(ClientId);
+			writer.Write(Token ?? string.Empty);
 		}
 
 		public void Deserialize(BinaryReader reader)
@@ -33,6 +36,7 @@ namespace ONI_Together.Networking.Packets.World
 			FileName = reader.ReadString();
 			FileSize = reader.ReadInt32();
 			ClientId = reader.ReadUInt64();
+			Token = reader.ReadString();
 		}
 
 		public void OnDispatched()
@@ -44,11 +48,20 @@ namespace ONI_Together.Networking.Packets.World
 
 			string hostIp = Configuration.Instance.Client.LanSettings.Ip;
 
+			// Direct custom transports know the host address the client actually
+			// joined with, which is more reliable than the LAN setting.
+			if (NetworkConfig.TransportClient is ExternalTransportClient externalClient && externalClient.SupportsFileTransfer)
+			{
+				string providedHost = externalClient.GetFileTransferHost();
+				if (!string.IsNullOrWhiteSpace(providedHost))
+					hostIp = providedHost;
+			}
+
 			DebugConsole.Log($"[TcpTransferStart] Starting TCP download from {hostIp}:{TcpPort}, file '{FileName}' ({FileSize} bytes), clientId={ClientId}");
 
 			MultiplayerOverlay.Show("Connecting for save download...");
 
-			TcpFileTransferClient.Download(hostIp, TcpPort, ClientId,
+			TcpFileTransferClient.Download(hostIp, TcpPort, ClientId, Token,
 				(fileName, data) =>
 				{
 					DebugConsole.Log($"[TcpTransferStart] TCP download complete: '{fileName}' ({data.Length} bytes)");

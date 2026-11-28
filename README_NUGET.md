@@ -182,8 +182,40 @@ them by reflection. Key rules:
   Boolean settings are passed as `"1"` or `"0"`; integer settings are passed as decimal strings.
   A setting's `DefaultValue` is passed when the user has not overridden it.
 
-The Custom Transport tab and the transport API are additive; built-in Steam, LiteNetLib and
-Riptide transports are unchanged.
+### Optional direct TCP save transfer
+
+Large save files are expensive to send as many small reliable packets. A transport that
+already exposes a direct, reachable TCP endpoint can opt into the main mod's built-in TCP
+save-transfer service:
+
+```csharp
+public override TransportCapabilities Capabilities =>
+    TransportCapabilities.DirectConnect | TransportCapabilities.TcpFileTransfer;
+```
+
+Then override the optional methods on the server and client instances:
+
+```csharp
+// Server: the TCP port ONI Together should listen on for save downloads.
+// Return 0 to keep using the normal chunked packet path.
+public override int GetFileTransferPort() => _useTcp ? _configuredPort + 1 : 0;
+
+// Client: the host address the client used to join.
+public override string GetFileTransferHost() => _configuredAddress;
+```
+
+ONI Together owns the TCP listener, transfer token, framing, progress UI and packet
+fallback. The transport decides the path: return a valid port from
+`GetFileTransferPort()` to use direct TCP, or `0` to keep the normal chunked packet
+path. There is no user-facing selector. If the port cannot be opened or the client
+cannot connect, the transfer falls back to the normal packet path automatically.
+
+NAT note: the host must forward the TCP file-transfer port in addition to the transport's
+own port. Transports that only work through a relay (for example, relay-based P2P
+transports) should not advertise `TcpFileTransfer`.
+
+The Custom Transport tab and the transport API are additive; built-in Steam and LiteNetLib
+transports are unchanged.
 
 ## Requirements
 

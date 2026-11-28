@@ -1,6 +1,8 @@
 using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Packets.Architecture;
+using ONI_Together.Networking.Transfer;
+using ONI_Together.Networking.Transport.External;
 using ONI_Together.Networking.Transport.Lan;
 using ONI_Together.Networking.Transport.Steamworks;
 using Steamworks;
@@ -57,25 +59,15 @@ namespace ONI_Together.Networking.Packets.World
 				byte[] data = SaveHelper.GetWorldSave();
 				string fileName = name + ".sav";
 
-				if (NetworkConfig.IsLanConfig() && NetworkConfig.TransportServer is LiteNetLibServer lnlServer && lnlServer.TcpTransfer != null)
+				// The active transport decides whether it offers a direct TCP save
+				// path by returning a valid GetFileTransferPort(). Otherwise the save
+				// uses the normal chunked packet path.
+				if (TrySendViaTcp(requester, fileName, data))
 				{
-					int tcpPort = Configuration.Instance.Host.LanSettings.Port + 1;
-					lnlServer.TcpTransfer.QueueTransfer(requester, fileName, data);
+					return;
+				}
 
-					var startPacket = new TcpTransferStartPacket
-					{
-						TcpPort = tcpPort,
-						FileName = fileName,
-						FileSize = data.Length,
-						ClientId = requester
-					};
-					PacketSender.SendToPlayer(requester, startPacket);
-					DebugConsole.Log($"[SaveFileRequest] Initiated TCP transfer for '{fileName}' to {requester}");
-				}
-				else
-				{
-					CoroutineRunner.RunOne(StreamChunks(data, fileName, requester));
-				}
+				CoroutineRunner.RunOne(StreamChunks(data, fileName, requester));
 			}
 			catch (Exception ex)
 			{
@@ -118,6 +110,51 @@ namespace ONI_Together.Networking.Packets.World
                     SendSaveFile(player.Key);
                 }
             }
+        }
+
+
+        private static TcpFileTransferServer GetTcpTransferServer()
+        {
+            switch (NetworkConfig.TransportServer)
+            {
+                case LiteNetLibServer lanServer:
+                    return lanServer.TcpTransfer;
+                case ExternalTransportServer externalServer:
+                    return externalServer.TcpTransfer;
+                default:
+                    return null;
+            }
+        }
+
+        private static bool TrySendViaTcp(ulong requester, string fileName, byte[] data)
+        {
+            using var _ = Profiler.Scope();
+
+            TcpFileTransferServer server = GetTcpTransferServer();
+            if (server == null || server.Port <= 0)
+                return false;
+
+            string token = server.QueueTransfer(requester, fileName, data);
+            var startPacket = new TcpTransferStartPacket
+            {
+                TcpPort = server.Port,
+                FileName = fileName,
+                FileSize = data.Length,
+                ClientId = requester,
+                Token = token
+            };
+
+            if (!PacketSender.SendToPlayer(requester, startPacket))
+            {
+                server.CancelTransfer(requester);
+                DebugConsole.LogWarning(
+                    $"[SaveFileRequest] Could not send TCP start packet to {requester}. Falling back to packets.");
+                return false;
+            }
+
+            DebugConsole.Log(
+                $"[SaveFileRequest] Initiated TCP transfer for '{fileName}' to {requester} on port {server.Port}.");
+            return true;
         }
 
 

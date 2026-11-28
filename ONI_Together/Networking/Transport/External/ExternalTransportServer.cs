@@ -2,6 +2,7 @@ using ONI_Together.DebugTools;
 using ONI_Together.Misc;
 using ONI_Together.Networking.OxySync.Components;
 using ONI_Together.Networking.Packets.Architecture;
+using ONI_Together.Networking.Transfer;
 using Shared;
 using Shared.Profiling;
 using System;
@@ -28,6 +29,7 @@ namespace ONI_Together.Networking.Transport.External
         private readonly System.Action<ulong> _kick;
         private readonly Func<ulong> _localPlayerId;
         private readonly Func<string> _lastError;
+        private readonly Func<int> _getFileTransferPort;
 
         private readonly HashSet<ulong> _knownPlayers = new();
         private string _lastReportedError = string.Empty;
@@ -36,6 +38,9 @@ namespace ONI_Together.Networking.Transport.External
         public Dictionary<string, string> Settings { get; set; } = new();
 
         public ExternalTransportProvider Provider => _provider;
+
+        /// <summary>Optional host-side TCP save transfer service started with the transport.</summary>
+        public TcpFileTransferServer TcpTransfer { get; private set; }
 
         public ExternalTransportServer(ExternalTransportProvider provider, object instance)
         {
@@ -72,6 +77,12 @@ namespace ONI_Together.Networking.Transport.External
 
             if (!ExternalApiBinder.TryGetPropertyGetter(instance, "LastError", out _lastError))
                 _lastError = null;
+
+            if (provider.SupportsFileTransfer)
+            {
+                ExternalApiBinder.TryGetDelegate<Func<int>>(
+                    instance, "GetFileTransferPort", Type.EmptyTypes, out _getFileTransferPort);
+            }
         }
 
         public override ulong LocalPlayerId
@@ -100,6 +111,7 @@ namespace ONI_Together.Networking.Transport.External
             _stopping = false;
             _lastReportedError = string.Empty;
             _knownPlayers.Clear();
+            StopFileTransfer();
 
             try
             {
@@ -123,6 +135,7 @@ namespace ONI_Together.Networking.Transport.External
             MultiplayerSession.SetHost(hostId);
             MultiplayerSession.InActiveSession = true;
             ReconcilePlayers(initial: true);
+            TryStartFileTransfer();
 
             TryAddChatMessage(string.Format(
                 STRINGS.UI.MP_CHATWINDOW.CHAT_SERVER_STARTED,
@@ -142,6 +155,8 @@ namespace ONI_Together.Networking.Transport.External
             {
                 DebugConsole.LogError($"[Transport-API] '{_provider.Id}' server Stop failed: {ex}");
             }
+
+            StopFileTransfer();
 
             TryAddChatMessage(string.Format(
                 STRINGS.UI.MP_CHATWINDOW.CHAT_SERVER_STOPPED,
@@ -347,6 +362,59 @@ namespace ONI_Together.Networking.Transport.External
             {
                 ReadyManager.RefreshReadyState();
                 MultiplayerSession.RefreshAllPlayerCursors();
+            }
+        }
+
+        private void TryStartFileTransfer()
+        {
+            if (!_provider.SupportsFileTransfer || _getFileTransferPort == null)
+                return;
+
+            int port;
+            try
+            {
+                port = _getFileTransferPort();
+            }
+            catch (Exception ex)
+            {
+                DebugConsole.LogError($"[Transport-API] '{_provider.Id}' GetFileTransferPort failed: {ex.Message}");
+                return;
+            }
+
+            if (port <= 0 || port > ushort.MaxValue)
+                return;
+
+            try
+            {
+                var server = new TcpFileTransferServer();
+                server.StartOnPort(port);
+                TcpTransfer = server;
+                DebugConsole.Log($"[Transport-API] '{_provider.Id}' save transfer listening on TCP {port}.");
+            }
+            catch (Exception ex)
+            {
+                TcpTransfer = null;
+                DebugConsole.LogWarning(
+                    $"[Transport-API] '{_provider.Id}' could not start TCP save transfer on port {port}: {ex.Message}");
+            }
+        }
+
+        private void StopFileTransfer()
+        {
+            TcpFileTransferServer server = TcpTransfer;
+            TcpTransfer = null;
+
+            if (server == null)
+                return;
+
+            try
+            {
+                server.Stop();
+            }
+            catch (Exception ex)
+            {
+                DebugConsole.LogWarning(
+                    $"[Transport-API] '{_provider.Id}' TCP save transfer stop failed: {ex.Message}");
             }
         }
 

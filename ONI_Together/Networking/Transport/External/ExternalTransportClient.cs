@@ -35,6 +35,7 @@ namespace ONI_Together.Networking.Transport.External
         private readonly Func<int> _getLatencyState;
         private readonly Func<int> _getPacketLossState;
         private readonly Func<int> _getServerPerformanceState;
+        private readonly Func<string> _getFileTransferHost;
 
         private bool _wasConnected;
         private bool _intentionalDisconnect;
@@ -99,6 +100,12 @@ namespace ONI_Together.Networking.Transport.External
 
             if (!ExternalApiBinder.TryGetDelegate<Func<int>>(instance, "GetServerPerformanceState", Type.EmptyTypes, out _getServerPerformanceState))
                 _getServerPerformanceState = null;
+
+            if (provider.SupportsFileTransfer)
+            {
+                ExternalApiBinder.TryGetDelegate<Func<string>>(
+                    instance, "GetFileTransferHost", Type.EmptyTypes, out _getFileTransferHost);
+            }
         }
 
         public override ulong LocalPlayerId => SafeCall(_localPlayerId, 0UL);
@@ -279,6 +286,12 @@ namespace ONI_Together.Networking.Transport.External
         public override NetworkIndicatorsScreen.NetworkState GetLatencyState() => ToState(SafeCall(_getLatencyState, 0));
         public override NetworkIndicatorsScreen.NetworkState GetPacketlossState() => ToState(SafeCall(_getPacketLossState, 0));
         public override NetworkIndicatorsScreen.NetworkState GetServerPerformanceState() => ToState(SafeCall(_getServerPerformanceState, 0));
+
+        /// <summary>True when this transport can serve saves over its own direct TCP port.</summary>
+        public bool SupportsFileTransfer => _provider.SupportsFileTransfer && _getFileTransferHost != null;
+
+        /// <summary>Host address for the direct TCP save transfer, or an empty string.</summary>
+        public string GetFileTransferHost() => SafeCall(_getFileTransferHost, string.Empty);
 
         private static NetworkIndicatorsScreen.NetworkState ToState(int value)
         {

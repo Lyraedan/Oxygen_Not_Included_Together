@@ -6,6 +6,9 @@ namespace ONI_Together_API.Transport
     /// <summary>
     /// Client-side raw byte transport. ONI Together owns packet serialization, framing,
     /// chunking and dispatch; this object only moves bytes.
+    /// For the optional direct save path, advertise
+    /// <see cref="TransportCapabilities.TcpFileTransfer"/> and expose a public
+    /// <c>string GetFileTransferHost()</c> method (the base class provides a default).
     /// </summary>
     [PublicAPI]
     public interface ITransportClient

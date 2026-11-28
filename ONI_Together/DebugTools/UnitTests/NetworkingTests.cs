@@ -7,6 +7,7 @@ using ONI_Together.Networking;
 using ONI_Together.Networking.Packets.Architecture;
 using ONI_Together.Networking.Packets.Core;
 using ONI_Together.Networking.Packets.World;
+using ONI_Together.Networking.Transport.External;
 using ONI_Together.Networking.Transport.Lan;
 
 namespace ONI_Together.DebugTools.UnitTests
@@ -55,23 +56,32 @@ namespace ONI_Together.DebugTools.UnitTests
             return UnitTestResult.Pass("No duplicate network identities found");
         }
 
-        [UnitTest(name: "TCP file transfer server ready (host, LAN)", category: "Networking")]
+        [UnitTest(name: "TCP file transfer server ready (host)", category: "Networking")]
         public static UnitTestResult TcpTransferServerReady()
         {
             if (!MultiplayerSession.IsHost)
                 return UnitTestResult.Fail("Not host, TCP transfer server only runs on the host");
 
-            if (!NetworkConfig.IsLanConfig())
-                return UnitTestResult.Fail("Not on LiteNetLib/LAN transport");
+            switch (NetworkConfig.TransportServer)
+            {
+                case LiteNetLibServer lanServer:
+                    if (lanServer.TcpTransfer == null)
+                        return UnitTestResult.Fail("LiteNetLib TcpTransfer is null (listener failed to start, UDP fallback in use)");
+                    return UnitTestResult.Pass($"LiteNetLib TcpFileTransferServer running on port {lanServer.TcpTransfer.Port}");
 
-            if (NetworkConfig.TransportServer is not LiteNetLibServer server)
-                return UnitTestResult.Fail("TransportServer is not a LiteNetLibServer");
+                case ExternalTransportServer externalServer:
+                    if (externalServer.Provider == null || !externalServer.Provider.SupportsFileTransfer)
+                        return UnitTestResult.Pass("Custom transport does not advertise TCP file transfer; packet transfer is expected");
 
-            if (server.TcpTransfer == null)
-                return UnitTestResult.Fail("TcpFileTransfer is null (listener failed to start, UDP fallback in use)");
+                    if (externalServer.TcpTransfer == null)
+                        return UnitTestResult.Fail("Custom transport advertises TCP file transfer but its listener failed to start");
 
-            int lanPort = Configuration.Instance.Host.LanSettings.Port;
-            return UnitTestResult.Pass($"TcpFileTransferServer running on port {lanPort + 1}");
+                    return UnitTestResult.Pass(
+                        $"{externalServer.Provider.Id} TcpFileTransferServer running on port {externalServer.TcpTransfer.Port}");
+
+                default:
+                    return UnitTestResult.Pass("Active transport does not use a direct TCP save path");
+            }
         }
 
         [UnitTest(name: "UDP save-transfer fallback pipeline registered", category: "Networking")]
@@ -84,6 +94,38 @@ namespace ONI_Together.DebugTools.UnitTests
                 return UnitTestResult.Fail("SaveFileChunkPacket not registered");
 
             return UnitTestResult.Pass("Save-transfer UDP fallback packets are registered");
+        }
+
+        [UnitTest(name: "TCP transfer start packet roundtrip", category: "Networking")]
+        public static UnitTestResult TcpTransferStartPacketRoundtrip()
+        {
+            var original = new TcpTransferStartPacket
+            {
+                TcpPort = 7778,
+                FileName = "Colony.sav",
+                FileSize = 123456,
+                ClientId = 42,
+                Token = "0123456789abcdef0123456789abcdef"
+            };
+
+            using var stream = new MemoryStream();
+            using (var writer = new BinaryWriter(stream, Encoding.UTF8, true))
+                original.Serialize(writer);
+
+            stream.Position = 0;
+
+            var copy = new TcpTransferStartPacket();
+            using (var reader = new BinaryReader(stream, Encoding.UTF8, true))
+                copy.Deserialize(reader);
+
+            if (copy.TcpPort != original.TcpPort
+                || copy.FileName != original.FileName
+                || copy.FileSize != original.FileSize
+                || copy.ClientId != original.ClientId
+                || copy.Token != original.Token)
+                return UnitTestResult.Fail("TcpTransferStartPacket did not roundtrip");
+
+            return UnitTestResult.Pass("TCP transfer start packet and token roundtrip");
         }
 
         [UnitTest(name: "Auto chunking: split and reassemble roundtrip", category: "Networking")]

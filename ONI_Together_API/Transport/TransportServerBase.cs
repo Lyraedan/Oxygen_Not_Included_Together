@@ -26,5 +26,12 @@ namespace ONI_Together_API.Transport
         public virtual void Kick(ulong playerId) { }
 
         public virtual string LastError => string.Empty;
+
+        /// <summary>
+        /// Optional TCP port where the host serves the save file when
+        /// <see cref="TransportCapabilities.TcpFileTransfer"/> is advertised.
+        /// Return 0 to disable the direct TCP path.
+        /// </summary>
+        public virtual int GetFileTransferPort() => 0;
     }
 }
