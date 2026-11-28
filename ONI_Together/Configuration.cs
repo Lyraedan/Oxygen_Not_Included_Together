@@ -250,6 +250,8 @@ namespace ONI_Together
         [JsonProperty] public int MaxMessagesPerPoll { get; set; } = 256;
         [JsonProperty] public int SaveFileTransferChunkKB { get; set; } = 256;
         [JsonProperty] public int TimeoutSeconds { get; set; } = 30;
+        [JsonProperty] public string CustomTransportId { get; set; } = string.Empty;
+        [JsonProperty] public Dictionary<string, Dictionary<string, string>> CustomTransportSettings { get; set; } = new();
 
         [JsonProperty] public LanSettings LanSettings { get; set; } = new LanSettings();
         [JsonProperty] public LobbySettings Lobby { get; set; } = new LobbySettings();
@@ -261,6 +263,8 @@ namespace ONI_Together
     public class ClientSettings
     {
         [JsonProperty] public int MaxMessagesPerPoll { get; set; } = 256;
+        [JsonProperty] public string CustomTransportId { get; set; } = string.Empty;
+        [JsonProperty] public Dictionary<string, Dictionary<string, string>> CustomTransportSettings { get; set; } = new();
         [JsonProperty] public bool UseRandomPlayerColor { get; set; } = true;
         [JsonProperty] public ColorRGB PlayerColor { get; set; } = new ColorRGB(255, 255, 255);
         [JsonProperty] public LanSettings LanSettings { get; set; } = new LanSettings();
@@ -347,6 +351,8 @@ namespace ONI_Together
     public enum LanTransportType
     {
         LiteNetLib = 1,
+
+        /// <summary>Legacy serialized value. Riptide is now a separate custom transport mod.</summary>
         Riptide = 2
     }
 

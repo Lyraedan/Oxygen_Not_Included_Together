@@ -116,7 +116,7 @@ namespace ONI_Together.Networking
 			cursor.transform.SetParent(transform, false);
 			gameObject.SetLayerRecursively(LayerMask.NameToLayer("UI"));
 
-			string defaultName = NetworkConfig.IsLanConfig() ? (MultiplayerSession.GetPlayer(assignedPlayer)?.PlayerName ?? $"Player {assignedPlayer}") : SteamFriends.GetFriendPersonaName(assignedPlayer.AsCSteamID());
+			string defaultName = !NetworkConfig.IsSteamConfig() ? (MultiplayerSession.GetPlayer(assignedPlayer)?.PlayerName ?? $"Player {assignedPlayer}") : SteamFriends.GetFriendPersonaName(assignedPlayer.AsCSteamID());
 			SetPlayerName(defaultName);
 			
 			OnCursorStateChanged += () => UpdateActionImage();

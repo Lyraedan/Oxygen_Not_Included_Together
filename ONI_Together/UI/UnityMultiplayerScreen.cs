@@ -33,18 +33,19 @@ using static ONI_Together.UI.UnityMultiplayerScreen;
 
 namespace ONI_Together.UI
 {
-	internal class UnityMultiplayerScreen : FScreen
+	internal partial class UnityMultiplayerScreen : FScreen
 	{
-		enum JoinMode
+		internal enum JoinMode
 		{
 			Steam,
-			Code,
-			LAN
+			LAN,
+			Custom
 		}
-		enum HostMode
+		internal enum HostMode
 		{
 			Steam,
-			LAN
+			LAN,
+			Custom
 		}
 
 		public static void OnSceneChanged()
@@ -75,17 +76,17 @@ namespace ONI_Together.UI
 			HostGame,
 			MainCancel;
 		//Tabs for Joining
-		FToggleButton SteamTabToggle, CodeTabToggle, LanTabToggle;
+		FToggleButton SteamTabToggle, LanTabToggle;
 		JoinMode CurrentJoinMode = JoinMode.Steam;
 		//TabContainer:
-		GameObject SteamTab, CodeTab, LanTab;
+		GameObject SteamTab, LanTab;
 		//SteamTab:
 		FButton JoinViaSteam, OpenLobbyBrowser;
-		//CodeTab:
+		//Steam tab: lobby-code controls folded in below Open Lobby Browser
 		FInputField2 LobbyCodeInput;
 		FButton JoinViaCode;
 		//LanTab:
-		FInputField2 JoinIPInput, JoinPortInput;
+		FInputField2 JoinDisplayNameInput, JoinIPInput, JoinPortInput;
 		FButton JoinViaLan;
 
 		//HostStartLobbySegment:
@@ -154,25 +155,61 @@ namespace ONI_Together.UI
 			///init tabs
 			SteamTabToggle = transform.Find("MainMenu/JoinViaButtons/Steam").gameObject.AddOrGet<FToggleButton>();
 			SteamTabToggle.OnClick += () => SetJoinVia(JoinMode.Steam);
-			CodeTabToggle = transform.Find("MainMenu/JoinViaButtons/Code").gameObject.AddOrGet<FToggleButton>();
-			CodeTabToggle.OnClick += () => SetJoinVia(JoinMode.Code);
 			LanTabToggle = transform.Find("MainMenu/JoinViaButtons/LAN").gameObject.AddOrGet<FToggleButton>();
 			LanTabToggle.OnClick += () => SetJoinVia(JoinMode.LAN);
 
 			SteamTab = transform.Find("MainMenu/SteamJoin").gameObject;
-			CodeTab = transform.Find("MainMenu/LobbyCodeJoin").gameObject;
 			LanTab = transform.Find("MainMenu/LanJoin").gameObject;
 			///init Steam Join Tab
 			JoinViaSteam = transform.Find("MainMenu/SteamJoin/JoinViaSteam").gameObject.AddOrGet<FButton>();
 			JoinViaSteam.OnClick += () => SteamFriends.ActivateGameOverlay("friends");
 			OpenLobbyBrowser = transform.Find("MainMenu/SteamJoin/OpenLobbyListButton").gameObject.AddOrGet<FButton>();
 			OpenLobbyBrowser.OnClick += () => ShowLobbySegment(true);
-			///init Code Join Tab
-			JoinViaCode = transform.Find("MainMenu/LobbyCodeJoin/JoinWithCodeButton").gameObject.AddOrGet<FButton>();
+			///init Code Join controls, then fold them into the Steam tab
+			var lobbyCodeTab = transform.Find("MainMenu/LobbyCodeJoin").gameObject;
+			var lobbyCodeInputTransform = transform.Find("MainMenu/LobbyCodeJoin/Input");
+			var lobbyCodeButtonTransform = transform.Find("MainMenu/LobbyCodeJoin/JoinWithCodeButton");
+
+			JoinViaCode = lobbyCodeButtonTransform.gameObject.AddOrGet<FButton>();
 			JoinViaCode.OnClick += JoinLobbyWithCode;
-			LobbyCodeInput = transform.Find("MainMenu/LobbyCodeJoin/Input").FindOrAddComponent<FInputField2>();
+			LobbyCodeInput = lobbyCodeInputTransform.FindOrAddComponent<FInputField2>();
 			LobbyCodeInput.Text = string.Empty;
 			LobbyCodeInput.inputField.characterLimit = 16;
+
+			lobbyCodeInputTransform.SetParent(SteamTab.transform, false);
+			lobbyCodeButtonTransform.SetParent(SteamTab.transform, false);
+			// Keep the moved controls after Open Lobby Browser.
+			lobbyCodeInputTransform.SetAsLastSibling();
+			lobbyCodeButtonTransform.SetAsLastSibling();
+
+			// The Code tab stretched its children; Steam's layout group must do the
+			// same now that these controls live there.
+			var steamLayout = SteamTab.GetComponent<VerticalLayoutGroup>();
+			if (steamLayout != null)
+				steamLayout.childControlWidth = true;
+
+			var codeInputRect = lobbyCodeInputTransform.GetComponent<RectTransform>();
+			codeInputRect.anchorMin = Vector2.zero;
+			codeInputRect.anchorMax = Vector2.zero;
+			codeInputRect.pivot = new Vector2(0.5f, 0.5f);
+			codeInputRect.sizeDelta = new Vector2(410f, 50f);
+
+			var codeButtonRect = lobbyCodeButtonTransform.GetComponent<RectTransform>();
+			codeButtonRect.anchorMin = Vector2.zero;
+			codeButtonRect.anchorMax = Vector2.zero;
+			codeButtonRect.pivot = new Vector2(0.5f, 0.5f);
+			codeButtonRect.sizeDelta = new Vector2(410f, 50f);
+
+			lobbyCodeTab.SetActive(false);
+			Destroy(lobbyCodeTab);
+
+			var codeTabToggle = transform.Find("MainMenu/JoinViaButtons/Code");
+			if (codeTabToggle != null)
+			{
+				codeTabToggle.gameObject.SetActive(false);
+				Destroy(codeTabToggle.gameObject);
+			}
+
 			///init LAN Join Tab
 			JoinIPInput = transform.Find("MainMenu/LanJoin/Inputs/IpInput").FindOrAddComponent<FInputField2>();
 			JoinIPInput.Text = string.Empty;
@@ -215,6 +252,8 @@ namespace ONI_Together.UI
 				LobbySize.Text = Configuration.Instance.Host.MaxLobbySize.ToString();
 			}
 
+			InitializeCustomTransportTabs();
+
 			LobbySize.OnValueChanged.AddListener(ClampLobbySize);
 			IncreaseSize = transform.Find("HostMenu/LobbySize/LobbySizeInput/Increase").gameObject.AddOrGet<FButton>();
 			IncreaseSize.OnClick += IncreaseLobbySize;
@@ -256,6 +295,7 @@ namespace ONI_Together.UI
 			NumberInputPrefab = transform.Find("AdditionalHostSettings/ScrollArea/Content/NumInputPrefab").gameObject;
 			NumberInputPrefab.SetActive(false);
 
+			InitializeLanJoinDisplayName();
 
 			var entryPrefabGO = transform.Find("LobbyList/ScrollArea/Content/EntryPrefab").gameObject;
 			entryPrefabGO.SetActive(false);
@@ -275,9 +315,18 @@ namespace ONI_Together.UI
 
 			HostLanTab.SetActive(current == HostMode.LAN);
 			HostSteamTab.SetActive(current == HostMode.Steam);
+			if (HostCustomTab != null)
+				HostCustomTab.SetActive(current == HostMode.Custom);
 
 			HostLanToggle.SetIsSelected(current == HostMode.LAN);
 			HostSteamToggle.SetIsSelected(current == HostMode.Steam);
+			HostCustomToggle?.SetIsSelected(current == HostMode.Custom);
+
+			if (current == HostMode.Custom)
+				RefreshCustomHostTab();
+
+			UpdateStartHostingInteractable();
+			ResizeMenuPanel(StartHostingSegment);
 
 			if (ShowAdditionalHostSettings)
 				ShowLobbySettings();
@@ -288,12 +337,22 @@ namespace ONI_Together.UI
 			CurrentJoinMode = current;
 
 			SteamTab.SetActive(current == JoinMode.Steam);
-			CodeTab.SetActive(current == JoinMode.Code);
 			LanTab.SetActive(current == JoinMode.LAN);
+			if (JoinCustomTab != null)
+				JoinCustomTab.SetActive(current == JoinMode.Custom);
 
 			SteamTabToggle.SetIsSelected(current == JoinMode.Steam);
-			CodeTabToggle.SetIsSelected(current == JoinMode.Code);
 			LanTabToggle.SetIsSelected(current == JoinMode.LAN);
+			JoinCustomToggle?.SetIsSelected(current == JoinMode.Custom);
+
+			if (current == JoinMode.Custom)
+				RefreshCustomJoinTab();
+			else if (current == JoinMode.Steam)
+				ResizeTabToPreferredHeight(SteamTab);
+			else if (current == JoinMode.LAN)
+				ResizeTabToPreferredHeight(LanTab);
+
+			ResizeMenuPanel(MainMenuSegment);
 		}
 
 		void IncreaseLobbySize()
@@ -552,6 +611,8 @@ namespace ONI_Together.UI
 
 			ShowMain = show;
 			MainMenuSegment.SetActive(show);
+			if (show)
+				ResizeMenuPanel(MainMenuSegment);
 			RefreshSpacer();
 		}
 		void ShowHostSegment(bool show)
@@ -564,6 +625,8 @@ namespace ONI_Together.UI
 			StartHostingSegment.SetActive(show);
 			if (ShowAdditionalHostSettings && !show)
 				ShowAdditionalHostSettingsSegment(false);
+			if (show)
+				ResizeMenuPanel(StartHostingSegment);
 			RefreshSpacer();
 		}
 		void ToggleAdditionalHostSettingsSegment()
@@ -578,7 +641,10 @@ namespace ONI_Together.UI
 			ShowAdditionalHostSettings = show;
 			AdditionalHostSettingsSegment.SetActive(show);
 			if (show)
+			{
 				ShowLobbySettings();
+				ResizeMenuPanel(AdditionalHostSettingsSegment);
+			}
 		}
 		void ShowLobbySegment(bool show)
 		{
@@ -592,7 +658,10 @@ namespace ONI_Together.UI
 			LobbyBrowserSegment.SetActive(show);
 			RefreshSpacer();
 			if (show)
+			{
 				RefreshLobbies();
+				ResizeMenuPanel(LobbyBrowserSegment);
+			}
 		}
 
 		static Color PublicLobbyTint = new Color(0.4f, 1f, 0.6f), PrivateLobbyTint = new Color(1f, 0.8f, 0.4f);
@@ -613,6 +682,7 @@ namespace ONI_Together.UI
 			using var _ = Profiler.Scope();
 
 			MiddleSpacer.SetActive(ShowMain && (ShowLobbies || ShowHost));
+			UpdateMiddleSpacerHeight();
 		}
 
 		int secondsPassed = 0;
@@ -701,25 +771,13 @@ namespace ONI_Together.UI
 				STRINGS.UI.CONFIGURATION.TOOLTIPS.HOST_SETTINGS.SERVER_SETTINGS.SERVER_TICK_RATE)
 				.SetValueById(Configuration.Instance.Host.Server.TickRate.ToString());
 
-			var lanTransportOptions = new List<FCycle.Option>
-			{
-				new("LiteNetLib", "LiteNetLib", ""),
-				new("Riptide", "Riptide", ""),
-			};
-
-			var lanTransportCycle = AddOrGetLobbySettingsEntry_Cycle("LanTransport", lanTransportOptions, OnLanTransportChanged,
-				STRINGS.UI.CONFIGURATION.TITLES.LAN_SETTINGS.LAN_TRANSPORT,
-				STRINGS.UI.CONFIGURATION.TOOLTIPS.LAN_SETTINGS.LAN_TRANSPORT);
-			lanTransportCycle.SetValueById(Configuration.Instance.Host.LanSettings.Transport.ToString());
-			lanTransportCycle.gameObject.SetActive(CurrentHostMode == HostMode.LAN);
-
 			var lanDisplayNameInput = AddOrGetLobbySettingsEntry_TextInput("LanDisplayName", OnLanDisplayNameChanged,
 				STRINGS.UI.CONFIGURATION.TITLES.LAN_SETTINGS.LAN_DISPLAY_NAME,
 				STRINGS.UI.CONFIGURATION.TOOLTIPS.LAN_SETTINGS.LAN_DISPLAY_NAME,
 				placeholder: "Player <id>",
 				value: Configuration.Instance.Host.LanSettings.DisplayName,
 				characterLimit: Utils.MaxLocalPlayerNameLength);
-			lanDisplayNameInput.transform.parent.gameObject.SetActive(CurrentHostMode == HostMode.LAN);
+			lanDisplayNameInput.transform.parent.gameObject.SetActive(CurrentHostMode != HostMode.Steam);
 		}
 
 		void OnHardSyncIntervalChanged(int value)
@@ -754,21 +812,13 @@ namespace ONI_Together.UI
 			}
 		}
 
-		void OnLanTransportChanged(FCycle.Option option)
-		{
-			if (Enum.TryParse<LanTransportType>(option.id, out var transport))
-			{
-				var config = Configuration.Instance;
-				config.Host.LanSettings.Transport = transport;
-				config.Save();
-			}
-		}
-
 		void OnLanDisplayNameChanged(string text)
 		{
 			var config = Configuration.Instance;
 			config.Host.LanSettings.DisplayName = text;
 			config.Save();
+
+			JoinDisplayNameInput?.SetTextFromData(text ?? string.Empty);
 		}
 
 		public FToggle AddOrGetLobbySettingsEntry_Toggle(string id, System.Action<bool> onToggleChange, string label, string tooltip = "")
@@ -926,6 +976,9 @@ namespace ONI_Together.UI
 					break;
 				case HostMode.LAN:
 					StartHostingLanGame();
+					break;
+				case HostMode.Custom:
+					StartHostingCustomGame();
 					break;
 			}
 		}

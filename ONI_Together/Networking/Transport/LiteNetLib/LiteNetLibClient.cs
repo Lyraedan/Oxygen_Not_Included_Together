@@ -48,9 +48,11 @@ namespace ONI_Together.Networking.Transport.Lan
         public static NetPeer ServerPeer => _serverPeer;
         public static ulong CLIENT_ID { get; private set; }
 
-        public bool IsConnected => _serverPeer != null && _serverPeer.ConnectionState == ConnectionState.Connected;
+        public override ulong LocalPlayerId => CLIENT_ID;
+        public override ulong HostPlayerId => 1UL;
+        public override bool IsConnected => _serverPeer != null && _serverPeer.ConnectionState == ConnectionState.Connected;
         public static int MaxServerCapacity { get; internal set; } = 16;
-        public bool IsLoadingReconnect { get; set; }
+        public override bool IsLoadingReconnect { get; set; }
 
         private static readonly ConcurrentQueue<byte[]> _incomingPackets = new ConcurrentQueue<byte[]>();
 

@@ -5,6 +5,7 @@ using System.Text;
 using System.Threading.Tasks;
 using ONI_Together.Misc;
 using ONI_Together.Networking.Transport;
+using ONI_Together.Networking.Transport.External;
 using ONI_Together.Networking.Transport.Lan;
 using ONI_Together.Networking.Transport.Steam;
 using Steamworks;
@@ -33,13 +34,33 @@ namespace ONI_Together.Networking
         {
             STEAMWORKS = 0,
             LITENETLIB = 1,
-            RIPTIDE = 2
+            RIPTIDE = 2,
+            CUSTOM = 3
         }
         public static NetworkTransport transport { get; private set; } = NetworkTransport.LITENETLIB;
+
+        /// <summary>Stable id of the active transport ("steamworks", "litenetlib", "riptide", or a custom id).</summary>
+        public static string TransportId { get; private set; } = "litenetlib";
+
+        /// <summary>The registered custom provider when <see cref="transport"/> is <see cref="NetworkTransport.CUSTOM"/>.</summary>
+        public static ExternalTransportProvider ActiveExternalProvider { get; private set; }
 
         public static TransportServer TransportServer { get; set; } = new LiteNetLibServer();
         public static TransportClient TransportClient { get; set; } = new LiteNetLibClient();
         public static TransportPacketSender TransportPacketSender { get; set; } = new LiteNetLibPacketSender();
+
+        public static bool IsCustomConfig => transport == NetworkTransport.CUSTOM;
+
+        public static bool IsDirectConfig
+        {
+            get
+            {
+                if (transport == NetworkTransport.LITENETLIB || transport == NetworkTransport.RIPTIDE)
+                    return true;
+
+                return transport == NetworkTransport.CUSTOM && ActiveExternalProvider?.IsDirect == true;
+            }
+        }
 
         public static readonly int LOBBY_SIZE_MIN = 2;
         public static readonly int LOBBY_SIZE_DEFAULT = 4;
@@ -59,6 +80,14 @@ namespace ONI_Together.Networking
                 case NetworkTransport.LITENETLIB:
                 case NetworkTransport.RIPTIDE:
                     UpdateTransport(transport);
+                    CoroutineRunner.RunOne(StartRawDelayed(0.5f));
+                    break;
+                case NetworkTransport.CUSTOM:
+                    if (ActiveExternalProvider == null)
+                    {
+                        DebugConsole.LogError("[NetworkConfig] Cannot start: no custom transport is prepared.");
+                        return;
+                    }
                     CoroutineRunner.RunOne(StartRawDelayed(0.5f));
                     break;
             }
@@ -110,6 +139,7 @@ namespace ONI_Together.Networking
                     break;
                 case NetworkTransport.LITENETLIB:
                 case NetworkTransport.RIPTIDE:
+                case NetworkTransport.CUSTOM:
                     StopRaw();
                     break;
             }
@@ -137,36 +167,141 @@ namespace ONI_Together.Networking
 
         public static void UpdateTransport(NetworkTransport newTransport)
         {
-            if (transport.Equals(newTransport))
+            if (newTransport == NetworkTransport.CUSTOM)
+            {
+                DebugConsole.LogWarning("[NetworkConfig] Use UpdateCustomTransport(id) for custom transports.");
                 return;
-            
+            }
+
+            if (newTransport == NetworkTransport.RIPTIDE)
+            {
+                // Legacy enum/config value. Riptide is now a separate transport mod.
+                if (TransportRegistry.GetExternalProvider("riptide") != null && UpdateCustomTransport("riptide"))
+                    return;
+
+                DebugConsole.LogWarning(
+                    "[NetworkConfig] Riptide is now a separate transport mod. Falling back to LiteNetLib.");
+                newTransport = NetworkTransport.LITENETLIB;
+            }
+
+            if (transport.Equals(newTransport) && ActiveExternalProvider == null)
+                return;
+
             transport = newTransport;
+            TransportId = GetTransportId(newTransport);
+            ActiveExternalProvider = null;
             TransportServer = GetTransportServer();
             TransportClient = GetTransportClient();
             TransportPacketSender = GetTransportPacketSender();
             DebugConsole.Log($"Updated network transport to: {newTransport.ToString()}");
         }
 
+        public static bool UpdateCustomTransport(string id)
+        {
+            var provider = TransportRegistry.GetExternalProvider(id);
+            if (provider == null)
+            {
+                DebugConsole.LogError($"[NetworkConfig] Custom transport '{id}' is not registered.");
+                return false;
+            }
+
+            var server = provider.CreateServer();
+            var client = provider.CreateClient();
+            if (server == null || client == null)
+            {
+                DebugConsole.LogError($"[NetworkConfig] Custom transport '{id}' failed to create its endpoints.");
+                return false;
+            }
+
+            transport = NetworkTransport.CUSTOM;
+            TransportId = provider.Id;
+            ActiveExternalProvider = provider;
+            TransportServer = server;
+            TransportClient = client;
+            TransportPacketSender = new ExternalTransportPacketSender(server, client);
+
+            DebugConsole.Log($"Updated network transport to custom: {provider.DisplayName} ({provider.Id})");
+            return true;
+        }
+
+        public static bool PrepareCustomServer(string id, Dictionary<string, string> settings)
+        {
+            if (!UpdateCustomTransport(id))
+                return false;
+
+            if (TransportServer is ExternalTransportServer server)
+                server.Settings = settings ?? new Dictionary<string, string>();
+
+            return true;
+        }
+
+        public static bool StartCustomServer(string id, Dictionary<string, string> settings)
+        {
+            if (!PrepareCustomServer(id, settings))
+                return false;
+
+            StartServer();
+            return true;
+        }
+
+        public static bool ConnectCustom(string id, Dictionary<string, string> settings)
+        {
+            if (!UpdateCustomTransport(id))
+                return false;
+
+            if (TransportClient is ExternalTransportClient client)
+                client.Settings = settings ?? new Dictionary<string, string>();
+
+            GameClient.ConnectToHost();
+            return true;
+        }
+
         public static void UpdateLanTransport()
         {
-            UpdateTransport((NetworkTransport)Configuration.Instance.Host.LanSettings.Transport);
+            var lanTransport = Configuration.Instance.Host.LanSettings.Transport;
+            if (lanTransport == LanTransportType.Riptide)
+            {
+                DebugConsole.LogWarning(
+                    "[NetworkConfig] Riptide is now a separate transport mod; select it from the Custom tab.");
+                lanTransport = LanTransportType.LiteNetLib;
+                Configuration.Instance.Host.LanSettings.Transport = lanTransport;
+            }
+
+            UpdateTransport((NetworkTransport)lanTransport);
+        }
+
+        private static string GetTransportId(NetworkTransport value)
+        {
+            return value switch
+            {
+                NetworkTransport.STEAMWORKS => "steamworks",
+                NetworkTransport.LITENETLIB => "litenetlib",
+                NetworkTransport.RIPTIDE => "riptide",
+                _ => "custom"
+            };
         }
 
         public static TransportServer GetTransportServer()
         {
             using var _ = Profiler.Scope();
+            if (transport == NetworkTransport.CUSTOM)
+                return TransportServer;
             return TransportRegistry.GetTransport((TransportProtocol)transport).CreateServer();
         }
 
         public static TransportClient GetTransportClient()
         {
             using var _ = Profiler.Scope();
+            if (transport == NetworkTransport.CUSTOM)
+                return TransportClient;
             return TransportRegistry.GetTransport((TransportProtocol)transport).CreateClient();
         }
 
         public static TransportPacketSender GetTransportPacketSender()
         {
             using var _ = Profiler.Scope();
+            if (transport == NetworkTransport.CUSTOM)
+                return TransportPacketSender;
             return TransportRegistry.GetTransport((TransportProtocol)transport).CreatePacketSender();
         }
 
@@ -180,8 +315,10 @@ namespace ONI_Together.Networking
                     return SteamUser.GetSteamID().m_SteamID;
                 case NetworkTransport.LITENETLIB:
                     return MultiplayerSession.IsClient ? LiteNetLibClient.CLIENT_ID : LiteNetLibServer.CLIENT_ID;
-                case NetworkTransport.RIPTIDE:
-                    return MultiplayerSession.IsClient ? RiptideClient.CLIENT_ID : RiptideServer.CLIENT_ID;
+                case NetworkTransport.CUSTOM:
+                    return MultiplayerSession.IsClient
+                        ? TransportClient?.LocalPlayerId ?? 0UL
+                        : TransportServer?.LocalPlayerId ?? 0UL;
                 default:
                     return Utils.NilUlong();
             }
@@ -198,7 +335,8 @@ namespace ONI_Together.Networking
         {
             using var _ = Profiler.Scope();
 
-            return transport.Equals(NetworkTransport.LITENETLIB) || transport.Equals(NetworkTransport.RIPTIDE);
+            // Custom direct transports get the same chunk/name behaviour as LAN.
+            return IsDirectConfig;
         }
 
         public static int GetMaxServerCapacity()
@@ -211,6 +349,7 @@ namespace ONI_Together.Networking
                     break;
                 case NetworkTransport.LITENETLIB:
                 case NetworkTransport.RIPTIDE:
+                case NetworkTransport.CUSTOM:
                     return Configuration.Instance.Host.MaxLobbySize;
             }
             return Configuration.Instance.Host.MaxLobbySize;
@@ -240,6 +379,11 @@ namespace ONI_Together.Networking
                         LiteNetLibServer server = TransportServer as LiteNetLibServer;
                         return server?.ClientList ?? clients;
                     }
+                case NetworkTransport.CUSTOM:
+                    if (MultiplayerSession.IsClient)
+                        return new List<ulong>(MultiplayerSession.ConnectedPlayers.Keys);
+
+                    return new List<ulong>(TransportServer?.GetConnectedPlayerIds() ?? Array.Empty<ulong>());
             }
             return clients;
         }

@@ -23,6 +23,10 @@ namespace ONI_Together.Networking.Transport.Steam
         private static Callback<SteamNetConnectionStatusChangedCallback_t> _connectionStatusChangedCallback;
         public static HSteamNetConnection? Connection { get; private set; }
 
+        public override ulong LocalPlayerId => SteamUser.GetSteamID().m_SteamID;
+        public override ulong HostPlayerId => MultiplayerSession.HostUserID;
+        public override bool IsConnected => Connection.HasValue;
+
         private static SteamNetConnectionRealTimeStatus_t? connectionHealth = null;
 
         // Network health

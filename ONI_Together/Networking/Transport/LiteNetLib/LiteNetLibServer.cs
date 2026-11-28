@@ -36,8 +36,12 @@ namespace ONI_Together.Networking.Transport.Lan
         public int ConnectedClientCount => _server != null ? _server.ConnectedPeersCount : 0;
         public TcpFileTransferServer TcpTransfer => _tcpTransfer;
 
-        public void MarkClientLoading(ulong clientId) { }
-        public bool ConsumeReconnectFromLoad(ulong clientId) { return false; }
+        public override ulong LocalPlayerId => CLIENT_ID;
+
+        public override IReadOnlyList<ulong> GetConnectedPlayerIds() => ClientList;
+
+        public override void MarkClientLoading(ulong clientId) { }
+        public override bool ConsumeReconnectFromLoad(ulong clientId) { return false; }
 
         public List<ulong> ClientList { get; internal set; } = new List<ulong>();
 

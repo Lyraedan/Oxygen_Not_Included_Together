@@ -115,6 +115,76 @@ if (NetworkIdentityRegistryAPI.TryGetComponent<PrimaryElement>(netId, out var pr
 }
 ```
 
+## Custom network transports
+
+Third-party mods can register their own transport. ONI Together keeps packet serialization,
+framing, chunking, batching and dispatch; a custom transport only moves raw bytes and tracks
+peers.
+
+Register in `OnAllModsLoaded`:
+
+```csharp
+using ONI_Together_API.Transport;
+
+public sealed class MyTransportProvider : TransportProviderBase
+{
+    public override string Id => "my-transport";
+    public override string DisplayName => "My Transport";
+    public override TransportCapabilities Capabilities => TransportCapabilities.DirectConnect;
+
+    public override TransportSetting[] GetSettings() => new[]
+    {
+        new TransportSetting
+        {
+            Key = "address",
+            Label = "Address",
+            Kind = TransportSettingKind.Text,
+            Scope = TransportSettingScope.Both,
+            DefaultValue = "127.0.0.1",
+            Required = true
+        },
+        new TransportSetting
+        {
+            Key = "port",
+            Label = "Port",
+            Kind = TransportSettingKind.Integer,
+            Scope = TransportSettingScope.Both,
+            DefaultValue = "8080",
+            Required = true
+        }
+    };
+
+    public override ITransportServer CreateServer() => new MyServer();
+    public override ITransportClient CreateClient() => new MyClient();
+}
+
+// after all mods have loaded
+TransportAPI.RegisterTransport(new MyTransportProvider());
+```
+
+The server and client implementations must use public implicit members. ONI Together binds
+them by reflection. Key rules:
+
+- `TryDequeueReceived(out ulong senderId, out byte[] payload)` is polled from `Update()` on the
+  Unity main thread. Queue packets from background network threads and only drain them here.
+- `Send(ulong playerId, byte[] payload, int sendMode)` receives an already-framed payload.
+  `sendMode` uses the ONI Together packet send flags. Do not add packet headers.
+- Player ids must be stable, non-zero `ulong` values. The server's `LocalPlayerId` is the host,
+  and `GetConnectedPlayerIds()` must include the host and every peer that can send packets.
+  Add peers as soon as they connect so the handshake packet can mark them protocol-verified.
+- `Start(Dictionary<string, string> settings)` and `Connect(...)` receive the schema values plus
+  these standard keys: `transportId`, `displayName`, `maxPlayers` (host only), `isHost`.
+- The server owns the native transport lifetime; `Stop()` must release it.
+- `CreateServer()` and `CreateClient()` must both return non-null objects. The unused side may be
+  a lightweight stub; the main mod creates both when selecting a custom transport.
+- `ApiVersion` must be `TransportAPI.CurrentApiVersion` (`1`) for the current contract.
+- `GetSettings()` drives the Custom Transport tab. No address or port fields are assumed.
+  Boolean settings are passed as `"1"` or `"0"`; integer settings are passed as decimal strings.
+  A setting's `DefaultValue` is passed when the user has not overridden it.
+
+The Custom Transport tab and the transport API are additive; built-in Steam, LiteNetLib and
+Riptide transports are unchanged.
+
 ## Requirements
 
 - Oxygen Not Included (with ONI Together mod installed)

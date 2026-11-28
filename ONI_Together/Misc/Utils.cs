@@ -392,11 +392,12 @@ namespace ONI_Together.Misc
         {
 	        using var _ = Profiler.Scope();
 
+            string displayName = Configuration.Instance.Host.LanSettings.DisplayName;
+
             string name;
-            if (NetworkConfig.IsLanConfig())
+            if (!string.IsNullOrWhiteSpace(displayName) && !NetworkConfig.IsSteamConfig())
             {
-                string displayName = Configuration.Instance.Host.LanSettings.DisplayName;
-                name = !string.IsNullOrWhiteSpace(displayName) ? displayName : $"Player {NetworkConfig.GetLocalID()}";
+                name = displayName;
             }
             else if (SteamManager.Initialized)
             {

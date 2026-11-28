@@ -66,7 +66,7 @@ namespace ONI_Together.Networking.Packets.Core
 				}
 				else
 				{
-					var client = NetworkConfig.TransportClient as LiteNetLibClient;
+					var client = NetworkConfig.TransportClient;
 					bool isLoading = client != null && SenderId == MultiplayerSession.LocalUserID && client.IsLoadingReconnect;
 					if (isLoading)
 					{
@@ -92,8 +92,7 @@ namespace ONI_Together.Networking.Packets.Core
 
 			if (Status == ClientReadyState.Loading)
 			{
-				var server = NetworkConfig.TransportServer as LiteNetLibServer;
-				server?.MarkClientLoading(SenderId);
+				NetworkConfig.TransportServer?.MarkClientLoading(SenderId);
 				return;
 			}
 
@@ -106,10 +105,9 @@ namespace ONI_Together.Networking.Packets.Core
             ReadyManager.SetPlayerReadyState(player, Status);
 			DebugConsole.Log($"[ClientReadyStatusPacket] {SenderId} marked as {Status}");
 
-			if (NetworkConfig.IsLanConfig() && nameChanged)
+			if (!NetworkConfig.IsSteamConfig() && nameChanged)
 			{
-				var server = NetworkConfig.TransportServer as LiteNetLibServer;
-				bool isLoadingReconnect = server != null && server.ConsumeReconnectFromLoad(SenderId);
+				bool isLoadingReconnect = NetworkConfig.TransportServer?.ConsumeReconnectFromLoad(SenderId) == true;
 
 				if (!isLoadingReconnect)
 				{

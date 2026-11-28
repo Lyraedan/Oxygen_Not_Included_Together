@@ -101,7 +101,8 @@ namespace ONI_Together.Networking.Packets.World
                     // Show visual progress bar with player name
                     string progressBar = CreateProgressBar(info.ProgressPercent);
                     string clientName = info.ClientName;
-                    bool isFriends = SteamFriends.HasFriend(client.AsCSteamID(), EFriendFlags.k_EFriendFlagImmediate);
+                    bool isFriends = NetworkConfig.IsSteamConfig()
+                        && SteamFriends.HasFriend(client.AsCSteamID(), EFriendFlags.k_EFriendFlagImmediate);
                     if(isFriends)
                     {
                         // Display the friends name as we have them on our friends list

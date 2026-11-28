@@ -125,6 +125,10 @@ namespace ONI_Together.Networking
 				{
 					hostName = SteamFriends.GetFriendPersonaName(MultiplayerSession.HostUserID.AsCSteamID());
                 }
+				else if (NetworkConfig.IsCustomConfig)
+				{
+					hostName = NetworkConfig.ActiveExternalProvider?.DisplayName ?? "custom host";
+				}
 				else if (NetworkConfig.IsLanConfig())
 				{
 					hostName = $"{ip}:{port}";
@@ -304,7 +308,10 @@ namespace ONI_Together.Networking
 				DebugConsole.Log("[GameClient] PacketHandler.readyToProcess = true (menu)");
 
 				// Show overlay with localized message
-				MultiplayerOverlay.Show(string.Format(STRINGS.UI.MP_OVERLAY.CLIENT.WAITING_FOR_PLAYER, SteamFriends.GetFriendPersonaName(MultiplayerSession.HostUserID.AsCSteamID())));
+				string hostName = NetworkConfig.IsSteamConfig()
+					? SteamFriends.GetFriendPersonaName(MultiplayerSession.HostUserID.AsCSteamID())
+					: (NetworkConfig.ActiveExternalProvider?.DisplayName ?? "host");
+				MultiplayerOverlay.Show(string.Format(STRINGS.UI.MP_OVERLAY.CLIENT.WAITING_FOR_PLAYER, hostName));
 				if (!IsHardSyncInProgress)
 				{
 					DebugConsole.Log("[GameClient] Requesting save file from host");
@@ -468,6 +475,10 @@ namespace ONI_Together.Networking
                     MultiplayerSession.ServerPort
                 );
             }
+			else if (NetworkConfig.IsCustomConfig)
+			{
+				_cachedConnectionInfo = new CachedConnectionInfo(string.Empty, 0);
+			}
 		}
 
 		public static void ReconnectFromCache()
@@ -492,6 +503,11 @@ namespace ONI_Together.Networking
                     _cachedConnectionInfo = null; // Clear cache to prevent re-triggering
                     ConnectToHost(false, ip, port);
                 }
+				else if (NetworkConfig.IsCustomConfig)
+				{
+					_cachedConnectionInfo = null;
+					ConnectToHost(false);
+				}
 			}
 		}
 	}

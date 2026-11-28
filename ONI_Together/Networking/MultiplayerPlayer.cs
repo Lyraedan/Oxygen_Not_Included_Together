@@ -21,7 +21,7 @@ public class MultiplayerPlayer
 	{
 		PlayerId = playerId;
 		ProtocolVerified = IsLocal;
-		if(NetworkConfig.IsLanConfig())
+		if(!NetworkConfig.IsSteamConfig())
 		{
             PlayerName = $"Player {playerId}";
             return;

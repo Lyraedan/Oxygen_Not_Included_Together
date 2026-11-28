@@ -117,8 +117,8 @@ namespace ONI_Together
 
                     public class LAN_SETTINGS
                     {
-                        public static LocString LAN_TRANSPORT = "Which network library is used for LAN games.\n\nLiteNetLib is the modern default transport. Riptide is the legacy LAN transport.";
-                        public static LocString LAN_DISPLAY_NAME = "The name shown to other players when they discover or join your LAN game.\nLeave empty to default to 'Player <id>'.";
+                        public static LocString LAN_TRANSPORT = "Which network library is used for LAN games.\n\nLiteNetLib is the modern default transport. Riptide is available as a separate custom transport mod.";
+                        public static LocString LAN_DISPLAY_NAME = "The name shown to other players when hosting a LAN or Custom transport.\nLeave empty to default to 'Player <id>'.";
                     }
                 }
             }
@@ -606,6 +606,10 @@ namespace ONI_Together
 					}
 					public class LANJOIN
 					{
+						public class DISPLAYNAME
+						{
+							public static LocString TEXT = "Display Name";
+						}
 						public class INPUTS
 						{
 							public class IPINPUT
@@ -642,11 +646,11 @@ namespace ONI_Together
 					{
 						public class STEAM
 						{
-							public static LocString TEXT = "Steam Session";
+							public static LocString TEXT = "Steam";
 						}
 						public class LAN
 						{
-							public static LocString TEXT = "LAN Session";
+							public static LocString TEXT = "LAN";
 						}
 					}
 					public class LOBBYSIZE

@@ -10,6 +10,16 @@ namespace ONI_Together.Networking.Transport
     {
         public System.Action OnError;
 
+        /// <summary>The host's own player id, when the transport can provide one.</summary>
+        public virtual ulong LocalPlayerId => 0UL;
+
+        /// <summary>All connected player ids, including the host when applicable.</summary>
+        public virtual IReadOnlyList<ulong> GetConnectedPlayerIds() => System.Array.Empty<ulong>();
+
+        public virtual void MarkClientLoading(ulong clientId) { }
+
+        public virtual bool ConsumeReconnectFromLoad(ulong clientId) => false;
+
         public abstract void Prepare();
 
         public abstract void Start();

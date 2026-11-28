@@ -32,6 +32,16 @@ namespace ONI_Together.Networking.Transport
         /// </summary>
         public System.Action<string, string> OnReturnToMenu;
 
+        /// <summary>The local player's transport id, when the transport can provide one.</summary>
+        public virtual ulong LocalPlayerId => 0UL;
+
+        /// <summary>The host's transport id, when known.</summary>
+        public virtual ulong HostPlayerId => 0UL;
+
+        public virtual bool IsConnected => false;
+
+        public virtual bool IsLoadingReconnect { get; set; }
+
         public abstract void Prepare();
 
         public abstract void ConnectToHost(string ip, int port);

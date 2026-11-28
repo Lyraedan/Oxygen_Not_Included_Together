@@ -122,8 +122,8 @@ namespace ONI_Together.DebugTools
             OnUpdate += () => Update();
             OnUninit += () => UnInit();
 
-            selectedTransportType = Configuration.Instance.Host.NetworkTransport;
-            selectedLanType = (int)Configuration.Instance.Host.LanSettings.Transport - 1;
+            selectedTransportType = Mathf.Clamp(Configuration.Instance.Host.NetworkTransport, 0, 1);
+            selectedLanType = 0; // Riptide is now a Custom-tab transport.
             hostIP = Configuration.Instance.Host.LanSettings.Ip;
             hostPort = Configuration.Instance.Host.LanSettings.Port;
             settings_host.Ip = hostIP;
@@ -858,7 +858,7 @@ namespace ONI_Together.DebugTools
                 ImGui.Indent();
                 ImGui.Separator();
 
-                string[] lan_options = new string[] { "LiteNetLib (UDP)", "Riptide" };
+                string[] lan_options = new string[] { "LiteNetLib (UDP)" };
                 ImGui.Combo("Lan Type", ref selectedLanType, lan_options, lan_options.Length);
                 ImGui.Separator();
 
@@ -889,10 +889,10 @@ namespace ONI_Together.DebugTools
 
                 NetworkConfig.NetworkTransport selected_transport = selectedTransportType == 0
                     ? NetworkConfig.NetworkTransport.STEAMWORKS
-                    : (NetworkConfig.NetworkTransport)(selectedLanType + 1);
+                    : NetworkConfig.NetworkTransport.LITENETLIB;
 
                 Configuration.Instance.Host.NetworkTransport = (int)selected_transport;
-                Configuration.Instance.Host.LanSettings.Transport = (LanTransportType)(selectedLanType + 1);
+                Configuration.Instance.Host.LanSettings.Transport = LanTransportType.LiteNetLib;
                 if (selectedTransportType == 1)
                     NetworkConfig.UpdateLanTransport();
                 else

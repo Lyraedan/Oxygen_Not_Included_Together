@@ -20,6 +20,17 @@ namespace ONI_Together.Networking.Transport.Steam
         public static HSteamNetPollGroup PollGroup { get; private set; }
         private static Callback<SteamNetConnectionStatusChangedCallback_t> _connectionStatusChangedCallback;
 
+        public override ulong LocalPlayerId => SteamUser.GetSteamID().m_SteamID;
+
+        public override IReadOnlyList<ulong> GetConnectedPlayerIds()
+        {
+            var result = new List<ulong>(MultiplayerSession.ConnectedPlayers.Keys);
+            ulong hostId = LocalPlayerId;
+            if (hostId != 0 && !result.Contains(hostId))
+                result.Add(hostId);
+            return result;
+        }
+
         // Bandwidth tracking via per-connection GetConnectionRealTimeStatus
         private float _srvInBw, _srvOutBw;
         private int _srvInPps, _srvOutPps;
